@@ -25,20 +25,6 @@ modules:
       - source: ../files/system_files/raptor-chat-choice.sh
         destination: /usr/bin/raptor-chat-choice.sh
       # Default file manager (Nautilus) + image type associations (Gwenview).
-      # /etc/xdg/mimeapps.list, not /usr/share/applications/ — the latter is
-      # one of the LOWEST-priority locations in the XDG mimeapps.list
-      # resolution chain; Bazzite's base image already sets its own default
-      # there pointing at Dolphin, which silently won every time. /etc/xdg
-      # is part of XDG_CONFIG_DIRS, checked well before XDG_DATA_DIRS (where
-      # /usr/share/applications lives).
-      #
-      # Also mapped into /etc/skel/.config/mimeapps.list — the actual
-      # HIGHEST-priority location in the whole chain is each user's own
-      # ~/.config/mimeapps.list, which a system-wide default can never
-      # override once it exists. Seeding it via skel means every new user
-      # account starts with the correct association already in their own
-      # personal config from first login, rather than relying solely on the
-      # system-wide fallback.
       - source: ../files/system_files/raptor-mimeapps.list
         destination: /etc/xdg/mimeapps.list
       - source: ../files/system_files/raptor-mimeapps.list
@@ -60,16 +46,13 @@ modules:
         destination: /etc/systemd/user/wireplumber.service.d/raptor-restart.conf
       - source: ../files/system_files/zram-generator.conf
         destination: /etc/systemd/zram-generator.conf
+      # ── DNS: let systemd-resolved handle everything (ignores DHCP DNS) ─────
+      - source: ../files/system_files/91-raptor-dns.conf
+        destination: /etc/NetworkManager/conf.d/91-raptor-dns.conf
 
   # ── RPM packages ─────────────────────────────────────────────────────────
   - type: rpm-ostree
     install:
-      # Browser
-      # firefox removed temporarily from RPM install due to mozilla-openh264 depsolve
-
-      # System utilities — kept minimal. BleachBit and Filelight moved to the
-      # optional picker; not everyone wants a cleanup tool or disk visualiser
-      # taking up space by default.
       - fastfetch
       - htop
       - p7zip
@@ -77,114 +60,42 @@ modules:
       - wget
       - jq
       - zenity
-
-      # KDE extras
       - plasma-systemmonitor
-      # GNOME Files (Nautilus) — native RPM, not Flatpak.
-      # A sandboxed Flatpak Nautilus can't exec other native apps
-      # (e.g. Gwenview for images) without going through the XDG
-      # Desktop Portal, which doesn't reliably respect mimeapps.list.
-      # A native RPM can exec any installed native app directly.
-      # Dolphin stays from the base Plasma image for KDE integrations.
       - nautilus
       - gwenview
       - kcalc
-
-      # Power management
       - power-profiles-daemon
-
-      # Multimedia
-      # mpv only — lightweight, no large runtime deps. VLC, OBS, Audacity,
-      # and Kdenlive are available in the firstboot optional app picker.
       - mpv
-
-      # Creative & Office apps (GIMP, Inkscape, Krita, Darktable, LibreOffice)
-      # all moved to the firstboot optional app picker — these RPMs pull in
-      # large dependency trees (Qt/GTK image processing libs, color
-      # management, spell-check dictionaries) that add significant size to
-      # every install regardless of whether the user ever opens them. Krita
-      # was previously a default; moved to optional for a truly bare-basics
-      # default install.
-
-      # CPU interrupt distribution — spreads hardware IRQs across all cores.
-      # Prevents a single core from handling all NIC/USB/audio interrupts while
-      # a game is pinned to it, reducing jitter under load.
       - irqbalance
-
-      # Gaming
       - gamemode
       - mangohud
       - goverlay
       - wine
       - winetricks
       - protontricks
-
-      # Python + GObject bindings — REQUIRED runtime dependency of Raptor's
-      # own GTK4/Adwaita apps (Cortex, GPU Profiler, Wallpaper all use
-      # `from gi.repository import Gtk, Adw`). Not a "developer tool" — this
-      # is core infrastructure and must stay regardless of any bare-basics
-      # trimming. git, nodejs, and python3-pip are NOT required by anything
-      # Raptor ships and have moved to the optional picker as a bundled
-      # "Developer Runtime" entry.
       - python3
       - python3-gobject
-
-      # Development — build tools moved to optional firstboot picker.
-      # Most gaming users never compile code; gcc alone adds ~80 MB.
-      # Available via: sudo rpm-ostree install gcc make cmake
-      # ninja-build, meson → optional picker (build-system tools, niche)
-
-      # GTK / theming — required by Raptor's own apps and HUD theme system,
-      # not user-facing preference packages.
       - libadwaita
-
-      # Disk management
       - kde-partitionmanager
-
-      # Theming — Raptor HUD
       - kvantum
       - kvantum-qt5
       - papirus-icon-theme
       - jetbrains-mono-fonts
       - qt5-qtbase
 
-      # Removed from default install (moved to firstboot optional picker):
-      #   neovim, tmux, ripgrep, fzf      — terminal power-user tools
-      #   podman, podman-compose          — container tools
-      #   thunderbird                     — email (most use browser)
-      #   variety                         — wallpaper manager
-      #   btop, variety                   — redundant; btop→optional, variety→optional
-      #   bleachbit, filelight            — cleanup/disk tools, not bare-basic
-      #   krita                           — creative app, not bare-basic
-      #   git, nodejs, python3-pip        — dev tools, bundled into optional "Developer Runtime"
-      #   qbittorrent                     — not everyone torrents; optional
-
     remove:
       - tuned-ppd
 
   # ── Flatpaks ─────────────────────────────────────────────────────────────
-  # Only mandatory/core apps here. Optional apps (VSCodium, Blender, Bitwarden,
-  # Joplin, etc.) are offered by raptor-firstboot.service on first login so the
-  # user can choose what they actually want.
   - type: default-flatpaks@v1
     notify: true
     system:
       install:
-        # Core gaming stack — always present
-        - com.heroicgameslauncher.hgl    # Epic/GOG/Amazon game launcher
-        - net.davidotek.pupgui2          # ProtonUp-Qt
-        # Firefox added as a Flatpak to avoid RPM openh264 depsolve issues
+        - com.heroicgameslauncher.hgl
+        - net.davidotek.pupgui2
         - org.mozilla.firefox
-        # Vesktop moved to raptor-chat-choice.sh (firstboot Discord/Vesktop
-        # choice) — was previously a forced mandatory install; not bare-basic.
-        # Mission Center, Flatseal, VSCodium, VLC moved to the optional
-        # picker for the same reason — see raptor-app-choice.sh.
 
   # ── Kernel boot arguments ─────────────────────────────────────────────────────
-  # split_lock_detect=off   — prevents costly split-lock penalties in game loops
-  # transparent_hugepage    — madvise lets games request hugepages without forcing
-  #                           them globally (avoids fragmentation on mixed workloads)
-  # nowatchdog + nmi=0      — removes periodic watchdog NMIs during gaming sessions
   - type: kargs
     kargs:
       - split_lock_detect=off
@@ -208,15 +119,8 @@ modules:
       enabled:
         - raptor-ensure-services.service
         - raptor-gpu-profile.service
-        # raptor-powerprofile.service: sets balanced as the boot default power
-        # profile via powerprofilesctl; Cortex overrides at runtime per mode.
         - raptor-powerprofile.service
-        # raptor-cpugovernor.service intentionally omitted: it called
-        # /usr/bin/raptor-cpugovernor.sh which does not exist. CPU governor
-        # is already handled inside gpu-detect.sh (raptor-gpu-profile.service).
     user:
       enabled:
         - raptor-firstboot.service
-        # gamemoded: gamemode daemon must run in the user session to receive
-        # dbus activation requests from games launched via Steam/Heroic/Lutris.
         - gamemoded.service
