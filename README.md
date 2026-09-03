@@ -45,10 +45,11 @@ systemctl reboot
 
 ## First Boot
 
-Two dialogs appear on the first login, in sequence:
+Three dialogs appear on the first login, in sequence:
 
 1. **Browser choice** — Firefox (pre-installed, no download), Brave (~120 MB), or Chrome (~150 MB). Shows a network check, download progress bar, and retry prompt on failure. Closing the dialog keeps Firefox.
-2. **App picker** — 65+ optional apps across 12 categories. Nothing is pre-ticked. Everything here is also installable later from Discover or `flatpak install flathub <id>`. "Skip — Install Nothing" is always available.
+2. **Chat client choice** — Discord (~150 MB) or Vesktop (~100 MB, Vencord built in). Neither is pre-installed. "Skip — Install Neither" is always available.
+3. **App picker** — 65+ optional apps across 12 categories. Nothing is pre-ticked. Everything here is also installable later from Discover or `flatpak install flathub <id>`. "Skip — Install Nothing" is always available.
 
 ---
 
@@ -58,13 +59,10 @@ Two dialogs appear on the first login, in sequence:
 
 | Category | Apps |
 |---|---|
-| **Communication** | Vesktop (Discord client — native Wayland) |
-| **Browser** | Firefox (memory-optimised: 64 MB cache, 4 processes, tab unloading)|
+| **Browser** | Firefox (memory-optimised: 64 MB cache, 4 processes, tab unloading) |
 | **Gaming** | Heroic Games Launcher (Epic/GOG/Amazon), ProtonUp-Qt, Protontricks, Wine, Winetricks |
-| **Creative** | Krita (digital painting and illustration) |
-| **Media** | mpv (lightweight playback), VLC|
-| **Development** | VSCodium, Git, Node.js, Python 3 |
-| **System** | htop, KDE Partition Manager, BleachBit, Filelight, Mission Center, Flatseal |
+| **Media** | mpv (lightweight playback) |
+| **System** | htop, KDE Partition Manager, Plasma System Monitor, Nautilus, Gwenview, KCalc, Fastfetch, p7zip |
 | **Raptor Apps** | Raptor Cortex, Raptor GPU Profiler, Raptor Wallpaper, Raptor Update Manager — all grouped under their own **Raptor OS** category in the app menu |
 | **Overlays** | MangoHud (green palette, Shift+F12), GOverlay, Gamemode |
 
@@ -74,16 +72,18 @@ Two dialogs appear on the first login, in sequence:
 
 | Category | Apps |
 |---|---|
+| **Browser** | Brave (~120 MB), Chrome (~150 MB) — Firefox is pre-installed |
+| **Chat** | Discord (~150 MB), Vesktop (~100 MB, Vencord built in) |
 | **Communication** | Telegram, Signal, Slack, Zoom, Thunderbird, Element (Matrix) |
 | **Productivity** | ONLYOFFICE, Bitwarden, Joplin, MarkText, Calibre, Obsidian |
 | **Office** | LibreOffice |
-| **Creative** | GIMP, Inkscape, Darktable, Blender, Kdenlive, Shotcut, OBS Studio, Audacity, Boatswain, HandBrake |
-| **Development** | GitHub Desktop, Pods, GCC + Make + CMake, Ninja + Meson, Neovim, GitHub CLI |
-| **Gaming** | Bottles, Lutris, Spotify, Plex, Cartridges, Ryujinx, RPCS3, RetroArch, Dolphin Emulator, PCSX2, Chiaki |
+| **Creative** | GIMP, Inkscape, Krita, Darktable, Blender, Kdenlive, Shotcut, OBS Studio, Audacity, Boatswain, HandBrake |
+| **Development** | VSCodium, Developer Runtime (Git + Node.js + pip), Godot Engine, GitHub Desktop, Pods, GCC + Make + CMake, Ninja + Meson, Neovim, GitHub CLI, dash, xclip, ksshaskpass, libssh-tools |
+| **Gaming** | Bottles, Lutris, Protontricks, Spotify, Plex, VLC, Cartridges, Ryujinx, RPCS3, RetroArch, Dolphin Emulator, PCSX2, Chiaki |
 | **Privacy** | ProtonVPN, KeePassXC |
-| **Media & Downloads** | FreeTube, Parabolic, Kooha, Clapper, Amberol |
+| **Media & Downloads** | FreeTube, Parabolic, Kooha, Clapper, Amberol, qBittorrent |
 | **Audio Production** | EasyEffects, Helvum, LMMS, Ardour |
-| **System** | Warehouse, Impression, CoreCtrl, btop, Variety, GNOME Boxes, GNOME Backups, Warp, Flatsweep, Upscayl, Metadata Cleaner |
+| **System** | Warehouse, Impression, CoreCtrl, btop, Variety, Mission Center, Flatseal, BleachBit, Filelight, GNOME Boxes, GNOME Backups, Warp, Flatsweep, Upscayl, Metadata Cleaner, Klipper, kfind, file-roller |
 
 ---
 
