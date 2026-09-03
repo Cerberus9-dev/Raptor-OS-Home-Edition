@@ -62,7 +62,7 @@ jobs:
             gnupg
 
       - name: Cache APT Package Archives
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: /var/cache/apt/archives
           key: ${{ runner.os }}-raptor-home-apt-${{ hashFiles('build/config/package-lists/*') }}
