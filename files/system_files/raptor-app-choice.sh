@@ -167,6 +167,9 @@ APP_CATALOGUE=(
     "FALSE|Flatseal|com.github.tchx84.Flatseal|Flatpak permission manager — previously a default install"
     "FALSE|BleachBit|None|Deep system/cache cleanup tool (install via: sudo rpm-ostree install bleachbit)"
     "FALSE|Filelight|None|Visual disk usage analyser (install via: sudo rpm-ostree install filelight)"
+    "FALSE|Klipper|None|Clipboard manager — keeps history of copied text (install via: sudo rpm-ostree install klipper)"
+    "FALSE|kfind|None|KDE file search tool — find files by name, type, size, date (install via: sudo rpm-ostree install kfind)"
+    "FALSE|file-roller|None|Archive manager — extract and create .zip, .tar.gz, .7z, and more (install via: sudo rpm-ostree install file-roller)"
     # ── Communication ──────────────────────────────────────────────────────
     "FALSE|Thunderbird|org.mozilla.Thunderbird|Email and calendar client"
     # ── Terminal & Developer tools ─────────────────────────────────────────
@@ -176,6 +179,10 @@ APP_CATALOGUE=(
     "FALSE|GCC + Make + CMake|None|C/C++ compiler toolchain — for compiling game mods, tools, or custom builds"
     "FALSE|Ninja + Meson|None|Modern build systems used by Mesa, Wine, and many open-source projects"
     "FALSE|Neovim|None|Terminal text editor with plugin ecosystem (install via: sudo rpm-ostree install neovim)"
+    "FALSE|dash|None|Fast POSIX shell — lightweight alternative to bash for running scripts (install via: sudo rpm-ostree install dash)"
+    "FALSE|xclip|None|Clipboard CLI tool — copy/paste from the terminal (install via: sudo rpm-ostree install xclip)"
+    "FALSE|ksshaskpass|None|KDE SSH password prompt — GUI dialog for SSH key passphrases (install via: sudo rpm-ostree install ksshaskpass)"
+    "FALSE|libssh-tools|None|SSH utilities — ssh-keygen, ssh-agent, and related tools (install via: sudo rpm-ostree install libssh-tools)"
     # ── Media & Downloads ──────────────────────────────────────────────────
     "FALSE|Parabolic|org.nickvision.tubeconverter|Download YouTube and other online videos"
     "FALSE|Kooha|io.github.seadve.Kooha|Simple screen recorder (no OBS needed for basic capture)"
