@@ -144,7 +144,10 @@ APP_CATALOGUE=(
     "FALSE|Boatswain|com.feaneron.Boatswain|Elgato Stream Deck controller"
     "FALSE|HandBrake|fr.handbrake.ghb|Video transcoder — convert, compress, and re-encode video files"
     # ── Development ────────────────────────────────────────────────────────
-    "FALSE|VSCodium|com.vscodium.codium|Open-source VS Code build, no telemetry — previously a default install"
+    "FALSE|VSCodium|com.vscodium.codium|Open-source VS Code build, no telemetry (Flatpak — sandboxed)"
+    "FALSE|VSCodium — Native (Full Permissions)|RPM:vscodium|Native RPM install (NOT sandboxed) — full system access for tray, pkexec/admin tools, and scripts that need to touch the system. Requires a reboot after first-boot."
+    "FALSE|VSCodium Insiders|com.vscodium.codium-insiders|Daily pre-release build, no telemetry (Flatpak — sandboxed)"
+    "FALSE|VSCodium Insiders — Native (Full Permissions)|RPM:vscodium-insiders|Native RPM install of the pre-release build (NOT sandboxed). Requires a reboot after first-boot."
     "FALSE|Developer Runtime|None|Git + Node.js + pip — for running dev tools and scripts (install via: sudo rpm-ostree install git nodejs python3-pip)"
     "FALSE|Godot Engine|org.godotengine.Godot|Free, open-source game engine"
     "FALSE|GitHub Desktop|io.github.shiftey.Desktop|Git GUI for GitHub repos"
@@ -229,7 +232,7 @@ SELECTED=$(
     zenity \
         --list \
         --title="Raptor OS — Optional App Setup" \
-        --text="<b>Select optional applications to install from Flathub:</b>\n\nTick anything you want, or click <b>Skip — Install Nothing</b> to install none of these now.\nEverything here can also be installed later from Discover or the terminal." \
+        --text="<b>Select optional applications to install:</b>\n\nTick anything you want, or click <b>Skip — Install Nothing</b> to install none of these now.\nMost apps install from Flathub. Items marked 'Native (Full Permissions)' install as system RPMs — they are NOT sandboxed (full system access) and need a reboot to activate.\nEverything here can also be installed later from Discover or the terminal." \
         --checklist \
         --column="Install" \
         --column="Application" \
@@ -265,6 +268,7 @@ for entry in "${APP_CATALOGUE[@]}"; do
 done
 
 FAILED=()
+NEEDS_REBOOT=0
 IFS='|' read -ra TO_INSTALL <<< "${SELECTED}"
 
 for flatpak_id in "${TO_INSTALL[@]}"; do
@@ -274,7 +278,59 @@ for flatpak_id in "${TO_INSTALL[@]}"; do
     app_name="${ID_TO_NAME[${flatpak_id}]:-${flatpak_id}}"
     log "Installing ${app_name} (${flatpak_id})…"
 
-    if [ "${flatpak_id}" = "None" ]; then
+    if [[ "${flatpak_id}" == RPM:* ]]; then
+        # Native (non-Flatpak), full-permissions RPM install from a third-party
+        # repo. The package is named after the colon (e.g. RPM:vscodium -> codium).
+        NEEDS_REBOOT=1
+        RPM_PKG="${flatpak_id#RPM:}"
+        case "${RPM_PKG}" in
+            vscodium|vscodium-insiders)
+                # Add VSCodium's official DNF repo, then layer the matching codium RPM.
+                if ! command -v dnf config-manager &>/dev/null; then
+                    err "dnf config-manager not available — cannot add VSCodium repo."
+                    FAILED+=("${app_name}")
+                    continue
+                fi
+                if ! sudo dnf config-manager addrepo \
+                        --id=VSCodium \
+                        --set=name=VSCodium \
+                        --set=baseurl=https://paulcarroty.gitlab.io/vscodium-deb-rpm-repo/rpms/ \
+                        --set=enabled=1 \
+                        --set=gpgcheck=1 \
+                        --set=gpgkey=https://gitlab.com/paulcarroty/vscodium-deb-rpm-repo/raw/master/pub.gpg \
+                        --set=repo_gpgcheck=1 \
+                        --set=metadata_expire=1h \
+                        >> /tmp/raptor-app-install.log 2>&1; then
+                    err "Failed to add VSCodium repository."
+                    FAILED+=("${app_name}")
+                    continue
+                fi
+                # Translate our catalogue token into the actual VSCodium RPM name:
+                # vscodium -> codium, vscodium-insiders -> codium-insiders
+                case "${RPM_PKG}" in
+                    vscodium)           RPM_NAME="codium" ;;
+                    vscodium-insiders)  RPM_NAME="codium-insiders" ;;
+                    *)                  RPM_NAME="${RPM_PKG}" ;;
+                esac
+                if sudo rpm-ostree install --idempotent --allow-inactive "${RPM_NAME}" \
+                        >> /tmp/raptor-app-install.log 2>&1; then
+                    log "OK (rpm-ostree): ${app_name} — REBOOT required to activate"
+                else
+                    err "${app_name}: install after reboot: sudo rpm-ostree install ${RPM_NAME}"
+                    FAILED+=("${app_name}")
+                fi
+                ;;
+            *)
+                if sudo rpm-ostree install --idempotent --allow-inactive "${RPM_PKG}" \
+                        >> /tmp/raptor-app-install.log 2>&1; then
+                    log "OK (rpm-ostree): ${app_name} — REBOOT required to activate"
+                else
+                    err "${app_name}: install after reboot: sudo rpm-ostree install ${RPM_PKG}"
+                    FAILED+=("${app_name}")
+                fi
+                ;;
+        esac
+    elif [ "${flatpak_id}" = "None" ]; then
         # RPM-only app — attempt via rpm-ostree
         # Handle compound entries like "GCC + Make + CMake"
         case "${app_name}" in
@@ -291,6 +347,7 @@ for flatpak_id in "${TO_INSTALL[@]}"; do
         esac
         if sudo rpm-ostree install --idempotent --allow-inactive $APP_LOWER \
                 >> /tmp/raptor-app-install.log 2>&1; then
+            NEEDS_REBOOT=1
             log "OK (rpm-ostree): ${app_name}"
         else
             err "Note: ${app_name} — install after reboot: sudo rpm-ostree install ${APP_LOWER}"
@@ -307,16 +364,28 @@ done
 
 # ── Result dialog ─────────────────────────────────────────────────────────────
 if [[ ${#FAILED[@]} -eq 0 ]]; then
-    zenity --info \
-        --title="Raptor OS — Setup Complete" \
-        --text="All selected applications were installed successfully." \
-        --width=340 2>/dev/null || true
+    if [[ "${NEEDS_REBOOT}" -eq 1 ]]; then
+        zenity --info \
+            --title="Raptor OS — Setup Complete" \
+            --text="All selected applications were installed successfully.\n\nSome were installed as native system apps and will be available after a reboot." \
+            --width=380 2>/dev/null || true
+    else
+        zenity --info \
+            --title="Raptor OS — Setup Complete" \
+            --text="All selected applications were installed successfully." \
+            --width=340 2>/dev/null || true
+    fi
 else
     FAIL_LIST=$(printf '  • %s\n' "${FAILED[@]}")
+    if [[ "${NEEDS_REBOOT}" -eq 1 ]]; then
+        REBOOT_NOTE="\n\nSome system apps staged successfully and will appear after a reboot."
+    else
+        REBOOT_NOTE=""
+    fi
     zenity --warning \
         --title="Some Apps Failed to Install" \
-        --text="The following could not be installed:\n\n${FAIL_LIST}\n\nCheck your connection and install them later from Discover." \
-        --width=380 2>/dev/null || true
+        --text="The following could not be installed:\n\n${FAIL_LIST}${REBOOT_NOTE}\n\nCheck your connection and install them later from Discover." \
+        --width=400 2>/dev/null || true
 fi
 
 log "App selection complete."
