@@ -153,16 +153,20 @@ def check_for_updates():
     """Check rpm-ostree for a pending deployment upgrade.
     Returns (has_update: bool, message: str)."""
     try:
+        # Use status --json instead of upgrade --check (the latter is unreliable:
+        # https://github.com/coreos/rpm-ostree/issues/1579)
         result = subprocess.run(
-            ["rpm-ostree", "upgrade", "--check"],
+            ["rpm-ostree", "status", "--json"],
             capture_output=True, text=True, timeout=60,
         )
-        output = result.stdout + result.stderr
-        if "AvailableUpdate" in output:
-            return True, "A system update is available."
-        if result.returncode == 0:
-            return False, "System is up to date."
-        return False, f"Could not check for updates (exit {result.returncode})."
+        if result.returncode != 0:
+            return False, f"Could not check for updates (exit {result.returncode})."
+        import json
+        status = json.loads(result.stdout)
+        for deployment in status.get("deployments", []):
+            if deployment.get("cached-update"):
+                return True, "A system update is available."
+        return False, "System is up to date."
     except subprocess.TimeoutExpired:
         return False, "Update check timed out."
     except FileNotFoundError:
