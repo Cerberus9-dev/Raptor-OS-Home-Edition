@@ -6,6 +6,26 @@
 - Custom Raptor OS logo
 - Custom Icons for all Raptor OS Apps
 
+## [v2.6.9] - 2026-09-03 (DNS Hardening)
+
+### Fixed
+
+- **School/corporate networks pushing broken DNS via DHCP** — when connected to
+  networks like school WiFi, the DHCP server provides its own DNS server
+  (`10.241.210.1`) which gets applied at the link level in systemd-resolved,
+  taking priority over the global Cloudflare DoT config. This caused total DNS
+  resolution failure for domains the local DNS couldn't resolve (including
+  the school's own OneView portal). Fixed by adding
+  `91-raptor-dns.conf` (`dns=none` in NetworkManager) so systemd-resolved
+  exclusively manages DNS regardless of what DHCP pushes. Cloudflare DoT
+  remains the sole resolver on all networks
+
+### Added
+
+- **`files/system_files/91-raptor-dns.conf`** — NetworkManager config that
+  sets `dns=none`, delegating all DNS resolution to systemd-resolved and
+  ignoring DHCP-provided DNS servers
+
 ## [v2.6.8] - 2026-07-18 (Taskbar Reverted to Stock KDE, Wallpaper App, Service Hardening)
 
 ### Removed
