@@ -27,6 +27,18 @@ cat << 'EOF' > /usr/share/polkit-1/actions/io.github.cerberus9dev.raptorupdate.p
     <annotate key="org.freedesktop.policykit.exec.allow_gui">true</annotate>
   </action>
 
+  <action id="io.github.cerberus9dev.raptorupdate.check">
+    <description>Check for Raptor OS system updates</description>
+    <message>Authentication required to check for system updates</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/lib/raptor/check-helper</annotate>
+    <annotate key="org.freedesktop.policykit.exec.allow_gui">true</annotate>
+  </action>
+
   <action id="io.github.cerberus9dev.raptorupdate.flatpak">
     <description>Update Flatpak applications</description>
     <message>Authentication required to update Flatpak applications</message>
@@ -63,6 +75,16 @@ exec rpm-ostree update 2>&1
 EOF
 chmod +x /usr/lib/raptor/update-helper
 
+cat << 'EOF' > /usr/lib/raptor/check-helper
+#!/bin/bash
+# Refresh rpm-ostree's remote metadata and cache the result *in the current
+# deployment's cached-update field*, which `rpm-ostree status --json` then
+# reports. Without this step the field stays empty (or stale) and the GUI
+# answers "no updates" even when a new base image push exists.
+exec rpm-ostree upgrade --check 2>&1
+EOF
+chmod +x /usr/lib/raptor/check-helper
+
 cat << 'EOF' > /usr/lib/raptor/flatpak-update-helper
 #!/bin/bash
 # Update both system-wide and user Flatpaks in one privileged pass.
@@ -83,11 +105,26 @@ chmod +x /usr/lib/raptor/reboot-helper
 mkdir -p /etc/sudoers.d
 cat << 'EOF' > /etc/sudoers.d/raptor-update
 ALL ALL=(root) NOPASSWD: /usr/lib/raptor/update-helper
+ALL ALL=(root) NOPASSWD: /usr/lib/raptor/check-helper
 ALL ALL=(root) NOPASSWD: /usr/lib/raptor/flatpak-update-helper
 ALL ALL=(root) NOPASSWD: /usr/lib/raptor/reboot-helper
 EOF
 chmod 440 /etc/sudoers.d/raptor-update
 visudo -cf /etc/sudoers.d/raptor-update || true
+
+# ── Background update check ───────────────────────────────────────────────────
+# Keep rpm-ostree's cached-update state warm. With AutomaticUpdatePolicy=check
+# the rpm-ostreed-automatic timer periodically refreshes the remote metadata
+# and records whether a newer deployment exists, so `rpm-ostree status --json`
+# gives correct answers even between GUI refreshes. (policy=check only *checks*;
+# it never stages or downloads the update — the GUI still drives the real
+# update + reboot through update-helper.)
+mkdir -p /etc/rpm-ostreed.conf.d
+cat << 'EOF' > /etc/rpm-ostreed.conf.d/raptor-auto-check.conf
+[Daemon]
+AutomaticUpdatePolicy=check
+EOF
+systemctl enable rpm-ostreed-automatic.timer 2>/dev/null || true
 
 # ── Python GUI ────────────────────────────────────────────────────────────────
 cat << 'PYEOF' > /usr/bin/raptor-update
@@ -108,6 +145,8 @@ import re
 
 CHANGELOG_URL         = "https://raw.githubusercontent.com/Cerberus9-dev/Raptor-OS/refs/heads/main/changelog.md"
 UPDATE_HELPER         = "/usr/lib/raptor/update-helper"
+CHECK_HELPER          = "/usr/lib/raptor/check-helper"
+CHECK_ACTION          = "io.github.cerberus9dev.raptorupdate.check"
 FLATPAK_UPDATE_HELPER = "/usr/lib/raptor/flatpak-update-helper"
 REBOOT_HELPER         = "/usr/lib/raptor/reboot-helper"
 
@@ -151,10 +190,27 @@ def fetch_changelog():
 
 def check_for_updates():
     """Check rpm-ostree for a pending deployment upgrade.
+
+    The `cached-update` field in `rpm-ostree status --json` only becomes
+    populated after a check has actually run (via `rpm-ostree upgrade --check`
+    or the rpm-ostreed-automatic timer). Reading it on its own never triggers
+    that, so the resolver first runs the privileged check-helper to refresh
+    remote metadata + cache the result, then inspects status.
+
     Returns (has_update: bool, message: str)."""
+    refresh_out = ""
+    refresh_rc = -1
     try:
-        # Use status --json instead of upgrade --check (the latter is unreliable:
-        # https://github.com/coreos/rpm-ostree/issues/1579)
+        proc = run_privileged(CHECK_HELPER, action_id=CHECK_ACTION)
+        refresh_out, _ = proc.communicate(timeout=180)
+        refresh_rc = proc.returncode
+    except subprocess.TimeoutExpired:
+        if proc is not None:
+            proc.kill()
+        refresh_rc = "timeout"
+    except Exception:
+        refresh_rc = -1
+    try:
         result = subprocess.run(
             ["rpm-ostree", "status", "--json"],
             capture_output=True, text=True, timeout=60,
@@ -163,9 +219,21 @@ def check_for_updates():
             return False, f"Could not check for updates (exit {result.returncode})."
         import json
         status = json.loads(result.stdout)
+        # cached-update is a bool on older rpm-ostree and a dict on newer.
         for deployment in status.get("deployments", []):
             if deployment.get("cached-update"):
                 return True, "A system update is available."
+        # rpm-ostree prints "No updates available." / AvailableUpdate: info in
+        # the check-helper output; trust an explicit announcement even if the
+        # status field lags (container-native base images can do that).
+        if re.search(r"(?mi)^\s*AvailableUpdate\s*:", refresh_out):
+            return True, "A system update is available."
+        if refresh_rc == "timeout":
+            return False, "Update check timed out while refreshing metadata."
+        if isinstance(refresh_rc, int) and refresh_rc != 0:
+            tail = [l for l in refresh_out.splitlines() if l.strip()]
+            detail = tail[-1] if tail else "unknown error"
+            return False, f"Could not refresh update state ({detail})."
         return False, "System is up to date."
     except subprocess.TimeoutExpired:
         return False, "Update check timed out."
@@ -198,11 +266,14 @@ def check_flatpak_updates():
         return False, 0, f"Error: {e}"
 
 
-def run_privileged(helper_path):
+def run_privileged(helper_path, action_id=None):
     for launcher in (["pkexec"], ["sudo"]):
         try:
+            cmd = launcher + [helper_path]
+            if launcher[0] == "pkexec" and action_id:
+                cmd = [launcher[0], "--action-id", action_id, helper_path]
             return subprocess.Popen(
-                launcher + [helper_path],
+                cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,

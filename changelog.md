@@ -5,6 +5,16 @@
 - Custom KDE splash screen
 - Custom Raptor OS logo
 - Custom Icons for all Raptor OS Apps
+- **Update manager "no updates" fix** — the manager only ever read
+  `rpm-ostree status --json`, but its `cached-update` field stays empty until a
+  check actually runs, so it reported "up to date" even when a new base image
+  existed. Fixed by adding a privileged `check-helper` that runs
+  `rpm-ostree upgrade --check` (refreshes remote metadata + caches the result)
+  before reading status, wired through polkit/`--action-id` and sudoers, plus a
+  `raptor-auto-check.conf` drop-in (`AutomaticUpdatePolicy=check`) and
+  `rpm-ostreed-automatic.timer` to keep the cache warm in the background. The
+  GUI now also honors the newer dict form of `cached-update` and an explicit
+  `AvailableUpdate:` in check output. See `files/scripts/raptor-update.sh`
 - **DNS regression fix (v2.6.9 reversal)** — v2.6.9 pinned Cloudflare DoT as
   the *sole* resolver (`DNS=1.1.1.1...#cloudflare-dns.com`) and told
   NetworkManager to ignore DHCP DNS (`dns=none`). On networks that DPI-block
