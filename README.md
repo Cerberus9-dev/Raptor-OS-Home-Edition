@@ -136,8 +136,7 @@ Gallery-style wallpaper picker — click any thumbnail to apply it, including fo
 
 ### Network
 - **BBR congestion control + CAKE qdisc**, **128 MB TCP buffers**, **socket busy-polling**, **TCP fast-open**
-- **Cloudflare DoT** — ~10 ms DNS vs ~40–80 ms ISP default
-- **DHCP DNS override ignored** — NetworkManager set to `dns=none`, letting systemd-resolved exclusively manage DNS with Cloudflare. Prevents captive-portal or school/corporate networks from pushing broken DNS servers that override the system config
+- **Network's own DNS wins, fast DoT resolvers on fallback** — the per-link (DHCP) resolver is always used first (so school/corporate DNS and captive portals work out of the box); Cloudflare/Quad9 DoT are consulted only when a network provides no DNS server. Pinning Cloudflare as the *only* resolver broke DPI'd networks that block `1.1.1.1`
 
 ### Input
 - **USB autosuspend disabled** for HID devices and Bluetooth adapters specifically — excluded from Cortex's power-mode switching entirely, so a Bluetooth mouse/keyboard can never be swept into a suspended state by a mode change

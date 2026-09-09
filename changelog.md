@@ -5,6 +5,15 @@
 - Custom KDE splash screen
 - Custom Raptor OS logo
 - Custom Icons for all Raptor OS Apps
+- **DNS regression fix (v2.6.9 reversal)** — v2.6.9 pinned Cloudflare DoT as
+  the *sole* resolver (`DNS=1.1.1.1...#cloudflare-dns.com`) and told
+  NetworkManager to ignore DHCP DNS (`dns=none`). On networks that DPI-block
+  `1.1.1.1` — school/corporate WiFi — every uncached lookup stalled, including
+  the network's own sites. Now the per-link DHCP resolver (e.g. school DNS)
+  always wins and Cloudflare/Quad9 DoT are only a *fallback* when a network
+  provides no DNS server. Changed `files/scripts/raptor-gaming.sh` (Drop the
+  `DNS=` line, keep `FallbackDNS=`) and `files/system_files/91-raptor-dns.conf`
+  (`dns=none` → `dns=systemd-resolved`)
 
 ## [v2.6.9] - 2026-09-03 (DNS Hardening)
 

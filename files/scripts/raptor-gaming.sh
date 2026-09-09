@@ -957,10 +957,14 @@ MODULES
 # ── DNS-over-TLS ─────────────────────────────────────────────────────────��[...]
 mkdir -p /etc/systemd/resolved.conf.d
 cat << 'RESOLVED' > /etc/systemd/resolved.conf.d/raptor-dns.conf
-# Raptor OS: Cloudflare DoT resolver — faster than ISP default (~10 ms global)
+# Raptor OS: fast public DoT resolvers as a FALLBACK.
+# The per-link (DHCP) resolver — e.g. a school/corporate DNS — always wins;
+# Cloudflare/Quad9 DoT are only used when a network provides no DNS server.
+# Pinning Cloudflare DoT as the SOLE resolver broke school/corporate DPI
+# networks that raw-block 1.1.1.1: every uncached lookup stalled, including
+# the network's own sites.
 [Resolve]
-DNS=1.1.1.1#cloudflare-dns.com 1.0.0.1#cloudflare-dns.com
-FallbackDNS=9.9.9.9#dns.quad9.net 8.8.8.8#dns.google
+FallbackDNS=1.1.1.1#cloudflare-dns.com 1.0.0.1#cloudflare-dns.com 9.9.9.9#dns.quad9.net 8.8.8.8#dns.google
 DNSOverTLS=opportunistic
 DNSSEC=allow-downgrade
 Cache=yes
