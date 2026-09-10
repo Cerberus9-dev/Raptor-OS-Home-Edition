@@ -6,35 +6,6 @@
 - Custom KDE splash screen
 - Custom Raptor OS logo
 - Custom Icons for all Raptor OS Apps
-- **Wine/Proton usability hardening** — session defaults added system-wide via
-  `/etc/environment.d/10-raptor-wine.conf`: `WINEESYNC=`/`WINEFSYNC=` kernel sync
-  (fsync with esync fallback), quiet debug output, and `winemenubuilder` disabled
-  so prefixes stop littering the app menu. Process file-descriptor ceiling raised
-  to 1,048,576 in both `system.conf.d` and `user.conf.d` (avoids
-  "eventfd: Too many open files" crashes from esync and heavy mods). ProtonUp-Qt
-  remains the built-in manager for Proton and Wine-GE runners; Bottles, Lutris and
-  Winetricks remain optional in the firstboot picker
-- **Wine apps that "won't run" or hang for ages on launch** — Windows programs
-  (especially .NET and JavaScript-based installers/loaders) silently fail or
-  stall if Wine cannot reach its Mono and Gecko runtimes. Wine normally tries to
-  download them from winehq on first use, which hangs on flaky connections.
-  `wine-mono`, and the 32- and 64-bit `mingw*-wine-gecko` packages are now layered
-  into the image, so every prefix finds them already installed and .NET/JS
-  program loaders start working instead of hanging
-- **Dolphin file-selection freezes** — thumbnail generation could stall the file
-  manager for seconds on large media folders. Default preview plugins restricted
-  to images + folder icons (`/etc/xdg/dolphinrc`, also seeded into skel). The
-  occasional multi-select crash is a known upstream KDE bug (kde-bugs.kde.org
-  #519240, fixed in newer Frameworks/KDE apps builds) and lands via normal image
-  updates; with the panel-triggered preview generation reduced, its trigger is
-  far less likely to fire
-- **Update manager availability detection hardened** — recognizes a *staged but
-  not yet booted* update (`deployments[0].booted == false`) and reports
-  "reboot to apply" instead of "up to date", and treats rpm-ostree `--check`
-  exit code 77 as the *clean* "nothing new" result it is rather than a refresh
-  error. Combined with the existing `AvailableUpdate:`/`cached-update` checks this
-  stays correct on both traditional and container-native (Bazzite-style) base
-  images, where the two signals can lag each other
 
 ## [v2.6.9] - 2026-09-10 (WiFi Reconnection, Cursor Fix, More Apps)
 
@@ -79,6 +50,28 @@
   when a network provides no DNS server. Changed
   `files/scripts/raptor-gaming.sh` (drop the `DNS=` line, keep `FallbackDNS=`)
   and `files/system_files/91-raptor-dns.conf` (`dns=none` → `dns=systemd-resolved`)
+- **Update manager availability detection hardened** — the manager now also
+  recognizes a *staged but not yet booted* update (`deployments[0].booted ==
+  false`) and reports "System update downloaded — reboot to apply it" instead of
+  "up to date", and treats rpm-ostree `--check` exit code 77 as the *clean*
+  "nothing new" result it is rather than a refresh error. Combined with the
+  existing `AvailableUpdate:`/`cached-update` checks this stays correct on both
+  traditional and container-native (Bazzite-style) base images, where the two
+  signals can lag each other
+- **Wine apps that "won't run" or hang for ages on launch** — Windows programs
+  (especially .NET and JavaScript-based installers/loaders) silently fail or
+  stall if Wine cannot reach its Mono and Gecko runtimes. Wine normally tries to
+  download them from winehq on first use, which hangs on flaky connections.
+  `wine-mono`, and the 32- and 64-bit `mingw*-wine-gecko` packages are now layered
+  into the image, so every prefix finds them already installed and .NET/JS
+  program loaders start working instead of hanging
+- **Dolphin file-selection freezes** — thumbnail generation could stall the file
+  manager for seconds on large media folders. Default preview plugins restricted
+  to images + folder icons (`/etc/xdg/dolphinrc`, also seeded into skel). The
+  occasional multi-select crash is a known upstream KDE bug (kde-bugs.kde.org
+  #519240, fixed in newer Frameworks/KDE apps builds) and lands via normal image
+  updates; with the panel-triggered preview generation reduced, its trigger is
+  far less likely to fire
 
 ### Added
 
@@ -89,6 +82,14 @@
   sync), Tailscale (WireGuard VPN), Subtitle Edit, Goverlay (MangoHud GUI)
 - **`files/system_files/91-raptor-dns.conf`** — NetworkManager config that
   delegates DNS resolution to systemd-resolved (see DNS fix above)
+- **Wine/Proton usability hardening** — session defaults added system-wide via
+  `/etc/environment.d/10-raptor-wine.conf`: `WINEESYNC=`/`WINEFSYNC=` kernel sync
+  (fsync with esync fallback), quiet debug output, and `winemenubuilder` disabled
+  so prefixes stop littering the app menu. Process file-descriptor ceiling raised
+  to 1,048,576 in both `system.conf.d` and `user.conf.d` (avoids
+  "eventfd: Too many open files" crashes from esync and heavy mods). ProtonUp-Qt
+  remains the built-in manager for Proton and Wine-GE runners; Bottles, Lutris and
+  Winetricks remain optional in the firstboot picker
 
 ## [v2.6.8] - 2026-07-18 (Taskbar Reverted to Stock KDE, Wallpaper App, Service Hardening)
 
