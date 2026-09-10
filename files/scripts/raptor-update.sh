@@ -71,7 +71,48 @@ mkdir -p /usr/lib/raptor
 
 cat << 'EOF' > /usr/lib/raptor/update-helper
 #!/bin/bash
-exec rpm-ostree update 2>&1
+# Raptor OS — rpm-ostree update helper with retry and stuck-download recovery.
+# Called by the Update Manager GUI via pkexec/sudo.
+# All output goes to stdout for the GUI to stream.
+
+MAX_ATTEMPTS=3
+LAYER_TIMEOUT=900  # 15 min per attempt — generous for a ~1 GB layer on slow links
+
+check_network() {
+    # Quick probe — Raptor OS images live on ghcr.io (Bazzite OCI registry).
+    curl -sf --connect-timeout 5 https://ghcr.io/ >/dev/null 2>&1
+}
+
+for attempt in $(seq 1 $MAX_ATTEMPTS); do
+    echo "── Attempt ${attempt}/${MAX_ATTEMPTS} ──"
+
+    if ! check_network; then
+        echo "Network unreachable — waiting 15 s…"
+        sleep 15
+        continue
+    fi
+
+    # Clear any stale transaction lock left by a previous killed attempt so
+    # rpm-ostree doesn't refuse to start ("Another transaction is in progress").
+    rm -f /run/lock/rpm-ostree.lock 2>/dev/null || true
+
+    if timeout "${LAYER_TIMEOUT}" rpm-ostree update 2>&1; then
+        echo "✓ System update applied — reboot to finish."
+        exit 0
+    fi
+
+    rc=$?
+    if [ "$rc" -eq 124 ]; then
+        echo "Timed out after ${LAYER_TIMEOUT} s — retrying…"
+    else
+        echo "Failed (exit ${rc}) — retrying…"
+    fi
+
+    sleep $((attempt * 15))  # 15 s, then 30 s back-off
+done
+
+echo "Update failed after ${MAX_ATTEMPTS} attempts. Check your connection."
+exit 1
 EOF
 chmod +x /usr/lib/raptor/update-helper
 
@@ -81,6 +122,19 @@ cat << 'EOF' > /usr/lib/raptor/check-helper
 # deployment's cached-update field*, which `rpm-ostree status --json` then
 # reports. Without this step the field stays empty (or stale) and the GUI
 # answers "no updates" even when a new base image push exists.
+# Retries once on timeout / network blip so the GUI check doesn't falsely
+# report "up to date" just because a metadata fetch stalled.
+for try in 1 2; do
+    rm -f /run/lock/rpm-ostree.lock 2>/dev/null || true
+    if timeout 180 rpm-ostree upgrade --check 2>&1; then
+        exit 0
+    fi
+    rc=$?
+    [ "$rc" -eq 124 ] && echo "Metadata refresh timed out — retrying…" || true
+    sleep 5
+done
+# Final attempt — no timeout so slow connections aren't cut short twice.
+rm -f /run/lock/rpm-ostree.lock 2>/dev/null || true
 exec rpm-ostree upgrade --check 2>&1
 EOF
 chmod +x /usr/lib/raptor/check-helper

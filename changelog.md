@@ -58,6 +58,14 @@
   existing `AvailableUpdate:`/`cached-update` checks this stays correct on both
   traditional and container-native (Bazzite-style) base images, where the two
   signals can lag each other
+- **Update/check helpers now recover from stalled downloads** — `rpm-ostree update`
+  is a single long download (base image layers can be ~1 GB) and can stall
+  indefinitely on flaky school/corporate WiFi: the GUI just sat there forever.
+  `update-helper` now retries up to 3 times with a 15-minute per-attempt timeout,
+  a stale-transaction-lock cleanup between attempts (removing "Another transaction
+  is in progress" blocks), and a connectivity probe before each try. `check-helper`
+  got the same treatment for metadata refreshes. The log window now shows each
+  attempt so a stalled layer is visible instead of a silent hang
 - **Wine apps that "won't run" or hang for ages on launch** — Windows programs
   (especially .NET and JavaScript-based installers/loaders) silently fail or
   stall if Wine cannot reach its Mono and Gecko runtimes. Wine normally tries to
