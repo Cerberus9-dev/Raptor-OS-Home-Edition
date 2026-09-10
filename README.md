@@ -49,7 +49,7 @@ Three dialogs appear on the first login, in sequence:
 
 1. **Browser choice** — Firefox (pre-installed, no download), Brave (~120 MB), or Chrome (~150 MB). Shows a network check, download progress bar, and retry prompt on failure. Closing the dialog keeps Firefox.
 2. **Chat client choice** — Discord (~150 MB) or Vesktop (~100 MB, Vencord built in). Neither is pre-installed. "Skip — Install Neither" is always available.
-3. **App picker** — 65+ optional apps across 12 categories. Nothing is pre-ticked. Everything here is also installable later from Discover or `flatpak install flathub <id>`. "Skip — Install Nothing" is always available.
+3. **App picker** — 75+ optional apps across 12 categories. Nothing is pre-ticked. Everything here is also installable later from Discover or `flatpak install flathub <id>`. "Skip — Install Nothing" is always available.
 
 ---
 
@@ -75,15 +75,18 @@ Three dialogs appear on the first login, in sequence:
 | **Browser** | Brave (~120 MB), Chrome (~150 MB) — Firefox is pre-installed |
 | **Chat** | Discord (~150 MB), Vesktop (~100 MB, Vencord built in) |
 | **Communication** | Telegram, Signal, Slack, Zoom, Thunderbird, Element (Matrix) |
-| **Productivity** | ONLYOFFICE, Bitwarden, Joplin, MarkText, Calibre, Obsidian |
+| **Productivity** | ONLYOFFICE, Bitwarden, Joplin, MarkText, Calibre, Obsidian, Zotero |
 | **Office** | LibreOffice |
 | **Creative** | GIMP, Inkscape, Krita, Darktable, Blender, Kdenlive, Shotcut, OBS Studio, Audacity, Boatswain, HandBrake |
 | **Development** | VSCodium, Developer Runtime (Git + Node.js + pip), Godot Engine, GitHub Desktop, Pods, GCC + Make + CMake, Ninja + Meson, Neovim, GitHub CLI, dash, xclip, ksshaskpass, libssh-tools |
-| **Gaming** | Bottles, Lutris, Protontricks, Spotify, Plex, VLC, Cartridges, Ryujinx, RPCS3, RetroArch, Dolphin Emulator, PCSX2, Chiaki |
+| **Gaming** | Bottles, Lutris, Protontricks, Spotify, Plex, VLC, Cartridges, Ryujinx, RPCS3, RetroArch, Dolphin Emulator, PCSX2, Chiaki, Goverlay |
 | **Privacy** | ProtonVPN, KeePassXC |
-| **Media & Downloads** | FreeTube, Parabolic, Kooha, Clapper, Amberol, qBittorrent |
+| **Academic** | Zotero |
+| **Remote Access** | RustDesk, Remmina |
+| **Media & Downloads** | FreeTube, Parabolic, Kooha, Clapper, Amberol, qBittorrent, Subtitle Edit |
 | **Audio Production** | EasyEffects, Helvum, LMMS, Ardour |
-| **System** | Warehouse, Impression, CoreCtrl, btop, Variety, Mission Center, Flatseal, BleachBit, Filelight, GNOME Boxes, GNOME Backups, Warp, Flatsweep, Upscayl, Metadata Cleaner, Klipper, kfind, file-roller |
+| **System** | Warehouse, Impression, CoreCtrl, btop, Variety, Mission Center, Flatseal, BleachBit, Filelight, GNOME Boxes, GNOME Backups, Warp, Flatsweep, Upscayl, Metadata Cleaner, Klipper, kfind, file-roller, Stacer, NCurses Du, Restic |
+| **Sync & VPN** | Syncthing, Tailscale |
 
 ---
 
@@ -137,9 +140,12 @@ Gallery-style wallpaper picker — click any thumbnail to apply it, including fo
 ### Network
 - **BBR congestion control + CAKE qdisc**, **128 MB TCP buffers**, **socket busy-polling**, **TCP fast-open**
 - **Network's own DNS wins, fast DoT resolvers on fallback** — the per-link (DHCP) resolver is always used first (so school/corporate DNS and captive portals work out of the box); Cloudflare/Quad9 DoT are consulted only when a network provides no DNS server. Pinning Cloudflare as the *only* resolver broke DPI'd networks that block `1.1.1.1`
+- **Forced WiFi reconnection on resume** — NetworkManager dispatcher + resume-trigger service cycle the WiFi interface on wake from suspend (school/corporate APs often drop associations during suspend), and the DNS cache is flushed to clear stale entries from the old network
 
 ### Input
 - **USB autosuspend disabled** for HID devices and Bluetooth adapters specifically — excluded from Cortex's power-mode switching entirely, so a Bluetooth mouse/keyboard can never be swept into a suspended state by a mode change
+- **Stuck-cursor fix after lid close** — udev device re-enumeration and KWin config reload run on resume so the trackpad/pointing device reinitialises cleanly instead of leaving the cursor frozen
+- **Libinput tuning** (`61-raptor-libinput.conf`) — prevents stuck pointer state by reinitialising input devices on wake
 
 ---
 

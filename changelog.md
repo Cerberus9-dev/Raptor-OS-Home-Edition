@@ -1,10 +1,9 @@
 # Changelog
 
 ## [Unreleased]
-- Custom GRUB bootloader theme
-- Custom KDE splash screen
-- Custom Raptor OS logo
-- Custom Icons for all Raptor OS Apps
+
+### Fixed
+
 - **WiFi reconnection after suspend/resume** — school/corporate networks often
   deauthenticate clients during suspend; without an explicit reconnection
   cycle, NetworkManager may take 30-60 s to notice and reconnect, or fail
@@ -21,11 +20,6 @@
   triggers udev device re-enumeration and KWin config reload on resume,
   plus `61-raptor-libinput.conf` with libinput tuning to prevent stuck
   pointer state
-- **More optional apps in firstboot picker** — added: Zotero (reference
-  manager), RustDesk (remote desktop), Remmina (RDP/VNC/SSH client),
-  Stacer (system optimiser), NCurses Du (terminal disk analyser),
-  Restic (encrypted backups), Syncthing (file sync), Tailscale (WireGuard
-  VPN), Subtitle Edit, Goverlay (MangoHud GUI)
 - **Update manager "no updates" fix** — the manager only ever read
   `rpm-ostree status --json`, but its `cached-update` field stays empty until a
   check actually runs, so it reported "up to date" even when a new base image
@@ -45,6 +39,18 @@
   provides no DNS server. Changed `files/scripts/raptor-gaming.sh` (Drop the
   `DNS=` line, keep `FallbackDNS=`) and `files/system_files/91-raptor-dns.conf`
   (`dns=none` → `dns=systemd-resolved`)
+
+### Added
+
+- **More optional apps in firstboot picker** — added 10 new apps across
+  categories: Zotero (reference manager), RustDesk (remote desktop),
+  Remmina (RDP/VNC/SSH client), Stacer (system optimiser), NCurses Du
+  (terminal disk analyser), Restic (encrypted backups), Syncthing (file
+  sync), Tailscale (WireGuard VPN), Subtitle Edit, Goverlay (MangoHud GUI)
+- Custom GRUB bootloader theme
+- Custom KDE splash screen
+- Custom Raptor OS logo
+- Custom Icons for all Raptor OS Apps
 
 ## [v2.6.9] - 2026-09-03 (DNS Hardening)
 
