@@ -195,7 +195,20 @@ def check_for_updates():
     populated after a check has actually run (via `rpm-ostree upgrade --check`
     or the rpm-ostreed-automatic timer). Reading it on its own never triggers
     that, so the resolver first runs the privileged check-helper to refresh
-    remote metadata + cache the result, then inspects status.
+    remote metadata + cache the result, then inspects the check output and
+    status --json and combines four independent signals:
+
+      1. an explicit "AvailableUpdate:" line in the check output
+      2. a populated `cached-update` field (bool on old rpm-ostree, dict on new)
+      3. a *staged* deployment that has not been booted yet — the base image
+         was already upgraded elsewhere, only a reboot is missing
+      4. a failed refresh surfacing as an error instead of a silent
+         "up to date"
+
+    This stays correct across traditional and container-native (Bazzite-style)
+    base images, either of which can lag the other on one signal alone.
+    Note: rpm-ostree `--check` exits 77 for a clean "nothing new" result —
+    that is a success code, not a refresh failure.
 
     Returns (has_update: bool, message: str)."""
     refresh_out = ""
@@ -210,6 +223,19 @@ def check_for_updates():
         refresh_rc = "timeout"
     except Exception:
         refresh_rc = -1
+
+    # Clean result codes: 0 = check ran, 77 = check ran + nothing new.
+    if refresh_rc == "timeout":
+        return False, "Update check timed out while refreshing metadata."
+    if isinstance(refresh_rc, int) and refresh_rc not in (0, 77):
+        tail = [l for l in refresh_out.splitlines() if l.strip()]
+        detail = tail[-1] if tail else f"exit {refresh_rc}"
+        return False, f"Could not refresh update state ({detail})."
+
+    # 1) Explicit announcement in the check output ("AvailableUpdate:").
+    if re.search(r"(?mi)^\s*Available\s*Update\s*:", refresh_out):
+        return True, "A system update is available."
+
     try:
         result = subprocess.run(
             ["rpm-ostree", "status", "--json"],
@@ -219,21 +245,16 @@ def check_for_updates():
             return False, f"Could not check for updates (exit {result.returncode})."
         import json
         status = json.loads(result.stdout)
-        # cached-update is a bool on older rpm-ostree and a dict on newer.
-        for deployment in status.get("deployments", []):
+        deployments = status.get("deployments", [])
+        # 2) cached-update is a bool on older rpm-ostree and a dict on newer.
+        for deployment in deployments:
             if deployment.get("cached-update"):
                 return True, "A system update is available."
-        # rpm-ostree prints "No updates available." / AvailableUpdate: info in
-        # the check-helper output; trust an explicit announcement even if the
-        # status field lags (container-native base images can do that).
-        if re.search(r"(?mi)^\s*AvailableUpdate\s*:", refresh_out):
-            return True, "A system update is available."
-        if refresh_rc == "timeout":
-            return False, "Update check timed out while refreshing metadata."
-        if isinstance(refresh_rc, int) and refresh_rc != 0:
-            tail = [l for l in refresh_out.splitlines() if l.strip()]
-            detail = tail[-1] if tail else "unknown error"
-            return False, f"Could not refresh update state ({detail})."
+        # 3) A staged-but-not-booted deployment: the newest deployment (index 0)
+        #    is not the one currently booted, so a newer base image is already
+        #    on disk — only a reboot is missing.
+        if deployments and not deployments[0].get("booted"):
+            return True, "System update downloaded — reboot to apply it."
         return False, "System is up to date."
     except subprocess.TimeoutExpired:
         return False, "Update check timed out."

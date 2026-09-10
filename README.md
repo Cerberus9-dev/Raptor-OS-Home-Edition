@@ -119,6 +119,14 @@ Gallery-style wallpaper picker — click any thumbnail to apply it, including fo
 - **Mesa GL threading** system-wide via `/etc/drirc.d/` — ~10–20% throughput on CPU-bound OpenGL games
 - **`WINE_FULLSCREEN_FSR` and `DXVK_ASYNC` not set globally** — both caused flickering in OpenGL games (Project Zomboid). Set per-game in Steam launch options instead
 
+### Wine & Windows Apps
+- **Session defaults** (`/etc/environment.d/10-raptor-wine.conf`) — `WINEESYNC`/`WINEFSYNC` kernel synchronization (fsync with esync fallback), quiet debug logging (`WINEDEBUG=-all`), `winemenubuilder` disabled so prefixes don't litter the app menu
+- **File-descriptor ceiling raised** to 1,048,576 — esync-heavy games and large prefixes no longer hit "eventfd: Too many open files" crashes
+- **ProtonUp-Qt pre-installed** for managing Proton and Wine-GE runners; Bottles, Lutris and more optionally available from the firstboot app picker
+
+### File Manager (Dolphin)
+- **Preview plugins limited to images + folders** — video/audio/document thumbnail generation could stall selection on large media folders; restricting the enabled thumbnails keeps Dolphin responsive
+
 ### CPU & Power
 - **Energy Performance Preference** — the single biggest battery saver on modern CPUs (Intel HWP, AMD P-state); cuts package power 20–40% in Power Saving mode vs governor alone
 - **CPU max frequency cap** (65% in Power Saving), **ACPI platform profile** coordination (fan curves, VRM limits at the firmware level on supported laptops)

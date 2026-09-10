@@ -1,0 +1,9 @@
+[PreviewSettings]
+# Raptor OS — Dolphin stability defaults.
+# Dolphin generates preview thumbnails for selected/hovered files and for every
+# folder it displays. The heavy thumbnailers (video, audio, documents, AppImage)
+# run ffmpeg/pdfmt/other workers that can stall the file manager for seconds on
+# large media folders and periodically wedge it during file selection. Restricting
+# the enabled preview plugins to images + folder icons keeps previews useful while
+# eliminating the freeze class caused by thumbnail generation.
+Plugins=imagethumbnail:directorythumbnail

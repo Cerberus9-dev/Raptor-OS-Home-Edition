@@ -61,6 +61,18 @@ modules:
       # ── Input device / cursor fixes ────────────────────────────────────────
       - source: ../files/system_files/61-raptor-libinput.conf
         destination: /etc/libinput/local-overrides.quirks
+      # ── File manager (Dolphin) stability ───────────────────────────────────
+      - source: ../files/system_files/dolphinrc
+        destination: /etc/xdg/dolphinrc
+      - source: ../files/system_files/dolphinrc
+        destination: /etc/skel/.config/dolphinrc
+      # ── Wine / Proton usability + fd limits ────────────────────────────────
+      - source: ../files/system_files/10-raptor-wine.conf
+        destination: /etc/environment.d/10-raptor-wine.conf
+      - source: ../files/system_files/raptor-nofile.conf
+        destination: /etc/systemd/system.conf.d/10-raptor-nofile.conf
+      - source: ../files/system_files/raptor-nofile.conf
+        destination: /etc/systemd/user.conf.d/10-raptor-nofile.conf
 
   # ── RPM packages ─────────────────────────────────────────────────────────
   - type: rpm-ostree
