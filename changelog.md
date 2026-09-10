@@ -62,8 +62,11 @@
   is a single long download (base image layers can be ~1 GB) and can stall
   indefinitely on flaky school/corporate WiFi: the GUI just sat there forever.
   `update-helper` now retries up to 3 times with a 15-minute per-attempt timeout,
-  a stale-transaction-lock cleanup between attempts (removing "Another transaction
-  is in progress" blocks), and a connectivity probe before each try. `check-helper`
+  and between attempts clears the stale-transaction lock and purges the
+  `/var/cache/rpm-ostree-layers` + `/var/cache/rpm-ostree-contents` caches so a
+  layer blob truncated by a dropped connection ("Processing tar: … unexpected
+  end of file") is re-downloaded clean instead of reused and failing every retry — 
+  plus a connectivity probe before each try. `check-helper`
   got the same treatment for metadata refreshes. The log window now shows each
   attempt so a stalled layer is visible instead of a silent hang
 - **Wine apps that "won't run" or hang for ages on launch** — Windows programs

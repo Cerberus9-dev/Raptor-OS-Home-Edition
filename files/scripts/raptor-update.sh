@@ -83,6 +83,15 @@ check_network() {
     curl -sf --connect-timeout 5 https://ghcr.io/ >/dev/null 2>&1
 }
 
+purge_layer_cache() {
+    # A big OCI layer can land on disk truncated when the network drops mid-
+    # import; rpm-ostree then fails every retry with "Processing tar: ...
+    # unexpected end of file" because the cached blob is corrupt and gets
+    # reused blind. Purge the fetched-layer + unpacked-content caches between
+    # attempts so the next try starts from a clean download.
+    rm -rf /var/cache/rpm-ostree-layers /var/cache/rpm-ostree-contents 2>/dev/null || true
+}
+
 for attempt in $(seq 1 $MAX_ATTEMPTS); do
     echo "── Attempt ${attempt}/${MAX_ATTEMPTS} ──"
 
@@ -103,11 +112,13 @@ for attempt in $(seq 1 $MAX_ATTEMPTS); do
 
     rc=$?
     if [ "$rc" -eq 124 ]; then
-        echo "Timed out after ${LAYER_TIMEOUT} s — retrying…"
+        echo "Timed out after ${LAYER_TIMEOUT} s — clearing stuck state…"
     else
-        echo "Failed (exit ${rc}) — retrying…"
+        echo "Failed (exit ${rc}) — clearing corrupt layer cache…"
     fi
 
+    rm -f /run/lock/rpm-ostree.lock 2>/dev/null || true
+    purge_layer_cache
     sleep $((attempt * 15))  # 15 s, then 30 s back-off
 done
 
