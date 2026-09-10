@@ -100,6 +100,12 @@ modules:
       - mangohud
       - goverlay
       - wine
+      # Wine runtime pieces — without these, Windows apps/.NET and JS-based
+      # program loaders hang on first launch (Wine stalls trying to download
+      # them) or fail outright. See /usr/share/wine/gecko and /usr/share/wine/mono
+      - wine-mono
+      - mingw32-wine-gecko
+      - mingw64-wine-gecko
       - winetricks
       - protontricks
 

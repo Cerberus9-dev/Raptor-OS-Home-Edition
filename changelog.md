@@ -14,6 +14,13 @@
   "eventfd: Too many open files" crashes from esync and heavy mods). ProtonUp-Qt
   remains the built-in manager for Proton and Wine-GE runners; Bottles, Lutris and
   Winetricks remain optional in the firstboot picker
+- **Wine apps that "won't run" or hang for ages on launch** — Windows programs
+  (especially .NET and JavaScript-based installers/loaders) silently fail or
+  stall if Wine cannot reach its Mono and Gecko runtimes. Wine normally tries to
+  download them from winehq on first use, which hangs on flaky connections.
+  `wine-mono`, and the 32- and 64-bit `mingw*-wine-gecko` packages are now layered
+  into the image, so every prefix finds them already installed and .NET/JS
+  program loaders start working instead of hanging
 - **Dolphin file-selection freezes** — thumbnail generation could stall the file
   manager for seconds on large media folders. Default preview plugins restricted
   to images + folder icons (`/etc/xdg/dolphinrc`, also seeded into skel). The
