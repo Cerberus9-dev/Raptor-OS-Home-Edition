@@ -218,6 +218,21 @@ APP_CATALOGUE=(
     "FALSE|Helvum|org.freedesktop.Helvum|PipeWire patchbay — visually connect audio/MIDI devices"
     "FALSE|LMMS|io.lmms.LMMS|Music production — beats, melodies, samples"
     "FALSE|Ardour|org.ardour.Ardour|Professional audio workstation (recording, mixing, mastering)"
+    # ── Academic & Research ────────────────────────────────────────────────
+    "FALSE|Zotero|org.zotero.Zotero|Research reference manager — collect, organise, cite papers"
+    "FALSE|Zotero Connector|None|Browser extension for Zotero — save papers with one click (install via browser extension store)"
+    # ── Remote Access ──────────────────────────────────────────────────────
+    "FALSE|RustDesk|com.rustdesk.RustDesk|Open-source remote desktop — TeamViewer alternative"
+    "FALSE|Remmina|org.remmina.Remmina|Remote desktop client — RDP, VNC, SSH, SPICE"
+    # ── System Tools (additional) ──────────────────────────────────────────
+    "FALSE|Stacer|io.github.ozmarties.Stacer|System optimiser — clean, manage startups, monitor resources"
+    "FALSE|NCurses Du|None|Terminal disk usage analyser (install via: sudo rpm-ostree install ncdu)"
+    "FALSE|Restic|None|Fast, encrypted backup tool — incremental backups to local/remote (install via: sudo rpm-ostree install restic)"
+    "FALSE|Syncthing|org.syncthing.Syncthing|Continuous file synchronisation between your devices"
+    "FALSE|Tailscale|io.tailscale.ipn.App|Zero-config WireGuard VPN — access your devices anywhere"
+    # ── Media (additional) ─────────────────────────────────────────────────
+    "FALSE|Subtitle Edit|None|Subtitle editor — create, adjust, sync subtitles (install via: sudo rpm-ostree install subtitle-edit)"
+    "FALSE|Goverlay|io.github._0ffz.goverlay|GUI for MangoHud — configure overlay without editing config files"
 )
 
 # ── Build zenity argument list ────────────────────────────────────────────────

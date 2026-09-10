@@ -5,6 +5,27 @@
 - Custom KDE splash screen
 - Custom Raptor OS logo
 - Custom Icons for all Raptor OS Apps
+- **WiFi reconnection after suspend/resume** — school/corporate networks often
+  deauthenticate clients during suspend; without an explicit reconnection
+  cycle, NetworkManager may take 30-60 s to notice and reconnect, or fail
+  entirely if the AP dropped the association. Added
+  `91-raptor-network.conf` (NetworkManager WiFi reconnection hardening:
+  autoconnect retries, powersave tuning), a dispatcher script
+  `raptor-suspend-resume-wifi.sh` that forces a disconnect/reconnect cycle
+  on resume, and `raptor-resume-trigger.service` that stamps resume events
+  for the dispatcher. DNS cache is also flushed on resume to avoid stale
+  entries from the old network
+- **Cursor stuck after lid close** — on some laptops the trackpad/pointing
+  device doesn't reinitialise properly after suspend/resume, leaving the
+  cursor frozen at a screen edge. Added `raptor-lid-open-fix.service` that
+  triggers udev device re-enumeration and KWin config reload on resume,
+  plus `61-raptor-libinput.conf` with libinput tuning to prevent stuck
+  pointer state
+- **More optional apps in firstboot picker** — added: Zotero (reference
+  manager), RustDesk (remote desktop), Remmina (RDP/VNC/SSH client),
+  Stacer (system optimiser), NCurses Du (terminal disk analyser),
+  Restic (encrypted backups), Syncthing (file sync), Tailscale (WireGuard
+  VPN), Subtitle Edit, Goverlay (MangoHud GUI)
 - **Update manager "no updates" fix** — the manager only ever read
   `rpm-ostree status --json`, but its `cached-update` field stays empty until a
   check actually runs, so it reported "up to date" even when a new base image

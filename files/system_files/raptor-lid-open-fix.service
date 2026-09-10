@@ -1,0 +1,18 @@
+[Unit]
+Description=Raptor OS — reinitialise input devices on lid open
+After=suspend.target hibernate.target graphical-session.target
+Wants=graphical-session.target
+
+[Service]
+Type=oneshot
+# Brief pause for hardware to stabilise after lid-open
+ExecStart=/bin/sleep 1
+# Force re-enumeration of input devices (fixes stuck cursor after lid close)
+ExecStart=/bin/udevadm trigger --subsystem-match=input
+ExecStart=/bin/udevadm settle --timeout=5
+# Force KWin to re-query input device state
+ExecStart=/usr/bin/dbus-send --session --type=method_call \
+    --dest=org.kde.KWin /KWin org.kde.KWin.reloadConfig
+
+[Install]
+WantedBy=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target

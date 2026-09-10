@@ -14,6 +14,10 @@ modules:
         destination: /usr/lib/systemd/user/raptor-firstboot.service
       - source: ../files/system_files/raptor-ensure-services.service
         destination: /usr/lib/systemd/system/raptor-ensure-services.service
+      - source: ../files/system_files/raptor-resume-trigger.service
+        destination: /usr/lib/systemd/system/raptor-resume-trigger.service
+      - source: ../files/system_files/raptor-lid-open-fix.service
+        destination: /usr/lib/systemd/system/raptor-lid-open-fix.service
       - source: ../files/system_files/raptor-cpugovernor.service
         destination: /usr/lib/systemd/system/raptor-cpugovernor.service
       - source: ../files/system_files/raptor-powerprofile.service
@@ -49,6 +53,14 @@ modules:
       # ── DNS: let systemd-resolved handle everything (ignores DHCP DNS) ─────
       - source: ../files/system_files/91-raptor-dns.conf
         destination: /etc/NetworkManager/conf.d/91-raptor-dns.conf
+      # ── WiFi reconnection hardening ────────────────────────────────────────
+      - source: ../files/system_files/91-raptor-network.conf
+        destination: /etc/NetworkManager/conf.d/91-raptor-network.conf
+      - source: ../files/system_files/raptor-suspend-resume-wifi.sh
+        destination: /etc/NetworkManager/dispatcher.d/99-raptor-wifi-resume
+      # ── Input device / cursor fixes ────────────────────────────────────────
+      - source: ../files/system_files/61-raptor-libinput.conf
+        destination: /etc/libinput/local-overrides.quirks
 
   # ── RPM packages ─────────────────────────────────────────────────────────
   - type: rpm-ostree
@@ -129,6 +141,8 @@ modules:
         - raptor-ensure-services.service
         - raptor-gpu-profile.service
         - raptor-powerprofile.service
+        - raptor-resume-trigger.service
+        - raptor-lid-open-fix.service
     user:
       enabled:
         - raptor-firstboot.service
