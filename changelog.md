@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [v2.6.9] - 2026-09-10 (WiFi Reconnection, Cursor Fix, More Apps)
 
 ### Fixed
 
@@ -30,15 +30,19 @@
   `rpm-ostreed-automatic.timer` to keep the cache warm in the background. The
   GUI now also honors the newer dict form of `cached-update` and an explicit
   `AvailableUpdate:` in check output. See `files/scripts/raptor-update.sh`
-- **DNS regression fix (v2.6.9 reversal)** — v2.6.9 pinned Cloudflare DoT as
-  the *sole* resolver (`DNS=1.1.1.1...#cloudflare-dns.com`) and told
-  NetworkManager to ignore DHCP DNS (`dns=none`). On networks that DPI-block
-  `1.1.1.1` — school/corporate WiFi — every uncached lookup stalled, including
-  the network's own sites. Now the per-link DHCP resolver (e.g. school DNS)
-  always wins and Cloudflare/Quad9 DoT are only a *fallback* when a network
-  provides no DNS server. Changed `files/scripts/raptor-gaming.sh` (Drop the
-  `DNS=` line, keep `FallbackDNS=`) and `files/system_files/91-raptor-dns.conf`
-  (`dns=none` → `dns=systemd-resolved`)
+- **School/corporate networks pushing broken DNS via DHCP** — when connected to
+  networks like school WiFi, the DHCP server provides its own DNS server
+  (`10.241.210.1`) which gets applied at the link level in systemd-resolved,
+  taking priority over the global Cloudflare DoT config. This caused total DNS
+  resolution failure for domains the local DNS couldn't resolve (including
+  the school's own OneView portal). The earlier fix pinned Cloudflare DoT as
+  the *sole* resolver (`DNS=1.1.1.1...#cloudflare-dns.com`) with `dns=none`,
+  which broke DPI'd networks that block `1.1.1.1` — every uncached lookup
+  stalled, including the network's own sites. Now the per-link DHCP resolver
+  (e.g. school DNS) always wins and Cloudflare/Quad9 DoT are only a *fallback*
+  when a network provides no DNS server. Changed
+  `files/scripts/raptor-gaming.sh` (drop the `DNS=` line, keep `FallbackDNS=`)
+  and `files/system_files/91-raptor-dns.conf` (`dns=none` → `dns=systemd-resolved`)
 
 ### Added
 
@@ -47,30 +51,12 @@
   Remmina (RDP/VNC/SSH client), Stacer (system optimiser), NCurses Du
   (terminal disk analyser), Restic (encrypted backups), Syncthing (file
   sync), Tailscale (WireGuard VPN), Subtitle Edit, Goverlay (MangoHud GUI)
+- **`files/system_files/91-raptor-dns.conf`** — NetworkManager config that
+  delegates DNS resolution to systemd-resolved (see DNS fix above)
 - Custom GRUB bootloader theme
 - Custom KDE splash screen
 - Custom Raptor OS logo
 - Custom Icons for all Raptor OS Apps
-
-## [v2.6.9] - 2026-09-03 (DNS Hardening)
-
-### Fixed
-
-- **School/corporate networks pushing broken DNS via DHCP** — when connected to
-  networks like school WiFi, the DHCP server provides its own DNS server
-  (`10.241.210.1`) which gets applied at the link level in systemd-resolved,
-  taking priority over the global Cloudflare DoT config. This caused total DNS
-  resolution failure for domains the local DNS couldn't resolve (including
-  the school's own OneView portal). Fixed by adding
-  `91-raptor-dns.conf` (`dns=none` in NetworkManager) so systemd-resolved
-  exclusively manages DNS regardless of what DHCP pushes. Cloudflare DoT
-  remains the sole resolver on all networks
-
-### Added
-
-- **`files/system_files/91-raptor-dns.conf`** — NetworkManager config that
-  sets `dns=none`, delegating all DNS resolution to systemd-resolved and
-  ignoring DHCP-provided DNS servers
 
 ## [v2.6.8] - 2026-07-18 (Taskbar Reverted to Stock KDE, Wallpaper App, Service Hardening)
 
