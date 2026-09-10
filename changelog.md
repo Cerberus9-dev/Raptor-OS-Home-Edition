@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- Custom GRUB bootloader theme
+- Custom KDE splash screen
+- Custom Raptor OS logo
+- Custom Icons for all Raptor OS Apps
+
 ## [v2.6.9] - 2026-09-10 (WiFi Reconnection, Cursor Fix, More Apps)
 
 ### Fixed
@@ -53,10 +62,6 @@
   sync), Tailscale (WireGuard VPN), Subtitle Edit, Goverlay (MangoHud GUI)
 - **`files/system_files/91-raptor-dns.conf`** — NetworkManager config that
   delegates DNS resolution to systemd-resolved (see DNS fix above)
-- Custom GRUB bootloader theme
-- Custom KDE splash screen
-- Custom Raptor OS logo
-- Custom Icons for all Raptor OS Apps
 
 ## [v2.6.8] - 2026-07-18 (Taskbar Reverted to Stock KDE, Wallpaper App, Service Hardening)
 
