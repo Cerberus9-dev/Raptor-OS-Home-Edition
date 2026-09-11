@@ -353,11 +353,14 @@ def check_flatpak_updates():
 
 
 def run_privileged(helper_path, action_id=None):
-    for launcher in (["pkexec"], ["sudo"]):
+    # Prefer `sudo -n`: NOPASSWD rules for the helpers are shipped in
+    # /etc/sudoers.d/raptor-update, so this is silent and needs no polkit agent.
+    # pkexec is only a fallback and is invoked without --action-id — some polkit
+    # builds mis-parse it and fail to even spawn the helper with a GIO error
+    # ("cannot run program …"), and the GUI would never reach the fallback.
+    for launcher in (["sudo", "-n"], ["pkexec"]):
         try:
             cmd = launcher + [helper_path]
-            if launcher[0] == "pkexec" and action_id:
-                cmd = [launcher[0], "--action-id", action_id, helper_path]
             return subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,

@@ -69,6 +69,13 @@
   plus a connectivity probe before each try. `check-helper`
   got the same treatment for metadata refreshes. The log window now shows each
   attempt so a stalled layer is visible instead of a silent hang
+- **Update manager check would fail outright on some systems** — the helper was
+  launched via `pkexec --action-id <id> <helper>`, but certain polkit builds fail
+  to spawn the child when `--action-id` is passed (GIO error "cannot run program
+  …"), so the check aborted with "Could not refresh update state" and the manager
+  never fell back to `sudo`. Privileged helpers are now launched with
+  `sudo -n` first (the NOPASSWD rules in `/etc/sudoers.d/raptor-update` already
+  cover all four helpers), with plain `pkexec <helper>` only as a fallback
 - **Wine apps that "won't run" or hang for ages on launch** — Windows programs
   (especially .NET and JavaScript-based installers/loaders) silently fail or
   stall if Wine cannot reach its Mono and Gecko runtimes. Wine normally tries to
