@@ -62,7 +62,7 @@ Three dialogs appear on the first login, in sequence:
 | **Browser** | Firefox (memory-optimised: 64 MB cache, 4 processes, tab unloading) |
 | **Gaming** | Heroic Games Launcher (Epic/GOG/Amazon), ProtonUp-Qt, Protontricks, Wine, Winetricks |
 | **Media** | mpv (lightweight playback) |
-| **System** | htop, KDE Partition Manager, Plasma System Monitor, Nautilus, Gwenview, KCalc, Fastfetch, p7zip |
+| **System** | htop, KDE Partition Manager, Plasma System Monitor, Gwenview, KCalc, Fastfetch, p7zip |
 | **Raptor Apps** | Raptor Cortex, Raptor GPU Profiler, Raptor Wallpaper, Raptor Update Manager — all grouped under their own **Raptor OS** category in the app menu |
 | **Overlays** | MangoHud (green palette, Shift+F12), GOverlay, Gamemode |
 
@@ -126,7 +126,10 @@ Gallery-style wallpaper picker — click any thumbnail to apply it, including fo
 - **ProtonUp-Qt pre-installed** for managing Proton and Wine-GE runners; Bottles, Lutris and more optionally available from the firstboot app picker
 
 ### File Manager (Dolphin)
+- **Default file browser** — Dolphin, not Nautilus (removed). Folders and image types are bound via system-wide `/etc/xdg/mimeapps.list` (+ skel + login migration for existing users)
+- **ZIP/archive freeze defused** — the F4 preview panel (`ShowPreview=false`) no longer spawns a KIO archive worker to peek inside the selected file when you click a .zip/.tar.gz. Baloo's content indexer is fully disabled and all archive globs (`*.zip *.tar *.gz *.7z …`) are excluded entirely, so bulk-selecting / right-clicking to delete any number of archives never triggers an index or metadata read. Both configs seed new users via skel and correct existing users through a once-per-user login migration
 - **Preview plugins limited to images + folders** — video/audio/document thumbnail generation could stall selection on large media folders; restricting the enabled thumbnails keeps Dolphin responsive
+- **Archive MIME defaults bound to Ark** — double-clicking a .zip/.tar/.7z/.rar opens it in Ark immediately
 
 ### CPU & Power
 - **Energy Performance Preference** — the single biggest battery saver on modern CPUs (Intel HWP, AMD P-state); cuts package power 20–40% in Power Saving mode vs governor alone

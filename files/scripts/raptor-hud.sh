@@ -1156,86 +1156,131 @@ EOF
 
 echo "RAPTOR_HUD_READY"
 
-# ── One-time migration: fix stale mimeapps defaults ─────────────────────────
-# Users who had an existing ~/.config/mimeapps.list before Nautilus became
-# the default file manager may still have "inode/directory=
-# org.kde.dolphin.desktop" in their OWN personal config, which always
-# outranks any system-wide /etc/xdg/mimeapps.list default.
-# This script runs once at login, corrects only the targeted keys, and
-# leaves every other user preference in the file untouched.
+# ── One-time migration: fix stale mimeapps + Dolphin defaults ───────────────
+# Dolphin is the default file browser again. Users may carry stale personal
+# configs (from the short Nautilus era, or plain KDE defaults): "inode/
+# directory=…" in their own ~/.config/mimeapps.list outranks /etc/xdg, so it
+# must be corrected per-user. Same for dolphinrc: without a personal file the
+# /etc/xdg/dolphinrc stability keys apply, but an existing ~/.config/dolphinrc
+# would override them silently. This script runs once at login per stamp file,
+# corrects only the targeted keys, and leaves every other user preference alone.
 mkdir -p /usr/lib/raptor /etc/xdg/autostart
 
 cat << 'MIGRATIONEOF' > /usr/lib/raptor/cleanup-legacy-mimeapps.sh
 #!/bin/bash
 set -euo pipefail
 STAMP_DIR="$HOME/.local/share/raptor"
-STAMP="$STAMP_DIR/legacy-mimeapps-cleaned"
+STAMP="$STAMP_DIR/raptor-dolphin-defaults"
 [ -f "$STAMP" ] && exit 0
 
 python3 - << 'INNERPYEOF'
 import os
-path = os.path.expanduser("~/.config/mimeapps.list")
-desired = {
-    "inode/directory":          "org.gnome.Nautilus.desktop",
-    "image/png":                 "org.kde.gwenview.desktop",
-    "image/jpeg":                "org.kde.gwenview.desktop",
-    "image/gif":                 "org.kde.gwenview.desktop",
-    "image/webp":                "org.kde.gwenview.desktop",
-    "image/bmp":                 "org.kde.gwenview.desktop",
-    "image/svg+xml":             "org.kde.gwenview.desktop",
-    "image/tiff":                "org.kde.gwenview.desktop",
-    "image/x-portable-pixmap":   "org.kde.gwenview.desktop",
+
+MIME_PATH = os.path.expanduser("~/.config/mimeapps.list")
+DOLPHINRC_PATH = os.path.expanduser("~/.config/dolphinrc")
+
+DESIRED_MIME = {
+    "inode/directory":            "org.kde.dolphin.desktop",
+    "image/png":                   "org.kde.gwenview.desktop",
+    "image/jpeg":                  "org.kde.gwenview.desktop",
+    "image/gif":                   "org.kde.gwenview.desktop",
+    "image/webp":                  "org.kde.gwenview.desktop",
+    "image/bmp":                   "org.kde.gwenview.desktop",
+    "image/svg+xml":               "org.kde.gwenview.desktop",
+    "image/tiff":                  "org.kde.gwenview.desktop",
+    "image/x-portable-pixmap":     "org.kde.gwenview.desktop",
+    "application/zip":             "org.kde.ark.desktop",
+    "application/x-tar":           "org.kde.ark.desktop",
+    "application/x-compressed-tar":"org.kde.ark.desktop",
+    "application/x-7z-compressed": "org.kde.ark.desktop",
+    "application/x-rar":           "org.kde.ark.desktop",
+    "application/x-bzip":          "org.kde.ark.desktop",
+    "application/x-bzip-compressed-tar": "org.kde.ark.desktop",
+    "application/gzip":            "org.kde.ark.desktop",
+    "application/x-xz":            "org.kde.ark.desktop",
 }
-if not os.path.exists(path):
-    print("no-personal-mimeapps-file")
-    raise SystemExit(0)
-with open(path) as f:
-    lines = f.read().splitlines()
-changed = False
-in_default_apps = False
-seen_keys = set()
-new_lines = []
-default_apps_end_idx = None
-for line in lines:
-    stripped = line.strip()
-    if stripped.startswith("["):
-        if in_default_apps and default_apps_end_idx is None:
-            default_apps_end_idx = len(new_lines)
-        in_default_apps = (stripped == "[Default Applications]")
-        new_lines.append(line)
-        continue
-    if in_default_apps and "=" in stripped:
-        key = stripped.split("=", 1)[0].strip()
-        if key in desired:
-            seen_keys.add(key)
-            correct_line = key + "=" + desired[key]
-            if stripped != correct_line:
-                new_lines.append(correct_line)
-                changed = True
-                continue
-    new_lines.append(line)
-if in_default_apps and default_apps_end_idx is None:
-    default_apps_end_idx = len(new_lines)
-missing = [k for k in desired if k not in seen_keys]
-if missing:
-    if default_apps_end_idx is None:
-        if new_lines and new_lines[-1].strip() != "":
-            new_lines.append("")
-        new_lines.append("[Default Applications]")
-        for k in missing:
-            new_lines.append(k + "=" + desired[k])
-    else:
-        insertion = [k + "=" + desired[k] for k in missing]
-        new_lines = new_lines[:default_apps_end_idx] + insertion + new_lines[default_apps_end_idx:]
-    changed = True
-if changed:
-    with open(path, "w") as f:
-        for out_line in new_lines:
-            f.write(out_line)
-            f.write(chr(10))
-    print("updated")
-else:
-    print("already-correct")
+
+DESIRED_DOLPHIN = {
+    # (section, key) -> value
+    ("General", "ShowPreview"):     "false",
+    ("PreviewSettings", "Plugins"): "imagethumbnail:directorythumbnail",
+}
+
+DESIRED_BALOO = {
+    ("Basic Settings", "IndexFileContent"):  "false",
+    ("Basic Settings", "IndexFileSizeLimit"):  "4",
+    ("Basic Settings", "IndexVideoSizeLimit"): "8",
+    ("Basic Settings", "IndexImageSizeLimit"): "4",
+    ("General", "exclude filters"): (
+        "*.zip *.tar *.gz *.tgz *.tar.gz *.bz2 *.tbz2 *.tar.bz2 "
+        "*.7z *.rar *.xz *.lzma *.lz *.zst "
+        "*.iso *.img *.dmg *.cab *.deb *.rpm *.AppImage *.appimage"
+    ),
+}
+
+def ensure_keys(path, heading, desired):
+    """Make every desired key under `heading` exist with the right value,
+    preserving everything else in the file. KConfig-style [Section] INI."""
+    if not os.path.exists(path):
+        with open(path, "w") as f:
+            f.write(heading + "\n")
+            for k, v in desired.items():
+                f.write(f"{k}={v}\n")
+        return
+    with open(path) as f:
+        lines = f.read().splitlines()
+    in_section = False
+    seen = set()
+    out = []
+    section_end = None
+    changed = False
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("["):
+            if in_section and section_end is None:
+                section_end = len(out)
+            in_section = (stripped == heading)
+            out.append(line)
+            continue
+        if in_section and "=" in stripped:
+            key = stripped.split("=", 1)[0].strip()
+            if key in desired:
+                seen.add(key)
+                want = f"{key}={desired[key]}"
+                if stripped != want:
+                    out.append(want)
+                    changed = True
+                    continue
+        out.append(line)
+    if in_section and section_end is None:
+        section_end = len(out)
+    missing = [k for k in desired if k not in seen]
+    if missing:
+        if section_end is None:
+            out.append("")
+            out.append(heading)
+            for k in missing:
+                out.append(f"{k}={desired[k]}")
+        else:
+            insertion = [f"{k}={desired[k]}" for k in missing]
+            out = out[:section_end] + insertion + out[section_end:]
+        changed = True
+    if changed:
+        with open(path, "w") as f:
+            for line in out:
+                f.write(line)
+                f.write("\n")
+
+ensure_keys(MIME_PATH, "[Default Applications]", DESIRED_MIME)
+ensure_keys(DOLPHINRC_PATH, "[General]", {"ShowPreview": "false"})
+ensure_keys(DOLPHINRC_PATH, "[PreviewSettings]", {"Plugins": "imagethumbnail:directorythumbnail"})
+baloorc = os.path.expanduser("~/.config/baloorc")
+baloo_by_section = {}
+for (sec, k), v in DESIRED_BALOO.items():
+    baloo_by_section.setdefault(sec, {})[k] = v
+for sec, desired in baloo_by_section.items():
+    ensure_keys(baloorc, f"[{sec}]", desired)
+print("raptor-dolphin-defaults-applied")
 INNERPYEOF
 
 mkdir -p "$STAMP_DIR"
@@ -1246,8 +1291,8 @@ chmod +x /usr/lib/raptor/cleanup-legacy-mimeapps.sh
 cat << 'DESKTOPEOF' > /etc/xdg/autostart/raptor-cleanup-legacy-mimeapps.desktop
 [Desktop Entry]
 Type=Application
-Name=Raptor OS File Manager Defaults Fix
-Comment=One-time correction of stale file manager and image viewer defaults
+Name=Raptor OS File Manager Defaults
+Comment=Dolphin default file browser, archive handler and stability keys
 Exec=/usr/lib/raptor/cleanup-legacy-mimeapps.sh
 Terminal=false
 Hidden=false

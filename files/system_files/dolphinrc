@@ -1,5 +1,13 @@
-[PreviewSettings]
+[General]
 # Raptor OS — Dolphin stability defaults.
+# Selecting/hovering a file with the preview (F4) panel up spawns metadata and
+# preview workers for that exact file. For archives (.zip, .tar.gz, …) that
+# means opening a KIO "archive" worker to peek inside — on a big or remote
+# archive this blocks the UI for seconds (the "freeze when selecting a zip"
+# complaint). Keep the panel hidden by default; press F4 to show it on demand.
+ShowPreview=false
+
+[PreviewSettings]
 # Dolphin generates preview thumbnails for selected/hovered files and for every
 # folder it displays. The heavy thumbnailers (video, audio, documents, AppImage)
 # run ffmpeg/pdfmt/other workers that can stall the file manager for seconds on

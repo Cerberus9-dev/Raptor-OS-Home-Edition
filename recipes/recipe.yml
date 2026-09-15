@@ -28,7 +28,7 @@ modules:
         destination: /usr/bin/raptor-browser-choice.sh
       - source: ../files/system_files/raptor-chat-choice.sh
         destination: /usr/bin/raptor-chat-choice.sh
-      # Default file manager (Nautilus) + image type associations (Gwenview).
+      # Default file manager (Dolphin) + image/archive type associations.
       - source: ../files/system_files/raptor-mimeapps.list
         destination: /etc/xdg/mimeapps.list
       - source: ../files/system_files/raptor-mimeapps.list
@@ -66,6 +66,11 @@ modules:
         destination: /etc/xdg/dolphinrc
       - source: ../files/system_files/dolphinrc
         destination: /etc/skel/.config/dolphinrc
+      # ── Baloo (file indexer) stability: disable content indexing ────────────
+      - source: ../files/system_files/baloorc
+        destination: /etc/xdg/baloorc
+      - source: ../files/system_files/baloorc
+        destination: /etc/skel/.config/baloorc
       # ── Wine / Proton usability + fd limits ────────────────────────────────
       - source: ../files/system_files/10-raptor-wine.conf
         destination: /etc/environment.d/10-raptor-wine.conf
@@ -86,7 +91,6 @@ modules:
       - jq
       - zenity
       - plasma-systemmonitor
-      - nautilus
       - gwenview
       - kcalc
       - power-profiles-daemon

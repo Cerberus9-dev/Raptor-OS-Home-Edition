@@ -1,5 +1,5 @@
 [Default Applications]
-inode/directory=org.gnome.Nautilus.desktop
+inode/directory=org.kde.dolphin.desktop
 image/png=org.kde.gwenview.desktop
 image/jpeg=org.kde.gwenview.desktop
 image/gif=org.kde.gwenview.desktop
@@ -8,3 +8,12 @@ image/bmp=org.kde.gwenview.desktop
 image/svg+xml=org.kde.gwenview.desktop
 image/tiff=org.kde.gwenview.desktop
 image/x-portable-pixmap=org.kde.gwenview.desktop
+application/zip=org.kde.ark.desktop
+application/x-tar=org.kde.ark.desktop
+application/x-compressed-tar=org.kde.ark.desktop
+application/x-7z-compressed=org.kde.ark.desktop
+application/x-rar=org.kde.ark.desktop
+application/x-bzip=org.kde.ark.desktop
+application/x-bzip-compressed-tar=org.kde.ark.desktop
+application/gzip=org.kde.ark.desktop
+application/x-xz=org.kde.ark.desktop

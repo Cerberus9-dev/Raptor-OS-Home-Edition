@@ -90,6 +90,25 @@
   #519240, fixed in newer Frameworks/KDE apps builds) and lands via normal image
   updates; with the panel-triggered preview generation reduced, its trigger is
   far less likely to fire
+- **Dolphin back as the default file browser (Nautilus removed)** — the short
+  Nautilus era is reversed: `inode/directory` points back to
+  `org.kde.dolphin.desktop`, the `nautilus` RPM is dropped from the image, and
+  the one-time login migration now flips any stale personal `mimeapps.list`
+  (Nautilus or old KDE defaults) back to Dolphin for existing users. Archives
+  (`zip`, `tar`, `7z`, `rar`, `gz`, …) are now bound to Ark so opening one on a
+  double-click is instant and stays inside the file manager's native workflow
+- **Dolphin freezes when selecting a .zip / multi-selecting files and right-
+  clicking to delete** — two cooperating causes get defused by default:
+  (1) the preview (F4) panel spawned a KIO archive worker to peek *inside* the
+  selected archive, blocking the UI on big/remote zips — `ShowPreview=false`
+  hides the panel (press F4 for it on demand); (2) Baloo's content indexer dug
+  into every selected file while KFileMetaData built the context menu, wedging
+  the manager during bulk operations. A new `/etc/xdg/baloorc` (+ skel, + login
+  migration) disables content indexing, clamps Baloo's per-file size limits, and
+  *excludes all archive globs* (`*.zip *.tar *.gz *.7z …`) from the index
+  entirely, so selecting/tagging/right-clicking archives never triggers an
+  archive read. Both configs seed new users via skel and correct existing users
+  through the once-per-user login migration
 
 ### Added
 

@@ -112,7 +112,7 @@ fi
 # ── App catalogue ─────────────────────────────────────────────────────────────
 # Format: "PRESELECT|DISPLAY_NAME|FLATPAK_ID|DESCRIPTION"
 # Only list apps NOT already installed by the default Flatpak list in recipe.yml.
-# Mandatory defaults (Heroic, ProtonUp, Firefox, Nautilus) — bare basics only.
+# Mandatory defaults (Heroic, ProtonUp, Firefox, Dolphin) — bare basics only.
 # Vesktop moved to raptor-chat-choice.sh; VSCodium, VLC, Flatseal, Mission
 # Center, BleachBit, Filelight, and qbittorrent all moved here (optional).
 # are never shown here — they are always installed.
