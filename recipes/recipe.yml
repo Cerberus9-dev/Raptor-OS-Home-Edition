@@ -102,8 +102,11 @@ modules:
       # Gaming
       - irqbalance
       - gamemode
-      - mangohud
-      - goverlay
+      # Note: mangohud/goverlay are intentionally omitted from the RPM list.
+      # Bazzite's stable base now ships its own packaging of MangoHud
+      # (terra-mangohud), and installing Fedora's mangohud here conflicts with
+      # it on /usr/bin/mangoapp. The overlay therefore comes from the base
+      # image, and the GOverlay config GUI is installed as a Flatpak instead.
       - wine
       # Wine runtime pieces — without these, Windows apps/.NET and JS-based
       # program loaders hang on first launch (Wine stalls trying to download
@@ -138,6 +141,8 @@ modules:
         - com.heroicgameslauncher.hgl
         - net.davidotek.pupgui2
         - org.mozilla.firefox
+        # GOverlay — MangoHud config GUI (mangohud itself ships in the base image).
+        - io.github.benjamimgois.goverlay
 
   # ── Kernel boot arguments ─────────────────────────────────────────────────────
   - type: kargs
