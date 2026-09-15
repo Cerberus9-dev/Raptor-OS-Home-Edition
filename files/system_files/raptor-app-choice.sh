@@ -112,12 +112,14 @@ fi
 # ── App catalogue ─────────────────────────────────────────────────────────────
 # Format: "PRESELECT|DISPLAY_NAME|FLATPAK_ID|DESCRIPTION"
 # Only list apps NOT already installed by the default Flatpak list in recipe.yml.
-# Mandatory defaults (Heroic, ProtonUp, Firefox, Dolphin) — bare basics only.
+# Mandatory defaults (Heroic, ProtonUp, Dolphin) — bare basics only.
 # Vesktop moved to raptor-chat-choice.sh; VSCodium, VLC, Flatseal, Mission
 # Center, BleachBit, Filelight, qbittorrent all moved here (optional).
-# GOverlay, the game-streaming stack (Moonlight/Sunshine), extra emulators
-# (DuckStation, Flycast, ScummVM, OpenRA), extra browsers (Brave/Chromium/
-# Chrome/Edge), JetBrains IDEs, VS Code, digiKam, RSS Guard, MakeMKV, Standard
+# Browsers are NOT listed here — they're chosen in the dedicated firstboot
+# raptor-browser-choice.sh dialog (Firefox, Brave, Chromium, Chrome, Edge all
+# installed on demand; none ships in the image). GOverlay, the game-streaming
+# stack (Moonlight/Sunshine), extra emulators (DuckStation, Flycast, ScummVM,
+# OpenRA), JetBrains IDEs, VS Code, digiKam, RSS Guard, MakeMKV, Standard
 # Notes and Notion are also offered here.
 APP_CATALOGUE=(
     # ── Communication ──────────────────────────────────────────────────────
@@ -183,11 +185,6 @@ APP_CATALOGUE=(
     "FALSE|file-roller|None|Archive manager — extract and create .zip, .tar.gz, .7z, and more (install via: sudo rpm-ostree install file-roller)"
     # ── Communication ──────────────────────────────────────────────────────
     "FALSE|Thunderbird|org.mozilla.Thunderbird|Email and calendar client"
-    # ── Browsers (Firefox is already installed — pick extras) ─────────────
-    "FALSE|Brave|com.brave.Browser|Fast, privacy-focused browser with built-in ad blocking"
-    "FALSE|Chromium|org.chromium.Chromium|Open-source browser — the base every Chromium browser is built on"
-    "FALSE|Google Chrome|com.google.Chrome|Google's browser — syncs with your Google account"
-    "FALSE|Microsoft Edge|com.microsoft.Edge|Chromium-based browser with Microsoft services"
     # ── Terminal & Developer tools ─────────────────────────────────────────
     "FALSE|btop|None|System resource monitor (install via: sudo rpm-ostree install btop)"
     "FALSE|GitHub CLI (gh)|None|GitHub CLI tool (install via: sudo rpm-ostree install gh)"

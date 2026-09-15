@@ -1,14 +1,19 @@
 #!/bin/bash
-# raptor-browser-choice.sh  v3.0
+# raptor-browser-choice.sh  v4.0
 # First-boot browser selection dialog for Raptor OS.
 #
 # Features:
-#  - Three browser options: Firefox (pre-installed), Brave, Chrome
-#  - Network connectivity check before attempting Flatpak download
+#  - No browser ships in the image — the default stays minimal. Five popular
+#    browsers (Firefox, Brave, Chromium, Chrome, Edge) are all offered here
+#    as on-demand Flathub downloads.
+#  - Network connectivity check before attempting the download
 #  - Zenity progress dialog during download (~100-150 MB)
 #  - Retry prompt on failure rather than silently falling back
 #  - Idempotent — stamp prevents re-running after a successful choice
-#  - "Keep Firefox" cancel = valid choice, stamp written, dialog never repeats
+#  - "Skip — No Browser" cancel = valid choice, stamp written, dialog never
+#    repeats (nothing is installed and no default is forced)
+#  - If the chosen browser is already installed (e.g. user picked Chrome in
+#    the app picker), it is simply set as the default — no re-download.
 #
 # Runs as part of raptor-firstboot.service (user service) after Plasma is up.
 # Stamp: ~/.local/share/raptor/browser-choice-done
@@ -48,8 +53,8 @@ check_network() {
     if ! curl --silent --max-time 5 --head https://flathub.org >/dev/null 2>&1; then
         zenity --error \
             --title="No Internet Connection" \
-            --text="Raptor OS needs an internet connection to download your chosen browser.\n\nFirefox (already installed) will be kept as the default.\nYou can re-run this setup from the Raptor welcome app later." \
-            --width=400 2>/dev/null || true
+            --text="Raptor OS needs an internet connection to download a browser.\n\nNo browser was installed. You can install one later from the Raptor welcome app, or stop any browser from Discover / the terminal." \
+            --width=420 2>/dev/null || true
         return 1
     fi
     return 0
@@ -103,124 +108,120 @@ set_default_browser() {
     fi
 }
 
+# ── Browser catalogue ─────────────────────────────────────────────────────────
+# Format: "DISPLAY_NAME|FLATPAK_ID|DESKTOP_ID|SIZE|NOTE"
+# All five are downloads; none ships in the image.
+BROWSERS=(
+    "Firefox|org.mozilla.firefox|firefox.desktop|~120 MB|Privacy-first · tab isolation · open source"
+    "Brave|com.brave.Browser|com.brave.Browser.desktop|~120 MB|Chromium · built-in ad blocker"
+    "Chromium|org.chromium.Chromium|org.chromium.Chromium.desktop|~100 MB|Plain Chromium · the open-source core"
+    "Chrome|com.google.Chrome|com.google.Chrome.desktop|~150 MB|Google Chrome · familiar · most compatible"
+    "Edge|com.microsoft.Edge|com.microsoft.Edge.desktop|~150 MB|Microsoft Edge · Chromium based"
+)
+
+# ── Build zenity argument list ────────────────────────────────────────────────
+# Firefox is pre-selected as the sane default; every entry is installed on
+# confirm if it isn't already present.
+ZENITY_ARGS=()
+for entry in "${BROWSERS[@]}"; do
+    IFS='|' read -r name _id _desktop size note <<< "${entry}"
+    if [[ "${name}" == "Firefox" ]]; then
+        ZENITY_ARGS+=(TRUE  "${name}" "${note} (${size})")
+    else
+        ZENITY_ARGS+=(FALSE "${name}" "${note} (${size})")
+    fi
+done
+
 # ── Dialog ────────────────────────────────────────────────────────────────────
 CHOICE=$(
     zenity \
         --list \
         --title="Welcome to Raptor OS" \
-        --text="<b>Choose your default web browser</b>\n\nFirefox is already installed and ready to use.\nBrave and Chrome will be downloaded from Flathub.\n" \
+        --text="<b>Choose your web browser</b>\n\nNo browser is pre-installed — the image stays minimal.\nFirefox is pre-selected; any choice is a one-time download from Flathub.\n" \
         --radiolist \
         --column="" \
         --column="Browser" \
         --column="Notes" \
-        TRUE  "Firefox" "Fast · Private · Already installed — no download needed" \
-        FALSE "Brave"   "Chromium · Built-in ad blocker · Privacy-focused (~120 MB)" \
-        FALSE "Chrome"  "Google Chrome · Familiar · Widely compatible (~150 MB)" \
-        --width=520 --height=310 \
-        --ok-label="Confirm" \
-        --cancel-label="Keep Firefox" \
+        "${ZENITY_ARGS[@]}" \
+        --width=560 --height=330 \
+        --ok-label="Install & Use" \
+        --cancel-label="Skip — No Browser" \
         2>/dev/null
 ) || true
 
-# ── Handle choice ─────────────────────────────────────────────────────────────
-case "${CHOICE:-}" in
+# ── Skip ──────────────────────────────────────────────────────────────────────
+if [[ -z "${CHOICE:-}" ]]; then
+    log "User skipped browser choice — no browser installed, no default forced."
+    finish
+    exit 0
+fi
 
-    # ── Firefox ───────────────────────────────────────────────────────────────
-    Firefox|"")
-        # Empty string = user dismissed dialog or clicked "Keep Firefox"
-        log "Firefox kept as default browser."
-        set_default_browser "firefox.desktop"
-        finish
-        ;;
+# ── Resolve chosen browser ────────────────────────────────────────────────────
+SELECTED=""
+for entry in "${BROWSERS[@]}"; do
+    IFS='|' read -r name fid desktop size note <<< "${entry}"
+    if [[ "${name}" == "${CHOICE}" ]]; then
+        SELECTED="${name}|${fid}|${desktop}|${size}|${note}"
+        break
+    fi
+done
 
-    # ── Brave ─────────────────────────────────────────────────────────────────
-    Brave)
-        log "User selected Brave."
+if [[ -z "${SELECTED}" ]]; then
+    err "Unexpected choice value: '${CHOICE}' — aborting browser install."
+    finish
+    exit 0
+fi
 
-        if ! check_network; then
-            set_default_browser "firefox.desktop"
-            finish
-            exit 0
-        fi
+IFS='|' read -r NAME FID DESKTOP SIZE NOTE <<< "${SELECTED}"
+log "User selected browser: ${NAME}"
 
-        if install_with_progress "com.brave.Browser" "Brave" "~120 MB"; then
-            set_default_browser "com.brave.Browser.desktop"
-            log "Brave installed and set as default."
-            zenity --info \
-                --title="Brave is Ready" \
-                --text="✓ Brave has been installed and set as your default browser." \
-                --width=300 2>/dev/null || true
+# ── Already installed? ────────────────────────────────────────────────────────
+if flatpak info "${FID}" &>/dev/null; then
+    info "${FID} already installed — setting as default only."
+    set_default_browser "${DESKTOP}"
+    finish
+    exit 0
+fi
+
+# ── Install ───────────────────────────────────────────────────────────────────
+if ! check_network; then
+    finish
+    exit 0
+fi
+
+INSTALL_OK=0
+if install_with_progress "${FID}" "${NAME}" "${SIZE}"; then
+    set_default_browser "${DESKTOP}"
+    log "${NAME} installed and set as default."
+    INSTALL_OK=1
+else
+    # Offer retry
+    if zenity --question \
+            --title="Installation Failed" \
+            --text="${NAME} could not be installed.\n\nWould you like to try again?\n\nIf you choose No, nothing is installed and no default is set." \
+            --ok-label="Try Again" \
+            --cancel-label="Skip — No Browser" \
+            --width=400 2>/dev/null; then
+        # Second attempt — no progress dialog, just wait
+        if flatpak install -y --noninteractive flathub "${FID}" \
+                >> "${INSTALL_LOG}" 2>&1 \
+                && flatpak info "${FID}" &>/dev/null; then
+            set_default_browser "${DESKTOP}"
+            log "${NAME} installed on retry."
+            INSTALL_OK=1
         else
-            # Offer retry
-            if zenity --question \
-                    --title="Installation Failed" \
-                    --text="Brave could not be installed.\n\nWould you like to try again?\n\nIf you choose No, Firefox will be kept as the default." \
-                    --ok-label="Try Again" \
-                    --cancel-label="Keep Firefox" \
-                    --width=380 2>/dev/null; then
-                # Second attempt — no progress dialog, just wait
-                if flatpak install -y --noninteractive flathub com.brave.Browser \
-                        >> "${INSTALL_LOG}" 2>&1; then
-                    set_default_browser "com.brave.Browser.desktop"
-                    log "Brave installed on retry."
-                else
-                    err "Brave install failed on retry. Keeping Firefox."
-                    set_default_browser "firefox.desktop"
-                fi
-            else
-                err "User declined retry. Keeping Firefox."
-                set_default_browser "firefox.desktop"
-            fi
+            err "${NAME} install failed on retry. Nothing installed."
         fi
+    else
+        err "User declined retry. Nothing installed."
+    fi
+fi
 
-        finish
-        ;;
+if [[ "${INSTALL_OK}" -eq 1 ]]; then
+    zenity --info \
+        --title="${NAME} is Ready" \
+        --text="✓ ${NAME} has been installed and set as your default browser." \
+        --width=300 2>/dev/null || true
+fi
 
-    # ── Chrome ────────────────────────────────────────────────────────────────
-    Chrome)
-        log "User selected Chrome."
-
-        if ! check_network; then
-            set_default_browser "firefox.desktop"
-            finish
-            exit 0
-        fi
-
-        if install_with_progress "com.google.Chrome" "Google Chrome" "~150 MB"; then
-            set_default_browser "com.google.Chrome.desktop"
-            log "Chrome installed and set as default."
-            zenity --info \
-                --title="Chrome is Ready" \
-                --text="✓ Google Chrome has been installed and set as your default browser." \
-                --width=300 2>/dev/null || true
-        else
-            if zenity --question \
-                    --title="Installation Failed" \
-                    --text="Chrome could not be installed.\n\nWould you like to try again?\n\nIf you choose No, Firefox will be kept as the default." \
-                    --ok-label="Try Again" \
-                    --cancel-label="Keep Firefox" \
-                    --width=380 2>/dev/null; then
-                if flatpak install -y --noninteractive flathub com.google.Chrome \
-                        >> "${INSTALL_LOG}" 2>&1; then
-                    set_default_browser "com.google.Chrome.desktop"
-                    log "Chrome installed on retry."
-                else
-                    err "Chrome install failed on retry. Keeping Firefox."
-                    set_default_browser "firefox.desktop"
-                fi
-            else
-                err "User declined retry. Keeping Firefox."
-                set_default_browser "firefox.desktop"
-            fi
-        fi
-
-        finish
-        ;;
-
-    # ── Unexpected ────────────────────────────────────────────────────────────
-    *)
-        err "Unexpected choice value: '${CHOICE}' — keeping Firefox."
-        set_default_browser "firefox.desktop"
-        finish
-        ;;
-esac
+finish

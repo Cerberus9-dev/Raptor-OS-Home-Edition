@@ -131,14 +131,22 @@
   sync), Tailscale (WireGuard VPN), Subtitle Edit, Goverlay (MangoHud GUI)
 - **~20 more optional apps in the firstboot picker, GOverlay no longer
   default** — game-streaming stack (Moonlight client + Sunshine server),
-  more emulators (DuckStation, Flycast, ScummVM, OpenRA), extra browsers
-  (Brave, Chromium, Google Chrome, Edge), JetBrains IDEs (IntelliJ IDEA +
-  PyCharm Community), Microsoft VS Code, digiKam, RSS Guard, MakeMKV,
-  Standard Notes, Notion. GOverlay's Flathub ID fixed (`io.github._0ffz.
-  goverlay` → `io.github.benjamimgois.goverlay`) and it now ships via the
-  picker instead of the default image — MangoHud itself still comes from
-  the base image (the Fedora `mangohud` RPM conflicts with Bazzite's
-  `terra-mangohud` on `/usr/bin/mangoapp`, so it's intentionally not layered)
+  more emulators (DuckStation, Flycast, ScummVM, OpenRA), JetBrains IDEs
+  (IntelliJ IDEA + PyCharm Community), Microsoft VS Code, digiKam, RSS
+  Guard, MakeMKV, Standard Notes, Notion. GOverlay's Flathub ID fixed
+  (`io.github._0ffz.goverlay` → `io.github.benjamimgois.goverlay`) and it
+  now ships via the picker instead of the default image — MangoHud itself
+  still comes from the base image (the Fedora `mangohud` RPM conflicts
+  with Bazzite's `terra-mangohud` on `/usr/bin/mangoapp`, so it's
+  intentionally not layered)
+- **Default image kept truly minimal — no browser pre-installed** — Firefox
+  no longer ships in the image; the firstboot browser dialog now offers all
+  five popular browsers (Firefox, Brave, Chromium, Chrome, Edge) as on-demand
+  Flathub downloads with the same network-check/progress/retry UX, and
+  "Skip — No Browser" installs nothing. The browser entries previously
+  added to the app picker were removed — browser selection is handled by the
+  dedicated dialog. Misc: /etc/firefox policies.json + skel user.js hardening
+  now apply whenever Firefox is installed at any point
 - **`files/system_files/91-raptor-dns.conf`** — NetworkManager config that
   delegates DNS resolution to systemd-resolved (see DNS fix above)
 - **Wine/Proton usability hardening** — session defaults added system-wide via

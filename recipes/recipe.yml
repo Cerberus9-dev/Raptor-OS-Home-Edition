@@ -140,10 +140,10 @@ modules:
       install:
         - com.heroicgameslauncher.hgl
         - net.davidotek.pupgui2
-        - org.mozilla.firefox
-        # GOverlay is offered in the firstboot optional-app picker, not
-        # installed by default (it's just a MangoHud config GUI; mangohud
-        # itself ships in the base image).
+        # No browser ships in the image on purpose — the default image stays as
+        # minimal as possible. All popular browsers (Firefox, Brave, Chromium,
+        # Chrome, Edge) are offered as downloads in the firstboot browser-choice
+        # dialog instead, keeping sizing/policy fully in the user's hands.
 
   # ── Kernel boot arguments ─────────────────────────────────────────────────────
   - type: kargs
