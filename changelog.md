@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **Update manager could hang on "Checking" and never finish, with no visible
+  progress** — the GUI's metadata refresh ran the check-helper and then sat in a
+  blocking `communicate()`, showing nothing on screen while the network stalled
+  on flaky school WiFi. Three fixes: (1) the check-helper now time-bounds every
+  attempt (max 3 × 150 s, no unbounded final attempt), probes connectivity to
+  ghcr.io up front with a clear message, and treats rpm-ostree `--check` exit 77
+  ("nothing new") as the clean success it is; (2) the GUI streams the helper's
+  output *live* into a built-in Console that is visible from launch (not hidden
+  until an update starts), reading via a `select()` loop with a `CHECK_TIMEOUT=500`
+  wall-clock ceiling so a stalled pipe can never freeze the check again; (3) if the
+  refresh *does* fail, the manager falls back to local rpm-ostree state first — a
+  staged-but-not-booted deployment or a populated `cached-update` is still reported
+  as an available update ("reboot to apply it") instead of the refresh error hiding
+  an update that is already on disk.
 - Custom GRUB bootloader theme
 - Custom KDE splash screen
 - Custom Raptor OS logo

@@ -133,20 +133,47 @@ cat << 'EOF' > /usr/lib/raptor/check-helper
 # deployment's cached-update field*, which `rpm-ostree status --json` then
 # reports. Without this step the field stays empty (or stale) and the GUI
 # answers "no updates" even when a new base image push exists.
-# Retries once on timeout / network blip so the GUI check doesn't falsely
-# report "up to date" just because a metadata fetch stalled.
-for try in 1 2; do
+#
+# Every attempt is time-bounded so the GUI's update check can NEVER hang
+# forever on a stalled network — the worst case is a bounded run of timed-out
+# attempts with a clear message (which the GUI streams live into its console).
+# `rpm-ostree upgrade --check` exits 77 for a clean "nothing new" — that is a
+# success code, not a refresh failure.
+MAX_ATTEMPTS=3
+ATTEMPT_TIMEOUT=150  # seconds per metadata pull
+
+if curl -sf --connect-timeout 5 https://ghcr.io/ >/dev/null 2>&1; then
+    echo "Connectivity to ghcr.io OK."
+else
+    echo "WARNING: no reachable connectivity to ghcr.io yet — refresh may fail."
+fi
+
+for try in $(seq 1 "${MAX_ATTEMPTS}"); do
+    echo "── Metadata refresh attempt ${try}/${MAX_ATTEMPTS} ──"
+    # Clear any stale transaction lock left by a previous killed attempt so
+    # rpm-ostree doesn't refuse to start ("Another transaction is in progress").
     rm -f /run/lock/rpm-ostree.lock 2>/dev/null || true
-    if timeout 180 rpm-ostree upgrade --check 2>&1; then
+
+    if timeout "${ATTEMPT_TIMEOUT}" rpm-ostree upgrade --check 2>&1; then
         exit 0
     fi
     rc=$?
-    [ "$rc" -eq 124 ] && echo "Metadata refresh timed out — retrying…" || true
+    if [ "$rc" -eq 77 ]; then
+        echo "Nothing new (clean)."
+        exit 0
+    fi
+
+    if [ "$rc" -eq 124 ]; then
+        echo "Metadata refresh timed out after ${ATTEMPT_TIMEOUT} s — retrying…"
+    else
+        echo "Metadata refresh failed (exit ${rc}) — retrying…"
+    fi
     sleep 5
 done
-# Final attempt — no timeout so slow connections aren't cut short twice.
-rm -f /run/lock/rpm-ostree.lock 2>/dev/null || true
-exec rpm-ostree upgrade --check 2>&1
+
+echo "Could not refresh remote metadata after ${MAX_ATTEMPTS} attempts."
+echo "Check your connection, then try again."
+exit 1
 EOF
 chmod +x /usr/lib/raptor/check-helper
 
@@ -207,6 +234,9 @@ import ssl
 import urllib.request
 import sys
 import re
+import select
+import os
+import time
 
 CHANGELOG_URL         = "https://raw.githubusercontent.com/Cerberus9-dev/Raptor-OS/refs/heads/main/changelog.md"
 UPDATE_HELPER         = "/usr/lib/raptor/update-helper"
@@ -214,6 +244,11 @@ CHECK_HELPER          = "/usr/lib/raptor/check-helper"
 CHECK_ACTION          = "io.github.cerberus9dev.raptorupdate.check"
 FLATPAK_UPDATE_HELPER = "/usr/lib/raptor/flatpak-update-helper"
 REBOOT_HELPER         = "/usr/lib/raptor/reboot-helper"
+# Wall-clock budget for the whole privileged refresh. check-helper already
+# bounds itself to 3 × 150 s attempts + back-off, so this always outlives it —
+# the outer bound is a safety net so a stuck network can never hang the GUI
+# forever, and the helper output is streamed live meanwhile.
+CHECK_TIMEOUT         = 500
 
 # Comprehensive ANSI/VT100 escape sequence stripper:
 #   CSI  ESC [ <params> <letter>
@@ -253,7 +288,38 @@ def fetch_changelog():
     )
 
 
-def check_for_updates():
+def _local_update_signal():
+    """Read only local state (no network) for a pending update.
+
+    Returns (has_update: bool, message: str) or (False, "") when nothing
+    local is conclusive. Looks for a cached-update flag and for a staged
+    deployment that has not been booted — both are visible without touching
+    the network, which matters when the refresh itself just failed."""
+    try:
+        import json
+        result = subprocess.run(
+            ["rpm-ostree", "status", "--json"],
+            capture_output=True, text=True, timeout=60,
+        )
+        if result.returncode != 0:
+            return False, ""
+        status = json.loads(result.stdout)
+        deployments = status.get("deployments", [])
+        # cached-update is a bool on older rpm-ostree and a dict on newer.
+        for deployment in deployments:
+            if deployment.get("cached-update"):
+                return True, "A system update is available."
+        # A staged-but-not-booted deployment: the newest deployment (index 0)
+        # is not the one currently booted, so a newer base image is already
+        # on disk — only a reboot is missing.
+        if deployments and not deployments[0].get("booted"):
+            return True, "System update downloaded — reboot to apply it."
+    except Exception:
+        pass
+    return False, ""
+
+
+def check_for_updates(emit=None):
     """Check rpm-ostree for a pending deployment upgrade.
 
     The `cached-update` field in `rpm-ostree status --json` only becomes
@@ -268,7 +334,15 @@ def check_for_updates():
       3. a *staged* deployment that has not been booted yet — the base image
          was already upgraded elsewhere, only a reboot is missing
       4. a failed refresh surfacing as an error instead of a silent
-         "up to date"
+         "up to date" — but only after checking the local signals, so a
+         refresh failure can never hide an update that is already on disk
+
+    `emit(line)` is called from this thread for every line of helper output as
+    it arrives, so the GUI can stream the refresh progress live instead of
+    showing a frozen spinner. The whole helper invocation is bounded: the
+    check-helper itself caps at 3 × 150 s attempts, plus CHECK_TIMEOUT here as
+    a hard wall-clock ceiling, plus a select() loop that can never hang on a
+    stalled pipe.
 
     This stays correct across traditional and container-native (Bazzite-style)
     base images, either of which can lag the other on one signal alone.
@@ -279,20 +353,50 @@ def check_for_updates():
     refresh_out = ""
     refresh_rc = -1
     try:
-        proc = run_privileged(CHECK_HELPER, action_id=CHECK_ACTION)
-        refresh_out, _ = proc.communicate(timeout=180)
-        refresh_rc = proc.returncode
-    except subprocess.TimeoutExpired:
-        if proc is not None:
-            proc.kill()
-        refresh_rc = "timeout"
-    except Exception:
-        refresh_rc = -1
+        helper = run_privileged(CHECK_HELPER, action_id=CHECK_ACTION)
+    except RuntimeError as exc:
+        return False, f"Could not start update check ({exc})."
+
+    deadline = time.monotonic() + CHECK_TIMEOUT
+    try:
+        # select() keeps this loop responsive even when the pipe has no data
+        # yet; readline() then never blocks past the next line to arrive.
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                helper.kill()
+                refresh_rc = "timeout"
+                break
+            ready, _, _ = select.select([helper.stdout], [], [], remaining)
+            if not ready:
+                helper.kill()
+                refresh_rc = "timeout"
+                break
+            line = helper.stdout.readline()
+            if not line:
+                break
+            if emit is not None:
+                emit(line)
+            refresh_out += line
+    except (OSError, ValueError):
+        pass
+
+    if refresh_rc != "timeout":
+        try:
+            refresh_rc = helper.wait(timeout=CHECK_TIMEOUT)
+        except subprocess.TimeoutExpired:
+            helper.kill()
+            helper.wait()
+            refresh_rc = "timeout"
 
     # Clean result codes: 0 = check ran, 77 = check ran + nothing new.
     if refresh_rc == "timeout":
         return False, "Update check timed out while refreshing metadata."
     if isinstance(refresh_rc, int) and refresh_rc not in (0, 77):
+        # 4) Refresh failed — but do NOT hide an update already known locally.
+        local_has, local_msg = _local_update_signal()
+        if local_has:
+            return True, local_msg
         tail = [l for l in refresh_out.splitlines() if l.strip()]
         detail = tail[-1] if tail else f"exit {refresh_rc}"
         return False, f"Could not refresh update state ({detail})."
@@ -301,32 +405,27 @@ def check_for_updates():
     if re.search(r"(?mi)^\s*Available\s*Update\s*:", refresh_out):
         return True, "A system update is available."
 
+    # 2) + 3) local signals: cached-update flag / staged-but-not-booted.
+    local_has, local_msg = _local_update_signal()
+    if local_has:
+        return local_has, local_msg
+    if local_msg:
+        return local_has, local_msg
     try:
+        import json
         result = subprocess.run(
             ["rpm-ostree", "status", "--json"],
             capture_output=True, text=True, timeout=60,
         )
         if result.returncode != 0:
             return False, f"Could not check for updates (exit {result.returncode})."
-        import json
-        status = json.loads(result.stdout)
-        deployments = status.get("deployments", [])
-        # 2) cached-update is a bool on older rpm-ostree and a dict on newer.
-        for deployment in deployments:
-            if deployment.get("cached-update"):
-                return True, "A system update is available."
-        # 3) A staged-but-not-booted deployment: the newest deployment (index 0)
-        #    is not the one currently booted, so a newer base image is already
-        #    on disk — only a reboot is missing.
-        if deployments and not deployments[0].get("booted"):
-            return True, "System update downloaded — reboot to apply it."
-        return False, "System is up to date."
     except subprocess.TimeoutExpired:
         return False, "Update check timed out."
     except FileNotFoundError:
         return False, "rpm-ostree not found — is this an OSTree system?"
     except Exception as e:
         return False, f"Error: {e}"
+    return False, "System is up to date."
 
 
 def check_flatpak_updates():
@@ -485,9 +584,9 @@ class RaptorUpdateWindow(Adw.ApplicationWindow):
         cl_scroll.set_child(self.cl_view)
         cl_group.add(cl_scroll)
 
-        # Update log (hidden until update starts)
-        self.log_group = Adw.PreferencesGroup(title="Update Log")
-        self.log_group.set_visible(False)
+        # Console — visible from the start so the update check shows its
+        # live progress instead of looking hung while metadata refreshes.
+        self.log_group = Adw.PreferencesGroup(title="Console")
         content.append(self.log_group)
 
         self._log_scroll = Gtk.ScrolledWindow()
@@ -558,10 +657,14 @@ class RaptorUpdateWindow(Adw.ApplicationWindow):
         self._set_row_status(self.flatpak_row, self.flatpak_icon,
                              "Checking…", "emblem-synchronizing-symbolic", "accent")
         self.subtitle.set_text("Checking for updates…")
+        GLib.idle_add(self._clear_console)
         threading.Thread(target=self._do_check, daemon=True).start()
 
     def _do_check(self):
-        ostree_has, ostree_msg      = check_for_updates()
+        def _emit(line):
+            GLib.idle_add(self._append_console, line)
+        GLib.idle_add(self._append_console, "── Checking for updates ──\n")
+        ostree_has, ostree_msg      = check_for_updates(emit=_emit)
         fp_has, _fp_n, fp_msg       = check_flatpak_updates()
         GLib.idle_add(self._on_check_done, ostree_has, ostree_msg, fp_has, fp_msg)
 
@@ -659,6 +762,23 @@ class RaptorUpdateWindow(Adw.ApplicationWindow):
             "emblem-synchronizing-symbolic", "accent")
         self.subtitle.set_text("Installing update…")
         threading.Thread(target=self._run_update, daemon=True).start()
+
+    # Console helpers — always run on the main/GUI thread via idle_add, so
+    # they are safe to call from the check/update worker threads directly.
+    def _clear_console(self):
+        self.log_buffer.set_text("")
+
+    def _append_console(self, text):
+        clean = ANSI_ESCAPE.sub("", text)
+        if not clean:
+            return
+        end_iter = self.log_buffer.get_end_iter()
+        self.log_buffer.insert(end_iter, clean)
+        def _scroll():
+            adj = self._log_scroll.get_vadjustment()
+            adj.set_value(adj.get_upper() - adj.get_page_size())
+            return False
+        GLib.idle_add(_scroll)
 
     def _append_log(self, text):
         end_iter = self.log_buffer.get_end_iter()
