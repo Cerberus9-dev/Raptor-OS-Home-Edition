@@ -129,6 +129,16 @@
   Remmina (RDP/VNC/SSH client), Stacer (system optimiser), NCurses Du
   (terminal disk analyser), Restic (encrypted backups), Syncthing (file
   sync), Tailscale (WireGuard VPN), Subtitle Edit, Goverlay (MangoHud GUI)
+- **~20 more optional apps in the firstboot picker, GOverlay no longer
+  default** — game-streaming stack (Moonlight client + Sunshine server),
+  more emulators (DuckStation, Flycast, ScummVM, OpenRA), extra browsers
+  (Brave, Chromium, Google Chrome, Edge), JetBrains IDEs (IntelliJ IDEA +
+  PyCharm Community), Microsoft VS Code, digiKam, RSS Guard, MakeMKV,
+  Standard Notes, Notion. GOverlay's Flathub ID fixed (`io.github._0ffz.
+  goverlay` → `io.github.benjamimgois.goverlay`) and it now ships via the
+  picker instead of the default image — MangoHud itself still comes from
+  the base image (the Fedora `mangohud` RPM conflicts with Bazzite's
+  `terra-mangohud` on `/usr/bin/mangoapp`, so it's intentionally not layered)
 - **`files/system_files/91-raptor-dns.conf`** — NetworkManager config that
   delegates DNS resolution to systemd-resolved (see DNS fix above)
 - **Wine/Proton usability hardening** — session defaults added system-wide via

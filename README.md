@@ -49,7 +49,7 @@ Three dialogs appear on the first login, in sequence:
 
 1. **Browser choice** — Firefox (pre-installed, no download), Brave (~120 MB), or Chrome (~150 MB). Shows a network check, download progress bar, and retry prompt on failure. Closing the dialog keeps Firefox.
 2. **Chat client choice** — Discord (~150 MB) or Vesktop (~100 MB, Vencord built in). Neither is pre-installed. "Skip — Install Neither" is always available.
-3. **App picker** — 75+ optional apps across 12 categories. Nothing is pre-ticked. Everything here is also installable later from Discover or `flatpak install flathub <id>`. "Skip — Install Nothing" is always available.
+3. **App picker** — 90+ optional apps across 20 categories, including the GOverlay MangoHud config GUI, game-streaming stack (Moonlight + Sunshine), extra emulators, extra browsers, JetBrains IDEs, and VS Code. Nothing is pre-ticked. Everything here is also installable later from Discover or `flatpak install flathub <id>`. "Skip — Install Nothing" is always available.
 
 ---
 

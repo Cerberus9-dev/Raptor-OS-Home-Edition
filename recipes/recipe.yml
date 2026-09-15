@@ -141,8 +141,9 @@ modules:
         - com.heroicgameslauncher.hgl
         - net.davidotek.pupgui2
         - org.mozilla.firefox
-        # GOverlay — MangoHud config GUI (mangohud itself ships in the base image).
-        - io.github.benjamimgois.goverlay
+        # GOverlay is offered in the firstboot optional-app picker, not
+        # installed by default (it's just a MangoHud config GUI; mangohud
+        # itself ships in the base image).
 
   # ── Kernel boot arguments ─────────────────────────────────────────────────────
   - type: kargs

@@ -114,8 +114,11 @@ fi
 # Only list apps NOT already installed by the default Flatpak list in recipe.yml.
 # Mandatory defaults (Heroic, ProtonUp, Firefox, Dolphin) — bare basics only.
 # Vesktop moved to raptor-chat-choice.sh; VSCodium, VLC, Flatseal, Mission
-# Center, BleachBit, Filelight, and qbittorrent all moved here (optional).
-# are never shown here — they are always installed.
+# Center, BleachBit, Filelight, qbittorrent all moved here (optional).
+# GOverlay, the game-streaming stack (Moonlight/Sunshine), extra emulators
+# (DuckStation, Flycast, ScummVM, OpenRA), extra browsers (Brave/Chromium/
+# Chrome/Edge), JetBrains IDEs, VS Code, digiKam, RSS Guard, MakeMKV, Standard
+# Notes and Notion are also offered here.
 APP_CATALOGUE=(
     # ── Communication ──────────────────────────────────────────────────────
     "FALSE|Telegram|org.telegram.desktop|Fast, secure messaging"
@@ -129,6 +132,7 @@ APP_CATALOGUE=(
     "FALSE|Joplin|net.cozic.joplin_desktop|Note-taking app with markdown support"
     "FALSE|MarkText|com.github.marktext.marktext|Clean markdown editor"
     "FALSE|Calibre|com.calibre_ebook.calibre|Ebook library manager"
+    "FALSE|RSS Guard|io.github.martinrotter.rssguard|RSS/Atom feed reader — follow blogs, news and channels"
     # ── Office ────────────────────────────────────────────────────────────
     "FALSE|LibreOffice|org.libreoffice.LibreOffice|Full office suite — Writer, Calc, Impress"
     # ── Creative ───────────────────────────────────────────────────────────
@@ -138,6 +142,7 @@ APP_CATALOGUE=(
     "FALSE|Darktable|org.darktable.Darktable|RAW photo development and editing"
     "FALSE|Blender|org.blender.Blender|3D modelling, animation, rendering"
     "FALSE|Kdenlive|org.kde.kdenlive|Non-linear video editor (KDE)"
+    "FALSE|DigiKam|org.kde.digikam|Photo manager — organise, tag, edit and export your photo library"
     "FALSE|Shotcut|org.shotcut.Shotcut|Video editor (non-linear)"
     "FALSE|OBS Studio|com.obsproject.Studio|Screen recording and live streaming"
     "FALSE|Audacity|org.audacityteam.Audacity|Audio recording and editing"
@@ -147,6 +152,9 @@ APP_CATALOGUE=(
     "FALSE|VSCodium|com.vscodium.codium|Open-source VS Code build, no telemetry (Flatpak — sandboxed)"
     "FALSE|VSCodium — Native (Full Permissions)|RPM:vscodium|Native RPM install (NOT sandboxed) — full system access for tray, pkexec/admin tools, and scripts that need to touch the system. Requires a reboot after first-boot."
     "FALSE|VSCodium Insiders|com.vscodium.codium-insiders|Daily pre-release build, no telemetry (Flatpak — sandboxed)"
+    "FALSE|VS Code (Microsoft)|com.visualstudio.code|Microsoft's official VS Code — full extension/account integration, includes telemetry"
+    "FALSE|IntelliJ IDEA Community|com.jetbrains.IntelliJ-IDEA-Community|JetBrains IDE for Java and JVM development (free edition)"
+    "FALSE|PyCharm Community|com.jetbrains.PyCharm-Community|JetBrains IDE for Python development (free edition)"
     "FALSE|VSCodium Insiders — Native (Full Permissions)|RPM:vscodium-insiders|Native RPM install of the pre-release build (NOT sandboxed). Requires a reboot after first-boot."
     "FALSE|Developer Runtime|None|Git + Node.js + pip — for running dev tools and scripts (install via: sudo rpm-ostree install git nodejs python3-pip)"
     "FALSE|Godot Engine|org.godotengine.Godot|Free, open-source game engine"
@@ -175,6 +183,11 @@ APP_CATALOGUE=(
     "FALSE|file-roller|None|Archive manager — extract and create .zip, .tar.gz, .7z, and more (install via: sudo rpm-ostree install file-roller)"
     # ── Communication ──────────────────────────────────────────────────────
     "FALSE|Thunderbird|org.mozilla.Thunderbird|Email and calendar client"
+    # ── Browsers (Firefox is already installed — pick extras) ─────────────
+    "FALSE|Brave|com.brave.Browser|Fast, privacy-focused browser with built-in ad blocking"
+    "FALSE|Chromium|org.chromium.Chromium|Open-source browser — the base every Chromium browser is built on"
+    "FALSE|Google Chrome|com.google.Chrome|Google's browser — syncs with your Google account"
+    "FALSE|Microsoft Edge|com.microsoft.Edge|Chromium-based browser with Microsoft services"
     # ── Terminal & Developer tools ─────────────────────────────────────────
     "FALSE|btop|None|System resource monitor (install via: sudo rpm-ostree install btop)"
     "FALSE|GitHub CLI (gh)|None|GitHub CLI tool (install via: sudo rpm-ostree install gh)"
@@ -202,10 +215,12 @@ APP_CATALOGUE=(
     # ── Privacy & Security ─────────────────────────────────────────────────
     "FALSE|ProtonVPN|com.protonvpn.www|Privacy-first VPN from the makers of ProtonMail"
     "FALSE|KeePassXC|org.keepassxc.KeePassXC|Offline password manager — no cloud required"
+    "FALSE|Standard Notes|org.standardnotes.standardnotes|End-to-end encrypted notes — privacy-first Evernote alternative"
     # ── Entertainment & Media ──────────────────────────────────────────────
     "FALSE|FreeTube|io.freetubeapp.FreeTube|YouTube client with no ads and no tracking"
     # ── Note-taking ────────────────────────────────────────────────────────
     "FALSE|Obsidian|md.obsidian.Obsidian|Markdown note-taking with linked notes (second brain)"
+    "FALSE|Notion|com.notionapp.Notion|All-in-one workspace — notes, docs, wikis and databases"
     # ── Gaming ────────────────────────────────────────────────────────────
     "FALSE|Cartridges|page.kramo.Cartridges|Game library that aggregates Steam, Heroic, Bottles and more"
     "FALSE|Ryujinx|org.ryujinx.Ryujinx|Nintendo Switch emulator"
@@ -213,7 +228,14 @@ APP_CATALOGUE=(
     "FALSE|RetroArch|org.libretro.RetroArch|Multi-system emulator frontend (SNES, N64, PS1, GBA and many more)"
     "FALSE|Dolphin Emulator|org.DolphinEmu.dolphin-emu|GameCube and Wii emulator"
     "FALSE|PCSX2|net.pcsx2.PCSX2|PlayStation 2 emulator"
+    "FALSE|DuckStation|org.duckstation.DuckStation|PlayStation 1 emulator — high accuracy, upscaling, save states"
+    "FALSE|Flycast|org.flycast.Flycast|Sega Dreamcast, Naomi and Atomiswave emulator"
+    "FALSE|ScummVM|org.scummvm.ScummVM|Run classic point-and-click adventures — Monkey Island, Broken Sword, Myst and 250+ more"
+    "FALSE|OpenRA|net.openra.OpenRA|Command & Conquer-style RTS — Red Alert, Tiberian Dawn, Dune 2000 modernised"
     "FALSE|Chiaki|re.chiaki.Chiaki4deck|Remote play client for PlayStation 4 and 5"
+    "FALSE|Moonlight|com.moonlight_stream.Moonlight|Stream games from a PC running Sunshine or an NVIDIA GameStream host"
+    "FALSE|Sunshine|dev.lizardbyte.app.Sunshine|Self-hosted game streaming server — Moonlight client companion"
+    "FALSE|GOverlay|io.github.benjamimgois.goverlay|GUI for MangoHud — configure your FPS overlay without editing config files"
     # ── Audio Production ──────────────────────────────────────────────────
     "FALSE|Helvum|org.freedesktop.Helvum|PipeWire patchbay — visually connect audio/MIDI devices"
     "FALSE|LMMS|io.lmms.LMMS|Music production — beats, melodies, samples"
@@ -232,7 +254,7 @@ APP_CATALOGUE=(
     "FALSE|Tailscale|io.tailscale.ipn.App|Zero-config WireGuard VPN — access your devices anywhere"
     # ── Media (additional) ─────────────────────────────────────────────────
     "FALSE|Subtitle Edit|None|Subtitle editor — create, adjust, sync subtitles (install via: sudo rpm-ostree install subtitle-edit)"
-    "FALSE|Goverlay|io.github._0ffz.goverlay|GUI for MangoHud — configure overlay without editing config files"
+    "FALSE|MakeMKV|com.makemkv.MakeMKV|Rip Blu-ray and DVD discs to MKV files"
 )
 
 # ── Build zenity argument list ────────────────────────────────────────────────
