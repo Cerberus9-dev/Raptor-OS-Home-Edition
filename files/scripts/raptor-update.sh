@@ -137,8 +137,13 @@ cat << 'EOF' > /usr/lib/raptor/check-helper
 # Every attempt is time-bounded so the GUI's update check can NEVER hang
 # forever on a stalled network — the worst case is a bounded run of timed-out
 # attempts with a clear message (which the GUI streams live into its console).
-# `rpm-ostree upgrade --check` exits 77 for a clean "nothing new" — that is a
-# success code, not a refresh failure.
+#
+# How `rpm-ostree upgrade --check` reports a *successful* check varies between
+# builds and platforms: some signal a clean "nothing new" with exit 77 (KDE
+# Discover's backend), others with exit 0 (container-native and rpm-md builds,
+# see coreos/rpm-ostree #4891). A bare numeric code is therefore never trusted
+# on its own — a printed verdict ("No updates available." or "AvailableUpdate:")
+# is ground truth, and only genuinely failed or timed-out attempts are retried.
 MAX_ATTEMPTS=3
 ATTEMPT_TIMEOUT=150  # seconds per metadata pull
 
@@ -154,19 +159,28 @@ for try in $(seq 1 "${MAX_ATTEMPTS}"); do
     # rpm-ostree doesn't refuse to start ("Another transaction is in progress").
     rm -f /run/lock/rpm-ostree.lock 2>/dev/null || true
 
-    if timeout "${ATTEMPT_TIMEOUT}" rpm-ostree upgrade --check 2>&1; then
+    # Stream the check output live to the GUI (tee) while keeping a copy for
+    # the verdict check; PIPESTATUS[0] is timeout/rpm-ostree's real exit code.
+    out="$(mktemp)"
+    timeout "${ATTEMPT_TIMEOUT}" rpm-ostree upgrade --check 2>&1 | tee "$out"
+    rc=${PIPESTATUS[0]}
+
+    # Ground truth: a completed check is a success however it was signalled.
+    if grep -qiE \
+        "no updates? available|no upgrade available|AvailableUpdate|Available update" "$out"; then
+        rm -f "$out"
         exit 0
     fi
-    rc=$?
-    if [ "$rc" -eq 77 ]; then
-        echo "Nothing new (clean)."
+    rm -f "$out"
+
+    if [ "$rc" -eq 0 ] || [ "$rc" -eq 77 ]; then
         exit 0
     fi
 
     if [ "$rc" -eq 124 ]; then
         echo "Metadata refresh timed out after ${ATTEMPT_TIMEOUT} s — retrying…"
     else
-        echo "Metadata refresh failed (exit ${rc}) — retrying…"
+        echo "Metadata refresh did not complete (exit ${rc}) — retrying…"
     fi
     sleep 5
 done
@@ -238,7 +252,7 @@ import select
 import os
 import time
 
-CHANGELOG_URL         = "https://raw.githubusercontent.com/Cerberus9-dev/Raptor-OS/refs/heads/main/changelog.md"
+CHANGELOG_URL         = "https://raw.githubusercontent.com/Cerberus9-dev/Raptor-OS-Home-Edition/refs/heads/main/changelog.md"
 UPDATE_HELPER         = "/usr/lib/raptor/update-helper"
 CHECK_HELPER          = "/usr/lib/raptor/check-helper"
 CHECK_ACTION          = "io.github.cerberus9dev.raptorupdate.check"
@@ -346,8 +360,10 @@ def check_for_updates(emit=None):
 
     This stays correct across traditional and container-native (Bazzite-style)
     base images, either of which can lag the other on one signal alone.
-    Note: rpm-ostree `--check` exits 77 for a clean "nothing new" result —
-    that is a success code, not a refresh failure.
+    Note: rpm-ostree `--check` reports a clean run as either exit 0 or exit 77
+    depending on the build — both are success codes, and check-helper exits 0
+    whenever a verdict ("No updates available." / "AvailableUpdate:") proves
+    the check completed, so a "no update" result is never a refresh failure.
 
     Returns (has_update: bool, message: str)."""
     refresh_out = ""
@@ -389,17 +405,28 @@ def check_for_updates(emit=None):
             helper.wait()
             refresh_rc = "timeout"
 
-    # Clean result codes: 0 = check ran, 77 = check ran + nothing new.
+    # Clean result codes: 0 or 77 both mean "the check ran and we know the
+    # answer" (which code a given rpm-ostree build uses varies), and the
+    # helper exits 0 on any completed check via the verdict fallback.
     if refresh_rc == "timeout":
         return False, "Update check timed out while refreshing metadata."
     if isinstance(refresh_rc, int) and refresh_rc not in (0, 77):
-        # 4) Refresh failed — but do NOT hide an update already known locally.
-        local_has, local_msg = _local_update_signal()
-        if local_has:
-            return True, local_msg
-        tail = [l for l in refresh_out.splitlines() if l.strip()]
-        detail = tail[-1] if tail else f"exit {refresh_rc}"
-        return False, f"Could not refresh update state ({detail})."
+        # Belt-and-braces: trust a verdict in the output even if the helper
+        # surfaced a quirky exit code — a printed "no update" / "update
+        # available" means the check reached an answer, not a failure.
+        verdict_ok = re.search(
+            r"(?mi)^\s*(?:No\s+updates?\s+available|No\s+upgrade\s+available"
+            r"|Available\s*Update)\s*:?",
+            refresh_out,
+        )
+        if not verdict_ok:
+            # 4) Refresh failed — but do NOT hide an update already known locally.
+            local_has, local_msg = _local_update_signal()
+            if local_has:
+                return True, local_msg
+            tail = [l for l in refresh_out.splitlines() if l.strip()]
+            detail = tail[-1] if tail else f"exit {refresh_rc}"
+            return False, f"Could not refresh update state ({detail})."
 
     # 1) Explicit announcement in the check output ("AvailableUpdate:").
     if re.search(r"(?mi)^\s*Available\s*Update\s*:", refresh_out):
