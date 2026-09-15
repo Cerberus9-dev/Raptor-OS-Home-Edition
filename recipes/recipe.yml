@@ -93,6 +93,7 @@ modules:
       - plasma-systemmonitor
       - gwenview
       - kcalc
+      - liberation-fonts
       - power-profiles-daemon
 
       # Media
@@ -155,6 +156,7 @@ modules:
       - raptor-gaming.sh
       - raptor-update.sh
       - raptor-wallpaper-manager.sh
+      - raptor-wine.sh
 
   # ── Systemd units ───────────────────────────────────────────────────────────
   - type: systemd

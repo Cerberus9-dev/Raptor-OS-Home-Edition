@@ -120,6 +120,7 @@ Gallery-style wallpaper picker — click any thumbnail to apply it, including fo
 - **`WINE_FULLSCREEN_FSR` and `DXVK_ASYNC` not set globally** — both caused flickering in OpenGL games (Project Zomboid). Set per-game in Steam launch options instead
 
 ### Wine & Windows Apps
+- **`raptor-wine` launcher** — `.exe`/`.msi` files are bound to a managed launcher (double-click in Dolphin or right-click → **Run as Windows App**). First launch bootstraps the prefix (`wineboot`) and silently installs the common MSVC++ runtimes + Windows fonts (`vcrun2015`, `vcrun2019`, `corefonts`) — best-effort and retried on flaky networks. `--prefix NAME` for isolated prefixes, `--reset` for a clean slate, `--install-runtime dotnet48` for .NET Framework on demand
 - **Session defaults** (`/etc/environment.d/10-raptor-wine.conf`) — `WINEESYNC`/`WINEFSYNC` kernel synchronization (fsync with esync fallback), quiet debug logging (`WINEDEBUG=-all`), `winemenubuilder` disabled so prefixes don't litter the app menu
 - **File-descriptor ceiling raised** to 1,048,576 — esync-heavy games and large prefixes no longer hit "eventfd: Too many open files" crashes
 - **Wine Mono + Gecko pre-installed** (`wine-mono`, `mingw32/mingw64-wine-gecko`) — .NET and JavaScript-based program loaders/installers work without Wine stalling to download runtimes on first launch

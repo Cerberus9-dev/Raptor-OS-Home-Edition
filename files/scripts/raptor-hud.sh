@@ -1198,6 +1198,10 @@ DESIRED_MIME = {
     "application/x-bzip-compressed-tar": "org.kde.ark.desktop",
     "application/gzip":            "org.kde.ark.desktop",
     "application/x-xz":            "org.kde.ark.desktop",
+    "application/x-ms-dos-executable":              "raptor-wine.desktop",
+    "application/x-msi":                            "raptor-wine.desktop",
+    "application/vnd.microsoft.portable-executable":"raptor-wine.desktop",
+    "application/x-msdownload":                     "raptor-wine.desktop",
 }
 
 DESIRED_DOLPHIN = {

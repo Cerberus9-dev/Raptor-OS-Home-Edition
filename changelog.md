@@ -83,6 +83,18 @@
   `wine-mono`, and the 32- and 64-bit `mingw*-wine-gecko` packages are now layered
   into the image, so every prefix finds them already installed and .NET/JS
   program loaders start working instead of hanging
+- **"Regular" Windows apps crashed or acted up when double-clicked** — `.exe`/
+  `.msi` files had no file-type binding and fell into an unconfigured `~/.wine`
+  without the MSVC++ runtime DLLs most installers/tools require, which is why
+  apps kept getting forced through Steam/Proton. A new `raptor-wine` launcher
+  (MIME-bound to `.exe`/`.msi` + Dolphin right-click "Run as Windows App")
+  gives every launch a managed prefix that bootstraps itself on first run:
+  `wineboot` + a silent, best-effort install of `vcrun2015`, `vcrun2019` and
+  `corefonts` via winetricks (deferred, not fatal, if the download stalls on
+  flaky networks; retried on the next launch). `--prefix NAME` gives isolated
+  prefixes for incompatible apps, `--reset` gives a clean slate, and
+  `--install-runtime dotnet48` adds .NET Framework 4.8 on demand. `liberation-
+  fonts` also layered in for Windows font metrics
 - **Dolphin file-selection freezes** — thumbnail generation could stall the file
   manager for seconds on large media folders. Default preview plugins restricted
   to images + folder icons (`/etc/xdg/dolphinrc`, also seeded into skel). The
