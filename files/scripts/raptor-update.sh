@@ -144,6 +144,13 @@ cat << 'EOF' > /usr/lib/raptor/check-helper
 # see coreos/rpm-ostree #4891). A bare numeric code is therefore never trusted
 # on its own — a printed verdict ("No updates available." or "AvailableUpdate:")
 # is ground truth, and only genuinely failed or timed-out attempts are retried.
+#
+# Even that verdict is NOT enough on container-native images (Bazzite /
+# BlueBuild): rpm-ostree can print "No updates available." while a new image
+# was just pushed (coreos/rpm-ostree #1579, #4891, #4711). When the check
+# completes without announcing an update we therefore cross-verify the *booted
+# image digest* against the digest the remote tag resolves to right now — the
+# same ground truth ublue-update uses. A mismatch means a new image exists.
 MAX_ATTEMPTS=3
 ATTEMPT_TIMEOUT=150  # seconds per metadata pull
 
@@ -153,6 +160,95 @@ else
     echo "WARNING: no reachable connectivity to ghcr.io yet — refresh may fail."
 fi
 
+# Prints "AvailableUpdate:" (and exits 0) when the registry tag now points at
+# a digest different from the one the system is booted on. Silent no-op (exit
+# 0) when the machine is not container-native, when a prerequisite is missing,
+# or when the comparison cannot be made — the rpm-ostree verdict stands then.
+registry_cross_check() {
+    command -v skopeo >/dev/null 2>&1 || { echo "NOTE: registry digest cross-check skipped (skopeo not installed)."; return 0; }
+    command -v jq     >/dev/null 2>&1 || { echo "NOTE: registry digest cross-check skipped (jq not installed)."; return 0; }
+
+    local json origin ref local_digest host path tag aw remote_digest tmp
+
+    json="$(timeout 60 rpm-ostree status --json 2>/dev/null)" || { echo "Registry cross-check: status --json failed — skipped."; return 0; }
+    [ -n "$json" ] || { echo "Registry cross-check: empty status — skipped."; return 0; }
+
+    origin="$(printf '%s' "$json" | jq -r '.deployments[0].origin // empty')"
+    [ -n "$origin" ] || { echo "Registry cross-check: no deployment origin — skipped."; return 0; }
+
+    # Classic (non-container) refs like "fedora:fedora/42/x86_64/kinoite" are
+    # answered reliably by rpm-ostree itself — nothing to cross-check.
+    case "$origin" in
+        ostree-image-signed:docker://*|ostree-unverified-image:docker://*)
+            ref="${origin#*docker://}" ;;
+        ostree-image-signed:registry:*|ostree-unverified-image:registry:*|ostree-unverified-registry:*)
+            ref="${origin#*registry:}" ;;
+        ostree-image-signed:*|ostree-unverified-image:*)
+            ref="${origin#*:}" ;;
+        *) return 0 ;;
+    esac
+    ref="${ref%@sha256:*}"  # drop a digest pin; compare against the moving tag
+
+    local_digest="$(printf '%s' "$json" | jq -r \
+        '.deployments[0]["container-image-reference-digest"]
+         // .deployments[0]["base-commit-meta"]["ostree.manifest-digest"]
+         // empty')"
+    [ -n "$local_digest" ] || { echo "Registry cross-check: no local image digest — skipped."; return 0; }
+
+    host="${ref%%/*}"
+    path="${ref#*/}"
+    if [[ "$path" == *":"* ]]; then
+        tag="${path##*:}"
+        path="${path%:*}"
+    else
+        tag="latest"
+    fi
+
+    case "$(uname -m)" in
+        x86_64)  aw="amd64" ;;
+        aarch64) aw="arm64" ;;
+        armv7hl) aw="arm" ;;
+        *)       aw="$(uname -m)" ;;
+    esac
+
+    tmp="$(mktemp)"
+    remote_digest=""
+    # Registry pull works on a raw manifest-list: pick the entry for OUR arch
+    # (filtering out cosign attestation entries via mediaType), so the digest
+    # is comparable with the per-arch digest rpm-ostree recorded locally.
+    if timeout 45 skopeo inspect --raw "docker://${host}/${path}:${tag}" >"$tmp" 2>/dev/null; then
+        if jq -e '.manifests' "$tmp" >/dev/null 2>&1; then
+            remote_digest="$(jq -r --arg a "$aw" \
+                '.manifests[] |
+                 select(.platform.os == "linux" and .platform.architecture == $a) |
+                 select((.mediaType // "") | test("oci.image.manifest|distribution.manifest")) |
+                 .digest // empty' "$tmp" | head -n 1)"
+        else
+            remote_digest="$(timeout 45 skopeo inspect --format '{{.Digest}}' \
+                "docker://${host}/${path}:${tag}" 2>/dev/null)"
+        fi
+    fi
+    rm -f "$tmp"
+
+    if [ -z "$remote_digest" ]; then
+        echo "Registry cross-check: could not resolve ${host}/${path}:${tag} — skipped."
+        return 0
+    fi
+
+    if [ "$remote_digest" != "$local_digest" ]; then
+        echo "──────────────────────────────────────────────"
+        echo "New image available:"
+        echo "  booted ${local_digest}"
+        echo "  remote ${remote_digest}"
+        echo "AvailableUpdate:"
+        echo "  A new Raptor OS image was pushed to ${host}/${path}:${tag}."
+        return 0
+    fi
+    echo "Registry digest matches the booted image — no new image pushed."
+    return 0
+}
+
+verdict=0  # 1 once *any* check attempt completed cleanly
 for try in $(seq 1 "${MAX_ATTEMPTS}"); do
     echo "── Metadata refresh attempt ${try}/${MAX_ATTEMPTS} ──"
     # Clear any stale transaction lock left by a previous killed attempt so
@@ -165,16 +261,26 @@ for try in $(seq 1 "${MAX_ATTEMPTS}"); do
     timeout "${ATTEMPT_TIMEOUT}" rpm-ostree upgrade --check 2>&1 | tee "$out"
     rc=${PIPESTATUS[0]}
 
-    # Ground truth: a completed check is a success however it was signalled.
-    if grep -qiE \
-        "no updates? available|no upgrade available|AvailableUpdate|Available update" "$out"; then
+    # An explicit update announcement is unambiguous — report it immediately.
+    if grep -qiE "AvailableUpdate|Available update" "$out"; then
         rm -f "$out"
         exit 0
+    fi
+
+    # "No updates available." means the check *ran* — but on container-native
+    # images this verdict cannot be trusted (see header), so finish cleanly and
+    # let the registry cross-check confirm it. NotFound-free + rc 0/77 counts
+    # the same way (bare codes alone are never treated as "update present").
+    if grep -qiE "no updates? available|no upgrade available" "$out"; then
+        rm -f "$out"
+        verdict=1
+        break
     fi
     rm -f "$out"
 
     if [ "$rc" -eq 0 ] || [ "$rc" -eq 77 ]; then
-        exit 0
+        verdict=1
+        break
     fi
 
     if [ "$rc" -eq 124 ]; then
@@ -185,9 +291,16 @@ for try in $(seq 1 "${MAX_ATTEMPTS}"); do
     sleep 5
 done
 
-echo "Could not refresh remote metadata after ${MAX_ATTEMPTS} attempts."
-echo "Check your connection, then try again."
-exit 1
+if [ "$verdict" -eq 0 ]; then
+    echo "Could not refresh remote metadata after ${MAX_ATTEMPTS} attempts."
+    echo "Check your connection, then try again."
+    exit 1
+fi
+
+# Check completed without announcing an update — confirm against the registry
+# so a fresh image push is never missed on container-native systems.
+registry_cross_check
+exit 0
 EOF
 chmod +x /usr/lib/raptor/check-helper
 
@@ -341,13 +454,18 @@ def check_for_updates(emit=None):
     or the rpm-ostreed-automatic timer). Reading it on its own never triggers
     that, so the resolver first runs the privileged check-helper to refresh
     remote metadata + cache the result, then inspects the check output and
-    status --json and combines four independent signals:
+    status --json and combines five independent signals:
 
       1. an explicit "AvailableUpdate:" line in the check output
       2. a populated `cached-update` field (bool on old rpm-ostree, dict on new)
       3. a *staged* deployment that has not been booted yet — the base image
          was already upgraded elsewhere, only a reboot is missing
-      4. a failed refresh surfacing as an error instead of a silent
+      4. a registry digest cross-check: on a clean (non-update) check the
+         helper compares the booted image's digest against the remote tag's
+         digest (coreos/rpm-ostree #4891 — `--check` can wrongly answer
+         "no updates" on container-native images) and prints "AvailableUpdate:"
+         again when the tag moved, so a fresh image push is never hidden
+      5. a failed refresh surfacing as an error instead of a silent
          "up to date" — but only after checking the local signals, so a
          refresh failure can never hide an update that is already on disk
 

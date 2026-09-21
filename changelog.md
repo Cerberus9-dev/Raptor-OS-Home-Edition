@@ -37,8 +37,26 @@
   wall-clock ceiling so a stalled pipe can never freeze the check again; (3) if the
   refresh *does* fail, the manager falls back to local rpm-ostree state first — a
   staged-but-not-booted deployment or a populated `cached-update` is still reported
-  as an available update ("reboot to apply it") instead of the refresh error hiding
-  an update that is already on disk.
+as an available update ("reboot to apply it") instead of the refresh error hiding
+   an update that is already on disk.
+- **Update manager said "up to date" even when a new image was pushed** — the
+  manager depended entirely on `rpm-ostree upgrade --check` plus the
+  `cached-update` field, but on container-native (Bazzite/BlueBuild) images both
+  are known to be unreliable (coreos/rpm-ostree #1579, #4891, #4711): `--check`
+  can print `No updates available.` while a fresh image push exists, and the
+  cached-update logic doesn't populate for the container flow. The check-helper
+  now adds a **registry digest cross-check** as ground truth: when the rpm-ostree
+  check completes without announcing an update, it compares the digest of the
+  *booted* image (`container-image-reference-digest` / `ostree.manifest-digest`
+  from `rpm-ostree status --json`) against the digest the remote tag
+  (`ghcr.io/cerberus9-dev/raptor-os:latest`) resolves to right now via
+  `skopeo`, filtering multi-arch manifests to the booted architecture and
+  ignoring cosign attestation entries. A mismatch prints the same
+  `AvailableUpdate:` marker the GUI listens for, so a fresh push is reported
+  immediately instead of a false "no updates". Classic non-container refs
+  (e.g. `fedora:fedora/42/x86_64/kinoite`) skip the cross-check and keep the
+  tried-and-true verdict handling, and everything degrades gracefully if
+  `skopeo`/`jq` are missing or the registry is unreachable.
 - Custom GRUB bootloader theme
 - Custom KDE splash screen
 - Custom Raptor OS logo
