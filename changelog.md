@@ -4,6 +4,27 @@
 
 ### Fixed
 
+- **Dolphin still froze/crashed on selecting a .zip despite the earlier fix** —
+  the old `ShowPreview=false` key doesn't exist in Dolphin's schema and is
+  silently ignored, so the F4 Information Panel kept parsing selected archives
+  with KFileMetaData in the main process and wedged the UI on big/remote zips.
+  Replaced with the real keys — `[InformationPanel]` is now written as
+  `previewsShown=false`, `previewsAutoPlay=false`, `showHovered=false` (no
+  preview thumbnail generation, no hover refresh; F4 still opens the panel on
+  demand) — in `/etc/xdg/dolphinrc` and the once-per-user login migration
+  (stamp bumped to `raptor-dolphin-defaults-v2` so existing users get the
+  corrected keys applied). The `[PreviewSettings] Plugins` value was also
+  malformed (`imagethumbnail:directorythumbnail` — a colon-joined token that
+  matches no plugin id); it is now a proper comma list, `imagethumbnail,
+  directorythumbnail`, so image + folder thumbnails actually stay enabled while
+  the heavy video/audio/document previewers stay off. Finally, Ark's
+  *Compress / Extract / drag-and-drop extract* KFileItemAction plugins are
+  removed at build time (`raptor-dolphin-stability.sh`): they advertise
+  `application/octet-stream`, so Dolphin queries them for *any* selection and
+  they force a per-file MIME scan that freezes the UI (KDE bug 499551) and can
+  segfault Dolphin via kerfuffle (KDE bugs 482016/420429). Double-clicking an
+  archive to open it in Ark (via `raptor-mimeapps.list`) is unaffected — only
+  the right-click compress/extract entries are dropped.
 - **Update manager could hang on "Checking" and never finish, with no visible
   progress** — the GUI's metadata refresh ran the check-helper and then sat in a
   blocking `communicate()`, showing nothing on screen while the network stalled

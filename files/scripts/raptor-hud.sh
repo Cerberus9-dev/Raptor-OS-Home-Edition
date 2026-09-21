@@ -1164,13 +1164,19 @@ echo "RAPTOR_HUD_READY"
 # /etc/xdg/dolphinrc stability keys apply, but an existing ~/.config/dolphinrc
 # would override them silently. This script runs once at login per stamp file,
 # corrects only the targeted keys, and leaves every other user preference alone.
+#
+# v2: Dolphin's "Hide the F4 preview panel" key is [InformationPanel] with
+# previewsShown/previewsAutoPlay/showHovered — the old "[General] ShowPreview"
+# key does not exist and was silently ignored, so the archive-selection freeze
+# persisted. Stamp renamed (…-v2) so anyone who already ran the v1 migration
+# gets the corrected keys applied once.
 mkdir -p /usr/lib/raptor /etc/xdg/autostart
 
 cat << 'MIGRATIONEOF' > /usr/lib/raptor/cleanup-legacy-mimeapps.sh
 #!/bin/bash
 set -euo pipefail
 STAMP_DIR="$HOME/.local/share/raptor"
-STAMP="$STAMP_DIR/raptor-dolphin-defaults"
+STAMP="$STAMP_DIR/raptor-dolphin-defaults-v2"
 [ -f "$STAMP" ] && exit 0
 
 python3 - << 'INNERPYEOF'
@@ -1206,8 +1212,10 @@ DESIRED_MIME = {
 
 DESIRED_DOLPHIN = {
     # (section, key) -> value
-    ("General", "ShowPreview"):     "false",
-    ("PreviewSettings", "Plugins"): "imagethumbnail:directorythumbnail",
+    ("InformationPanel", "previewsShown"):    "false",
+    ("InformationPanel", "previewsAutoPlay"): "false",
+    ("InformationPanel", "showHovered"):      "false",
+    ("PreviewSettings", "Plugins"):           "imagethumbnail,directorythumbnail",
 }
 
 DESIRED_BALOO = {
@@ -1276,8 +1284,11 @@ def ensure_keys(path, heading, desired):
                 f.write("\n")
 
 ensure_keys(MIME_PATH, "[Default Applications]", DESIRED_MIME)
-ensure_keys(DOLPHINRC_PATH, "[General]", {"ShowPreview": "false"})
-ensure_keys(DOLPHINRC_PATH, "[PreviewSettings]", {"Plugins": "imagethumbnail:directorythumbnail"})
+dolphin_by_section = {}
+for (sec, k), v in DESIRED_DOLPHIN.items():
+    dolphin_by_section.setdefault(sec, {})[k] = v
+for sec, desired in dolphin_by_section.items():
+    ensure_keys(DOLPHINRC_PATH, f"[{sec}]", desired)
 baloorc = os.path.expanduser("~/.config/baloorc")
 baloo_by_section = {}
 for (sec, k), v in DESIRED_BALOO.items():

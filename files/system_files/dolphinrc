@@ -1,17 +1,31 @@
-[General]
 # Raptor OS — Dolphin stability defaults.
-# Selecting/hovering a file with the preview (F4) panel up spawns metadata and
-# preview workers for that exact file. For archives (.zip, .tar.gz, …) that
-# means opening a KIO "archive" worker to peek inside — on a big or remote
-# archive this blocks the UI for seconds (the "freeze when selecting a zip"
-# complaint). Keep the panel hidden by default; press F4 to show it on demand.
-ShowPreview=false
+#
+# Selecting or hovering a file updates the Information Panel (F4). Dolphin
+# runs KFileMetaData extractors in its MAIN process to fill that panel, and
+# for archives (.zip, .tar.gz, .7z, …) the extractor peeks inside the file by
+# reading its central directory. On a big, remote or corrupt archive that
+# blocks the UI for seconds (the "freeze when selecting a zip" complaint) and
+# can hard-crash Dolphin when the parser hits a broken entry (KDE bugs 495145,
+# 465006, 414227). Keeping the panel static removes that crash class entirely;
+# F4 still opens the panel on demand, but it no longer auto-generates a
+# preview thumbnail for the selected file or refreshes on mouse-over.
+
+[InformationPanel]
+previewsShown=false
+previewsAutoPlay=false
+showHovered=false
+
+# Dolphin generates icon previews for every file a folder displays. The heavy
+# previewers (video, audio, documents, AppImage) run ffmpeg/pdfmt/other worker
+# processes that can stall the file manager for seconds on media-heavy folders
+# and periodically wedge it during file selection. Restricting the enabled
+# preview plugins to images + folder icons keeps previews useful while
+# eliminating that freeze class.
+#
+# NOTE: the plugin list is comma-separated. Earlier images shipped
+# "imagethumbnail:directorythumbnail" here — a single colon-joined token that
+# matches no plugin id, which silently disabled every previewer instead of the
+# intended allow-list.
 
 [PreviewSettings]
-# Dolphin generates preview thumbnails for selected/hovered files and for every
-# folder it displays. The heavy thumbnailers (video, audio, documents, AppImage)
-# run ffmpeg/pdfmt/other workers that can stall the file manager for seconds on
-# large media folders and periodically wedge it during file selection. Restricting
-# the enabled preview plugins to images + folder icons keeps previews useful while
-# eliminating the freeze class caused by thumbnail generation.
-Plugins=imagethumbnail:directorythumbnail
+Plugins=imagethumbnail,directorythumbnail

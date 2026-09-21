@@ -163,6 +163,7 @@ modules:
       - raptor-update.sh
       - raptor-wallpaper-manager.sh
       - raptor-wine.sh
+      - raptor-dolphin-stability.sh
 
   # ── Systemd units ───────────────────────────────────────────────────────────
   - type: systemd
