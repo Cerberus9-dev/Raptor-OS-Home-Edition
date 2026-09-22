@@ -18,9 +18,19 @@ set -oue pipefail
 # right-click "Compress/Extract…" entries. Double-clicking an archive to open
 # it in Ark (wired up via raptor-mimeapps.list) is unaffected.
 #
-# KFileItemAction plugins can't be turned off through KPlugin config, so we
-# drop the plugin .so + metadata .json from the image at build time. Both the
-# lib64 and lib Qt6 plugin roots are covered for Fedora/Bazzite.
+# On top of that, selecting an archive makes Dolphin compute its "Contents"
+# through KFileMetaData's in-process archive extractor (libarchive / KF6Archive).
+# On a big archive, or a slow/loaded disk, that blocking read wedges the UI —
+# and if Baloo was running it queues behind baloo's own content reads (KDE bug
+# 495145). We therefore also drop kfilemetadata's archive + AppImage extractors
+# (AppImage is an ISO-level reader too), so selecting a .zip can never read the
+# file's contents for metadata again. Ark keeps its own kerfuffle engine, so
+# opening archives still works.
+#
+# KFileItemAction + kfilemetadata plugins can't be turned off through KPlugin
+# config, so we drop the plugin .so (+ metadata .json) files from the image at
+# build time. Both the lib64 and lib Qt6 plugin roots are covered for
+# Fedora/Bazzite.
 # ═════════════════════════════════════════════════════════════════════════════
 
 PLUGIN_DIRS=(
@@ -49,3 +59,26 @@ for dir in "${PLUGIN_DIRS[@]}"; do
 done
 
 echo "raptor-dolphin-stability: disabled Ark context-menu archive actions (${removed} files removed)."
+
+# ── In-process archive metadata extractors (KFileMetaData) ──────────────────
+# Name varies across distros (kfilemetadata_archiveextractor.so vs bare
+# archiveextractor.so), so match by substring case-insensitively.
+METADATA_DIRS=(
+    /usr/lib64/qt6/plugins/kf6/kfilemetadata
+    /usr/lib/qt6/plugins/kf6/kfilemetadata
+)
+
+for dir in "${METADATA_DIRS[@]}"; do
+    [[ -d "${dir}" ]] || continue
+    while IFS= read -r f; do
+        [[ -n "${f}" ]] || continue
+        rm -f "${f}"
+        echo "raptor-dolphin-stability: removed ${f}"
+        removed=$((removed + 1))
+    done < <(find "${dir}" -maxdepth 1 -type f \
+        \( -iname '*archiveextractor*' -o -iname '*appimageextractor*' \))
+done
+
+if [[ "${removed}" -gt 0 ]]; then
+    echo "raptor-dolphin-stability: archive metadata reading disabled (${removed} total files removed)."
+fi

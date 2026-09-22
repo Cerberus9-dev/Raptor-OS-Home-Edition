@@ -23,8 +23,28 @@
   `application/octet-stream`, so Dolphin queries them for *any* selection and
   they force a per-file MIME scan that freezes the UI (KDE bug 499551) and can
   segfault Dolphin via kerfuffle (KDE bugs 482016/420429). Double-clicking an
-  archive to open it in Ark (via `raptor-mimeapps.list`) is unaffected — only
-  the right-click compress/extract entries are dropped.
+archive to open it in Ark (via `raptor-mimeapps.list`) is unaffected — only
+   the right-click compress/extract entries are dropped.
+- **Dolphin still froze on selecting a .zip *after the laptop had been on a
+  while*** — the Baloo half of the earlier fix never landed: Plasma 6 reads
+  `~/.config/baloofilerc`, but the image shipped `/etc/xdg/baloorc` and the
+  login migration wrote `~/.config/baloorc` (wrong filename), and the keys used
+  (`IndexFileContent`, `IndexFileSizeLimit`…) don't exist in Baloo's schema.
+  The content-indexing switch was therefore silently ignored and Baloo kept
+  indexing file contents. After hours of uptime `baloo_file_extractor` +
+  `baloo_filemetadata_temp_extractor` saturate disk I/O, and selecting a zip
+  makes KFileMetaData wait on those same files → Dolphin freezes (KDE bug
+  495145's mechanism). Now: the real config is shipped as `/etc/xdg/baloofilerc`
+  (and `skel`) with `[Basic Settings] Indexing-Enabled=false` plus
+  `[General] only basic indexing=true` and archive globs in the genuine
+  `exclude filters` key; the login migration (stamp bumped to
+  `raptor-dolphin-defaults-v3`) writes those keys to `baloofilerc`, deletes the
+  stale `baloorc` artifact, and runs `balooctl disable` to stop the running
+  indexer immediately. On top of that, `raptor-dolphin-stability.sh` now also
+  removes kfilemetadata's in-process **archive + AppImage extractors**
+  (`kfilemetadata_archiveextractor.so`, matched by substring across distros), so
+  selecting an archive can no longer read its contents for metadata at all;
+  Ark's own kerfuffle engine is untouched, so opening archives still works.
 - **Update manager could hang on "Checking" and never finish, with no visible
   progress** — the GUI's metadata refresh ran the check-helper and then sat in a
   blocking `communicate()`, showing nothing on screen while the network stalled

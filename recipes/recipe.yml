@@ -67,10 +67,10 @@ modules:
       - source: ../files/system_files/dolphinrc
         destination: /etc/skel/.config/dolphinrc
       # ── Baloo (file indexer) stability: disable content indexing ────────────
-      - source: ../files/system_files/baloorc
-        destination: /etc/xdg/baloorc
-      - source: ../files/system_files/baloorc
-        destination: /etc/skel/.config/baloorc
+      - source: ../files/system_files/baloofilerc
+        destination: /etc/xdg/baloofilerc
+      - source: ../files/system_files/baloofilerc
+        destination: /etc/skel/.config/baloofilerc
       # ── Wine / Proton usability + fd limits ────────────────────────────────
       - source: ../files/system_files/10-raptor-wine.conf
         destination: /etc/environment.d/10-raptor-wine.conf

@@ -1170,13 +1170,19 @@ echo "RAPTOR_HUD_READY"
 # key does not exist and was silently ignored, so the archive-selection freeze
 # persisted. Stamp renamed (…-v2) so anyone who already ran the v1 migration
 # gets the corrected keys applied once.
+#
+# v3: Baloo reads ~/.config/baloofilerc, but v1/v2 shipped the wrong filename
+# ("baloorc") and non-existent keys (IndexFileContent / IndexFileSizeLimit),
+# so the content-indexing switch never landed and Baloo kept indexing contents.
+# The migration now writes the REAL keys to baloofilerc and disables the
+# running indexer immediately with `balooctl disable`. Stamp renamed (…-v3).
 mkdir -p /usr/lib/raptor /etc/xdg/autostart
 
 cat << 'MIGRATIONEOF' > /usr/lib/raptor/cleanup-legacy-mimeapps.sh
 #!/bin/bash
 set -euo pipefail
 STAMP_DIR="$HOME/.local/share/raptor"
-STAMP="$STAMP_DIR/raptor-dolphin-defaults-v2"
+STAMP="$STAMP_DIR/raptor-dolphin-defaults-v3"
 [ -f "$STAMP" ] && exit 0
 
 python3 - << 'INNERPYEOF'
@@ -1219,14 +1225,15 @@ DESIRED_DOLPHIN = {
 }
 
 DESIRED_BALOO = {
-    ("Basic Settings", "IndexFileContent"):  "false",
-    ("Basic Settings", "IndexFileSizeLimit"):  "4",
-    ("Basic Settings", "IndexVideoSizeLimit"): "8",
-    ("Basic Settings", "IndexImageSizeLimit"): "4",
+    # Real Baloo keys (Plasma 6 reads ~/.config/baloofilerc, NOT "baloorc" —
+    # v1/v2 wrote the wrong file + non-existent keys, so content indexing
+    # stayed fully on and archives were read again on selection).
+    ("Basic Settings", "Indexing-Enabled"):  "false",
+    ("General", "only basic indexing"):      "true",
     ("General", "exclude filters"): (
-        "*.zip *.tar *.gz *.tgz *.tar.gz *.bz2 *.tbz2 *.tar.bz2 "
-        "*.7z *.rar *.xz *.lzma *.lz *.zst "
-        "*.iso *.img *.dmg *.cab *.deb *.rpm *.AppImage *.appimage"
+        "*.zip,*.tar,*.gz,*.tgz,*.tar.gz,*.bz2,*.tbz2,*.tar.bz2,"
+        "*.7z,*.rar,*.xz,*.lzma,*.lz,*.zst,"
+        "*.iso,*.img,*.dmg,*.cab,*.deb,*.rpm,*.AppImage,*.appimage"
     ),
 }
 
@@ -1289,12 +1296,22 @@ for (sec, k), v in DESIRED_DOLPHIN.items():
     dolphin_by_section.setdefault(sec, {})[k] = v
 for sec, desired in dolphin_by_section.items():
     ensure_keys(DOLPHINRC_PATH, f"[{sec}]", desired)
-baloorc = os.path.expanduser("~/.config/baloorc")
+baloofilerc = os.path.expanduser("~/.config/baloofilerc")
 baloo_by_section = {}
 for (sec, k), v in DESIRED_BALOO.items():
     baloo_by_section.setdefault(sec, {})[k] = v
 for sec, desired in baloo_by_section.items():
-    ensure_keys(baloorc, f"[{sec}]", desired)
+    ensure_keys(baloofilerc, f"[{sec}]", desired)
+# Remove the wrong-file artifact written by the v1/v2 migration, and stop the
+# already-running indexer now (config alone only applies on the next start).
+stale_baloo = os.path.expanduser("~/.config/baloorc")
+if os.path.exists(stale_baloo):
+    os.remove(stale_baloo)
+import shutil, subprocess
+for ctl in ("balooctl6", "balooctl"):
+    if shutil.which(ctl):
+        subprocess.run([ctl, "disable"], capture_output=True)
+        break
 print("raptor-dolphin-defaults-applied")
 INNERPYEOF
 

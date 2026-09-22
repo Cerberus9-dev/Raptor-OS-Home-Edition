@@ -1,0 +1,19 @@
+[Basic Settings]
+# Raptor OS - Baloo (file indexer) stability defaults.
+# Plasma 6 reads this as ~/.config/baloofilerc (NOT "baloorc" - an earlier
+# release shipped the wrong filename, so the content-indexing switch below was
+# silently ignored and Baloo kept indexing file contents). Baloo's content
+# indexer digs INTO file contents by default; on bulk operations (selecting
+# many files, right-clicking a big selection to delete, selecting an archive in
+# Dolphin) KFileMetaData asks Baloo for metadata per file, and for archives that
+# means reading the file again - the UI wedges ("freeze when selecting a zip").
+# These keys stop file indexing entirely; tags/ratings and KRunner search over
+# already-indexed data still work.
+Indexing-Enabled=false
+
+[General]
+# Filenames-only fallback if indexing is ever re-enabled, and never read
+# archive contents at all - selecting a big .zip/.tar.gz can't trigger a
+# content/archive read on the current selection.
+only basic indexing=true
+exclude filters=*.zip,*.tar,*.gz,*.tgz,*.tar.gz,*.bz2,*.tbz2,*.tar.bz2,*.7z,*.rar,*.xz,*.lzma,*.lz,*.zst,*.iso,*.img,*.dmg,*.cab,*.deb,*.rpm,*.AppImage,*.appimage
