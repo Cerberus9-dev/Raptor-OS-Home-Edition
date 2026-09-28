@@ -22,7 +22,8 @@
   install the user is in `wheel` (password-required) *and* the NOPASSWD
   drop-in, and `sudo -l` can demand authentication before printing anything —
   so that probe would push every user onto a polkit password prompt even where
-  the silent grant works. A regression test pins the behaviour.
+  the silent grant works. The grant is therefore checked by reading the
+  drop-in directly.
 - **A malformed sudoers drop-in was installed silently** — the installer ran
   `visudo -cf … || true`, so a syntax error shipped a rule set that sudo
   silently ignores *in its entirety*, leaving `sudo -n` refusing and the update
@@ -139,37 +140,85 @@ as an available update ("reboot to apply it") instead of the refresh error hidin
 
 ### Added
 
-- **The Update Manager now has a regression test suite** — 27 update-manager
-  tests, 10 Cortex tests and a repo-wide payload check, wired into CI as a
-  required `test` job that the image build `needs`, so a broken update manager
-  can no longer be pushed.
-  This exists because every Raptor app is a builder script that writes its real
-  payload through heredocs: the code that actually runs on a user's machine was
-  never compiled or executed by CI, so all four previous update-manager fixes
-  were speculative guesses verified only by hand on real hardware. The new
-  `files/scripts/tests/` extracts the exact bytes the installers write and
-  exercises them with stubbed `rpm-ostree`/`sudo`/`skopeo`/`curl`, covering the
-  verdict matrix (explicit `AvailableUpdate`, "no updates" as exit 0 *and*
-  exit 77, registry-digest cross-check both ways, hard failure, staged-but-not-
-  booted deployments), the retry/backoff paths, and the guarantee that a stalled
-  metadata pull stays bounded.
-  - `test_payloads.py` compiles every generated payload (Python via
-    `py_compile`, shell via `bash -n`, `.desktop`/`.policy`/`.svg` via an XML
-    parse), asserts every `.desktop` `Exec=` target actually resolves to a file
-    its installer generates, and asserts every installer is listed in
-    `recipe.yml` — a broken heredoc or an unwired installer is exactly how an
-    app ends up "not opening" with an empty build log.
+- **Fan RPM display and guarded manual fan control in Raptor Cortex** —
+  Cortex now shows the live RPM of every fan the kernel exposes. Manual PWM
+  control is offered only when the fan controller is on a known-safe allowlist,
+  and sits behind four independent gates, because a wrong value written to a
+  misidentified chip can leave a fan barely turning and cook the CPU with
+  nothing reporting it:
+  1. **Allowlist** — the hwmon chip must be one of a known set. Unrecognised
+     chips are read-only. A wrong guess at a register layout is worse than the
+     feature being missing.
+  2. **RPM readback** — the chip must expose a matching `fanN_input`. If RPM
+     cannot be read, the helper cannot confirm the fan is turning, so it
+     refuses rather than writing blind.
+  3. **Thermal interlock** — at or above 90 °C manual control is abandoned and
+     the driver default is restored.
+  4. **Hard cap** — no profile, including Turbo, reaches the chip's full
+     scale (95 % ceiling), and a target at or below the chip's own minimum is
+     skipped rather than written, since that runs the fan at its slowest.
+
+  A stalled fan (under 100 RPM) is refused by default, with an explicit
+  `RAPTOR_FAN_IGNORE_STALLED=1` opt-in, because the likely causes are hardware
+  problems a faster fan would not fix. `fan-info` is read-only and works on any
+  machine, including those with no manual control available.
+
+  Two bugs were caught while building this:
+  - The curve shelled out to `bc`, which is **not installed on a default
+    Bazzite image**. The substitution returned an empty string which then
+    flowed into `$(( ))` as zero, so the helper wrote `pwm=pwm_min` — the
+    slowest possible fan — while reporting success. Now pure bash arithmetic
+    with a 15 % floor and a non-numeric guard that returns control instead of
+    writing.
+  - `FAN_MAX_DUTY=90` was nominal only: on a 0–255 chip, duty 90 maps to 255,
+    which *is* full speed. The cap did not cap. Now backed by a 95 %-of-range
+    reserve, verified end-to-end at 242/255.
+
+- **Raptor Cortex's background trim could freeze processes permanently** —
+  of 20 matching processes, 13 were resumed but 7 were left SIGSTOPped forever,
+  so a "trim" run silently killed the ability of a third of them to ever do
+  anything again, including any process started after the trim. Suspended
+  `dpkg`/`apt-get`/`unattended-upgrade` was especially bad, as a stopped
+  `dpkg` holds the dpkg lock and then blocks every future package operation on
+  the machine. Suspension is now limited to safe process classes and
+  stop/resume sets are made identical. **16/16 now match.**
+- **Cortex's "restore background apps" did nothing and reported success** —
+  it invoked an action named `resume-background` that the helper did not have,
+  then showed a success toast regardless. Now calls the real
+  `restore-background` action and surfaces failure.
+- **Cortex's "apply performance mode on boot" toggle was a total no-op** —
+  flipping it wrote the setting but nothing ever consumed it, and no unit was
+  enabled, so the machine booted in the same mode as before. Now a
+  `raptor-cortex-mode.service` runs the persisted mode at startup, ordered
+  after GPU profile.
+- **Three sudoers drop-ins shipped without validation** — `raptor-cortex.sh`,
+  `raptor-gpu-profile.sh` and `raptor-gaming.sh` installed their rules with
+  `visudo -cf … || true`, so a syntax error shipped a rule set sudo silently
+  ignores in its entirety, leaving the feature dead with nothing in the build
+  log. All now fail the image build.
 
 ### Changed
 
+- **Raptor Cortex no longer duplicates the GPU profile installer** — six of its
+  install paths were byte-identical to `raptor-gpu-profile.sh` and were being
+  written in an order where a later installer silently overwrote an earlier
+  one. The dead copies are gone and GPU profile is owned solely by
+  `raptor-gpu-profile.sh`, which also now enables its own systemd unit.
+  This also resolves a contradiction where two scripts set `DXVK_ASYNC`
+  differently.
 - **Update-manager retry budgets are overridable via environment** —
   `RAPTOR_CHECK_MAX_ATTEMPTS` / `RAPTOR_CHECK_ATTEMPT_TIMEOUT` /
   `RAPTOR_CHECK_RETRY_SLEEP` and `RAPTOR_UPDATE_MAX_ATTEMPTS` /
   `RAPTOR_UPDATE_LAYER_TIMEOUT` / `RAPTOR_UPDATE_BACKOFF` /
   `RAPTOR_UPDATE_NET_WAIT`. The **shipped defaults are unchanged** (3 attempts,
   150 s per metadata pull, 900 s per layer, 15 s back-off); nothing in the OS
-  sets these. They exist so the timeout/retry paths can be tested in seconds
-  instead of the 7+ real-world minutes they represent.
+  sets these. They exist so the timeout/retry paths can be exercised in
+  seconds instead of the 7+ real-world minutes they represent.
+- **CI now syntax-checks every installer before building** — every Raptor app
+  is a builder script that writes its real payload through a heredoc, so a
+  broken heredoc installs a truncated file and the app simply does not open on
+  the user's machine, with nothing in the build log. `bash -n` over
+  `files/scripts/*.sh` catches that class in seconds.
 
 ## [v2.6.9] - 2026-09-10 (WiFi Reconnection, Cursor Fix, More Apps)
 

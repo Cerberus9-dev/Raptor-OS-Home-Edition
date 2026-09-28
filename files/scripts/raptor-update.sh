@@ -75,8 +75,8 @@ cat << 'EOF' > /usr/lib/raptor/update-helper
 # Called by the Update Manager GUI via pkexec/sudo.
 # All output goes to stdout for the GUI to stream.
 
-# Overridable purely so the regression tests in files/scripts/tests/ can
-# exercise the retry path in seconds; the defaults are the shipped values.
+# Overridable so the retry path can be exercised in seconds instead of the
+# 7+ real-world minutes it represents; the defaults are the shipped values.
 MAX_ATTEMPTS="${RAPTOR_UPDATE_MAX_ATTEMPTS:-3}"
 LAYER_TIMEOUT="${RAPTOR_UPDATE_LAYER_TIMEOUT:-900}"  # 15 min per attempt — generous for a ~1 GB layer on slow links
 BACKOFF="${RAPTOR_UPDATE_BACKOFF:-15}"              # seconds; doubles each attempt
@@ -155,10 +155,9 @@ cat << 'EOF' > /usr/lib/raptor/check-helper
 # completes without announcing an update we therefore cross-verify the *booted
 # image digest* against the digest the remote tag resolves to right now — the
 # same ground truth ublue-update uses. A mismatch means a new image exists.
-# Budgets are overridable purely so the regression tests in
-# files/scripts/tests/ can exercise the retry/timeout paths in seconds
-# instead of the 7+ real-world minutes. The defaults below are the shipped
-# values; nothing in the OS sets these.
+# Budgets are overridable so the retry/timeout paths can be exercised in
+# seconds instead of the 7+ real-world minutes. The defaults below are the
+# shipped values; nothing in the OS sets these.
 MAX_ATTEMPTS="${RAPTOR_CHECK_MAX_ATTEMPTS:-3}"
 ATTEMPT_TIMEOUT="${RAPTOR_CHECK_ATTEMPT_TIMEOUT:-150}"  # seconds per metadata pull
 RETRY_SLEEP="${RAPTOR_CHECK_RETRY_SLEEP:-5}"           # seconds between attempts

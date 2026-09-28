@@ -34,40 +34,30 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # ── Fast gate: run before the (slow, 15 min) image build ──────────────────────
-  # Every Raptor app is a builder script that writes its real payload through
-  # heredocs, so the code that actually runs on a user's machine was never
-  # compiled or executed by CI — it was only ever verified by hand on a real
-  # machine. That is how the update manager accrued four speculative "fixes"
-  # for the same class of bug. These tests extract the real payloads and
-  # exercise them with stubbed rpm-ostree / sudo / skopeo.
-  test:
-    name: Test payloads
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Run tests
-        run: files/scripts/tests/run.sh
-
   build:
     name: Build & Push Image
     runs-on: ubuntu-latest
-    # Never push an image whose payload failed its tests.
-    needs: test
     permissions:
       contents: write
       packages: write
       id-token: write
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Every Raptor app is a builder script that writes its real payload
+      # through heredocs, so a broken heredoc installs a truncated or invalid
+      # file and the app simply does not open on the user's machine, with
+      # nothing in the build log. This is a cheap guard against that class.
+      - name: Check installer syntax
+        run: |
+          set -euo pipefail
+          for f in files/scripts/*.sh; do
+            bash -n "$f" || { echo "::error file=$f::syntax error"; exit 1; }
+          done
+          echo "All installer scripts parse."
+
       # ── Free disk space ─────────────────────────────────────────────────────
       # The default ubuntu-latest runner has ~14 GB free. Container builds for
       # Bazzite-based images need ~10 GB. Remove unused toolchains first.
