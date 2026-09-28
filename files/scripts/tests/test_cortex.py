@@ -361,6 +361,160 @@ class TestCortexBootMode(unittest.TestCase):
         )
 
 
+class TestCortexFanSafety(unittest.TestCase):
+    """Fan control writes to hardware, so every gate is tested.
+
+    A wrong PWM value can leave a fan barely turning and cook the CPU, with
+    nothing reporting it. The helper is driven against a fake sysfs tree so the
+    refusal paths are exercised without a real fan controller.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        payload = extract_file(SCRIPTS / "raptor-cortex.sh")
+        h = Path(tempfile.mkdtemp(prefix="raptor-fan-")) / "cortex-helper"
+        h.write_text(payload[HELPER_PATH])
+        h.chmod(0o755)
+        cls.helper = h
+
+    def _machine(self, chip="nct6798", rpm=2400, temp_c=55, pwm_enable=True,
+                 fan_input=True) -> Path:
+        root = Path(tempfile.mkdtemp(prefix="raptor-fan-sys-"))
+        hw = root / "hw" / "hwmon0"
+        hw.mkdir(parents=True)
+        (hw / "name").write_text(chip)
+        (hw / "pwm1").write_text("128")
+        (hw / "pwm1_min").write_text("0")
+        (hw / "pwm1_max").write_text("255")
+        if pwm_enable:
+            (hw / "pwm1_enable").write_text("0")
+        if fan_input:
+            (hw / "fan1_input").write_text(str(rpm))
+        th = root / "th" / "thermal_zone0"
+        th.mkdir(parents=True)
+        (th / "type").write_text("x86_pkg_temp")
+        (th / "temp").write_text(str(temp_c * 1000))
+        return root
+
+    def _run(self, root: Path, *args):
+        return subprocess.run(
+            [str(self.helper), *args], capture_output=True, text=True,
+            env=dict(os.environ, RAPTOR_HWMON_ROOT=str(root / "hw"),
+                     RAPTOR_THERMAL_ROOT=str(root / "th")),
+            timeout=30,
+        )
+
+    def _pwm(self, root: Path) -> str:
+        return (root / "hw" / "hwmon0" / "pwm1").read_text()
+
+    def _enable(self, root: Path) -> str:
+        return (root / "hw" / "hwmon0" / "pwm1_enable").read_text()
+
+    def test_helper_never_depends_on_bc(self):
+        """A missing `bc` used to yield an empty duty, which became 0 — the
+        minimum fan speed — while reporting success."""
+        src = self.helper.read_text()
+        self.assertNotIn("bc |", src, "fan curve still shells out to bc")
+        self.assertNotIn("| bc", src, "fan curve still shells out to bc")
+
+    def test_curve_rises_monotonically_with_temperature(self):
+        seen = []
+        for temp_c in (35, 50, 60, 70, 78, 85):
+            root = self._machine(temp_c=temp_c)
+            self._run(root, "fan-profile", "turbo")
+            seen.append(int(self._pwm(root)))
+        self.assertEqual(seen, sorted(seen),
+                         f"duty must never fall as temperature rises: {seen}")
+        self.assertGreater(seen[-1], seen[0])
+
+    def test_hot_cpu_interlocks_and_returns_control(self):
+        root = self._machine(temp_c=95)
+        out = self._run(root, "fan-profile", "turbo")
+        self.assertIn("INTERLOCK", out.stderr)
+        self.assertEqual(self._enable(root), "0",
+                         "control must be handed back on a hot CPU")
+
+    def test_stalled_fan_is_refused(self):
+        root = self._machine(rpm=0)
+        before = self._pwm(root)
+        out = self._run(root, "fan-profile", "turbo")
+        self.assertIn("REFUSED", out.stderr)
+        self.assertEqual(self._pwm(root), before)
+
+    def test_stalled_fan_override_is_explicit(self):
+        root = self._machine(rpm=0)
+        proc = subprocess.run(
+            [str(self.helper), "fan-profile", "turbo"], capture_output=True,
+            text=True,
+            env=dict(os.environ, RAPTOR_HWMON_ROOT=str(root / "hw"),
+                     RAPTOR_THERMAL_ROOT=str(root / "th"),
+                     RAPTOR_FAN_IGNORE_STALLED="1"), timeout=30)
+        self.assertNotIn("REFUSED", proc.stderr)
+
+    def test_chip_outside_the_allowlist_is_never_written(self):
+        for chip in ("asus", "ec", "acpitz", "amdgpu", "nouveau"):
+            with self.subTest(chip=chip):
+                root = self._machine(chip=chip)
+                before = self._pwm(root)
+                out = self._run(root, "fan-profile", "turbo")
+                self.assertIn("REFUSED", out.stderr)
+                self.assertEqual(self._pwm(root), before)
+                self.assertEqual(self._enable(root), "0")
+
+    def test_allowlisted_chip_without_rpm_readback_is_refused(self):
+        root = self._machine(fan_input=False)
+        before = self._pwm(root)
+        out = self._run(root, "fan-profile", "turbo")
+        self.assertIn("REFUSED", out.stderr)
+        self.assertEqual(self._pwm(root), before,
+                         "must not write PWM when RPM cannot confirm the fan spins")
+
+    def test_allowlisted_chip_without_pwm_enable_is_refused(self):
+        root = self._machine(pwm_enable=False)
+        before = self._pwm(root)
+        self._run(root, "fan-profile", "turbo")
+        self.assertEqual(self._pwm(root), before)
+
+    def test_turbo_never_reaches_full_duty(self):
+        """100% is excluded on purpose: a stuck maximum is not the failure
+        mode we are willing to risk."""
+        root = self._machine(temp_c=95)
+        # 95C interlocks, so check the curve at its hottest applying point.
+        root = self._machine(temp_c=88)
+        self._run(root, "fan-profile", "turbo")
+        self.assertLess(int(self._pwm(root)), 255,
+                        "turbo wrote full duty; the hard cap is not working")
+
+    def test_silent_profile_never_writes_a_stopped_fan(self):
+        root = self._machine(temp_c=35)
+        self._run(root, "fan-profile", "silent")
+        self.assertGreater(int(self._pwm(root)), 0)
+
+    def test_fan_auto_restores_driver_control(self):
+        root = self._machine()
+        (root / "hw" / "hwmon0" / "pwm1_enable").write_text("1")
+        out = self._run(root, "fan-auto")
+        self.assertEqual(out.returncode, 0)
+        self.assertEqual(self._enable(root), "0")
+
+    def test_fan_info_is_read_only_and_works_without_control(self):
+        root = self._machine(chip="acpitz")
+        before_pwm, before_enable = self._pwm(root), self._enable(root)
+        out = self._run(root, "fan-info")
+        self.assertEqual(out.returncode, 0)
+        self.assertIn("read-only", out.stdout)
+        self.assertEqual(self._pwm(root), before_pwm)
+        self.assertEqual(self._enable(root), before_enable)
+
+    def test_unknown_profile_is_rejected(self):
+        root = self._machine()
+        for bad in ("nuke", "", "TURBO", "balanced; reboot"):
+            with self.subTest(profile=bad):
+                out = self._run(root, "fan-profile", bad)
+                self.assertEqual(out.returncode, 1)
+                self.assertIn("Usage", out.stderr)
+
+
 class TestCortexSudoers(unittest.TestCase):
 
     def test_sudoers_grants_the_helper_without_password(self):
