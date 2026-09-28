@@ -442,6 +442,14 @@ RemainAfterExit=yes
 WantedBy=multi-user.target
 SVCEOF
 
+# Enable the unit here — this installer owns the service. It used to be enabled
+# by raptor-hud.sh, which also defined a competing copy of the unit; the copy in
+# hud.sh was discarded (gpu-profile.sh runs later) but the `systemctl enable`
+# was not, so removing the duplicate without moving this line would have left
+# the unit installed but never started, silently killing boot-time GPU
+# detection and leaving the fallback env file in place forever.
+systemctl enable raptor-gpu-profile.service 2>/dev/null || true
+
 # ── polkit rule ───────────────────────────────────────────────────────────────
 cat << 'POLKIT' > /etc/polkit-1/rules.d/49-raptor-gpu.rules
 polkit.addRule(function(action, subject) {

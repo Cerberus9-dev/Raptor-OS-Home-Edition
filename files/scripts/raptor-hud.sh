@@ -301,202 +301,27 @@ MENUEOF
 # ══════════════════════════════════════════════════════════════════════════════
 # GPU PROFILE DETECTION  (boot service)
 # ══════════════════════════════════════════════════════════════════════════════
-cat << 'ENVEOF' > /etc/environment.d/raptor-gpu.conf
-# Raptor OS: GPU profile — safe build-time fallback; replaced on first boot.
-MESA_SHADER_CACHE_DISABLE=false
-WINE_LARGE_ADDRESS_AWARE=1
-PROTON_FORCE_LARGE_ADDRESS_AWARE=1
-STAGING_SHARED_MEMORY=1
-WINE_FULLSCREEN_FSR=1
-PROTON_NO_ESYNC=0
-PROTON_NO_FSYNC=0
-ENVEOF
+# NOTE: /etc/environment.d/raptor-gpu.conf is installed at build time by
+# raptor-gpu-profile.sh and rewritten on every boot by gpu-detect.sh.
+# The build-time copy that used to live here was always overwritten, so
+# its contents (including WINE_FULLSCREEN_FSR=1) never took effect.
 
-cat << 'SYSCTL' > /etc/sysctl.d/raptor-gaming.conf
-kernel.sched_autogroup_enabled=1
-kernel.sched_min_granularity_ns=500000
-kernel.sched_wakeup_granularity_ns=3000000
-kernel.sched_migration_cost_ns=250000
-fs.inotify.max_user_watches=524288
-fs.inotify.max_user_instances=256
-vm.swappiness=10
-vm.dirty_ratio=15
-vm.dirty_background_ratio=5
-kernel.split_lock_mitigate=0
-SYSCTL
+# NOTE: /etc/sysctl.d/raptor-gaming.conf is owned by raptor-gpu-profile.sh.
+# The copy here set sched_wakeup_granularity_ns=3000000, which the owning
+# copy deliberately lowered to 1000000 for better wake latency.
 
-cat << 'DETECT' > /usr/lib/raptor/gpu-detect.sh
-#!/bin/bash
-set -euo pipefail
-LOG_TAG="raptor-gpu"
-log() { echo "$*"; logger -t "$LOG_TAG" "$*" 2>/dev/null || true; }
-
-LSPCI_OUT=$(lspci 2>/dev/null | grep -iE "VGA|3D controller|Display controller" || true)
-GPU_VENDOR="unknown"; GPU_MODEL=""
-
-if   echo "$LSPCI_OUT" | grep -qi "nvidia";           then GPU_VENDOR="nvidia"
-    GPU_MODEL=$(echo "$LSPCI_OUT" | grep -i nvidia              | head -1 | sed 's/.*: //')
-elif echo "$LSPCI_OUT" | grep -qiE "amd|radeon|ati";  then GPU_VENDOR="amd"
-    GPU_MODEL=$(echo "$LSPCI_OUT" | grep -iE "amd|radeon|ati"  | head -1 | sed 's/.*: //')
-elif echo "$LSPCI_OUT" | grep -qi "intel";             then GPU_VENDOR="intel"
-    GPU_MODEL=$(echo "$LSPCI_OUT" | grep -i intel               | head -1 | sed 's/.*: //')
-fi
-log "GPU vendor=$GPU_VENDOR model=${GPU_MODEL:-unknown}"
-
-IS_IGPU=false
-if echo "$LSPCI_OUT" | grep -qi "intel"; then
-    lsmod 2>/dev/null | grep -qiE "^nvidia |^amdgpu " || IS_IGPU=true
-elif [ "$GPU_VENDOR" = "amd" ]; then
-    VRAM=$(cat /sys/class/drm/card0/device/mem_info_vram_total 2>/dev/null || echo 0)
-    [ "$VRAM" -lt $((512*1024*1024)) ] && IS_IGPU=true || true
-fi
-
-IS_HYBRID=false
-DISPLAY_DEVS=$(echo "$LSPCI_OUT" | grep -c "" || true)
-[ "$DISPLAY_DEVS" -ge 2 ] && IS_HYBRID=true
-DRM_CARDS=$(ls /sys/class/drm/ 2>/dev/null | grep -c "^card[0-9]$" || echo 0)
-[ "$DRM_CARDS" -ge 2 ] && IS_HYBRID=true
-
-PROFILE="auto"
-[ -f /etc/raptor-force-extreme ]     && PROFILE="extreme"
-[ -f /etc/raptor-force-performance ] && PROFILE="performance"
-[ -f /etc/raptor-force-powersave ]   && PROFILE="powersave"
-[ -f /etc/raptor-force-balanced ]    && PROFILE="balanced"
-log "profile=$PROFILE"
-
-COMMON_VARS="WINE_LARGE_ADDRESS_AWARE=1
-PROTON_FORCE_LARGE_ADDRESS_AWARE=1
-STAGING_SHARED_MEMORY=1
-WINE_FULLSCREEN_FSR=1
-PROTON_NO_ESYNC=0
-PROTON_NO_FSYNC=0"
-
-write_env() {
-    local COMMENT="$1"; shift
-    { echo "# ── Raptor OS: $COMMENT ──"; printf '%s\n' "$@"; } \
-        > /etc/environment.d/raptor-gpu.conf
-}
-
-case "$PROFILE" in
-  extreme)
-    write_env "EXTREME PERFORMANCE profile" \
-        "AMD_VULKAN_ICD=RADV" "MESA_SHADER_CACHE_DISABLE=false" \
-        "MESA_SHADER_CACHE_MAX_SIZE=4G" "__GL_SHADER_DISK_CACHE=1" \
-        "__GL_SHADER_DISK_CACHE_SKIP_CLEANUP=1" "__GL_THREADED_OPTIMIZATIONS=1" \
-        "AMDGPU_HIGH_POWER=1" "PROTON_ENABLE_NVAPI=1" "DXVK_ASYNC=1" \
-        "DXVK_FRAME_RATE=0" "RADV_DEBUG=nocompute" \
-        "VKD3D_CONFIG=dxr11,dxr" "VKD3D_FEATURE_LEVEL=12_2" $COMMON_VARS
-    if [ "$GPU_VENDOR" = "amd" ]; then
-        for f in /sys/class/drm/card*/device/power_dpm_force_performance_level; do echo "high" > "$f" 2>/dev/null || true; done
-        for f in /sys/class/drm/card*/device/pp_power_profile_mode; do echo 1 > "$f" 2>/dev/null || true; done
-    fi
-    [ "$GPU_VENDOR" = "nvidia" ] && { nvidia-smi -pm 1 >/dev/null 2>&1 || true; nvidia-smi --auto-boost-default=0 >/dev/null 2>&1 || true; }
-    ;;
-  performance)
-    write_env "MAX PERFORMANCE profile" \
-        "AMD_VULKAN_ICD=RADV" "MESA_SHADER_CACHE_DISABLE=false" \
-        "MESA_SHADER_CACHE_MAX_SIZE=2G" "__GL_SHADER_DISK_CACHE=1" \
-        "__GL_SHADER_DISK_CACHE_SKIP_CLEANUP=1" "__GL_THREADED_OPTIMIZATIONS=1" \
-        "PROTON_ENABLE_NVAPI=1" "DXVK_ASYNC=1" \
-        "VKD3D_CONFIG=dxr11" "VKD3D_FEATURE_LEVEL=12_1" $COMMON_VARS
-    if [ "$GPU_VENDOR" = "amd" ]; then
-        for f in /sys/class/drm/card*/device/power_dpm_force_performance_level; do echo "high" > "$f" 2>/dev/null || true; done
-    fi
-    [ "$GPU_VENDOR" = "nvidia" ] && { nvidia-smi -pm 1 >/dev/null 2>&1 || true; }
-    ;;
-  balanced)
-    write_env "BALANCED profile" \
-        "AMD_VULKAN_ICD=RADV" "MESA_SHADER_CACHE_DISABLE=false" \
-        "__GL_SHADER_DISK_CACHE=1" "PROTON_ENABLE_NVAPI=1" $COMMON_VARS
-    if [ "$GPU_VENDOR" = "amd" ]; then
-        for f in /sys/class/drm/card*/device/power_dpm_force_performance_level; do echo "auto" > "$f" 2>/dev/null || true; done
-    fi
-    ;;
-  powersave)
-    write_env "POWER SAVING profile" "MESA_SHADER_CACHE_DISABLE=true" $COMMON_VARS
-    if [ "$GPU_VENDOR" = "amd" ]; then
-        for f in /sys/class/drm/card*/device/power_dpm_force_performance_level; do echo "low" > "$f" 2>/dev/null || true; done
-    fi
-    [ "$GPU_VENDOR" = "nvidia" ] && { nvidia-smi -pm 0 >/dev/null 2>&1 || true; }
-    ;;
-  auto|*)
-    if [ "$GPU_VENDOR" = "nvidia" ]; then
-        write_env "NVIDIA auto profile" \
-            "__GL_SHADER_DISK_CACHE=1" "__GL_SHADER_DISK_CACHE_SKIP_CLEANUP=1" \
-            "__GL_THREADED_OPTIMIZATIONS=1" "PROTON_ENABLE_NVAPI=1" \
-            "DXVK_ASYNC=1" "VKD3D_CONFIG=dxr11" $COMMON_VARS
-    elif [ "$GPU_VENDOR" = "amd" ] && [ "$IS_IGPU" = true ]; then
-        write_env "AMD iGPU auto profile" \
-            "AMD_VULKAN_ICD=RADV" "MESA_SHADER_CACHE_DISABLE=false" $COMMON_VARS
-    elif [ "$GPU_VENDOR" = "amd" ]; then
-        write_env "AMD dGPU auto profile" \
-            "AMD_VULKAN_ICD=RADV" "MESA_SHADER_CACHE_DISABLE=false" \
-            "MESA_SHADER_CACHE_MAX_SIZE=2G" "__GL_SHADER_DISK_CACHE=1" \
-            "DXVK_ASYNC=1" $COMMON_VARS
-    elif [ "$GPU_VENDOR" = "intel" ]; then
-        write_env "Intel auto profile" \
-            "MESA_LOADER_DRIVER_OVERRIDE=iris" "LIBGL_DRI3_DISABLE=0" \
-            "vblank_mode=0" $COMMON_VARS
-    else
-        write_env "fallback profile" "MESA_SHADER_CACHE_DISABLE=false" $COMMON_VARS
-    fi
-    ;;
-esac
-
-set_cpu_governor() {
-    ls /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor &>/dev/null || { log "cpufreq not available"; return; }
-    for f in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do echo "$1" > "$f" 2>/dev/null || true; done
-    log "CPU governor → $1"
-}
-case "$PROFILE" in
-    extreme|performance) set_cpu_governor "performance" ;;
-    balanced)            set_cpu_governor "schedutil"   ;;
-    powersave)           set_cpu_governor "powersave"   ;;
-    auto|*)              set_cpu_governor "schedutil"   ;;
-esac
-
-ENVFILE=/etc/environment.d/raptor-gpu.conf
-if [ -f "$ENVFILE" ]; then
-    ENV_KEYS=()
-    while IFS= read -r line; do
-        [[ "$line" =~ ^# ]] && continue; [[ -z "$line" ]] && continue
-        ENV_KEYS+=("${line%%=*}")
-    done < "$ENVFILE"
-    if [ ${#ENV_KEYS[@]} -gt 0 ]; then
-        set -a; source "$ENVFILE"; set +a
-        while read -r UID_VAL _REST; do
-            [[ "$UID_VAL" =~ ^[0-9]+$ ]] || continue
-            RUNTIME_DIR="/run/user/$UID_VAL"; [ -d "$RUNTIME_DIR" ] || continue
-            sudo -u "#$UID_VAL" DBUS_SESSION_BUS_ADDRESS="unix:path=$RUNTIME_DIR/bus" \
-                systemctl --user import-environment "${ENV_KEYS[@]}" 2>/dev/null || true
-            USER_HOME=$(getent passwd "$UID_VAL" | cut -d: -f6)
-            mkdir -p "$USER_HOME/.config/environment.d" 2>/dev/null || true
-            cp "$ENVFILE" "$USER_HOME/.config/environment.d/raptor-gpu.conf" 2>/dev/null || true
-        done < <(loginctl list-users --no-legend 2>/dev/null || true)
-    fi
-fi
-
-sysctl --system >/dev/null 2>&1 || true
-log "GPU_PROFILE_READY profile=$PROFILE vendor=$GPU_VENDOR igpu=$IS_IGPU hybrid=$IS_HYBRID"
-DETECT
+# NOTE: /usr/lib/raptor/gpu-detect.sh is owned by raptor-gpu-profile.sh.
+# The copy that used to live here had drifted: it set DXVK_ASYNC=1, which
+# the surviving copy deliberately disables as a cause of OpenGL flicker,
+# and it used `systemctl --user import-environment`, which does not
+# propagate variables to already-running sessions. The two
+# implementations of the same hardware logic also meant every future GPU
+# change had to be made twice, in two places, to take effect.
 chmod +x /usr/lib/raptor/gpu-detect.sh
 
-cat << 'SVCEOF' > /usr/lib/systemd/system/raptor-gpu-profile.service
-[Unit]
-Description=Raptor OS — GPU Profile Detection & Configuration
-After=sysinit.target
-Before=display-manager.service
-
-[Service]
-Type=oneshot
-ExecStart=/usr/lib/raptor/gpu-detect.sh
-RemainAfterExit=yes
-SuccessExitStatus=0 1
-
-[Install]
-WantedBy=multi-user.target
-SVCEOF
-systemctl enable raptor-gpu-profile.service 2>/dev/null || true
+# NOTE: raptor-gpu-profile.service is owned by raptor-gpu-profile.sh,
+# which installs and enables it. It used to be defined here as well, with
+# only a SuccessExitStatus difference, so this copy was always discarded.
 
 # ══════════════════════════════════════════════════════════════════════════════
 # KDE CRASH HANDLER SUPPRESSION  (drkonqi)
@@ -772,40 +597,14 @@ else bash "$TUI"; fi
 LAUNCHEOF
 chmod +x /usr/bin/raptor-gpu-profile-launcher
 
-cat << 'POLKIT' > /etc/polkit-1/rules.d/49-raptor-gpu.rules
-polkit.addRule(function(action, subject) {
-    var allowedActions = ["org.freedesktop.policykit.exec"];
-    if (allowedActions.indexOf(action.id) >= 0 &&
-        action.lookup("program") &&
-        action.lookup("program").indexOf("raptor") !== -1 &&
-        subject.active && subject.local) {
-        return polkit.Result.YES;
-    }
-});
-POLKIT
+# NOTE: /etc/polkit-1/rules.d/49-raptor-gpu.rules is owned by
+# raptor-gpu-profile.sh. The copy that used to live here was narrower and
+# was silently overwritten, so it never took effect.
 
-cat << 'SUDOERS' > /etc/sudoers.d/raptor-gpu
-ALL ALL=(root) NOPASSWD: /usr/lib/raptor/gpu-detect.sh
-ALL ALL=(root) NOPASSWD: /usr/bin/touch /etc/raptor-force-extreme
-ALL ALL=(root) NOPASSWD: /usr/bin/touch /etc/raptor-force-performance
-ALL ALL=(root) NOPASSWD: /usr/bin/touch /etc/raptor-force-balanced
-ALL ALL=(root) NOPASSWD: /usr/bin/touch /etc/raptor-force-powersave
-ALL ALL=(root) NOPASSWD: /usr/bin/rm -f /etc/raptor-force-extreme
-ALL ALL=(root) NOPASSWD: /usr/bin/rm -f /etc/raptor-force-performance
-ALL ALL=(root) NOPASSWD: /usr/bin/rm -f /etc/raptor-force-balanced
-ALL ALL=(root) NOPASSWD: /usr/bin/rm -f /etc/raptor-force-powersave
-ALL ALL=(root) NOPASSWD: /usr/sbin/sysctl --system
-SUDOERS
-chmod 440 /etc/sudoers.d/raptor-gpu
-if command -v visudo >/dev/null 2>&1; then
-    if ! visudo -c -f /etc/sudoers.d/raptor-gpu; then
-        echo "FATAL: /etc/sudoers.d/raptor-gpu is invalid — refusing to ship a" >&2
-        echo "       broken rule set. sudo ignores a malformed drop-in entirely." >&2
-        exit 1
-    fi
-else
-    echo "WARNING: visudo unavailable — /etc/sudoers.d/raptor-gpu NOT validated" >&2
-fi
+# NOTE: /etc/sudoers.d/raptor-gpu is owned by raptor-gpu-profile.sh, which
+# runs later in the build. raptor-gaming.sh then appends its trim-script
+# rules to it. Writing it here too meant whichever installer ran last won,
+# so this file was dead weight and a source of drift.
 
 cat << 'EOF' > /usr/share/applications/raptor-gpu-profile.desktop
 [Desktop Entry]
