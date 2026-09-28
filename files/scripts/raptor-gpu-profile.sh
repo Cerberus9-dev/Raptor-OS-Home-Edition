@@ -466,6 +466,16 @@ ALL ALL=(root) NOPASSWD: /usr/bin/rm -f /etc/raptor-force-*
 ALL ALL=(root) NOPASSWD: /usr/sbin/sysctl --system
 SUDOERS
 chmod 440 /etc/sudoers.d/raptor-gpu
+if command -v visudo >/dev/null 2>&1; then
+    if ! visudo -cf /etc/sudoers.d/raptor-gpu; then
+        echo "FATAL: /etc/sudoers.d/raptor-gpu is invalid — refusing to ship a" >&2
+        echo "       broken rule set. sudo ignores a malformed drop-in entirely," >&2
+        echo "       which would make every GPU profile switch fail for all users." >&2
+        exit 1
+    fi
+else
+    echo "WARNING: visudo unavailable — /etc/sudoers.d/raptor-gpu NOT validated" >&2
+fi
 
 # ── Raptor GPU Profiler — GTK4/Adwaita UI ─────────────────────────────────────
 # Matches Cortex's visual style: dark Adwaita, preference groups, pill buttons.

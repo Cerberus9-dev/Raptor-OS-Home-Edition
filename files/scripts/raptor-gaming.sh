@@ -385,11 +385,26 @@ RESTORE
 chmod +x /usr/bin/raptor-restore-background.sh
 
 # sudoers: allow passwordless background trim/restore
+# NOTE: this file is also written (truncated) by raptor-gpu-profile.sh earlier in
+# the build. Because we append rather than replace, the result must be validated
+# AFTER the append — a malformed line here corrupts the GPU profile rules too.
 cat << 'SUDOERS' >> /etc/sudoers.d/raptor-gpu
 ALL ALL=(root) NOPASSWD: /usr/bin/raptor-trim-background.sh
 ALL ALL=(root) NOPASSWD: /usr/bin/raptor-restore-background.sh
 ALL ALL=(root) NOPASSWD: /usr/bin/raptor-zram-teardown.sh
 SUDOERS
+chmod 440 /etc/sudoers.d/raptor-gpu
+if command -v visudo >/dev/null 2>&1; then
+    if ! visudo -cf /etc/sudoers.d/raptor-gpu; then
+        echo "FATAL: /etc/sudoers.d/raptor-gpu is invalid after appending the" >&2
+        echo "       background-trim rules. sudo ignores a malformed drop-in" >&2
+        echo "       entirely, which would break both the trim scripts and the" >&2
+        echo "       GPU profile switching." >&2
+        exit 1
+    fi
+else
+    echo "WARNING: visudo unavailable — /etc/sudoers.d/raptor-gpu NOT validated" >&2
+fi
 
 # ── Vesktop: system-level Flatpak overrides ────────────────────────────────────
 # Run on the build image so every user gets Wayland-native Vesktop out of the box.

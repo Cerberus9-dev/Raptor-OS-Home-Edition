@@ -4,6 +4,61 @@
 
 ### Fixed
 
+- **Update Manager was permanently bricked when `sudo -n` was not permitted** —
+  `run_privileged()` looped over `["sudo", "-n"]` then `["pkexec"]` and caught
+  only `FileNotFoundError`. That covers a *missing binary* and nothing else:
+  when `sudo` exists but refuses (missing/stale `/etc/sudoers.d/raptor-update`,
+  a user not covered by the rule, sudo wanting a TTY), `subprocess.Popen`
+  already returned successfully, the `pkexec` fallback was **never reached**,
+  and the caller was handed an already-dead process whose stderr got parsed as
+  helper output. The user saw a confusing
+  `Could not refresh update state (sudo: a password is required)` with no way
+  forward. It now reads the NOPASSWD grant from
+  `/etc/sudoers.d/raptor-update` **statically** and only falls through to
+  `pkexec` when `sudo` genuinely cannot do the job, with an error that names
+  the file to check.
+
+  A `sudo -n -l <helper>` probe was tried and rejected: on a stock Bazzite
+  install the user is in `wheel` (password-required) *and* the NOPASSWD
+  drop-in, and `sudo -l` can demand authentication before printing anything —
+  so that probe would push every user onto a polkit password prompt even where
+  the silent grant works. A regression test pins the behaviour.
+- **A malformed sudoers drop-in was installed silently** — the installer ran
+  `visudo -cf … || true`, so a syntax error shipped a rule set that sudo
+  silently ignores *in its entirety*, leaving `sudo -n` refusing and the update
+  manager dead on a freshly booted image with nothing in the build log to
+  explain it. Validation now fails the image build (and warns, rather than
+  pretending to pass, if `visudo` itself is unavailable).
+
+### Fixed — Raptor Cortex
+
+- **Seven processes were left frozen for the rest of the session** —
+  `trim-background` and `restore-background` each declared their own
+  `BACKGROUND_PROCS` array and the two had drifted. 20 processes were
+  `SIGSTOP`ped but only 13 were ever `SIGCONT`ed, so `apt-get`, `dpkg`,
+  `updatedb`, `mlocate`, `snapd`, `unattended-upgrade` and `gnome-software`
+  stayed frozen. The dangerous pair is `dpkg`/`apt-get`: a `SIGSTOP`ped dpkg
+  holds the dpkg lock, so every later apt invocation blocks until reboot. Both
+  actions now share a single array declared at helper scope, so the two can
+  never drift again. `dpkg`/`apt-get`/`unattended-upgrade` were also removed
+  from the set entirely — stopping a live package transaction is unsafe
+  regardless of symmetry; PackageKit is now stopped via `systemctl`, which
+  releases its transaction lock cleanly on `SIGTERM`.
+- **"Restore Desktop" did nothing while reporting success** — the handler called
+  `cortex-helper resume-background`, which is not a real action. It fell through
+  to the usage arm and exited 1, so every suspended process stayed frozen while
+  the UI toasted *"Desktop restored — Balanced mode, all services resumed"*.
+  Now calls the real `restore-background`, and both this and "Resume All
+  Services" funnel through one helper that checks the exit status and surfaces
+  failures instead of swallowing them.
+- **Two more unvalidated sudoers drop-ins** — `raptor-gpu-profile.sh` wrote
+  `/etc/sudoers.d/raptor-gpu` with no `visudo` check at all, and
+  `raptor-hud.sh` chained its check with `&&` so a failure could not stop the
+  build. `raptor-gaming.sh` *appends* to that same file, so its rules were never
+  validated either — a malformed line there would have silently broken GPU
+  profile switching as well. All three now fail the build on an invalid file.
+
+
 - **Dolphin still froze/crashed on selecting a .zip despite the earlier fix** —
   the old `ShowPreview=false` key doesn't exist in Dolphin's schema and is
   silently ignored, so the F4 Information Panel kept parsing selected archives
@@ -81,6 +136,40 @@ as an available update ("reboot to apply it") instead of the refresh error hidin
 - Custom KDE splash screen
 - Custom Raptor OS logo
 - Custom Icons for all Raptor OS Apps
+
+### Added
+
+- **The Update Manager now has a regression test suite** — 27 update-manager
+  tests, 10 Cortex tests and a repo-wide payload check, wired into CI as a
+  required `test` job that the image build `needs`, so a broken update manager
+  can no longer be pushed.
+  This exists because every Raptor app is a builder script that writes its real
+  payload through heredocs: the code that actually runs on a user's machine was
+  never compiled or executed by CI, so all four previous update-manager fixes
+  were speculative guesses verified only by hand on real hardware. The new
+  `files/scripts/tests/` extracts the exact bytes the installers write and
+  exercises them with stubbed `rpm-ostree`/`sudo`/`skopeo`/`curl`, covering the
+  verdict matrix (explicit `AvailableUpdate`, "no updates" as exit 0 *and*
+  exit 77, registry-digest cross-check both ways, hard failure, staged-but-not-
+  booted deployments), the retry/backoff paths, and the guarantee that a stalled
+  metadata pull stays bounded.
+  - `test_payloads.py` compiles every generated payload (Python via
+    `py_compile`, shell via `bash -n`, `.desktop`/`.policy`/`.svg` via an XML
+    parse), asserts every `.desktop` `Exec=` target actually resolves to a file
+    its installer generates, and asserts every installer is listed in
+    `recipe.yml` — a broken heredoc or an unwired installer is exactly how an
+    app ends up "not opening" with an empty build log.
+
+### Changed
+
+- **Update-manager retry budgets are overridable via environment** —
+  `RAPTOR_CHECK_MAX_ATTEMPTS` / `RAPTOR_CHECK_ATTEMPT_TIMEOUT` /
+  `RAPTOR_CHECK_RETRY_SLEEP` and `RAPTOR_UPDATE_MAX_ATTEMPTS` /
+  `RAPTOR_UPDATE_LAYER_TIMEOUT` / `RAPTOR_UPDATE_BACKOFF` /
+  `RAPTOR_UPDATE_NET_WAIT`. The **shipped defaults are unchanged** (3 attempts,
+  150 s per metadata pull, 900 s per layer, 15 s back-off); nothing in the OS
+  sets these. They exist so the timeout/retry paths can be tested in seconds
+  instead of the 7+ real-world minutes they represent.
 
 ## [v2.6.9] - 2026-09-10 (WiFi Reconnection, Cursor Fix, More Apps)
 

@@ -34,9 +34,34 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # ── Fast gate: run before the (slow, 15 min) image build ──────────────────────
+  # Every Raptor app is a builder script that writes its real payload through
+  # heredocs, so the code that actually runs on a user's machine was never
+  # compiled or executed by CI — it was only ever verified by hand on a real
+  # machine. That is how the update manager accrued four speculative "fixes"
+  # for the same class of bug. These tests extract the real payloads and
+  # exercise them with stubbed rpm-ostree / sudo / skopeo.
+  test:
+    name: Test payloads
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run tests
+        run: files/scripts/tests/run.sh
+
   build:
     name: Build & Push Image
     runs-on: ubuntu-latest
+    # Never push an image whose payload failed its tests.
+    needs: test
     permissions:
       contents: write
       packages: write

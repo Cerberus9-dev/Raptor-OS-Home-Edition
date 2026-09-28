@@ -75,8 +75,12 @@ cat << 'EOF' > /usr/lib/raptor/update-helper
 # Called by the Update Manager GUI via pkexec/sudo.
 # All output goes to stdout for the GUI to stream.
 
-MAX_ATTEMPTS=3
-LAYER_TIMEOUT=900  # 15 min per attempt — generous for a ~1 GB layer on slow links
+# Overridable purely so the regression tests in files/scripts/tests/ can
+# exercise the retry path in seconds; the defaults are the shipped values.
+MAX_ATTEMPTS="${RAPTOR_UPDATE_MAX_ATTEMPTS:-3}"
+LAYER_TIMEOUT="${RAPTOR_UPDATE_LAYER_TIMEOUT:-900}"  # 15 min per attempt — generous for a ~1 GB layer on slow links
+BACKOFF="${RAPTOR_UPDATE_BACKOFF:-15}"              # seconds; doubles each attempt
+NET_WAIT="${RAPTOR_UPDATE_NET_WAIT:-15}"            # seconds to wait when offline
 
 check_network() {
     # Quick probe — Raptor OS images live on ghcr.io (Bazzite OCI registry).
@@ -96,8 +100,8 @@ for attempt in $(seq 1 $MAX_ATTEMPTS); do
     echo "── Attempt ${attempt}/${MAX_ATTEMPTS} ──"
 
     if ! check_network; then
-        echo "Network unreachable — waiting 15 s…"
-        sleep 15
+        echo "Network unreachable — waiting ${NET_WAIT} s…"
+        sleep "${NET_WAIT}"
         continue
     fi
 
@@ -119,7 +123,7 @@ for attempt in $(seq 1 $MAX_ATTEMPTS); do
 
     rm -f /run/lock/rpm-ostree.lock 2>/dev/null || true
     purge_layer_cache
-    sleep $((attempt * 15))  # 15 s, then 30 s back-off
+    sleep $((attempt * BACKOFF))  # 15 s, then 30 s back-off by default
 done
 
 echo "Update failed after ${MAX_ATTEMPTS} attempts. Check your connection."
@@ -151,8 +155,13 @@ cat << 'EOF' > /usr/lib/raptor/check-helper
 # completes without announcing an update we therefore cross-verify the *booted
 # image digest* against the digest the remote tag resolves to right now — the
 # same ground truth ublue-update uses. A mismatch means a new image exists.
-MAX_ATTEMPTS=3
-ATTEMPT_TIMEOUT=150  # seconds per metadata pull
+# Budgets are overridable purely so the regression tests in
+# files/scripts/tests/ can exercise the retry/timeout paths in seconds
+# instead of the 7+ real-world minutes. The defaults below are the shipped
+# values; nothing in the OS sets these.
+MAX_ATTEMPTS="${RAPTOR_CHECK_MAX_ATTEMPTS:-3}"
+ATTEMPT_TIMEOUT="${RAPTOR_CHECK_ATTEMPT_TIMEOUT:-150}"  # seconds per metadata pull
+RETRY_SLEEP="${RAPTOR_CHECK_RETRY_SLEEP:-5}"           # seconds between attempts
 
 if curl -sf --connect-timeout 5 https://ghcr.io/ >/dev/null 2>&1; then
     echo "Connectivity to ghcr.io OK."
@@ -288,7 +297,7 @@ for try in $(seq 1 "${MAX_ATTEMPTS}"); do
     else
         echo "Metadata refresh did not complete (exit ${rc}) — retrying…"
     fi
-    sleep 5
+    sleep "${RETRY_SLEEP}"
 done
 
 if [ "$verdict" -eq 0 ]; then
@@ -321,6 +330,13 @@ EOF
 chmod +x /usr/lib/raptor/reboot-helper
 
 # ── Sudoers fallback ──────────────────────────────────────────────────────────
+# These NOPASSWD rules are what lets the GUI run the helpers without a polkit
+# agent, so run_privileged() picks `sudo -n`. If this file is malformed, sudo
+# silently ignores the WHOLE drop-in — `sudo -n` then refuses with "a password
+# is required" and the update manager is dead on a freshly booted system with
+# no error shown anywhere. This used to be `|| true`, which installed a broken
+# rule set and reported success. Validate it properly instead: a syntax error
+# must fail the image build.
 mkdir -p /etc/sudoers.d
 cat << 'EOF' > /etc/sudoers.d/raptor-update
 ALL ALL=(root) NOPASSWD: /usr/lib/raptor/update-helper
@@ -329,7 +345,16 @@ ALL ALL=(root) NOPASSWD: /usr/lib/raptor/flatpak-update-helper
 ALL ALL=(root) NOPASSWD: /usr/lib/raptor/reboot-helper
 EOF
 chmod 440 /etc/sudoers.d/raptor-update
-visudo -cf /etc/sudoers.d/raptor-update || true
+if command -v visudo >/dev/null 2>&1; then
+    if ! visudo -cf /etc/sudoers.d/raptor-update; then
+        echo "FATAL: /etc/sudoers.d/raptor-update is invalid — refusing to ship a" >&2
+        echo "       broken rule set that would silently break the update manager." >&2
+        exit 1
+    fi
+else
+    # Cannot validate, but must not pretend the check passed.
+    echo "WARNING: visudo unavailable — /etc/sudoers.d/raptor-update NOT validated" >&2
+fi
 
 # ── Background update check ───────────────────────────────────────────────────
 # Keep rpm-ostree's cached-update state warm. With AutomaticUpdatePolicy=check
@@ -363,6 +388,7 @@ import sys
 import re
 import select
 import os
+import shutil
 import time
 
 CHANGELOG_URL         = "https://raw.githubusercontent.com/Cerberus9-dev/Raptor-OS-Home-Edition/refs/heads/main/changelog.md"
@@ -371,6 +397,8 @@ CHECK_HELPER          = "/usr/lib/raptor/check-helper"
 CHECK_ACTION          = "io.github.cerberus9dev.raptorupdate.check"
 FLATPAK_UPDATE_HELPER = "/usr/lib/raptor/flatpak-update-helper"
 REBOOT_HELPER         = "/usr/lib/raptor/reboot-helper"
+# NOPASSWD rules that let the helpers run without a polkit agent.
+SUDOERS_FILE          = "/etc/sudoers.d/raptor-update"
 # Wall-clock budget for the whole privileged refresh. check-helper already
 # bounds itself to 3 × 150 s attempts + back-off, so this always outlives it —
 # the outer bound is a safety net so a stuck network can never hang the GUI
@@ -596,17 +624,75 @@ def check_flatpak_updates():
         return False, 0, f"Error: {e}"
 
 
+def _have(binary):
+    """True if `binary` is on PATH."""
+    return shutil.which(binary) is not None
+
+
+def _sudoers_grants(helper_path):
+    """Does /etc/sudoers.d/raptor-update grant NOPASSWD for this helper?
+
+    Checked statically, on purpose. The tempting alternative is to ask sudo at
+    runtime with `sudo -n -l <helper>`, but that is ambiguous: on a stock
+    Bazzite install the user is in `wheel` (`%wheel ALL=(ALL) ALL`, password
+    required) *as well as* having this NOPASSWD drop-in, and `sudo -l` can
+    then want to authenticate before it will print anything. Under `-n` that
+    authentication cannot happen, so the listing comes back non-zero even
+    though `sudo -n <helper>` would have worked fine. Trusting that as "sudo
+    is broken" would push every user onto a polkit password prompt for no
+    reason — a worse regression than the bug being fixed.
+
+    The rules in this file are written by the same installer that validates
+    them with `visudo -c` at build time, so reading them back is exact and
+    cannot produce a false negative for a correctly installed system.
+    """
+    try:
+        with open(SUDOERS_FILE, "r", encoding="utf-8", errors="replace") as fh:
+            rules = fh.read()
+    except OSError:
+        return False
+    if not rules.strip():
+        return False
+    # Drop comments so a commented-out rule cannot be mistaken for a live one.
+    body = "\n".join(
+        ln.split("#", 1)[0] for ln in rules.splitlines()
+    )
+    return f"NOPASSWD: {helper_path}" in body
+
+
 def run_privileged(helper_path, action_id=None):
-    # Prefer `sudo -n`: NOPASSWD rules for the helpers are shipped in
-    # /etc/sudoers.d/raptor-update, so this is silent and needs no polkit agent.
-    # pkexec is only a fallback and is invoked without --action-id — some polkit
-    # builds mis-parse it and fail to even spawn the helper with a GIO error
-    # ("cannot run program …"), and the GUI would never reach the fallback.
-    for launcher in (["sudo", "-n"], ["pkexec"]):
+    """Spawn a privileged helper, degrading to pkexec when sudo can't.
+
+    Order matters: the NOPASSWD rules in /etc/sudoers.d/raptor-update make
+    `sudo -n` silent and polkit-agent-free, so it is preferred whenever it is
+    actually usable. pkexec is the fallback and prompts via polkit.
+
+    The previous version looped over both launchers catching only
+    FileNotFoundError. That covers a *missing binary* and nothing else: when
+    sudo exists but refuses (missing/stale sudoers file, user not covered by
+    the rule, sudo wanting a TTY) Popen had already returned successfully, the
+    pkexec fallback was never reached, and the caller was handed a dead process
+    whose stderr got parsed as helper output — surfacing as a confusing
+    "Could not refresh update state (sudo: a password is required)" with no
+    way for the user to proceed. Decide *before* spawning instead.
+
+    `action_id` is accepted for call-site compatibility; the shipped sudoers
+    rules make the polkit action id unnecessary.
+    """
+    launchers = []
+    if _have("sudo") and _sudoers_grants(helper_path):
+        launchers.append(["sudo", "-n"])
+    elif _have("pkexec"):
+        launchers.append(["pkexec"])
+    elif _have("sudo"):
+        # sudo exists and we could not read the rule file. Do not lock the
+        # user out on a false negative — try it and let the real error show.
+        launchers.append(["sudo", "-n"])
+
+    for launcher in launchers:
         try:
-            cmd = launcher + [helper_path]
             return subprocess.Popen(
-                cmd,
+                launcher + [helper_path],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
@@ -614,7 +700,10 @@ def run_privileged(helper_path, action_id=None):
             )
         except FileNotFoundError:
             continue
-    raise RuntimeError("Neither pkexec nor sudo is available.")
+    raise RuntimeError(
+        "Cannot obtain administrator rights: `sudo -n` is not permitted for "
+        f"{helper_path} and no polkit agent is available. Check {SUDOERS_FILE}."
+    )
 
 
 

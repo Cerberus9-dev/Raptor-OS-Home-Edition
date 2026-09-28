@@ -55,6 +55,25 @@ cat << 'EOF' > /usr/lib/raptor/cortex-helper
 #       restore-background | set-mode <power_saving|balanced|performance>
 ACTION="${1:-help}"
 
+# ── Suspended process set ─────────────────────────────────────────────────────
+# Single source of truth for both trim-background and restore-background.
+# These two MUST stay identical: any process stopped here and not CONT'd there
+# stays SIGSTOP'd for the rest of the session (until reboot). Previously the two
+# lists drifted and 7 processes were left frozen permanently.
+#
+# Package-transaction tools (dpkg, apt-get, unattended-upgrade) are deliberately
+# ABSENT. SIGSTOPping dpkg mid-transaction holds the dpkg lock, and a lock left
+# held wedges every subsequent apt invocation until reboot. packagekitd is
+# handled by its own systemd stop below rather than SIGSTOP, which is safe
+# because PackageKit releases its transaction lock on SIGTERM.
+BACKGROUND_PROCS=(
+    "tracker-miner" "tracker-store" "tracker3"
+    "baloo_file" "baloo_file_extractor" "akonadi"
+    "kded" "kdeconnectd" "gvfs" "zeitgeist"
+    "tumblerd" "updatedb" "mlocate"
+    "snapd" "evolution" "gnome-software"
+)
+
 # ── Hardware power helpers ────────────────────────────────────────────────────
 
 _apply_pcie_aspm() {
@@ -521,14 +540,6 @@ case "$ACTION" in
             done
         ) &>/dev/null &
         disown
-        BACKGROUND_PROCS=(
-            "tracker-miner" "tracker-store" "tracker3"
-            "baloo_file" "baloo_file_extractor" "akonadi"
-            "kded" "kdeconnectd" "gvfs" "zeitgeist"
-            "tumblerd" "packagekitd" "apt-get" "dpkg"
-            "updatedb" "mlocate" "snapd" "unattended-upgrade"
-            "evolution" "gnome-software"
-        )
         for proc in "${BACKGROUND_PROCS[@]}"; do
             pkill -STOP "$proc" 2>/dev/null || true
         done
@@ -540,23 +551,22 @@ case "$ACTION" in
         done
         systemctl stop snapd.service   2>/dev/null || true
         systemctl stop fstrim.service  2>/dev/null || true
+        # PackageKit is a daemon, so stop it by service rather than SIGSTOP:
+        # it releases its transaction lock cleanly on SIGTERM.
+        systemctl stop packagekit.service 2>/dev/null || true
         balooctl6 suspend 2>/dev/null || balooctl suspend 2>/dev/null || true
         echo 6000 > /proc/sys/vm/dirty_writeback_centisecs 2>/dev/null || true
         ;;
 
     # ── Background restoration after gaming ────────────────────────────────
     restore-background)
-        BACKGROUND_PROCS=(
-            "tracker-miner" "tracker-store" "tracker3"
-            "baloo_file" "baloo_file_extractor" "akonadi"
-            "kded" "kdeconnectd" "gvfs" "zeitgeist"
-            "tumblerd" "packagekitd" "evolution"
-        )
         for proc in "${BACKGROUND_PROCS[@]}"; do
             pkill -CONT "$proc" 2>/dev/null || true
         done
         balooctl6 resume 2>/dev/null || balooctl resume 2>/dev/null || true
         systemctl start snapd.service  2>/dev/null || true
+        systemctl start packagekit.service 2>/dev/null || true
+        systemctl start fstrim.timer  2>/dev/null || true
         # Restart irqbalance so it can redistribute IRQs across cores normally
         systemctl start irqbalance.service 2>/dev/null || true
         # Release the cpu_dma_latency hold — removes the sentinel file, which
@@ -581,7 +591,16 @@ cat << 'EOF' > /etc/sudoers.d/raptor-cortex
 ALL ALL=(root) NOPASSWD: /usr/lib/raptor/cortex-helper
 EOF
 chmod 440 /etc/sudoers.d/raptor-cortex || true
-visudo -cf /etc/sudoers.d/raptor-cortex || true
+if command -v visudo >/dev/null 2>&1; then
+    if ! visudo -cf /etc/sudoers.d/raptor-cortex; then
+        echo "FATAL: /etc/sudoers.d/raptor-cortex is invalid — refusing to ship a" >&2
+        echo "       broken rule set. sudo ignores a malformed drop-in entirely," >&2
+        echo "       which would make every cortex-helper call fail for all users." >&2
+        exit 1
+    fi
+else
+    echo "WARNING: visudo unavailable — /etc/sudoers.d/raptor-cortex NOT validated" >&2
+fi
 
 # ── Cortex suspend config ─────────────────────────────────────────────────────
 mkdir -p /etc/raptor
@@ -1470,13 +1489,37 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         """Switch to Balanced + resume all suspended services."""
         self._on_mode_switch(None, "balanced")
         threading.Thread(target=self._resume_services, daemon=True).start()
-        toast = Adw.Toast.new("Desktop restored — Balanced mode, all services resumed")
-        toast.set_timeout(3)
-        self._toast_overlay.add_toast(toast)
 
     def _resume_services(self):
-        subprocess.run(["sudo", HELPER, "resume-background"], capture_output=True)
+        self._run_restore_background()
         GLib.idle_add(self.resume_btn.set_sensitive, False)
+
+    def _run_restore_background(self):
+        """Resume suspended background services, reporting any failure.
+
+        Both "Restore Desktop" and "Resume All Services" funnel through here
+        so a failed restore can never be reported to the user as a success.
+        """
+        proc = subprocess.run(["sudo", HELPER, "restore-background"],
+                              capture_output=True)
+        if proc.returncode != 0:
+            err = (proc.stderr or b"").decode(errors="replace").strip()
+            GLib.idle_add(self._toast_error,
+                          "Restore failed — services may stay suspended")
+            sys.stderr.write(f"cortex: restore-background failed "
+                             f"(rc={proc.returncode}): {err}\n")
+        else:
+            GLib.idle_add(self._toast_ok, "All services resumed")
+
+    def _toast_error(self, message):
+        toast = Adw.Toast.new(message)
+        toast.set_timeout(5)
+        self._toast_overlay.add_toast(toast)
+
+    def _toast_ok(self, message):
+        toast = Adw.Toast.new(message)
+        toast.set_timeout(3)
+        self._toast_overlay.add_toast(toast)
 
     def _on_clear_shaders(self, row):
         """Clear Mesa, DXVK, and Steam shader caches."""
@@ -2024,10 +2067,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         self._suspended_now.clear()
         self.resume_btn.set_sensitive(False)
         self.sus_group.set_visible(False)
-        threading.Thread(
-            target=lambda: subprocess.run(["sudo", HELPER, "restore-background"], capture_output=True),
-            daemon=True,
-        ).start()
+        threading.Thread(target=self._run_restore_background, daemon=True).start()
 
 
 class GameEditDialog(Adw.Window):
