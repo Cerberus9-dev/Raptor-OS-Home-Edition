@@ -602,6 +602,57 @@ else
     echo "WARNING: visudo unavailable — /etc/sudoers.d/raptor-cortex NOT validated" >&2
 fi
 
+# ── Apply the persisted mode at boot ──────────────────────────────────────────
+# The GUI's "Apply selected mode on every boot" toggle only ever wrote
+# ~/.config/raptor-cortex-mode; nothing read it at startup, so the mode was
+# lost on every reboot and the CPU governor was instead set by gpu-detect.sh
+# according to the *GPU profile*. This applies it.
+cat << 'EOF' > /usr/lib/raptor/cortex-apply-boot-mode
+#!/bin/bash
+# Re-apply the user's persisted Raptor Cortex performance mode at login.
+HELPER=${RAPTOR_CORTEX_HELPER:-/usr/lib/raptor/cortex-helper}
+MODE_FILE="$HOME/.config/raptor-cortex-mode"
+SETTINGS_FILE="$HOME/.config/raptor-cortex-settings.json"
+
+# Respect the user's "apply mode on boot" preference. Default is on, matching
+# the GUI's own default. Parsed without a JSON dependency.
+if [ -f "$SETTINGS_FILE" ] && grep -q '"auto_apply_mode_on_boot"[[:space:]]*:[[:space:]]*false' "$SETTINGS_FILE"; then
+    exit 0
+fi
+
+[ -f "$MODE_FILE" ] || exit 0
+MODE=$(tr -d '[:space:]' < "$MODE_FILE")
+
+# Only ever pass a known-good value to the helper.
+case "$MODE" in
+    power_saving|balanced|performance) ;;
+    *) exit 0 ;;
+esac
+
+[ -x "$HELPER" ] || exit 0
+sudo -n "$HELPER" set-mode "$MODE" >/dev/null 2>&1
+EOF
+chmod +x /usr/lib/raptor/cortex-apply-boot-mode
+
+cat << 'EOF' > /usr/lib/systemd/user/raptor-cortex-mode.service
+[Unit]
+Description=Raptor Cortex — apply persisted performance mode
+# After gpu-detect.sh has run: both write scaling_governor, and Cortex's mode
+# is the one the user explicitly chose, so it must win.
+After=raptor-gpu-profile.service
+# Do not delay the session; a failure here must never block login.
+After=graphical-session.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/raptor/cortex-apply-boot-mode
+# A failure must not mark the user's session as failed.
+SuccessExitStatus=0 1
+
+[Install]
+WantedBy=default.target
+EOF
+
 # ── Cortex suspend config ─────────────────────────────────────────────────────
 mkdir -p /etc/raptor
 cat << 'EOF' > /etc/raptor/cortex-suspend.conf
@@ -649,6 +700,11 @@ done < "$CONFIG"
 sudo /usr/lib/raptor/cortex-helper restore-background 2>/dev/null || true
 EOF
 chmod +x /usr/lib/raptor/gamemode-end
+
+# Enable the boot-mode unit for every user. This is what makes the GUI's
+# "Apply selected mode on every boot" toggle actually do something; without
+# the enable the unit exists but never runs and the mode resets on reboot.
+systemctl --global enable raptor-cortex-mode.service 2>/dev/null || true
 
 # ── Gamemode config ───────────────────────────────────────────────────────────
 mkdir -p /etc/gamemode.d

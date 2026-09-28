@@ -240,8 +240,128 @@ class TestCortexGuiCallsRealActions(unittest.TestCase):
                       "a failed restore must be reported, not swallowed")
 
 
+BOOT_MODE_PATH = "/usr/lib/raptor/cortex-apply-boot-mode"
+BOOT_UNIT_PATH = "/usr/lib/systemd/user/raptor-cortex-mode.service"
+
+
+class TestCortexBootMode(unittest.TestCase):
+    """The persisted performance mode must actually be applied at boot.
+
+    The GUI's "Apply selected mode on every boot" toggle only ever wrote
+    ~/.config/raptor-cortex-mode. Nothing read that file at startup, so the
+    mode was silently lost on every reboot and the CPU governor was set by
+    gpu-detect.sh from the *GPU profile* instead. The UI described a feature
+    that did not exist.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        payload = extract_file(SCRIPTS / "raptor-cortex.sh")
+        cls.payload = payload
+        assert BOOT_MODE_PATH in payload, f"{BOOT_MODE_PATH} not installed"
+        assert BOOT_UNIT_PATH in payload, f"{BOOT_UNIT_PATH} not installed"
+        script = Path(tempfile.mkdtemp(prefix="raptor-boot-")) / "boot-mode"
+        script.write_text(payload[BOOT_MODE_PATH])
+        script.chmod(0o755)
+        cls.script = script
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="raptor-boot-home-"))
+        (self.tmp / ".config").mkdir()
+        (self.tmp / "bin").mkdir()
+        self.calls = self.tmp / "calls.log"
+        sudo = self.tmp / "bin" / "sudo"
+        sudo.write_text(f'#!/bin/sh\nprintf "%s\\n" "$*" >> "{self.calls}"\n')
+        sudo.chmod(0o755)
+        helper = self.tmp / "helper"
+        helper.write_text("#!/bin/sh\nexit 0\n")
+        helper.chmod(0o755)
+        self.helper = helper
+
+    def _run(self, mode: str | None, settings: str | None = None) -> list[str]:
+        if mode is not None:
+            (self.tmp / ".config" / "raptor-cortex-mode").write_text(mode)
+        if settings is not None:
+            (self.tmp / ".config" / "raptor-cortex-settings.json").write_text(settings)
+        self.calls.unlink(missing_ok=True)
+        subprocess.run(
+            [str(self.script)],
+            env=dict(os.environ, HOME=str(self.tmp),
+                     PATH=f"{self.tmp / 'bin'}:{os.environ['PATH']}",
+                     RAPTOR_CORTEX_HELPER=str(self.helper)),
+            capture_output=True, timeout=30,
+        )
+        if not self.calls.exists():
+            return []
+        return self.calls.read_text().split()
+
+    def test_boot_script_is_valid_bash(self):
+        proc = subprocess.run(["bash", "-n", str(self.script)],
+                              capture_output=True, text=True)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+
+    def test_each_persisted_mode_is_applied(self):
+        for mode in ("performance", "balanced", "power_saving"):
+            with self.subTest(mode=mode):
+                self.assertEqual(
+                    self._run(mode),
+                    ["-n", str(self.helper), "set-mode", mode],
+                    f"persisted mode {mode!r} was not applied at boot",
+                )
+
+    def test_trailing_whitespace_is_tolerated(self):
+        """persist_mode() writes mode + "\n", so the file is never bare."""
+        self.assertEqual(self._run("performance\n"),
+                         ["-n", str(self.helper), "set-mode", "performance"])
+
+    def test_junk_and_injection_are_rejected(self):
+        """Only the three known modes may ever reach the helper.
+
+        The mode file is user-writable, so it is untrusted input.
+        """
+        for junk in ("", "PERFORMANCE", "performance; reboot",
+                     "'; rm -rf /", "$(reboot)", "balanced extra",
+                     "../../etc/passwd"):
+            with self.subTest(mode=junk):
+                self.assertEqual(
+                    self._run(junk), [],
+                    f"untrusted mode value {junk!r} was passed to the helper",
+                )
+
+    def test_respects_the_apply_on_boot_preference(self):
+        self.assertEqual(
+            self._run("performance", '{"auto_apply_mode_on_boot": false}'), [],
+            "the mode was applied even though the user opted out",
+        )
+        self.assertEqual(
+            self._run("performance", '{"auto_apply_mode_on_boot": true}'),
+            ["-n", str(self.helper), "set-mode", "performance"],
+            "opting in did not apply the mode",
+        )
+
+    def test_no_mode_file_is_a_clean_no_op(self):
+        self.assertEqual(self._run(None), [])
+
+    def test_unit_runs_after_gpu_profile_so_cortex_governor_wins(self):
+        """gpu-detect.sh also writes scaling_governor; Cortex's explicit
+        choice must be applied after it, not before."""
+        unit = self.payload[BOOT_UNIT_PATH]
+        self.assertRegex(unit, r"After=.*raptor-gpu-profile\.service")
+        self.assertIn("ExecStart=/usr/lib/raptor/cortex-apply-boot-mode", unit)
+        # A failure here must never block the user's login.
+        self.assertIn("SuccessExitStatus", unit)
+
+    def test_installer_enables_the_boot_unit(self):
+        installer = (SCRIPTS / "raptor-cortex.sh").read_text()
+        self.assertRegex(
+            installer,
+            r"systemctl\s+--global\s+enable\s+raptor-cortex-mode\.service",
+            "the boot-mode unit is installed but never enabled — the persisted "
+            "mode would still be lost on reboot",
+        )
+
+
 class TestCortexSudoers(unittest.TestCase):
-    """The helper is only reachable because of this sudoers grant."""
 
     def test_sudoers_grants_the_helper_without_password(self):
         payload = extract_file(SCRIPTS / "raptor-cortex.sh")
