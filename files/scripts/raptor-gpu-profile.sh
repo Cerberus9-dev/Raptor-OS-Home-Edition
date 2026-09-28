@@ -830,4 +830,21 @@ DESKTOPEOF
 echo "GPU_PROFILER_DESKTOP_READY"
 
 
-echo "GPU_PROFILE_READY"
+# ── Self-check ────────────────────────────────────────────────────────────────
+# A malformed heredoc here can install a truncated binary or a missing .desktop
+# entry, and the app then never appears in the launcher with an empty build log.
+# Verify each artifact landed and is non-empty; fail the build if not.
+RAPTOR_EXPECTED_PAYLOAD="
+/usr/bin/raptor-gpu-profiler
+/usr/lib/raptor/gpu-detect.sh
+/usr/share/applications/raptor-gpu-profiler.desktop
+"
+raptor_missing=""
+for raptor_f in $RAPTOR_EXPECTED_PAYLOAD; do
+    [ -s "$raptor_f" ] || raptor_missing="$raptor_missing $raptor_f"
+done
+if [ -n "$raptor_missing" ]; then
+    echo "GPU_PROFILE_PAYLOAD_MISSING:$raptor_missing" >&2
+    exit 1
+fi
+echo "GPU_PROFILE_READY profile=$PROFILE vendor=$GPU_VENDOR igpu=$IS_IGPU hybrid=$IS_HYBRID payload=$(echo $RAPTOR_EXPECTED_PAYLOAD | wc -w | tr -d ' ') files verified"

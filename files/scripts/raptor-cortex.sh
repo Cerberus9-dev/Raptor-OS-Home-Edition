@@ -2701,4 +2701,24 @@ StartupNotify=true
 X-KDE-SubstituteUID=false
 EOF
 
-echo "CORTEX_READY"
+# ── Self-check ────────────────────────────────────────────────────────────────
+# This installer writes its real payload through heredocs, so a malformed
+# heredoc can silently install a truncated or missing file — and the app then
+# simply does not open on the user's machine, with an empty build log to
+# explain it. Verify each artifact actually landed and is non-empty, and fail
+# the build if not.
+RAPTOR_EXPECTED_PAYLOAD="
+/usr/bin/raptor-cortex
+/usr/lib/raptor/cortex-helper
+/usr/lib/raptor/cortex-apply-boot-mode
+/usr/share/applications/raptor-cortex.desktop
+"
+raptor_missing=""
+for raptor_f in $RAPTOR_EXPECTED_PAYLOAD; do
+    [ -s "$raptor_f" ] || raptor_missing="$raptor_missing $raptor_f"
+done
+if [ -n "$raptor_missing" ]; then
+    echo "CORTEX_PAYLOAD_MISSING:$raptor_missing" >&2
+    exit 1
+fi
+echo "CORTEX_READY payload=$(echo $RAPTOR_EXPECTED_PAYLOAD | wc -w | tr -d ' ') files verified"

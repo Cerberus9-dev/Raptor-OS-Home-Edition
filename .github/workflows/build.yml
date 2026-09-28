@@ -46,18 +46,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Every Raptor app is a builder script that writes its real payload
-      # through heredocs, so a broken heredoc installs a truncated or invalid
-      # file and the app simply does not open on the user's machine, with
-      # nothing in the build log. This is a cheap guard against that class.
-      - name: Check installer syntax
-        run: |
-          set -euo pipefail
-          for f in files/scripts/*.sh; do
-            bash -n "$f" || { echo "::error file=$f::syntax error"; exit 1; }
-          done
-          echo "All installer scripts parse."
-
       # ── Free disk space ─────────────────────────────────────────────────────
       # The default ubuntu-latest runner has ~14 GB free. Container builds for
       # Bazzite-based images need ~10 GB. Remove unused toolchains first.

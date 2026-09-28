@@ -1230,4 +1230,23 @@ StartupNotify=true
 X-KDE-SubstituteUID=false
 EOF
 
-echo "UPDATE_MANAGER_READY"
+# ── Self-check ────────────────────────────────────────────────────────────────
+# The update manager is the one app that fails silently by design: if its
+# helper is truncated, every check reports "no updates available" and the user
+# simply stops receiving updates, with an empty build log. Verify each artifact
+# landed and is non-empty; fail the build if not.
+RAPTOR_EXPECTED_PAYLOAD="
+/usr/bin/raptor-update
+/usr/lib/raptor/update-helper
+/usr/lib/raptor/check-helper
+/usr/share/applications/raptor-update.desktop
+"
+raptor_missing=""
+for raptor_f in $RAPTOR_EXPECTED_PAYLOAD; do
+    [ -s "$raptor_f" ] || raptor_missing="$raptor_missing $raptor_f"
+done
+if [ -n "$raptor_missing" ]; then
+    echo "UPDATE_MANAGER_PAYLOAD_MISSING:$raptor_missing" >&2
+    exit 1
+fi
+echo "UPDATE_MANAGER_READY payload=$(echo $RAPTOR_EXPECTED_PAYLOAD | wc -w | tr -d ' ') files verified"

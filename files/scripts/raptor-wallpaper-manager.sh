@@ -620,4 +620,21 @@ Icon=raptor-wallpaper
 Exec=/usr/bin/raptor-wallpaper --apply %f
 EOF
 
+# ── Self-check ────────────────────────────────────────────────────────────────
+# A malformed heredoc here can install a truncated binary or a missing .desktop
+# entry, and the app then never appears in the launcher with an empty build log.
+# Verify each artifact landed and is non-empty; fail the build if not.
+RAPTOR_EXPECTED_PAYLOAD="
+/usr/bin/raptor-wallpaper
+/usr/share/applications/raptor-wallpaper.desktop
+"
+raptor_missing=""
+for raptor_f in $RAPTOR_EXPECTED_PAYLOAD; do
+    [ -s "$raptor_f" ] || raptor_missing="$raptor_missing $raptor_f"
+done
+if [ -n "$raptor_missing" ]; then
+    echo "RAPTOR_WALLPAPER_PAYLOAD_MISSING:$raptor_missing" >&2
+    exit 1
+fi
+echo "RAPTOR_WALLPAPER_READY payload=$(echo $RAPTOR_EXPECTED_PAYLOAD | wc -w | tr -d ' ') files verified"
 echo "Raptor Wallpaper installed successfully."

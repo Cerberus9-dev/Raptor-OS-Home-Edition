@@ -177,4 +177,20 @@ EOF
 # Refresh app / MIME caches so the new handlers show up immediately.
 update-desktop-database /usr/share/applications >/dev/null 2>&1 || true
 
-echo "RAPTOR_WINE_READY"
+# ── Self-check ────────────────────────────────────────────────────────────────
+# A malformed heredoc here can install a truncated binary or a missing .desktop
+# entry, and Wine then never appears in the launcher with an empty build log.
+# Verify each artifact landed and is non-empty; fail the build if not.
+RAPTOR_EXPECTED_PAYLOAD="
+/usr/bin/raptor-wine
+/usr/share/applications/raptor-wine.desktop
+"
+raptor_missing=""
+for raptor_f in $RAPTOR_EXPECTED_PAYLOAD; do
+    [ -s "$raptor_f" ] || raptor_missing="$raptor_missing $raptor_f"
+done
+if [ -n "$raptor_missing" ]; then
+    echo "RAPTOR_WINE_PAYLOAD_MISSING:$raptor_missing" >&2
+    exit 1
+fi
+echo "RAPTOR_WINE_READY payload=$(echo $RAPTOR_EXPECTED_PAYLOAD | wc -w | tr -d ' ') files verified"

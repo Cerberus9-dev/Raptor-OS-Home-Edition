@@ -961,7 +961,25 @@ cat << 'EOF'
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 EOF
 
-echo "RAPTOR_HUD_READY"
+# ── Self-check ────────────────────────────────────────────────────────────────
+# A malformed heredoc here can install a truncated file, and the app then never
+# appears in the launcher with an empty build log. Verify each artifact landed
+# and is non-empty; fail the build if not.
+RAPTOR_EXPECTED_PAYLOAD="
+/usr/bin/raptor-gpu-profile-ui.sh
+/usr/lib/raptor/hud
+/usr/lib/raptor/drkonqi-apply.sh
+/usr/share/applications/raptor-gpu-profile.desktop
+"
+raptor_missing=""
+for raptor_f in $RAPTOR_EXPECTED_PAYLOAD; do
+    [ -s "$raptor_f" ] || raptor_missing="$raptor_missing $raptor_f"
+done
+if [ -n "$raptor_missing" ]; then
+    echo "RAPTOR_HUD_PAYLOAD_MISSING:$raptor_missing" >&2
+    exit 1
+fi
+echo "RAPTOR_HUD_READY payload=$(echo $RAPTOR_EXPECTED_PAYLOAD | wc -w | tr -d ' ') files verified"
 
 # ── One-time migration: fix stale mimeapps + Dolphin defaults ───────────────
 # Dolphin is the default file browser again. Users may carry stale personal

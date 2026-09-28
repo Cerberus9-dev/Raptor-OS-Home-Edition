@@ -986,4 +986,21 @@ Cache=yes
 DNSStubListener=yes
 RESOLVED
 
-echo "GAMING_READY"
+# ── Self-check ────────────────────────────────────────────────────────────────
+# A malformed heredoc here can install a truncated trim/restore script, and the
+# feature then silently does nothing with an empty build log. Verify each
+# artifact landed and is non-empty; fail the build if not.
+RAPTOR_EXPECTED_PAYLOAD="
+/usr/bin/raptor-trim-background.sh
+/usr/bin/raptor-restore-background.sh
+/usr/bin/raptor-zram-teardown.sh
+"
+raptor_missing=""
+for raptor_f in $RAPTOR_EXPECTED_PAYLOAD; do
+    [ -s "$raptor_f" ] || raptor_missing="$raptor_missing $raptor_f"
+done
+if [ -n "$raptor_missing" ]; then
+    echo "GAMING_PAYLOAD_MISSING:$raptor_missing" >&2
+    exit 1
+fi
+echo "GAMING_READY payload=$(echo $RAPTOR_EXPECTED_PAYLOAD | wc -w | tr -d ' ') files verified"
