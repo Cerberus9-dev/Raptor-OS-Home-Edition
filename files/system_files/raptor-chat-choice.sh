@@ -51,7 +51,7 @@ check_network() {
     if ! curl --silent --max-time 5 --head https://flathub.org >/dev/null 2>&1; then
         zenity --error \
             --title="No Internet Connection" \
-            --text="Raptor OS needs an internet connection to download a chat client.\n\nYou can install one later from Discover, or re-run this setup from the Raptor welcome app." \
+            --text="Raptor OS needs an internet connection to download a chat client.\n\nNo chat client was installed, and this will be offered again next time you log in — nothing was recorded, so nothing is missed.\n\nYou can also install one any time from Discover or Flatpak." \
             --width=400 2>/dev/null || true
         return 1
     fi
@@ -119,6 +119,18 @@ install_with_retry() {
     fi
 }
 
+# ── Network check first, before asking the user to choose ─────────────────────
+# First boot is usually before WiFi is joined. Asking first and checking
+# afterwards means an offline user picks a client, waits through a dialog, and
+# is then told it cannot be downloaded — and because raptor-firstboot.service
+# re-runs until all three stamps exist, writing the stamp on that failure path
+# meant they were never asked again and silently got no chat client at all.
+# Leave the stamp unwritten so the choice is offered again on the next login.
+if ! check_network; then
+    log "No network at first boot — chat client choice deferred to next login."
+    exit 0
+fi
+
 # ── Dialog ────────────────────────────────────────────────────────────────────
 CHOICE=$(
     zenity \
@@ -142,22 +154,22 @@ case "${CHOICE:-}" in
 
     Discord)
         log "User selected Discord."
-        if ! check_network; then
+        if install_with_retry "com.discordapp.Discord" "Discord" "~150 MB"; then
             finish
-            exit 0
+        else
+            # Do not stamp on a failed download either — otherwise one flaky
+            # Flathub fetch costs the user the chat client permanently.
+            err "Discord was not installed — choice deferred to next login."
         fi
-        install_with_retry "com.discordapp.Discord" "Discord" "~150 MB" || true
-        finish
         ;;
 
     Vesktop)
         log "User selected Vesktop."
-        if ! check_network; then
+        if install_with_retry "dev.vencord.Vesktop" "Vesktop" "~100 MB"; then
             finish
-            exit 0
+        else
+            err "Vesktop was not installed — choice deferred to next login."
         fi
-        install_with_retry "dev.vencord.Vesktop" "Vesktop" "~100 MB" || true
-        finish
         ;;
 
     ""|*)

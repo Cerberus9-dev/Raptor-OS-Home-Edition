@@ -152,12 +152,12 @@ APP_CATALOGUE=(
     "FALSE|HandBrake|fr.handbrake.ghb|Video transcoder — convert, compress, and re-encode video files"
     # ── Development ────────────────────────────────────────────────────────
     "FALSE|VSCodium|com.vscodium.codium|Open-source VS Code build, no telemetry (Flatpak — sandboxed)"
-    "FALSE|VSCodium — Native (Full Permissions)|RPM:vscodium|Native RPM install (NOT sandboxed) — full system access for tray, pkexec/admin tools, and scripts that need to touch the system. Requires a reboot after first-boot."
+    "FALSE|VSCodium — Full System Access|FLATPAK_FULL:com.vscodium.codium|Access to all your files and system commands, without the normal sandbox. Same practical reach as a native install, but it works immediately — no reboot."
     "FALSE|VSCodium Insiders|com.vscodium.codium-insiders|Daily pre-release build, no telemetry (Flatpak — sandboxed)"
     "FALSE|VS Code (Microsoft)|com.visualstudio.code|Microsoft's official VS Code — full extension/account integration, includes telemetry"
     "FALSE|IntelliJ IDEA Community|com.jetbrains.IntelliJ-IDEA-Community|JetBrains IDE for Java and JVM development (free edition)"
     "FALSE|PyCharm Community|com.jetbrains.PyCharm-Community|JetBrains IDE for Python development (free edition)"
-    "FALSE|VSCodium Insiders — Native (Full Permissions)|RPM:vscodium-insiders|Native RPM install of the pre-release build (NOT sandboxed). Requires a reboot after first-boot."
+    "FALSE|VSCodium Insiders — Full System Access|FLATPAK_FULL:com.vscodium.codium-insiders|Pre-release build with access to all your files and system commands. Works immediately — no reboot."
     "FALSE|Developer Runtime|None|Git + Node.js + pip — for running dev tools and scripts (install via: sudo rpm-ostree install git nodejs python3-pip)"
     "FALSE|Godot Engine|org.godotengine.Godot|Free, open-source game engine"
     "FALSE|GitHub Desktop|io.github.shiftey.Desktop|Git GUI for GitHub repos"
@@ -266,7 +266,7 @@ SELECTED=$(
     zenity \
         --list \
         --title="Raptor OS — Optional App Setup" \
-        --text="<b>Select optional applications to install:</b>\n\nTick anything you want, or click <b>Skip — Install Nothing</b> to install none of these now.\nMost apps install from Flathub. Items marked 'Native (Full Permissions)' install as system RPMs — they are NOT sandboxed (full system access) and need a reboot to activate.\nEverything here can also be installed later from Discover or the terminal." \
+        --text="<b>Select optional applications to install:</b>\n\nTick anything you want, or click <b>Skip — Install Nothing</b> to install none of these now.\nMost apps install from Flathub. Items marked <b>Full System Access</b> are Flatpaks granted access to your whole home directory and system commands — use them when a sandboxed editor would be in your way. Everything works immediately, with no reboot.\nEverything here can also be installed later from Discover or the terminal." \
         --checklist \
         --column="Install" \
         --column="Application" \
@@ -312,58 +312,44 @@ for flatpak_id in "${TO_INSTALL[@]}"; do
     app_name="${ID_TO_NAME[${flatpak_id}]:-${flatpak_id}}"
     log "Installing ${app_name} (${flatpak_id})…"
 
-    if [[ "${flatpak_id}" == RPM:* ]]; then
-        # Native (non-Flatpak), full-permissions RPM install from a third-party
-        # repo. The package is named after the colon (e.g. RPM:vscodium -> codium).
-        NEEDS_REBOOT=1
-        RPM_PKG="${flatpak_id#RPM:}"
-        case "${RPM_PKG}" in
-            vscodium|vscodium-insiders)
-                # Add VSCodium's official DNF repo, then layer the matching codium RPM.
-                if ! command -v dnf config-manager &>/dev/null; then
-                    err "dnf config-manager not available — cannot add VSCodium repo."
-                    FAILED+=("${app_name}")
-                    continue
-                fi
-                if ! sudo dnf config-manager addrepo \
-                        --id=VSCodium \
-                        --set=name=VSCodium \
-                        --set=baseurl=https://paulcarroty.gitlab.io/vscodium-deb-rpm-repo/rpms/ \
-                        --set=enabled=1 \
-                        --set=gpgcheck=1 \
-                        --set=gpgkey=https://gitlab.com/paulcarroty/vscodium-deb-rpm-repo/raw/master/pub.gpg \
-                        --set=repo_gpgcheck=1 \
-                        --set=metadata_expire=1h \
-                        >> /tmp/raptor-app-install.log 2>&1; then
-                    err "Failed to add VSCodium repository."
-                    FAILED+=("${app_name}")
-                    continue
-                fi
-                # Translate our catalogue token into the actual VSCodium RPM name:
-                # vscodium -> codium, vscodium-insiders -> codium-insiders
-                case "${RPM_PKG}" in
-                    vscodium)           RPM_NAME="codium" ;;
-                    vscodium-insiders)  RPM_NAME="codium-insiders" ;;
-                    *)                  RPM_NAME="${RPM_PKG}" ;;
-                esac
-                if sudo rpm-ostree install --idempotent --allow-inactive "${RPM_NAME}" \
-                        >> /tmp/raptor-app-install.log 2>&1; then
-                    log "OK (rpm-ostree): ${app_name} — REBOOT required to activate"
-                else
-                    err "${app_name}: install after reboot: sudo rpm-ostree install ${RPM_NAME}"
-                    FAILED+=("${app_name}")
-                fi
-                ;;
-            *)
-                if sudo rpm-ostree install --idempotent --allow-inactive "${RPM_PKG}" \
-                        >> /tmp/raptor-app-install.log 2>&1; then
-                    log "OK (rpm-ostree): ${app_name} — REBOOT required to activate"
-                else
-                    err "${app_name}: install after reboot: sudo rpm-ostree install ${RPM_PKG}"
-                    FAILED+=("${app_name}")
-                fi
-                ;;
-        esac
+    if [[ "${flatpak_id}" == FLATPAK_FULL:* ]]; then
+        # "Full permissions" without a native RPM.
+        #
+        # The previous native VSCodium path could never work on Bazzite: it ran
+        # `dnf config-manager addrepo` and then `rpm-ostree install codium`, but
+        # rpm-ostree does not read dnf's repo configuration. A repo added that
+        # way is invisible to it, so the layering step always failed and the
+        # user was told to run the same doomed command by hand. A Flatpak plus
+        # host-level overrides gives the same practical reach, applies
+        # immediately, and needs no reboot.
+        FF_ID="${flatpak_id#FLATPAK_FULL:}"
+        if ! flatpak install -y --noninteractive flathub "${FF_ID}" \
+                >> /tmp/raptor-app-install.log 2>&1; then
+            err "FAILED: ${app_name} (${FF_ID})"
+            FAILED+=("${app_name}")
+            continue
+        fi
+        if flatpak override --user \
+                --filesystem=host \
+                --filesystem=xdg-download \
+                --filesystem=xdg-documents \
+                --filesystem=xdg-pictures \
+                --talk-name=org.freedesktop.Flatpak \
+                --env=TERM=xterm-256color \
+                "${FF_ID}" >> /tmp/raptor-app-install.log 2>&1; then
+            log "OK (Flatpak + full access): ${app_name}"
+        else
+            # Installed, but without the extra reach. Still a working editor,
+            # and the user can grant it in Flatseal, so this is not a failure.
+            log "OK (Flatpak, extra permissions failed — grant via Flatseal): ${app_name}"
+        fi
+    elif [[ "${flatpak_id}" == RPM:* ]]; then
+        # No catalogue entry uses this any more. Kept as an explicit, honest
+        # failure rather than a silent one: layering a third-party RPM at first
+        # boot is not possible on rpm-ostree unless the repo is part of the
+        # image, so say so instead of attempting something that cannot work.
+        err "${app_name}: native RPM layering is not available at first boot on this image (rpm-ostree cannot use a repo added at runtime). Install the Flatpak version instead."
+        FAILED+=("${app_name}")
     elif [ "${flatpak_id}" = "None" ]; then
         # RPM-only app — attempt via rpm-ostree
         # Handle compound entries like "GCC + Make + CMake"

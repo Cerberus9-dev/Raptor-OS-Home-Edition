@@ -6,7 +6,9 @@
 #  - No browser ships in the image — the default stays minimal. Five popular
 #    browsers (Firefox, Brave, Chromium, Chrome, Edge) are all offered here
 #    as on-demand Flathub downloads.
-#  - Network connectivity check before attempting the download
+#  - Network connectivity check before even showing the dialog, and an offline
+#    first boot deliberately leaves the stamp unwritten so the choice is offered
+#    again next login (first boot is often before WiFi is joined)
 #  - Zenity progress dialog during download (~100-150 MB)
 #  - Retry prompt on failure rather than silently falling back
 #  - Idempotent — stamp prevents re-running after a successful choice
@@ -14,6 +16,9 @@
 #    repeats (nothing is installed and no default is forced)
 #  - If the chosen browser is already installed (e.g. user picked Chrome in
 #    the app picker), it is simply set as the default — no re-download.
+#  - The desktop id is read back from the installed Flatpak rather than
+#    hardcoded, so a Flathub rename cannot leave a browser installed but
+#    never made the default.
 #
 # Runs as part of raptor-firstboot.service (user service) after Plasma is up.
 # Stamp: ~/.local/share/raptor/browser-choice-done
@@ -53,11 +58,33 @@ check_network() {
     if ! curl --silent --max-time 5 --head https://flathub.org >/dev/null 2>&1; then
         zenity --error \
             --title="No Internet Connection" \
-            --text="Raptor OS needs an internet connection to download a browser.\n\nNo browser was installed. You can install one later from the Raptor welcome app, or stop any browser from Discover / the terminal." \
+            --text="Raptor OS needs an internet connection to download a browser.\n\nNo browser was installed, and this will be offered again next time you log in — nothing was recorded, so nothing is missed.\n\nYou can also install a browser any time from Discover, Flatpak, or the Raptor welcome app." \
             --width=420 2>/dev/null || true
         return 1
     fi
     return 0
+}
+
+# ── Helper: find the desktop id the Flatpak actually exported ─────────────────
+# Hardcoding these is how Firefox ended up installed but never made the default:
+# Flathub renamed firefox.desktop to org.mozilla.firefox.desktop, so the
+# hardcoded id no longer resolved, xdg-settings quietly failed, and the user was
+# still shown a "set as your default browser" success message. Ask the
+# installed Flatpak what it really exports instead.
+resolve_desktop_id() {
+    local fid="$1" preferred="$2" loc dir cand
+    loc=$(flatpak info --show-location "${fid}" 2>/dev/null) || return 1
+    [ -n "${loc}" ] || return 1
+    dir="${loc}/files/share/applications"
+    [ -d "${dir}" ] || return 1
+    # A still-valid preferred id wins, so the common case is unchanged.
+    if [ -f "${dir}/${preferred}" ]; then
+        printf '%s\n' "${preferred}"
+        return 0
+    fi
+    cand=$(find "${dir}" -maxdepth 1 -name '*.desktop' -print -quit 2>/dev/null)
+    [ -n "${cand}" ] || return 1
+    basename "${cand}"
 }
 
 # ── Helper: install a Flatpak with a progress dialog ─────────────────────────
@@ -92,20 +119,44 @@ install_with_progress() {
 }
 
 # ── Helper: set the XDG default browser ───────────────────────────────────────
+# Returns 0 only if a default was actually applied. Callers use this to avoid
+# telling the user their browser is the default when it is not.
 set_default_browser() {
-    local desktop_id="$1"
-    xdg-settings set default-web-browser "${desktop_id}" 2>/dev/null \
-        && info "Default browser set to ${desktop_id}" \
-        || err "Could not set default browser to ${desktop_id} via xdg-settings"
+    local desktop_id="$1" xdg_ok=0 kde_ok=0
+
+    if [ -z "${desktop_id}" ]; then
+        err "No desktop id resolved — cannot set a default browser."
+        return 1
+    fi
+
+    if xdg-settings set default-web-browser "${desktop_id}" 2>/dev/null; then
+        info "Default browser set to ${desktop_id}"
+        xdg_ok=1
+    else
+        err "Could not set default browser to ${desktop_id} via xdg-settings"
+    fi
 
     # Also set via kwriteconfig6 for KDE's own browser launch button in Plasma
     if command -v kwriteconfig6 &>/dev/null; then
-        kwriteconfig6 \
-            --file kdeglobals \
-            --group "General" \
-            --key "BrowserApplication" \
-            "${desktop_id}" 2>/dev/null || true
+        if kwriteconfig6 \
+                --file kdeglobals \
+                --group "General" \
+                --key "BrowserApplication" \
+                "${desktop_id}" 2>/dev/null; then
+            kde_ok=1
+        else
+            err "Could not set kdeglobals BrowserApplication"
+        fi
+    else
+        # No kwriteconfig6 (non-KDE session) — not a failure on its own.
+        kde_ok=1
     fi
+
+    # KDE is the session this image ships, so both halves must land.
+    if [ "${xdg_ok}" -eq 1 ] && [ "${kde_ok}" -eq 1 ]; then
+        return 0
+    fi
+    return 1
 }
 
 # ── Browser catalogue ─────────────────────────────────────────────────────────
@@ -131,6 +182,19 @@ for entry in "${BROWSERS[@]}"; do
         ZENITY_ARGS+=(FALSE "${name}" "${note} (${size})")
     fi
 done
+
+# ── Network check first, before asking the user to choose ─────────────────────
+# Asking first and checking afterwards means an offline user picks a browser,
+# waits through a dialog, and is then told it cannot be downloaded. Worse, the
+# old code wrote the stamp even on this failure path, so because
+# raptor-firstboot.service re-runs until all three stamps exist, that user was
+# never asked again and silently ended up with no browser at all — and first
+# boot is exactly when WiFi is often not joined yet. Leave the stamp unwritten
+# so the choice is offered again on the next login.
+if ! check_network; then
+    log "No network at first boot — browser choice deferred to next login."
+    exit 0
+fi
 
 # ── Dialog ────────────────────────────────────────────────────────────────────
 CHOICE=$(
@@ -178,21 +242,31 @@ log "User selected browser: ${NAME}"
 # ── Already installed? ────────────────────────────────────────────────────────
 if flatpak info "${FID}" &>/dev/null; then
     info "${FID} already installed — setting as default only."
-    set_default_browser "${DESKTOP}"
-    finish
+    real_desktop=$(resolve_desktop_id "${FID}" "${DESKTOP}" || echo "")
+    if set_default_browser "${real_desktop}"; then
+        finish
+    else
+        err "${NAME} is installed but the default browser could not be set."
+        zenity --warning \
+            --title="Could Not Set Default" \
+            --text="${NAME} is installed, but Raptor OS could not make it your default browser.\n\nSet it in System Settings → Default Applications, or with:\n\nxdg-settings set default-web-browser ${real_desktop:-<desktop-id>}" \
+            --width=460 2>/dev/null || true
+        finish
+    fi
     exit 0
 fi
 
 # ── Install ───────────────────────────────────────────────────────────────────
-if ! check_network; then
-    finish
-    exit 0
-fi
-
 INSTALL_OK=0
+DEFAULT_OK=0
 if install_with_progress "${FID}" "${NAME}" "${SIZE}"; then
-    set_default_browser "${DESKTOP}"
-    log "${NAME} installed and set as default."
+    real_desktop=$(resolve_desktop_id "${FID}" "${DESKTOP}" || echo "")
+    if set_default_browser "${real_desktop}"; then
+        log "${NAME} installed and set as default."
+        DEFAULT_OK=1
+    else
+        err "${NAME} installed but the default browser could not be set."
+    fi
     INSTALL_OK=1
 else
     # Offer retry
@@ -206,8 +280,13 @@ else
         if flatpak install -y --noninteractive flathub "${FID}" \
                 >> "${INSTALL_LOG}" 2>&1 \
                 && flatpak info "${FID}" &>/dev/null; then
-            set_default_browser "${DESKTOP}"
-            log "${NAME} installed on retry."
+            real_desktop=$(resolve_desktop_id "${FID}" "${DESKTOP}" || echo "")
+            if set_default_browser "${real_desktop}"; then
+                log "${NAME} installed on retry."
+                DEFAULT_OK=1
+            else
+                err "${NAME} installed on retry but the default could not be set."
+            fi
             INSTALL_OK=1
         else
             err "${NAME} install failed on retry. Nothing installed."
@@ -217,11 +296,21 @@ else
     fi
 fi
 
+# Only claim the default was set when it actually was. Telling the user their
+# new browser is the default when xdg-settings failed is worse than saying
+# nothing, because they will not look again.
 if [[ "${INSTALL_OK}" -eq 1 ]]; then
-    zenity --info \
-        --title="${NAME} is Ready" \
-        --text="✓ ${NAME} has been installed and set as your default browser." \
-        --width=300 2>/dev/null || true
+    if [[ "${DEFAULT_OK}" -eq 1 ]]; then
+        zenity --info \
+            --title="${NAME} is Ready" \
+            --text="✓ ${NAME} has been installed and set as your default browser." \
+            --width=300 2>/dev/null || true
+    else
+        zenity --warning \
+            --title="${NAME} is Ready" \
+            --text="${NAME} has been installed, but Raptor OS could not make it your default browser.\n\nSet it in System Settings → Default Applications." \
+            --width=440 2>/dev/null || true
+    fi
 fi
 
 finish
