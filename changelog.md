@@ -4,6 +4,34 @@
 
 ### Fixed
 
+- **An offline first boot silently skipped the browser and chat choices
+  forever** — `raptor-firstboot.service` re-runs on every login until all three
+  setup stamps exist, but both dialogs wrote the stamp *even when the network
+  check failed*. First boot is exactly when WiFi is often not joined yet, so
+  the user chose a browser, was told a connection was needed, and was never
+  asked again — ending up with no browser and no chat client, with nothing
+  indicating a choice had been recorded. The connection is now checked before
+  the dialog is shown, and the failure path deliberately leaves the stamp
+  unwritten so the choice is offered again on the next login.
+- **A single failed download cost the user the chat client permanently** —
+  the chat dialog stamped the file after `install_with_retry` returned failure
+  too, so one flaky Flathub fetch was final. It now stamps only on a real
+  install.
+- **The chosen browser was reported as the default even when it was not** —
+  the desktop id was hardcoded, and Flathub has since renamed
+  `firefox.desktop` to `org.mozilla.firefox.desktop`, so Firefox installed
+  correctly, `xdg-settings` failed quietly, and the user was still shown a
+  green tick confirming their new default. The id is now read back from the
+  installed Flatpak, and the success message only appears when the default was
+  genuinely applied.
+- **"VSCodium — Native (Full Permissions)" could never install** — it added
+  VSCodium's repository with `dnf config-manager` and then ran
+  `rpm-ostree install codium`, but `rpm-ostree` does not read dnf's repository
+  configuration, so a repo added at runtime is invisible to it. The layering
+  step always failed and then advised running the same doomed command by hand.
+  Replaced with the Flatpak plus host-level permission overrides, which give the
+  same practical access, work immediately, and need no reboot. The dialog
+  promised "NOT sandboxed … need a reboot" for entries that never worked.
 - **Update Manager was permanently bricked when `sudo -n` was not permitted** —
   `run_privileged()` looped over `["sudo", "-n"]` then `["pkexec"]` and caught
   only `FileNotFoundError`. That covers a *missing binary* and nothing else:
