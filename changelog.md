@@ -4,8 +4,26 @@
 
 ### Fixed
 
-- **An offline first boot silently skipped the browser and chat choices
-  forever** — `raptor-firstboot.service` re-runs on every login until all three
+- **The image build failed outright on `raptor-hud.sh`** — the GPU
+  deduplication removed HUD's copy of `/usr/lib/raptor/gpu-detect.sh` but left
+  its `chmod +x` behind. HUD is the first script in `recipe.yml`, so the file
+  did not exist yet, `chmod` failed, and `set -e` aborted the build with
+  `Failed 'script' Module`. The stale `chmod` is removed; `raptor-gpu-profile.sh`
+  writes and marks the file executable itself.
+- **The GPU profile installer referenced variables it never set** — a
+  post-install payload check echoed `$PROFILE`/`$GPU_VENDOR`/`$IS_IGPU`/
+  `$IS_HYBRID`, which are set *inside* the generated `gpu-detect.sh` rather than
+  in the installer. Under `set -u` that aborted the build.
+- **Native VSCodium could not be installed on first boot** — the installer
+  registered VSCodium's repository and then layered `codium`, but
+  `rpm-ostree` caches its own copy of the repository metadata and does not
+  notice a repository added a moment earlier, so the install failed with
+  "no package matched" while `/etc/yum.repos.d/VSCodium.repo` was present and
+  apparently correct. `rpm-ostree cleanup -m` is now run after registering the
+  repository, and each stage reports its own failure distinctly. Both the
+  sandboxed Flatpak and the native (unsandboxed, full user-level system access)
+  builds are offered.
+ `raptor-firstboot.service` re-runs on every login until all three
   setup stamps exist, but both dialogs wrote the stamp *even when the network
   check failed*. First boot is exactly when WiFi is often not joined yet, so
   the user chose a browser, was told a connection was needed, and was never
