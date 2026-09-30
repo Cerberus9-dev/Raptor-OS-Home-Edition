@@ -317,7 +317,12 @@ MENUEOF
 # propagate variables to already-running sessions. The two
 # implementations of the same hardware logic also meant every future GPU
 # change had to be made twice, in two places, to take effect.
-chmod +x /usr/lib/raptor/gpu-detect.sh
+#
+# There is deliberately no `chmod +x /usr/lib/raptor/gpu-detect.sh` here. The
+# copy is gone, but the chmod outlived it, and because this installer runs
+# before raptor-gpu-profile.sh in recipe.yml the file does not exist yet — so
+# chmod failed and took the whole image build down with it. raptor-gpu-profile.sh
+# writes the file and chmods it itself.
 
 # NOTE: raptor-gpu-profile.service is owned by raptor-gpu-profile.sh,
 # which installs and enables it. It used to be defined here as well, with

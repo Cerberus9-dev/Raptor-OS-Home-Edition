@@ -847,4 +847,4 @@ if [ -n "$raptor_missing" ]; then
     echo "GPU_PROFILE_PAYLOAD_MISSING:$raptor_missing" >&2
     exit 1
 fi
-echo "GPU_PROFILE_READY profile=$PROFILE vendor=$GPU_VENDOR igpu=$IS_IGPU hybrid=$IS_HYBRID payload=$(echo $RAPTOR_EXPECTED_PAYLOAD | wc -w | tr -d ' ') files verified"
+echo "GPU_PROFILE_READY payload=$(echo $RAPTOR_EXPECTED_PAYLOAD | wc -w | tr -d ' ') files verified"
