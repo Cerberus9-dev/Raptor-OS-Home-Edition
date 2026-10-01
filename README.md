@@ -62,7 +62,7 @@ Three dialogs appear on the first login, in sequence:
 | **Gaming** | Heroic Games Launcher (Epic/GOG/Amazon), ProtonUp-Qt, Protontricks, Wine, Winetricks |
 | **Media** | mpv (lightweight playback) |
 | **System** | htop, KDE Partition Manager, Plasma System Monitor, Gwenview, KCalc, Fastfetch, p7zip |
-| **Raptor Apps** | Raptor Cortex, Raptor GPU Profiler, Raptor Wallpaper, Raptor Update Manager — all grouped under their own **Raptor OS** category in the app menu |
+| **Raptor Apps** | Raptor Cortex, Raptor Wallpaper, Raptor Update Manager — all grouped under their own **Raptor OS** category in the app menu |
 | **Overlays** | MangoHud (green palette, Shift+F12), Gamemode |
 
 ---
@@ -102,7 +102,11 @@ GTK4/Adwaita app with three modes (Power Saving / Balanced / Performance), each 
 
 ## Raptor GPU Profiler
 
-GTK4/Adwaita graphical profile switcher — GPU info banner (vendor, model, VRAM), five profiles (Auto/Balanced/Performance/Extreme/Power Saving) with a live environment-variable preview, one-click Apply with no reboot required, and a reference panel of useful per-game Steam launch options.
+GPU profile selection now lives inside **Raptor Cortex**, under a **Graphics** group. It shipped as its own app for a while, which meant two windows and two launchers for one decision about the same machine; it is now the same row of controls as the CPU boost mode next to it.
+
+- Five profiles — **Auto Detect / Balanced / Max Performance / Extreme / Power Saving** — with a one-line plain-English description of what each actually changes
+- Applies immediately, no reboot; the choice survives a reboot because it is stored as a marker file that `gpu-detect.sh` re-reads on every boot
+- The `raptor-gpu-profile` package now ships only the detection and apply machinery. If it is not installed, Cortex says so instead of offering buttons that do nothing
 
 ## Raptor Wallpaper
 

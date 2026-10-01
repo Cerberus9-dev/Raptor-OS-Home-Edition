@@ -570,9 +570,9 @@ X-KDE-SubstituteUID=false
 EOF
 
 # ── Application icon ───────────────────────────────────────────────────────────
-# Same visual language as raptor-cortex.svg / raptor-gpu-profiler.svg — purple
-# radial badge, dashed ring, cardinal ticks — with a mountains-and-sun picture
-# glyph in the centre so the three apps read as a matched family in the menu.
+# Same visual language as raptor-cortex.svg — purple radial badge, dashed ring,
+# cardinal ticks — with a mountains-and-sun picture glyph in the centre so the
+# apps read as a matched family in the menu.
 cat << 'SVGEOF' > /usr/share/icons/hicolor/scalable/apps/raptor-wallpaper.svg
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <defs>
