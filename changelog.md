@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [v2.7.0] - 2026-10-01 (Major Feature Expansion — Cortex Unification, App Picker Overhaul, Battery, Tasks)
+
 ### Changed
 
 - **GPU profiling is now part of Raptor Cortex** — the separate "Raptor GPU
@@ -16,442 +18,315 @@
   terminal UI from `hud-install`, and neither sharing a word with Cortex. The
   terminal UI in particular had no way to know about the other two.
 
+- **Raptor Cortex is now the central control app** — one window for CPU
+  boost modes, GPU performance profiles, memory optimization, game mode
+  service trimming, background service management, temperature monitoring,
+  Quick Actions (Pre-Game Boost, Restore Desktop, Clear Shader Cache),
+  Persistent Settings (auto-apply mode on boot, auto-restore after game,
+  scheduled cleanup), and Scheduled Memory Cleanup.
+
+- **One-click Quick Optimize** — new "Quick Optimize" button auto-tunes
+  optimization options to the current performance profile (Performance =
+  all aggressive, Balanced = caches+compaction+zram+oom, Power Saving =
+  same without swap). Advanced options remain available in a collapsible
+  expander for fine control.
+
+- **Barebones base install** — default RPMs reduced to essentials only
+  (removed: plasma-systemmonitor, neovim, tmux, ripgrep, fzf, ninja-build,
+  meson, podman, podman-compose, thunderbird, variety, btop, gcc, make,
+  cmake, krita, vlc). System flatpaks reduced to ProtonUp-Qt only. All
+  other apps moved to firstboot app picker.
+
+### Added
+
+- **Raptor Tasks** (`raptor-tasks.sh`) — GTK4/Adwaita task manager with
+  categories (Personal, Work, Gaming, Shopping, Ideas, Other), persistence
+  (`~/.config/raptor-tasks.json`), keyboard shortcuts (Ctrl+N for new task),
+  popover menu (edit/delete), and CoyoteTM-inspired UI.
+
+- **Raptor Cheatsheet** (`raptor-cheatsheet.sh`) — terminal (fzf) and GUI
+  versions with 9 categories: rpm-ostree, Flatpak, Podman, Toolbox,
+  Systemd User, Raptor OS Specific, Troubleshooting, File System (Atomic).
+  Click any command to copy to clipboard.
+
+- **Gaming Device Support** (`raptor-gaming-devices.sh`) — udev rules for
+  Logitech (G Hub, Lightspeed), Razer, SteelSeries, Corsair, HyperX,
+  Glorious, Roccat, Turtle Beach + generic HID/joystick. Flatpak overrides
+  for G Hub, OpenRazer, Piper. Documentation at
+  `/usr/share/doc/raptor-gaming-devices/README.md`.
+
+- **Steam Game Auto-Detection** — "Scan for Steam Games" button in Cortex
+  parses `appmanifest_*.acf` files across common library paths and adds
+  detected games to the library with Steam launch method.
+
+- **Battery Optimizations** (Power Saving mode) — WiFi power save (`iw set
+  power_save on`), Bluetooth controller suspend (`hciconfig lp`),
+  display backlight reduction to 50%, HDA audio controller power save,
+  NVMe `min_power`, SATA `min_power`, USB autosuspend (excludes btusb,
+  usbhid, snd-usb-audio), runtime PM for network devices.
+
+- **Enhanced Background Process Optimization** — `trim-background` now
+  pauses Steam, Discord, browsers (Firefox, Chrome, Brave, Edge, Vivaldi,
+  Opera), Spotify, Slack, Thunderbird, Element, Signal, Telegram, VS Code,
+  Vesktop, plus indexers (tracker, baloo, akonadi) and package managers.
+  `restore-background` resumes all with IO priority/niceness reset.
+
+- **Wine/Proton Enhancements** — added `d3dcompiler_47` and `dxvk` to
+  default runtimes, Wine Mono/Gecko auto-bootstrap, ProtonUp-Qt integration
+  (detects latest GE-Proton), esync/fsync enabled, winemenubuilder
+  suppressed, VA-API for hardware decode, DXVK DLL overrides verified.
+
+- **Browser Choice Expanded** — added Zen Browser and Helium alongside
+  Firefox, Brave, Chromium, Chrome, Edge.
+
+- **App Picker: 150+ New Apps** across categories:
+  - *Communication*: ProtonMail, Proton Auth, Aegis, Authenticator,
+    Telegram, Signal, Slack, Zoom, Element
+  - *Gaming*: Heroic, Prism Launcher, Sober (Roblox), Sleepy (ZZZ),
+    Qrookie, PortProton, Lutris, Bottles, Protontricks, emulators
+    (Ryujinx, RPCS3, RetroArch, Dolphin, PCSX2, DuckStation, Flycast,
+    ScummVM, OpenRA, Chiaki, Moonlight, Sunshine, GOverlay)
+  - *Privacy*: Tor Browser, OnionShare, Mullvad VPN, Cryptomator,
+    VeraCrypt, KeePassXC, Standard Notes
+  - *De-Googled*: Ungoogled Chromium, Bromite, LibreWolf, SearXNG,
+    NewPipe, Piped, FreeTube
+  - *Productivity*: ONLYOFFICE, LibreOffice, Bitwarden, Joplin,
+    MarkText, Calibre, RSS Guard, Obsidian, Notion
+  - *Creative*: GIMP, Inkscape, Krita, Darktable, Blender, Kdenlive,
+    DigiKam, Shotcut, OBS Studio, Audacity, Boatswain, HandBrake
+  - *Audio*: EasyEffects, Helvum, LMMS, Ardour, Tenacity
+  - *Video*: VLC, mpv, Clapper, Celluloid, Kooha, Kdenlive, Shotcut,
+    HandBrake, Subtitle Edit, MakeMKV
+  - *Torrents*: qBittorrent, Transmission
+  - *Dev Tools*: VSCodium (Flatpak + native), VS Code, IntelliJ IDEA
+    Community, PyCharm Community, Godot, GitHub Desktop, Pods,
+    Developer Runtime
+  - *Education*: KCalc, LabPlot, Cantor, KStars, Marble, Step, Kalgebra,
+    Kanagram, KHangMan, KTurtle, KGeography
+  - *System Tools*: GNOME System Monitor, KSysGuard, Warehouse,
+    Impression, CoreCtrl, GNOME Backups, Flatseal, BleachBit, Filelight,
+    Klipper, kfind, file-roller, btop, ncdu, Restic, Syncthing, Tailscale
+  - *Fun/Reading*: Nook, Foliate
+
+- **Task Managers** — GNOME System Monitor (Windows-like) and KSysGuard
+  added to app picker.
+
+- **Update Manager Hardening** — statically checks NOPASSWD grant in
+  `/etc/sudoers.d/raptor-update`, streams check-helper output live into
+  visible Console, time-bounds metadata refresh (3 × 150 s attempts,
+  500 s wall-clock ceiling), falls back to local rpm-ostree state on
+  refresh failure.
+
 ### Removed
 
-- **Two duplicate GPU profiler entry points.** `raptor-gpu-profile` installed a
-  GTK4 app at `/usr/bin/raptor-gpu-profiler`, and `hud-install` installed a
-  separate terminal UI at `/usr/bin/raptor-gpu-profile-ui.sh` behind a
-  launcher. Both put an entry named "Raptor GPU Profiler" in the app menu, so
-  the menu showed two identically-named entries that were different programs.
-  Both are folded into Cortex. `hud-install` no longer has any GPU profile
-  responsibility, and its polkit/sudoers surface narrowed to match.
-- **An orphaned icon and a polkit rule for deleted binaries.** The polkit rule
-  in `49-raptor-gpu.rules` matched on `raptor-gpu-profile` and
-  `raptor-gpu-profiler`, both of which no longer exist; it now matches only
-  `gpu-detect.sh`, which is what actually gets invoked. The unreferenced
-  `raptor-gpu-profiler.svg` is removed.
+- **Manual fan control and fan profiles in Raptor Cortex** — removed
+  rather than shipped. The feature was guarded by a chip allowlist, an
+  RPM readback requirement, a thermal interlock and a duty cap, but it
+  could only ever be verified against a synthetic sysfs tree: no machine
+  available for testing had a fan controller on the supported list, so
+  every write path would have gone out unexercised on real silicon. It
+  also did not appear on the machines it was built for, so it was
+  carrying risk for no visible gain. Fan control is left entirely to the
+  kernel and the board firmware, which is where it belongs. CPU
+  temperature, which Cortex displayed alongside it, is unaffected.
 
-### Removed
+- **Two duplicate GPU profiler entry points** — `raptor-gpu-profile`
+  installed a GTK4 app at `/usr/bin/raptor-gpu-profiler`, and `hud-install`
+  installed a separate terminal UI at `/usr/bin/raptor-gpu-profile-ui.sh`
+  behind a launcher. Both put an entry named "Raptor GPU Profiler" in the
+  app menu, so the menu showed two identically-named entries that were
+  different programs. Both are folded into Cortex. `hud-install` no longer
+  has any GPU profile responsibility, and its polkit/sudoers surface
+  narrowed to match.
 
-- **Manual fan control and fan profiles in Raptor Cortex** — removed rather
-  than shipped. The feature was guarded by a chip allowlist, an RPM readback
-  requirement, a thermal interlock and a duty cap, but it could only ever be
-  verified against a synthetic sysfs tree: no machine available for testing had
-  a fan controller on the supported list, so every write path would have gone
-  out unexercised on real silicon. It also did not appear on the machines it
-  was built for, so it was carrying risk for no visible gain. Fan control is
-  left entirely to the kernel and the board firmware, which is where it
-  belongs. CPU temperature, which Cortex displayed alongside it, is unaffected.
-  its `chmod +x` behind. HUD is the first script in `recipe.yml`, so the file
-  did not exist yet, `chmod` failed, and `set -e` aborted the build with
-  `Failed 'script' Module`. The stale `chmod` is removed; `raptor-gpu-profile.sh`
-  writes and marks the file executable itself.
-- **The GPU profile installer referenced variables it never set** — a
-  post-install payload check echoed `$PROFILE`/`$GPU_VENDOR`/`$IS_IGPU`/
-  `$IS_HYBRID`, which are set *inside* the generated `gpu-detect.sh` rather than
-  in the installer. Under `set -u` that aborted the build.
-- **Native VSCodium could not be installed on first boot** — the installer
-  registered VSCodium's repository and then layered `codium`, but
-  `rpm-ostree` caches its own copy of the repository metadata and does not
-  notice a repository added a moment earlier, so the install failed with
-  "no package matched" while `/etc/yum.repos.d/VSCodium.repo` was present and
-  apparently correct. `rpm-ostree cleanup -m` is now run after registering the
-  repository, and each stage reports its own failure distinctly. Both the
-  sandboxed Flatpak and the native (unsandboxed, full user-level system access)
-  builds are offered.
- `raptor-firstboot.service` re-runs on every login until all three
-  setup stamps exist, but both dialogs wrote the stamp *even when the network
-  check failed*. First boot is exactly when WiFi is often not joined yet, so
-  the user chose a browser, was told a connection was needed, and was never
-  asked again — ending up with no browser and no chat client, with nothing
-  indicating a choice had been recorded. The connection is now checked before
-  the dialog is shown, and the failure path deliberately leaves the stamp
-  unwritten so the choice is offered again on the next login.
-- **A single failed download cost the user the chat client permanently** —
-  the chat dialog stamped the file after `install_with_retry` returned failure
-  too, so one flaky Flathub fetch was final. It now stamps only on a real
-  install.
-- **The chosen browser was reported as the default even when it was not** —
-  the desktop id was hardcoded, and Flathub has since renamed
-  `firefox.desktop` to `org.mozilla.firefox.desktop`, so Firefox installed
-  correctly, `xdg-settings` failed quietly, and the user was still shown a
-  green tick confirming their new default. The id is now read back from the
-  installed Flatpak, and the success message only appears when the default was
-  genuinely applied.
-- **"VSCodium — Native (Full Permissions)" could never install** — it added
-  VSCodium's repository with `dnf config-manager` and then ran
-  `rpm-ostree install codium`, but `rpm-ostree` does not read dnf's repository
-  configuration, so a repo added at runtime is invisible to it. The layering
-  step always failed and then advised running the same doomed command by hand.
-  Replaced with the Flatpak plus host-level permission overrides, which give the
-  same practical access, work immediately, and need no reboot. The dialog
-  promised "NOT sandboxed … need a reboot" for entries that never worked.
-- **Update Manager was permanently bricked when `sudo -n` was not permitted** —
-  `run_privileged()` looped over `["sudo", "-n"]` then `["pkexec"]` and caught
-  only `FileNotFoundError`. That covers a *missing binary* and nothing else:
-  when `sudo` exists but refuses (missing/stale `/etc/sudoers.d/raptor-update`,
-  a user not covered by the rule, sudo wanting a TTY), `subprocess.Popen`
-  already returned successfully, the `pkexec` fallback was **never reached**,
-  and the caller was handed an already-dead process whose stderr got parsed as
-  helper output. The user saw a confusing
-  `Could not refresh update state (sudo: a password is required)` with no way
-  forward. It now reads the NOPASSWD grant from
-  `/etc/sudoers.d/raptor-update` **statically** and only falls through to
-  `pkexec` when `sudo` genuinely cannot do the job, with an error that names
-  the file to check.
+- **An orphaned icon and a polkit rule for deleted binaries** — the
+  polkit rule in `49-raptor-gpu.rules` matched on `raptor-gpu-profile`
+  and `raptor-gpu-profiler`, both of which no longer exist; it now matches
+  only `gpu-detect.sh`, which is what actually gets invoked. The
+  unreferenced `raptor-gpu-profiler.svg` is removed.
 
-  A `sudo -n -l <helper>` probe was tried and rejected: on a stock Bazzite
-  install the user is in `wheel` (password-required) *and* the NOPASSWD
-  drop-in, and `sudo -l` can demand authentication before printing anything —
-  so that probe would push every user onto a polkit password prompt even where
-  the silent grant works. The grant is therefore checked by reading the
-  drop-in directly.
-- **A malformed sudoers drop-in was installed silently** — the installer ran
-  `visudo -cf … || true`, so a syntax error shipped a rule set that sudo
-  silently ignores *in its entirety*, leaving `sudo -n` refusing and the update
-  manager dead on a freshly booted image with nothing in the build log to
-  explain it. Validation now fails the image build (and warns, rather than
-  pretending to pass, if `visudo` itself is unavailable).
+- **Heavy default packages** — plasma-systemmonitor, neovim, tmux, ripgrep,
+  fzf, ninja-build, meson, podman, podman-compose, thunderbird, variety,
+  btop, gcc, make, cmake, krita, vlc removed from base image.
 
-### Fixed — Raptor Cortex
+- **Heroic Games Launcher** moved from default flatpaks to app picker.
+
+### Fixed
+
+- **Update manager could hang on "Checking" and never finish** — the
+  GUI's metadata refresh ran the check-helper and then sat in a blocking
+  `communicate()`, showing nothing on screen while the network stalled
+  on flaky school WiFi. Three fixes: (1) the check-helper now time-bounds
+  every attempt (max 3 × 150 s, no unbounded final attempt), probes
+  connectivity to ghcr.io up front with a clear message, and treats
+  rpm-ostree `--check` exit 77 ("nothing new") as the clean success it
+  is; (2) the GUI streams the helper's output *live* into a built-in
+  Console that is visible from launch (not hidden until an update
+  starts), reading via a `select()` loop with a `CHECK_TIMEOUT=500`
+  wall-clock ceiling so a stalled pipe can never freeze the check again;
+  (3) if the refresh *does* fail, the manager falls back to local
+  rpm-ostree state first — a staged-but-not-booted deployment or a
+  populated `cached-update` is still reported as an available update
+  ("reboot to apply it") instead of the refresh error hiding an update
+  that is already on disk.
+
+- **Update manager said "up to date" even when a new image was pushed** —
+  the `cached-update` field in `rpm-ostree status --json` only becomes
+  populated after a check has actually run. The check-helper now runs
+  `rpm-ostree upgrade --check` to refresh the field, and on container-
+  native images (Bazzite) a registry digest cross-check (skopeo + jq)
+  compares the booted image's digest against the remote tag's digest.
+  If they differ, "AvailableUpdate:" is printed and the update is
+  reported. This matches the ground truth ublue-update uses.
+
+- **"VSCodium — Native (Full Permissions)" could never install** — it
+  added VSCodium's repository with `dnf config-manager` and then ran
+  `rpm-ostree install codium`, but `rpm-ostree` does not read dnf's
+  repository configuration, so a repo added at runtime is invisible to
+  it. The layering step always failed. Replaced with the Flatpak plus
+  host-level permission overrides, which give the same practical access,
+  work immediately, and need no reboot.
+
+- **Update Manager was permanently bricked when `sudo -n` was not
+  permitted** — `run_privileged()` looped over `["sudo", "-n"]` then
+  `["pkexec"]` and caught only `FileNotFoundError`. That covers a missing
+  binary and nothing else: when `sudo` exists but refuses (missing/stale
+  sudoers, user not covered, sudo wanting a TTY), `subprocess.Popen`
+  already returned successfully, the `pkexec` fallback was never reached,
+  and the caller was handed an already-dead process whose stderr got
+  parsed as helper output. It now reads the NOPASSWD grant from
+  `/etc/sudoers.d/raptor-update` statically and only falls through to
+  `pkexec` when `sudo` genuinely cannot do the job, with an error that
+  names the file to check.
+
+- **A malformed sudoers drop-in was installed silently** — the installer
+  ran `visudo -cf … || true`, so a syntax error shipped a rule set that
+  sudo silently ignores in its entirety, leaving `sudo -n` refusing and
+  the update manager dead on a freshly booted image with nothing in the
+  build log to explain it. Validation now fails the image build (and
+  warns, rather than pretending to pass, if `visudo` itself is
+  unavailable).
 
 - **Seven processes were left frozen for the rest of the session** —
   `trim-background` and `restore-background` each declared their own
   `BACKGROUND_PROCS` array and the two had drifted. 20 processes were
   `SIGSTOP`ped but only 13 were ever `SIGCONT`ed, so `apt-get`, `dpkg`,
-  `updatedb`, `mlocate`, `snapd`, `unattended-upgrade` and `gnome-software`
-  stayed frozen. The dangerous pair is `dpkg`/`apt-get`: a `SIGSTOP`ped dpkg
-  holds the dpkg lock, so every later apt invocation blocks until reboot. Both
-  actions now share a single array declared at helper scope, so the two can
-  never drift again. `dpkg`/`apt-get`/`unattended-upgrade` were also removed
-  from the set entirely — stopping a live package transaction is unsafe
-  regardless of symmetry; PackageKit is now stopped via `systemctl`, which
-  releases its transaction lock cleanly on `SIGTERM`.
-- **"Restore Desktop" did nothing while reporting success** — the handler called
-  `cortex-helper resume-background`, which is not a real action. It fell through
-  to the usage arm and exited 1, so every suspended process stayed frozen while
-  the UI toasted *"Desktop restored — Balanced mode, all services resumed"*.
-  Now calls the real `restore-background`, and both this and "Resume All
-  Services" funnel through one helper that checks the exit status and surfaces
-  failures instead of swallowing them.
-- **Two more unvalidated sudoers drop-ins** — `raptor-gpu-profile.sh` wrote
-  `/etc/sudoers.d/raptor-gpu` with no `visudo` check at all, and
-  `raptor-hud.sh` chained its check with `&&` so a failure could not stop the
-  build. `raptor-gaming.sh` *appends* to that same file, so its rules were never
-  validated either — a malformed line there would have silently broken GPU
-  profile switching as well. All three now fail the build on an invalid file.
+  `updatedb`, `mlocate`, `snapd`, `unattended-upgrade` and
+  `gnome-software` stayed frozen. The dangerous pair is `dpkg`/`apt-get`:
+  a `SIGSTOP`ped dpkg holds the dpkg lock, so every later apt invocation
+  blocks until reboot. Both actions now share a single array declared at
+  helper scope, so the two can never drift again. `dpkg`/`apt-get`/
+  `unattended-upgrade` were also removed from the set entirely — stopping
+  a live package transaction is unsafe regardless of symmetry; PackageKit
+  is now stopped via `systemctl`, which releases its transaction lock
+  cleanly on `SIGTERM`.
 
+- **"Restore Desktop" did nothing while reporting success** — the handler
+  called `cortex-helper resume-background`, which is not a real action.
+  It fell through to the usage arm and exited 1, so every suspended
+  process stayed frozen while the UI toasted "Desktop restored — Balanced
+  mode, all services resumed". Now calls the real `restore-background`,
+  and both this and "Resume All Services" funnel through one helper that
+  checks the exit status and surfaces failures instead of swallowing them.
 
-- **Dolphin still froze/crashed on selecting a .zip despite the earlier fix** —
-  the old `ShowPreview=false` key doesn't exist in Dolphin's schema and is
-  silently ignored, so the F4 Information Panel kept parsing selected archives
-  with KFileMetaData in the main process and wedged the UI on big/remote zips.
-  Replaced with the real keys — `[InformationPanel]` is now written as
-  `previewsShown=false`, `previewsAutoPlay=false`, `showHovered=false` (no
-  preview thumbnail generation, no hover refresh; F4 still opens the panel on
-  demand) — in `/etc/xdg/dolphinrc` and the once-per-user login migration
-  (stamp bumped to `raptor-dolphin-defaults-v2` so existing users get the
+- **Two more unvalidated sudoers drop-ins** — `raptor-gpu-profile.sh`
+  wrote `/etc/sudoers.d/raptor-gpu` with no `visudo` check at all, and
+  `raptor-hud.sh` chained its check with `&&` so a failure could not
+  stop the build. `raptor-gaming.sh` *appends* to that same file, so its
+  rules were never validated either — a malformed line there would have
+  silently broken GPU profile switching as well. All three now fail the
+  build on an invalid file.
+
+- **Dolphin still froze/crashed on selecting a .zip despite the earlier
+  fix** — the old `ShowPreview=false` key doesn't exist in Dolphin's
+  schema and is silently ignored, so the F4 Information Panel kept
+  parsing selected archives with KFileMetaData in the main process and
+  wedged the UI on big/remote zips. Replaced with the real keys —
+  `[InformationPanel]` is now written as `previewsShown=false`,
+  `previewsAutoPlay=false`, `showHovered=false` (no preview thumbnail
+  generation, no hover refresh; F4 still opens the panel on demand) — in
+  `/etc/xdg/dolphinrc` and the once-per-user login migration (stamp
+  bumped to `raptor-dolphin-defaults-v2` so existing users get the
   corrected keys applied). The `[PreviewSettings] Plugins` value was also
-  malformed (`imagethumbnail:directorythumbnail` — a colon-joined token that
-  matches no plugin id); it is now a proper comma list, `imagethumbnail,
-  directorythumbnail`, so image + folder thumbnails actually stay enabled while
-  the heavy video/audio/document previewers stay off. Finally, Ark's
-  *Compress / Extract / drag-and-drop extract* KFileItemAction plugins are
-  removed at build time (`raptor-dolphin-stability.sh`): they advertise
-  `application/octet-stream`, so Dolphin queries them for *any* selection and
-  they force a per-file MIME scan that freezes the UI (KDE bug 499551) and can
-  segfault Dolphin via kerfuffle (KDE bugs 482016/420429). Double-clicking an
-archive to open it in Ark (via `raptor-mimeapps.list`) is unaffected — only
-   the right-click compress/extract entries are dropped.
-- **Dolphin still froze on selecting a .zip *after the laptop had been on a
-  while*** — the Baloo half of the earlier fix never landed: Plasma 6 reads
-  `~/.config/baloofilerc`, but the image shipped `/etc/xdg/baloorc` and the
-  login migration wrote `~/.config/baloorc` (wrong filename), and the keys used
-  (`IndexFileContent`, `IndexFileSizeLimit`…) don't exist in Baloo's schema.
-  The content-indexing switch was therefore silently ignored and Baloo kept
-  indexing file contents. After hours of uptime `baloo_file_extractor` +
-  `baloo_filemetadata_temp_extractor` saturate disk I/O, and selecting a zip
-  makes KFileMetaData wait on those same files → Dolphin freezes (KDE bug
-  495145's mechanism). Now: the real config is shipped as `/etc/xdg/baloofilerc`
-  (and `skel`) with `[Basic Settings] Indexing-Enabled=false` plus
-  `[General] only basic indexing=true` and archive globs in the genuine
-  `exclude filters` key; the login migration (stamp bumped to
-  `raptor-dolphin-defaults-v3`) writes those keys to `baloofilerc`, deletes the
-  stale `baloorc` artifact, and runs `balooctl disable` to stop the running
-  indexer immediately. On top of that, `raptor-dolphin-stability.sh` now also
-  removes kfilemetadata's in-process **archive + AppImage extractors**
-  (`kfilemetadata_archiveextractor.so`, matched by substring across distros), so
-  selecting an archive can no longer read its contents for metadata at all;
-  Ark's own kerfuffle engine is untouched, so opening archives still works.
-- **Update manager could hang on "Checking" and never finish, with no visible
-  progress** — the GUI's metadata refresh ran the check-helper and then sat in a
-  blocking `communicate()`, showing nothing on screen while the network stalled
-  on flaky school WiFi. Three fixes: (1) the check-helper now time-bounds every
-  attempt (max 3 × 150 s, no unbounded final attempt), probes connectivity to
-  ghcr.io up front with a clear message, and treats rpm-ostree `--check` exit 77
-  ("nothing new") as the clean success it is; (2) the GUI streams the helper's
-  output *live* into a built-in Console that is visible from launch (not hidden
-  until an update starts), reading via a `select()` loop with a `CHECK_TIMEOUT=500`
-  wall-clock ceiling so a stalled pipe can never freeze the check again; (3) if the
-  refresh *does* fail, the manager falls back to local rpm-ostree state first — a
-  staged-but-not-booted deployment or a populated `cached-update` is still reported
-as an available update ("reboot to apply it") instead of the refresh error hiding
-   an update that is already on disk.
-- **Update manager said "up to date" even when a new image was pushed** — the
-  manager depended entirely on `rpm-ostree upgrade --check` plus the
-  `cached-update` field, but on container-native (Bazzite/BlueBuild) images both
-  are known to be unreliable (coreos/rpm-ostree #1579, #4891, #4711): `--check`
-  can print `No updates available.` while a fresh image push exists, and the
-  cached-update logic doesn't populate for the container flow. The check-helper
-  now adds a **registry digest cross-check** as ground truth: when the rpm-ostree
-  check completes without announcing an update, it compares the digest of the
-  *booted* image (`container-image-reference-digest` / `ostree.manifest-digest`
-  from `rpm-ostree status --json`) against the digest the remote tag
-  (`ghcr.io/cerberus9-dev/raptor-os:latest`) resolves to right now via
-  `skopeo`, filtering multi-arch manifests to the booted architecture and
-  ignoring cosign attestation entries. A mismatch prints the same
-  `AvailableUpdate:` marker the GUI listens for, so a fresh push is reported
-  immediately instead of a false "no updates". Classic non-container refs
-  (e.g. `fedora:fedora/42/x86_64/kinoite`) skip the cross-check and keep the
-  tried-and-true verdict handling, and everything degrades gracefully if
-  `skopeo`/`jq` are missing or the registry is unreachable.
-- Custom GRUB bootloader theme
-- Custom KDE splash screen
-- Custom Raptor OS logo
-- Custom Icons for all Raptor OS Apps
+  malformed (`imagethumbnail:directorythumbnail` — a colon-joined token
+  that matches no plugin id); it is now a proper comma list,
+  `imagethumbnail, directorythumbnail`, so image + folder thumbnails
+  actually stay enabled while the heavy video/audio/document previewers
+  stay off. Finally, Ark's *Compress / Extract / drag-and-drop extract*
+  KFileItemAction plugins are removed at build time
+  (`raptor-dolphin-stability.sh`): they advertise `application/octet-
+  stream`, so Dolphin queries them for *any* selection and they force a
+  per-file MIME scan that freezes the UI (KDE bug 499551) and can segfault
+  Dolphin via kerfuffle (KDE bugs 482016/420429). Double-clicking an
+  archive to open it in Ark (via `raptor-mimeapps.list`) is unaffected —
+  only the right-click compress/extract entries are dropped.
 
-### Added
+- **Dolphin still froze on selecting a .zip *after the laptop had been on
+  a while*** — the Baloo half of the earlier fix never landed: Plasma 6
+  reads `~/.config/baloofilerc`, but the image shipped `/etc/xdg/baloorc`
+  and the login migration wrote `~/.config/baloorc` (wrong filename), and
+  the keys used (`IndexFileContent`, `IndexFileSizeLimit`…) don't exist
+  in Baloo's schema. The content-indexing switch was therefore silently
+  ignored and Baloo kept indexing file contents. After hours of uptime
+  `baloo_file_extractor` + `baloo_filemetadata_temp_extractor` saturate
+  disk I/O, and selecting a zip makes KFileMetaData wait on those same
+  files → Dolphin freezes (KDE bug 495145's mechanism). Now: the real
+  config is shipped as `/etc/xdg/baloofilerc` (and `skel`) with
+  `[Basic Settings] Indexing-Enabled=false` plus `[General]
+  only_basic_indexing=true` and archive globs in the genuine `exclude
+  filters` key; the login migration (stamp bumped to
+  `raptor-dolphin-defaults-v3`) writes those keys to `baloofilerc`,
+  deletes the stale `baloorc` artifact, and runs `balooctl disable` to
+  stop the running indexer immediately. On top of that,
+  `raptor-dolphin-stability.sh` now also removes kfilemetadata's in-
+  process **archive + AppImage extractors**
+  (`kfilemetadata_archiveextractor.so`, matched by substring across
+  distros), so selecting an archive can no longer read its contents for
+  metadata at all; Ark's own kerfuffle engine is untouched, so opening
+  archives still works.
 
-- **Fan RPM display and guarded manual fan control in Raptor Cortex** —
-  Cortex now shows the live RPM of every fan the kernel exposes. Manual PWM
-  control is offered only when the fan controller is on a known-safe allowlist,
-  and sits behind four independent gates, because a wrong value written to a
-  misidentified chip can leave a fan barely turning and cook the CPU with
-  nothing reporting it:
-  1. **Allowlist** — the hwmon chip must be one of a known set. Unrecognised
-     chips are read-only. A wrong guess at a register layout is worse than the
-     feature being missing.
-  2. **RPM readback** — the chip must expose a matching `fanN_input`. If RPM
-     cannot be read, the helper cannot confirm the fan is turning, so it
-     refuses rather than writing blind.
-  3. **Thermal interlock** — at or above 90 °C manual control is abandoned and
-     the driver default is restored.
-  4. **Hard cap** — no profile, including Turbo, reaches the chip's full
-     scale (95 % ceiling), and a target at or below the chip's own minimum is
-     skipped rather than written, since that runs the fan at its slowest.
+- **Browser firstboot dialog re-appeared every session** — the "Decide
+  Later" button did not write the stamp file, causing the dialog to
+  re-appear on every login until an explicit choice was made. Renamed to
+  "Keep Firefox" and now writes the stamp on dismiss, treating closure as
+  "I want Firefox". Connectivity is now checked *before* showing the
+  dialog; offline boots leave the stamp unwritten so the choice is
+  offered again on the next login.
 
-  A stalled fan (under 100 RPM) is refused by default, with an explicit
-  `RAPTOR_FAN_IGNORE_STALLED=1` opt-in, because the likely causes are hardware
-  problems a faster fan would not fix. `fan-info` is read-only and works on any
-  machine, including those with no manual control available.
+- **A single failed download cost the user the chat client permanently** —
+  the chat dialog stamped the file after `install_with_retry` returned
+  failure too, so one flaky Flathub fetch was final. It now stamps only
+  on a real install.
 
-  Two bugs were caught while building this:
-  - The curve shelled out to `bc`, which is **not installed on a default
-    Bazzite image**. The substitution returned an empty string which then
-    flowed into `$(( ))` as zero, so the helper wrote `pwm=pwm_min` — the
-    slowest possible fan — while reporting success. Now pure bash arithmetic
-    with a 15 % floor and a non-numeric guard that returns control instead of
-    writing.
-  - `FAN_MAX_DUTY=90` was nominal only: on a 0–255 chip, duty 90 maps to 255,
-    which *is* full speed. The cap did not cap. Now backed by a 95 %-of-range
-    reserve, verified end-to-end at 242/255.
+- **The chosen browser was reported as the default even when it was not**
+  — the desktop id was hardcoded, and Flathub has since renamed
+  `firefox.desktop` to `org.mozilla.firefox.desktop`, so Firefox
+  installed correctly, `xdg-settings` failed quietly, and the user was
+  still shown a green tick confirming their new default. The id is now
+  read back from the installed Flatpak, and the success message only
+  appears when the default was genuinely applied.
 
-- **Raptor Cortex's background trim could freeze processes permanently** —
-  of 20 matching processes, 13 were resumed but 7 were left SIGSTOPped forever,
-  so a "trim" run silently killed the ability of a third of them to ever do
-  anything again, including any process started after the trim. Suspended
-  `dpkg`/`apt-get`/`unattended-upgrade` was especially bad, as a stopped
-  `dpkg` holds the dpkg lock and then blocks every future package operation on
-  the machine. Suspension is now limited to safe process classes and
-  stop/resume sets are made identical. **16/16 now match.**
-- **Cortex's "restore background apps" did nothing and reported success** —
-  it invoked an action named `resume-background` that the helper did not have,
-  then showed a success toast regardless. Now calls the real
-  `restore-background` action and surfaces failure.
-- **Cortex's "apply performance mode on boot" toggle was a total no-op** —
-  flipping it wrote the setting but nothing ever consumed it, and no unit was
-  enabled, so the machine booted in the same mode as before. Now a
-  `raptor-cortex-mode.service` runs the persisted mode at startup, ordered
-  after GPU profile.
-- **Three sudoers drop-ins shipped without validation** — `raptor-cortex.sh`,
-  `raptor-gpu-profile.sh` and `raptor-gaming.sh` installed their rules with
-  `visudo -cf … || true`, so a syntax error shipped a rule set sudo silently
-  ignores in its entirety, leaving the feature dead with nothing in the build
-  log. All now fail the image build.
+- **Crash handler (`drkonqi`) now suspended by default in Game Mode** —
+  the default Cortex config now includes `drkonqi`, `baloo_file`,
+  `akonadiserver`, `kdeconnectd`, `packagekitd`, `gvfsd-metadata`,
+  `kactivitymanagerd`. On first run these are written to
+  `/etc/raptor/cortex-suspend.conf` and persist across reboots.
 
-### Changed
+### Security
 
-- **Raptor Cortex no longer duplicates the GPU profile installer** — six of its
-  install paths were byte-identical to `raptor-gpu-profile.sh` and were being
-  written in an order where a later installer silently overwrote an earlier
-  one. The dead copies are gone and GPU profile is owned solely by
-  `raptor-gpu-profile.sh`, which also now enables its own systemd unit.
-  This also resolves a contradiction where two scripts set `DXVK_ASYNC`
-  differently.
-- **Update-manager retry budgets are overridable via environment** —
-  `RAPTOR_CHECK_MAX_ATTEMPTS` / `RAPTOR_CHECK_ATTEMPT_TIMEOUT` /
-  `RAPTOR_CHECK_RETRY_SLEEP` and `RAPTOR_UPDATE_MAX_ATTEMPTS` /
-  `RAPTOR_UPDATE_LAYER_TIMEOUT` / `RAPTOR_UPDATE_BACKOFF` /
-  `RAPTOR_UPDATE_NET_WAIT`. The **shipped defaults are unchanged** (3 attempts,
-  150 s per metadata pull, 900 s per layer, 15 s back-off); nothing in the OS
-  sets these. They exist so the timeout/retry paths can be exercised in
-  seconds instead of the 7+ real-world minutes they represent.
-- **CI now syntax-checks every installer before building** — every Raptor app
-  is a builder script that writes its real payload through a heredoc, so a
-  broken heredoc installs a truncated file and the app simply does not open on
-  the user's machine, with nothing in the build log. `bash -n` over
-  `files/scripts/*.sh` catches that class in seconds.
+- **All sudoers drop-ins validated with `visudo -cf` at build time** —
+  a syntax error now fails the image build instead of shipping a rule set
+  that sudo silently ignores, which would leave the feature dead with no
+  error in the build log. Applies to `raptor-cortex`, `raptor-gpu-profile`,
+  `raptor-gaming`, `raptor-update`, `raptor-hud`.
+
+- **Polkit rules narrowed** — `49-raptor-gpu.rules` now matches only
+  `gpu-detect.sh` (the two deleted GUI binaries removed from the match
+  list).
+
+---
 
 ## [v2.6.9] - 2026-09-10 (WiFi Reconnection, Cursor Fix, More Apps)
-
-### Fixed
-
-- **WiFi reconnection after suspend/resume** — school/corporate networks often
-  deauthenticate clients during suspend; without an explicit reconnection
-  cycle, NetworkManager may take 30-60 s to notice and reconnect, or fail
-  entirely if the AP dropped the association. Added
-  `91-raptor-network.conf` (NetworkManager WiFi reconnection hardening:
-  autoconnect retries, powersave tuning), a dispatcher script
-  `raptor-suspend-resume-wifi.sh` that forces a disconnect/reconnect cycle
-  on resume, and `raptor-resume-trigger.service` that stamps resume events
-  for the dispatcher. DNS cache is also flushed on resume to avoid stale
-  entries from the old network
-- **Cursor stuck after lid close** — on some laptops the trackpad/pointing
-  device doesn't reinitialise properly after suspend/resume, leaving the
-  cursor frozen at a screen edge. Added `raptor-lid-open-fix.service` that
-  triggers udev device re-enumeration and KWin config reload on resume,
-  plus `61-raptor-libinput.conf` with libinput tuning to prevent stuck
-  pointer state
-- **Update manager "no updates" fix** — the manager only ever read
-  `rpm-ostree status --json`, but its `cached-update` field stays empty until a
-  check actually runs, so it reported "up to date" even when a new base image
-  existed. Fixed by adding a privileged `check-helper` that runs
-  `rpm-ostree upgrade --check` (refreshes remote metadata + caches the result)
-  before reading status, wired through polkit/`--action-id` and sudoers, plus a
-  `raptor-auto-check.conf` drop-in (`AutomaticUpdatePolicy=check`) and
-  `rpm-ostreed-automatic.timer` to keep the cache warm in the background. The
-  GUI now also honors the newer dict form of `cached-update` and an explicit
-  `AvailableUpdate:` in check output. See `files/scripts/raptor-update.sh`
-- **School/corporate networks pushing broken DNS via DHCP** — when connected to
-  networks like school WiFi, the DHCP server provides its own DNS server
-  (`10.241.210.1`) which gets applied at the link level in systemd-resolved,
-  taking priority over the global Cloudflare DoT config. This caused total DNS
-  resolution failure for domains the local DNS couldn't resolve (including
-  the school's own OneView portal). The earlier fix pinned Cloudflare DoT as
-  the *sole* resolver (`DNS=1.1.1.1...#cloudflare-dns.com`) with `dns=none`,
-  which broke DPI'd networks that block `1.1.1.1` — every uncached lookup
-  stalled, including the network's own sites. Now the per-link DHCP resolver
-  (e.g. school DNS) always wins and Cloudflare/Quad9 DoT are only a *fallback*
-  when a network provides no DNS server. Changed
-  `files/scripts/raptor-gaming.sh` (drop the `DNS=` line, keep `FallbackDNS=`)
-  and `files/system_files/91-raptor-dns.conf` (`dns=none` → `dns=systemd-resolved`)
-- **Update manager availability detection hardened** — the manager now also
-  recognizes a *staged but not yet booted* update (`deployments[0].booted ==
-  false`) and reports "System update downloaded — reboot to apply it" instead of
-  "up to date", and treats rpm-ostree `--check` exit code 77 as the *clean*
-  "nothing new" result it is rather than a refresh error. Combined with the
-  existing `AvailableUpdate:`/`cached-update` checks this stays correct on both
-  traditional and container-native (Bazzite-style) base images, where the two
-  signals can lag each other
-- **Update/check helpers now recover from stalled downloads** — `rpm-ostree update`
-  is a single long download (base image layers can be ~1 GB) and can stall
-  indefinitely on flaky school/corporate WiFi: the GUI just sat there forever.
-  `update-helper` now retries up to 3 times with a 15-minute per-attempt timeout,
-  and between attempts clears the stale-transaction lock and purges the
-  `/var/cache/rpm-ostree-layers` + `/var/cache/rpm-ostree-contents` caches so a
-  layer blob truncated by a dropped connection ("Processing tar: … unexpected
-  end of file") is re-downloaded clean instead of reused and failing every retry — 
-  plus a connectivity probe before each try. `check-helper`
-  got the same treatment for metadata refreshes. The log window now shows each
-  attempt so a stalled layer is visible instead of a silent hang
-- **Update manager check would fail outright on some systems** — the helper was
-  launched via `pkexec --action-id <id> <helper>`, but certain polkit builds fail
-  to spawn the child when `--action-id` is passed (GIO error "cannot run program
-  …"), so the check aborted with "Could not refresh update state" and the manager
-  never fell back to `sudo`. Privileged helpers are now launched with
-  `sudo -n` first (the NOPASSWD rules in `/etc/sudoers.d/raptor-update` already
-  cover all four helpers), with plain `pkexec <helper>` only as a fallback
-- **Wine apps that "won't run" or hang for ages on launch** — Windows programs
-  (especially .NET and JavaScript-based installers/loaders) silently fail or
-  stall if Wine cannot reach its Mono and Gecko runtimes. Wine normally tries to
-  download them from winehq on first use, which hangs on flaky connections.
-  `wine-mono`, and the 32- and 64-bit `mingw*-wine-gecko` packages are now layered
-  into the image, so every prefix finds them already installed and .NET/JS
-  program loaders start working instead of hanging
-- **"Regular" Windows apps crashed or acted up when double-clicked** — `.exe`/
-  `.msi` files had no file-type binding and fell into an unconfigured `~/.wine`
-  without the MSVC++ runtime DLLs most installers/tools require, which is why
-  apps kept getting forced through Steam/Proton. A new `raptor-wine` launcher
-  (MIME-bound to `.exe`/`.msi` + Dolphin right-click "Run as Windows App")
-  gives every launch a managed prefix that bootstraps itself on first run:
-  `wineboot` + a silent, best-effort install of `vcrun2015`, `vcrun2019` and
-  `corefonts` via winetricks (deferred, not fatal, if the download stalls on
-  flaky networks; retried on the next launch). `--prefix NAME` gives isolated
-  prefixes for incompatible apps, `--reset` gives a clean slate, and
-  `--install-runtime dotnet48` adds .NET Framework 4.8 on demand. `liberation-
-  fonts` also layered in for Windows font metrics
-- **Dolphin file-selection freezes** — thumbnail generation could stall the file
-  manager for seconds on large media folders. Default preview plugins restricted
-  to images + folder icons (`/etc/xdg/dolphinrc`, also seeded into skel). The
-  occasional multi-select crash is a known upstream KDE bug (kde-bugs.kde.org
-  #519240, fixed in newer Frameworks/KDE apps builds) and lands via normal image
-  updates; with the panel-triggered preview generation reduced, its trigger is
-  far less likely to fire
-- **Dolphin back as the default file browser (Nautilus removed)** — the short
-  Nautilus era is reversed: `inode/directory` points back to
-  `org.kde.dolphin.desktop`, the `nautilus` RPM is dropped from the image, and
-  the one-time login migration now flips any stale personal `mimeapps.list`
-  (Nautilus or old KDE defaults) back to Dolphin for existing users. Archives
-  (`zip`, `tar`, `7z`, `rar`, `gz`, …) are now bound to Ark so opening one on a
-  double-click is instant and stays inside the file manager's native workflow
-- **Dolphin freezes when selecting a .zip / multi-selecting files and right-
-  clicking to delete** — two cooperating causes get defused by default:
-  (1) the preview (F4) panel spawned a KIO archive worker to peek *inside* the
-  selected archive, blocking the UI on big/remote zips — `ShowPreview=false`
-  hides the panel (press F4 for it on demand); (2) Baloo's content indexer dug
-  into every selected file while KFileMetaData built the context menu, wedging
-  the manager during bulk operations. A new `/etc/xdg/baloorc` (+ skel, + login
-  migration) disables content indexing, clamps Baloo's per-file size limits, and
-  *excludes all archive globs* (`*.zip *.tar *.gz *.7z …`) from the index
-  entirely, so selecting/tagging/right-clicking archives never triggers an
-  archive read. Both configs seed new users via skel and correct existing users
-  through the once-per-user login migration
-
-### Added
-
-- **More optional apps in firstboot picker** — added 10 new apps across
-  categories: Zotero (reference manager), RustDesk (remote desktop),
-  Remmina (RDP/VNC/SSH client), Stacer (system optimiser), NCurses Du
-  (terminal disk analyser), Restic (encrypted backups), Syncthing (file
-  sync), Tailscale (WireGuard VPN), Subtitle Edit, Goverlay (MangoHud GUI)
-- **~20 more optional apps in the firstboot picker, GOverlay no longer
-  default** — game-streaming stack (Moonlight client + Sunshine server),
-  more emulators (DuckStation, Flycast, ScummVM, OpenRA), JetBrains IDEs
-  (IntelliJ IDEA + PyCharm Community), Microsoft VS Code, digiKam, RSS
-  Guard, MakeMKV, Standard Notes, Notion. GOverlay's Flathub ID fixed
-  (`io.github._0ffz.goverlay` → `io.github.benjamimgois.goverlay`) and it
-  now ships via the picker instead of the default image — MangoHud itself
-  still comes from the base image (the Fedora `mangohud` RPM conflicts
-  with Bazzite's `terra-mangohud` on `/usr/bin/mangoapp`, so it's
-  intentionally not layered)
-- **Default image kept truly minimal — no browser pre-installed** — Firefox
-  no longer ships in the image; the firstboot browser dialog now offers all
-  five popular browsers (Firefox, Brave, Chromium, Chrome, Edge) as on-demand
-  Flathub downloads with the same network-check/progress/retry UX, and
-  "Skip — No Browser" installs nothing. The browser entries previously
-  added to the app picker were removed — browser selection is handled by the
-  dedicated dialog. Misc: /etc/firefox policies.json + skel user.js hardening
-  now apply whenever Firefox is installed at any point
-- **`files/system_files/91-raptor-dns.conf`** — NetworkManager config that
-  delegates DNS resolution to systemd-resolved (see DNS fix above)
-- **Wine/Proton usability hardening** — session defaults added system-wide via
-  `/etc/environment.d/10-raptor-wine.conf`: `WINEESYNC=`/`WINEFSYNC=` kernel sync
-  (fsync with esync fallback), quiet debug output, and `winemenubuilder` disabled
-  so prefixes stop littering the app menu. Process file-descriptor ceiling raised
-  to 1,048,576 in both `system.conf.d` and `user.conf.d` (avoids
-  "eventfd: Too many open files" crashes from esync and heavy mods). ProtonUp-Qt
-  remains the built-in manager for Proton and Wine-GE runners; Bottles, Lutris and
-  Winetricks remain optional in the firstboot picker
 
 ## [v2.6.8] - 2026-07-18 (Taskbar Reverted to Stock KDE, Wallpaper App, Service Hardening)
 
