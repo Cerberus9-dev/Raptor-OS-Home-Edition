@@ -2,6 +2,35 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **GPU profiling is now part of Raptor Cortex** — the separate "Raptor GPU
+  Profiler" app is gone. Profile selection moved into a **Graphics** group in
+  Cortex, next to the CPU boost mode it pairs with, and the `raptor-gpu-profile`
+  package now ships only the detection and apply machinery that Cortex drives.
+  The profile itself is unchanged: the same five profiles, the same
+  `/etc/raptor-force-<name>` marker, the same immediate apply with no reboot.
+  What changed is that one decision about one machine no longer has its own
+  window. Worth noting how this had drifted: GPU profiles were reachable
+  through **three** entry points — a GTK app from `raptor-gpu-profile`, a
+  terminal UI from `hud-install`, and neither sharing a word with Cortex. The
+  terminal UI in particular had no way to know about the other two.
+
+### Removed
+
+- **Two duplicate GPU profiler entry points.** `raptor-gpu-profile` installed a
+  GTK4 app at `/usr/bin/raptor-gpu-profiler`, and `hud-install` installed a
+  separate terminal UI at `/usr/bin/raptor-gpu-profile-ui.sh` behind a
+  launcher. Both put an entry named "Raptor GPU Profiler" in the app menu, so
+  the menu showed two identically-named entries that were different programs.
+  Both are folded into Cortex. `hud-install` no longer has any GPU profile
+  responsibility, and its polkit/sudoers surface narrowed to match.
+- **An orphaned icon and a polkit rule for deleted binaries.** The polkit rule
+  in `49-raptor-gpu.rules` matched on `raptor-gpu-profile` and
+  `raptor-gpu-profiler`, both of which no longer exist; it now matches only
+  `gpu-detect.sh`, which is what actually gets invoked. The unreferenced
+  `raptor-gpu-profiler.svg` is removed.
+
 ### Removed
 
 - **Manual fan control and fan profiles in Raptor Cortex** — removed rather
@@ -13,11 +42,6 @@
   was built for, so it was carrying risk for no visible gain. Fan control is
   left entirely to the kernel and the board firmware, which is where it
   belongs. CPU temperature, which Cortex displayed alongside it, is unaffected.
-
-### Fixed
-
-- **The image build failed outright on `raptor-hud.sh`** — the GPU
-  deduplication removed HUD's copy of `/usr/lib/raptor/gpu-detect.sh` but left
   its `chmod +x` behind. HUD is the first script in `recipe.yml`, so the file
   did not exist yet, `chmod` failed, and `set -e` aborted the build with
   `Failed 'script' Module`. The stale `chmod` is removed; `raptor-gpu-profile.sh`

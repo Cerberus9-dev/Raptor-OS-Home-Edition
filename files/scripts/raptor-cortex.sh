@@ -894,6 +894,73 @@ def get_cpu_temp():
         return None
 
 
+# ── GPU performance profile ──────────────────────────────────────────────────
+# The active profile is expressed as a marker file, not as configuration: an
+# exact match on /etc/raptor-force-<name> tells gpu-detect.sh which of the
+# profile tables to apply, and it rewrites /etc/environment.d/raptor-gpu.conf
+# from it on every boot. That indirection is deliberate — it means the profile
+# survives a reboot and cannot drift out of sync with the table it came from.
+GPU_PROFILE_MARKERS = {
+    "extreme":     "/etc/raptor-force-extreme",
+    "performance": "/etc/raptor-force-performance",
+    "powersave":   "/etc/raptor-force-powersave",
+    "balanced":    "/etc/raptor-force-balanced",
+}
+GPU_PROFILES = (
+    ("auto", "Auto Detect", "Picks settings based on your GPU at every boot"),
+    ("balanced", "Balanced", "Normal performance, sensible power use — the daily driver"),
+    ("performance", "Max Performance", "High power level, larger shader cache, threaded GL"),
+    ("extreme", "Extreme", "Maximum power level, DXR raytracing hints, largest shader cache"),
+    ("powersave", "Power Saving", "Low power level, shader cache off — for battery or heat"),
+)
+
+
+def get_gpu_profile():
+    """Return the active GPU profile name, or 'auto' when none is forced."""
+    try:
+        for key, path in GPU_PROFILE_MARKERS.items():
+            if os.path.exists(path):
+                return key
+    except Exception:
+        pass
+    return "auto"
+
+
+def set_gpu_profile(profile):
+    """Apply a GPU profile by rewriting its marker file, then re-running the
+    detector so the change takes effect now rather than at the next boot.
+
+    Mirrors the sudoers grant in /etc/sudoers.d/raptor-gpu: touch and rm are
+    wildcarded to /etc/raptor-force-*, and gpu-detect.sh is called directly.
+    Returns (ok, message).
+    """
+    if profile not in ("auto",) and profile not in GPU_PROFILE_MARKERS:
+        return False, f"Unknown GPU profile '{profile}'"
+    try:
+        subprocess.run(["sudo", "rm", "-f", "/etc/raptor-force-extreme",
+                        "/etc/raptor-force-performance",
+                        "/etc/raptor-force-powersave",
+                        "/etc/raptor-force-balanced"],
+                       capture_output=True, timeout=20, check=True)
+        if profile != "auto":
+            subprocess.run(["sudo", "touch", GPU_PROFILE_MARKERS[profile]],
+                           capture_output=True, timeout=20, check=True)
+        # Re-run the detector so the environment file reflects the new profile
+        # without waiting for a reboot.
+        subprocess.run(["sudo", "/usr/lib/raptor/gpu-detect.sh"],
+                       capture_output=True, timeout=120, check=True)
+    except subprocess.CalledProcessError as e:
+        err = (e.stderr or b"").decode(errors="replace").strip()
+        return False, err.splitlines()[-1] if err else "Could not apply the profile"
+    except FileNotFoundError as e:
+        if "gpu-detect" in str(e):
+            return False, "the raptor-gpu-profile package is not installed"
+        return False, "sudo is not available"
+    except Exception as e:
+        return False, str(e)
+    return True, "GPU profile applied"
+
+
 def get_gpu_temp():
     """Return GPU temperature in °C from hwmon or AMD sysfs."""
     # AMD: check hwmon for devices advertising 'amdgpu'
@@ -1323,6 +1390,40 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
             self._mode_btns[key] = (row, icon, check)
 
         self._refresh_mode_buttons()
+
+        # ── Graphics ────────────────────────────────────────────────────────────
+        # GPU performance profile. This used to be a separate app called Raptor
+        # GPU Profiler; it lives here now because it is the same decision as the
+        # CPU boost mode above, and splitting it out meant two windows and two
+        # launchers for one machine.
+        gfx_group = Adw.PreferencesGroup(
+            title="Graphics",
+            description="Tuning for your GPU. Applies immediately and survives reboot.")
+
+        if not os.path.exists("/usr/lib/raptor/gpu-detect.sh"):
+            # gpu-detect.sh ships in the raptor-gpu-profile package. If that
+            # package is not installed there is nothing to switch, so say so
+            # rather than offering buttons that quietly do nothing.
+            row = Adw.ActionRow(title="GPU profiles unavailable")
+            row.set_subtitle(
+                "Install the raptor-gpu-profile package to select a GPU "
+                "performance profile.")
+            gfx_group.add(row)
+        else:
+            self._gfx_rows = {}
+            for key, title, subtitle in GPU_PROFILES:
+                check = Gtk.CheckButton(valign=Gtk.Align.CENTER)
+                row = Adw.ActionRow(title=title, subtitle=subtitle)
+                row.set_activatable(True)
+                row.add_prefix(Gtk.Image.new_from_icon_name(
+                    "preferences-desktop-display-symbolic"))
+                row.add_suffix(check)
+                row.connect("activated", self._on_gpu_profile, key)
+                gfx_group.add(row)
+                self._gfx_rows[key] = (row, check)
+            self._refresh_gpu_profile()
+
+        self.add(gfx_group)
 
         # ── Game Library ─────────────────────────────────────────────────────────
         # The primary, front-and-centre feature: add a game once, then launch
@@ -1974,6 +2075,30 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
             msg = f"{label} applied (powerprofilesctl unavailable, kernel tuning still active)"
 
         GLib.idle_add(self._on_mode_applied, msg)
+
+    def _refresh_gpu_profile(self):
+        """Tick the row matching the active profile on disk."""
+        current = get_gpu_profile()
+        for key, (row, check) in getattr(self, "_gfx_rows", {}).items():
+            check.set_active(key == current)
+
+    def _on_gpu_profile(self, row, profile):
+        if get_gpu_profile() == profile:
+            return
+        def work():
+            ok, msg = set_gpu_profile(profile)
+            GLib.idle_add(self._on_gpu_profile_done, ok, profile, msg)
+        threading.Thread(target=work, daemon=True).start()
+
+    def _on_gpu_profile_done(self, ok, profile, msg):
+        if not ok:
+            self._toast_error(f"GPU profile change refused: {msg}")
+            self._refresh_gpu_profile()
+            return False
+        self._refresh_gpu_profile()
+        title = next((t for k, t, _ in GPU_PROFILES if k == profile), profile)
+        self._toast_ok(f"GPU profile set to {title}")
+        return False
 
     def _on_mode_applied(self, message):
         toast = Adw.Toast.new(message)
