@@ -559,20 +559,30 @@ case "$ACTION" in
 
     # ── Background restoration after gaming ────────────────────────────────
     restore-background)
+        # Continue all previously stopped background processes
         for proc in "${BACKGROUND_PROCS[@]}"; do
             pkill -CONT "$proc" 2>/dev/null || true
         done
+        # Resume Baloo indexing
         balooctl6 resume 2>/dev/null || balooctl resume 2>/dev/null || true
+        # Restart systemd services that were stopped during trim
         systemctl start snapd.service  2>/dev/null || true
         systemctl start packagekit.service 2>/dev/null || true
         systemctl start fstrim.timer  2>/dev/null || true
-        # Restart irqbalance so it can redistribute IRQs across cores normally
         systemctl start irqbalance.service 2>/dev/null || true
+        systemctl start fstrim.service 2>/dev/null || true
         # Release the cpu_dma_latency hold — removes the sentinel file, which
         # the held-open subshell is polling for; it then exits and closes the
         # FD, releasing the PM QoS constraint so the CPU can idle normally again.
         rm -f /run/raptor-cpu-dma-latency-held
         echo 500 > /proc/sys/vm/dirty_writeback_centisecs 2>/dev/null || true
+        # Ensure ionice/renice are reset for indexers
+        for proc in baloo tracker zeitgeist; do
+            for pid in $(pgrep -x "$proc" 2>/dev/null); do
+                ionice -c 0 -p "$pid" 2>/dev/null || true
+                renice 0 -p "$pid" 2>/dev/null || true
+            done
+        done
         ;;
 
     *)
@@ -696,6 +706,14 @@ while IFS= read -r pattern; do
     case "$pattern" in "#"*) continue ;; esac
     pkill -CONT -f "$pattern" 2>/dev/null || true
 done < "$CONFIG"
+# Also restore any processes from the default cortex config
+CONFIG2=/etc/raptor/cortex-suspend.conf.default
+[ -f "$CONFIG2" ] || exit 0
+while IFS= read -r pattern; do
+    [ -z "$pattern" ] && continue
+    case "$pattern" in "#"*) continue ;; esac
+    pkill -CONT -f "$pattern" 2>/dev/null || true
+done < "$CONFIG2"
 sudo /usr/lib/raptor/cortex-helper restore-background 2>/dev/null || true
 EOF
 chmod +x /usr/lib/raptor/gamemode-end
@@ -1227,6 +1245,21 @@ def load_cortex_config():
                     patterns.add(line)
     except Exception:
         pass
+    # First-run defaults: suspend crash handler, indexers, and update daemons
+    # These are safe to suspend and provide measurable gains
+    if not patterns:
+        defaults = {
+            "drkonqi",          # KDE crash handler
+            "baloo_file",       # file indexer
+            "akonadiserver",    # PIM server
+            "kdeconnectd",      # KDE Connect
+            "packagekitd",      # package updates
+            "gvfsd-metadata",   # GVFS metadata
+            "kactivitymanagerd", # activity tracking
+        }
+        patterns.update(defaults)
+        # Persist the defaults so they survive reboots
+        threading.Thread(target=save_cortex_config, args=(patterns,), daemon=True).start()
     return patterns
 
 
@@ -1453,6 +1486,16 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         add_game_row.connect("activated", self._on_add_game_clicked)
         game_group.add(add_game_row)
 
+        # Steam auto-detection
+        scan_row = Adw.ActionRow(title="Scan for Steam Games")
+        scan_row.set_subtitle("Auto-detect installed Steam games and add them to the library")
+        scan_row.set_activatable(True)
+        scan_icon = Gtk.Image.new_from_icon_name("view-refresh-symbolic")
+        scan_icon.set_pixel_size(18)
+        scan_row.add_prefix(scan_icon)
+        scan_row.connect("activated", self._on_scan_steam_games)
+        game_group.add(scan_row)
+
         # ── Simplified optimization ─────────────────────────────────────────────
         # One preset button for the common case, with the previous 6 raw
         # toggles moved into a collapsed "Advanced" row for anyone who wants
@@ -1463,8 +1506,18 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
             "Quick Optimize covers the common case. Advanced options are available below if you want finer control.")
         content.append(opts_group)
 
+        # Quick Optimize — one click, auto-tuned to current performance profile
+        quick_row = Adw.ActionRow(title="Quick Optimize")
+        quick_row.set_subtitle("One-click memory optimization tuned to your current performance profile")
+        quick_row.set_activatable(True)
+        quick_icon = Gtk.Image.new_from_icon_name("system-run-symbolic")
+        quick_icon.set_pixel_size(18)
+        quick_row.add_prefix(quick_icon)
+        quick_row.connect("activated", self.on_quick_optimize)
+        opts_group.add(quick_row)
+
         advanced_expander = Adw.ExpanderRow(title="Advanced Options")
-        advanced_expander.set_subtitle("Choose exactly what runs — off by default, Quick Optimize below covers most cases")
+        advanced_expander.set_subtitle("Choose exactly what runs — off by default, Quick Optimize above covers most cases")
         opts_group.add(advanced_expander)
 
         self.opt_caches  = self._switch_row("Drop caches + reclaim app memory",
@@ -1879,6 +1932,71 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         save_game_library(self._games)
         self._rebuild_game_rows()
 
+    def _on_scan_steam_games(self, _row):
+        """Scan for installed Steam games and add them to the library."""
+        self._toast_ok("Scanning Steam library folders…")
+        threading.Thread(target=self._scan_steam_worker, daemon=True).start()
+
+    def _scan_steam_worker(self):
+        """Worker thread to scan Steam library folders and appmanifest files."""
+        steam_games = []
+        # Common Steam library locations
+        steam_paths = [
+            os.path.expanduser("~/.local/share/Steam/steamapps"),
+            os.path.expanduser("~/.steam/steam/steamapps"),
+            "/mnt/*/SteamLibrary/steamapps",
+            "/media/*/SteamLibrary/steamapps",
+            "/run/media/*/SteamLibrary/steamapps",
+        ]
+        import glob
+        for base in steam_paths:
+            for path in glob.glob(base):
+                if not os.path.isdir(path):
+                    continue
+                for manifest in glob.glob(os.path.join(path, "appmanifest_*.acf")):
+                    try:
+                        with open(manifest) as f:
+                            content = f.read()
+                        # Parse the ACF file (simple key-value format)
+                        appid = None
+                        name = None
+                        for line in content.splitlines():
+                            line = line.strip().strip('"')
+                            if line.startswith('"appid"'):
+                                appid = line.split('"')[-1]
+                            elif line.startswith('"name"'):
+                                name = line.split('"')[-1]
+                        if appid and name:
+                            steam_games.append({"appid": appid, "name": name})
+                    except Exception:
+                        continue
+
+        if not steam_games:
+            GLib.idle_add(self._toast_ok, "No Steam games found")
+            return
+
+        # Add games that aren't already in the library
+        existing_ids = {g["id"] for g in self._games}
+        added = 0
+        for sg in steam_games:
+            gid = f"steam_{sg['appid']}"
+            if gid not in existing_ids:
+                self._games.append({
+                    "id": gid,
+                    "name": sg["name"],
+                    "launch_type": "steam",
+                    "target": sg["appid"],
+                    "boost_mode": "performance",
+                })
+                added += 1
+
+        if added > 0:
+            GLib.idle_add(save_game_library, self._games)
+            GLib.idle_add(self._rebuild_game_rows)
+            GLib.idle_add(self._toast_ok, f"Added {added} Steam game(s) to library")
+        else:
+            GLib.idle_add(self._toast_ok, "No new Steam games found (already in library)")
+
     def _on_launch_game(self, game: dict):
         if self._active_monitor is not None:
             toast = Adw.Toast.new("A game is already being monitored — stop it first")
@@ -2161,6 +2279,26 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         self.last_optimize_label.set_text(
             format_relative_time(self._settings.get("last_optimize_timestamp")))
         return True
+
+    def on_quick_optimize(self, btn):
+        """One-click optimization auto-tuned to current performance profile."""
+        if self._running:
+            return
+        self._running = True
+        self.run_btn.set_sensitive(False)
+        self.spinner.start()
+
+        # Auto-select options based on current performance mode
+        mode = self._current_mode
+        if mode == "performance":
+            opts = {"caches": True, "compact": True, "zram": True, "oom": True, "deep": False, "swap": True}
+        elif mode == "power_saving":
+            opts = {"caches": True, "compact": True, "zram": True, "oom": True, "deep": False, "swap": False}
+        else:  # balanced
+            opts = {"caches": True, "compact": True, "zram": True, "oom": True, "deep": False, "swap": False}
+
+        before_used, before_total = mem_used_mb()
+        threading.Thread(target=self._do_optimize, args=(opts, before_used, before_total), daemon=True).start()
 
     def on_optimize(self, btn):
         if self._running:
