@@ -82,7 +82,7 @@ modules:
   # ── RPM packages ─────────────────────────────────────────────────────────
   - type: rpm-ostree
     install:
-      # System utilities
+      # System utilities (minimal)
       - fastfetch
       - htop
       - p7zip
@@ -90,13 +90,12 @@ modules:
       - wget
       - jq
       - zenity
-      - plasma-systemmonitor
       - gwenview
       - kcalc
       - liberation-fonts
       - power-profiles-daemon
 
-      # Media
+      # Media (minimal)
       - mpv
 
       # Gaming
@@ -132,13 +131,30 @@ modules:
 
     remove:
       - tuned-ppd
+      - plasma-systemmonitor
+      - neovim
+      - tmux
+      - ripgrep
+      - fzf
+      - ninja-build
+      - meson
+      - podman
+      - podman-compose
+      - thunderbird
+      - variety
+      - btop
+      - gcc
+      - make
+      - cmake
+      - krita
+      - vlc
 
   # ── Flatpaks ─────────────────────────────────────────────────────────────
   - type: default-flatpaks@v1
     notify: true
     system:
       install:
-        - com.heroicgameslauncher.hgl
+        # Core system tools only — everything else moved to firstboot app picker
         - net.davidotek.pupgui2
         # No browser ships in the image on purpose — the default image stays as
         # minimal as possible. All popular browsers (Firefox, Brave, Chromium,

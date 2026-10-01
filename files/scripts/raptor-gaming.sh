@@ -326,6 +326,7 @@ echo "✔ Dropped page/dentry/inode caches"
 echo 1 > /proc/sys/vm/compact_memory 2>/dev/null || true
 echo "✔ Compacted memory"
 
+# ─── Indexers & system daemons ───────────────────────────────────────────────
 BACKGROUND_PROCS=(
     "tracker-miner" "tracker-store" "tracker3"
     "baloo_file" "baloo_file_extractor" "akonadi"
@@ -346,6 +347,19 @@ for proc in baloo tracker zeitgeist; do
     done
 done
 echo "✔ IO-niced & re-niced indexers"
+
+# ─── Memory-heavy user apps (best-effort) ────────────────────────────────────
+# These are suspended by name pattern. They restart gracefully on resume.
+USER_BACKGROUND_APPS=(
+    "firefox" "vesktop" "discord" "vesktop" "steam" "steamwebhelper"
+    "chromium" "chrome" "brave" "vivaldi" "edge" "opera"
+    "thunderbird" "evolution" "element" "signal" "slack"
+    "spotify" "vesktop" "telegram" "whatsie" "caprine"
+)
+for proc in "${USER_BACKGROUND_APPS[@]}"; do
+    pkill -STOP "$proc" 2>/dev/null || true
+done
+echo "✔ Paused memory-heavy user apps"
 
 if systemctl is-active snapd &>/dev/null; then
     systemctl stop snapd.service 2>/dev/null || true
@@ -371,14 +385,37 @@ chmod +x /usr/bin/raptor-trim-background.sh
 cat << 'RESTORE' > /usr/bin/raptor-restore-background.sh
 #!/bin/bash
 echo "=== Raptor: Restoring background services ==="
+# ─── Indexers & system daemons ───────────────────────────────────────────────
 for proc in tracker-miner tracker-store tracker3 baloo_file baloo_file_extractor \
-            akonadi kded kdeconnectd gvfs zeitgeist tumblerd; do
+            akonadi kded kdeconnectd gvfs zeitgeist tumblerd \
+            packagekitd apt-get dpkg updatedb mlocate \
+            evolution gnome-software; do
     pkill -CONT "$proc" 2>/dev/null || true
 done
-echo "✔ Resumed background processes"
+echo "✔ Resumed background indexers & daemons"
+
+# ─── User apps ───────────────────────────────────────────────────────────────
+for proc in firefox vesktop discord steam steamwebhelper \
+            chromium chrome brave vivaldi edge opera \
+            thunderbird evolution element signal slack \
+            spotify telegram whatsie caprine; do
+    pkill -CONT "$proc" 2>/dev/null || true
+done
+echo "✔ Resumed memory-heavy user apps"
+
+# ─── IO priority reset ───────────────────────────────────────────────────────
+for proc in baloo tracker zeitgeist; do
+    for pid in $(pgrep -x "$proc" 2>/dev/null); do
+        ionice -c 0 -p "$pid" 2>/dev/null || true
+        renice 0 -p "$pid" 2>/dev/null || true
+    done
+done
+echo "✔ Reset IO priority & niceness"
+
 balooctl6 resume 2>/dev/null || balooctl resume 2>/dev/null || true
 echo "✔ Resumed Baloo"
 systemctl start snapd.service 2>/dev/null || true
+systemctl start fstrim.service 2>/dev/null || true
 echo 500 > /proc/sys/vm/dirty_writeback_centisecs
 echo "=== Background services restored ==="
 RESTORE

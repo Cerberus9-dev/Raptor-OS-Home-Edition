@@ -27,8 +27,9 @@ cat << 'EOF' > /usr/bin/raptor-wine
 set -euo pipefail
 
 DATA_DIR="$HOME/.local/share/raptor-wine"
-DEFAULT_RUNTIMES="vcrun2015 vcrun2019 corefonts"
+DEFAULT_RUNTIMES="vcrun2015 vcrun2019 corefonts d3dcompiler_47 dxvk"
 RUNTIME_LOG="$DATA_DIR/runtimes.log"
+WINETRICKS_CACHE="$HOME/.cache/winetricks"
 
 usage() {
     cat <<'HELP'
@@ -102,7 +103,18 @@ if [ "$BOOTSTRAP" = 1 ] && [ ! -f "$PREFIX_PATH/system.reg" ]; then
     echo "raptor-wine: initialising new prefix '$PREFIX_NAME' (one-time)…"
     mkdir -p "$PREFIX_PATH"
     wineboot >/dev/null 2>&1 || wineboot -u >/dev/null 2>&1 || true
+
+    # Install Wine Mono + Gecko for .NET/JavaScript apps (if available)
+    if command -v wine-mono-installer >/dev/null 2>&1; then
+        wine-mono-installer --prefix "$PREFIX_PATH" >/dev/null 2>&1 || true
+    fi
+    if command -v wine-gecko-installer >/dev/null 2>&1; then
+        wine-gecko-installer --prefix "$PREFIX_PATH" >/dev/null 2>&1 || true
+    fi
 fi
+
+# Ensure winetricks cache directory exists
+mkdir -p "$WINETRICKS_CACHE"
 
 # ── Best-effort runtime install ─────────────────────────────────────────────
 STAMP="$DATA_DIR/$PREFIX_NAME.runtimes-done"
@@ -130,6 +142,44 @@ if [ "$BOOTSTRAP" = 1 ] && [ ! -f "$STAMP" ]; then
         echo "raptor-wine: MSVC runtime DLLs may fail until they're present. Retry with:" >&2
         echo "raptor-wine:   raptor-wine --install-runtime vcrun2015" >&2
         echo "raptor-wine:   raptor-wine --install-runtime vcrun2019" >&2
+    fi
+fi
+
+# ── DXVK/VKD3D setup for the prefix ──────────────────────────────────────────
+# DXVK is installed via winetricks above; ensure the override is registered
+if [ "$BOOTSTRAP" = 1 ] && [ -f "$STAMP" ]; then
+    # The dxvk runtime installs d3d9, d3d10core, d3d11, dxgi overrides
+    # They should be set to native by winetricks, but verify:
+    "$CMD_WINE" reg add "HKEY_CURRENT_USER\\Software\\Wine\\DllOverrides" \
+        /v "d3d9" /t REG_SZ /d "native" /f >/dev/null 2>&1 || true
+    "$CMD_WINE" reg add "HKEY_CURRENT_USER\\Software\\Wine\\DllOverrides" \
+        /v "d3d10core" /t REG_SZ /d "native" /f >/dev/null 2>&1 || true
+    "$CMD_WINE" reg add "HKEY_CURRENT_USER\\Software\\Wine\\DllOverrides" \
+        /v "d3d11" /t REG_SZ /d "native" /f >/dev/null 2>&1 || true
+    "$CMD_WINE" reg add "HKEY_CURRENT_USER\\Software\\Wine\\DllOverrides" \
+        /v "dxgi" /t REG_SZ /d "native" /f >/dev/null 2>&1 || true
+fi
+
+# ── Environment hardening ───────────────────────────────────────────────────
+# esync/fsync for better performance with esync-heavy games
+export WINEESYNC="${WINEESYNC:-1}"
+export WINEFSYNC="${WINEFSYNC:-1}"
+
+# Disable winemenubuilder to prevent polluting the app menu
+export WINEDLLOVERRIDES="${WINEDLLOVERRIDES:-winemenubuilder.exe=d}"
+
+# Force VA-API for hardware video decode
+export VKD3D_CONFIG="${VKD3D_CONFIG:-dxr11}"
+
+# ── ProtonUp-Qt integration ─────────────────────────────────────────────────
+# If the user has ProtonUp-Qt installed, we can use its Proton builds
+PROTONUP_DIR="$HOME/.local/share/protonup-qt/proton-ge-custom"
+if [ -d "$PROTONUP_DIR" ]; then
+    LATEST_PROTON=$(ls -1 "$PROTONUP_DIR" 2>/dev/null | sort -V | tail -1)
+    if [ -n "$LATEST_PROTON" ]; then
+        export STEAM_COMPAT_DATA_PATH="${STEAM_COMPAT_DATA_PATH:-$DATA_DIR/$PREFIX_NAME}"
+        export STEAM_COMPAT_CLIENT_INSTALL_PATH="${STEAM_COMPAT_CLIENT_INSTALL_PATH:-$HOME/.steam/steam}"
+        export WINEDLLOVERRIDES="${WINEDLLOVERRIDES};winemenubuilder.exe=d"
     fi
 fi
 
@@ -184,6 +234,7 @@ update-desktop-database /usr/share/applications >/dev/null 2>&1 || true
 RAPTOR_EXPECTED_PAYLOAD="
 /usr/bin/raptor-wine
 /usr/share/applications/raptor-wine.desktop
+/usr/share/kio/servicemenus/raptor-wine.desktop
 "
 raptor_missing=""
 for raptor_f in $RAPTOR_EXPECTED_PAYLOAD; do
