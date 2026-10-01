@@ -180,6 +180,9 @@ modules:
       - raptor-wallpaper-manager.sh
       - raptor-wine.sh
       - raptor-dolphin-stability.sh
+      - raptor-cheatsheet.sh
+      - raptor-tasks.sh
+      - raptor-gaming-devices.sh
 
   # ── Systemd units ───────────────────────────────────────────────────────────
   - type: systemd
