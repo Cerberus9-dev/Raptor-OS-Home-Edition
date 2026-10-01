@@ -2,18 +2,13 @@
 set -oue pipefail
 
 # =============================================================================
-# Raptor OS — GPU Profile Detection & Configuration  v3.1
+# Raptor OS — GPU Profile Detection & Configuration  v3.0
 #
 # BUILD-TIME: writes static config files, the runtime detection script,
 #             and the systemd service that runs it on boot.
 #
 # RUNTIME:    /usr/lib/raptor/gpu-detect.sh runs via raptor-gpu-profile.service
 #             after sysinit, where lspci/sysfs/kernel modules are available.
-#
-# This package ships the profile machinery only. Selecting a profile is done
-# from Raptor Cortex, which rewrites the /etc/raptor-force-<name> marker this
-# script reads. It used to also install its own GTK app and launcher, giving
-# the same choice three separate entry points.
 # =============================================================================
 
 mkdir -p /etc/environment.d \
@@ -25,6 +20,49 @@ mkdir -p /etc/environment.d \
          /etc/raptor \
          /usr/share/icons/hicolor/scalable/apps
 
+# ── App icon ───────────────────────────────────────────────────────────────────
+# Same visual language as raptor-cortex.svg (radial badge, dashed ring, cardinal
+# ticks) so both apps read as a matched pair in the app menu — a GPU/chip glyph
+# replaces Cortex's lightning bolt in the centre.
+cat << 'SVGEOF' > /usr/share/icons/hicolor/scalable/apps/raptor-gpu-profiler.svg
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#7c3aed"/>
+      <stop offset="100%" stop-color="#4c1d95"/>
+    </radialGradient>
+    <radialGradient id="core" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#c4b5fd"/>
+      <stop offset="100%" stop-color="#7c3aed"/>
+    </radialGradient>
+  </defs>
+  <circle cx="32" cy="32" r="30" fill="url(#bg)"/>
+  <circle cx="32" cy="32" r="24" fill="none" stroke="#a78bfa" stroke-width="1.5"
+          stroke-dasharray="12 4" stroke-linecap="round"/>
+  <line x1="32" y1="10" x2="32" y2="18" stroke="#c4b5fd" stroke-width="2" stroke-linecap="round"/>
+  <line x1="32" y1="46" x2="32" y2="54" stroke="#c4b5fd" stroke-width="2" stroke-linecap="round"/>
+  <line x1="10" y1="32" x2="18" y2="32" stroke="#c4b5fd" stroke-width="2" stroke-linecap="round"/>
+  <line x1="46" y1="32" x2="54" y2="32" stroke="#c4b5fd" stroke-width="2" stroke-linecap="round"/>
+  <line x1="16.7" y1="16.7" x2="22.4" y2="22.4" stroke="#c4b5fd" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="41.6" y1="41.6" x2="47.3" y2="47.3" stroke="#c4b5fd" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="47.3" y1="16.7" x2="41.6" y2="22.4" stroke="#c4b5fd" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="22.4" y1="41.6" x2="16.7" y2="47.3" stroke="#c4b5fd" stroke-width="1.5" stroke-linecap="round"/>
+  <!-- GPU chip glyph: square die with corner pins -->
+  <circle cx="32" cy="32" r="9" fill="url(#core)"/>
+  <rect x="27" y="27" width="10" height="10" rx="1.5" fill="white" opacity="0.95"/>
+  <rect x="29" y="29" width="6" height="6" rx="0.5" fill="url(#core)"/>
+  <line x1="27" y1="24" x2="27" y2="27" stroke="white" stroke-width="1.2" opacity="0.95"/>
+  <line x1="37" y1="24" x2="37" y2="27" stroke="white" stroke-width="1.2" opacity="0.95"/>
+  <line x1="27" y1="37" x2="27" y2="40" stroke="white" stroke-width="1.2" opacity="0.95"/>
+  <line x1="37" y1="37" x2="37" y2="40" stroke="white" stroke-width="1.2" opacity="0.95"/>
+  <line x1="24" y1="27" x2="27" y2="27" stroke="white" stroke-width="1.2" opacity="0.95"/>
+  <line x1="24" y1="37" x2="27" y2="37" stroke="white" stroke-width="1.2" opacity="0.95"/>
+  <line x1="37" y1="27" x2="40" y2="27" stroke="white" stroke-width="1.2" opacity="0.95"/>
+  <line x1="37" y1="37" x2="40" y2="37" stroke="white" stroke-width="1.2" opacity="0.95"/>
+</svg>
+SVGEOF
+
+gtk-update-icon-cache /usr/share/icons/hicolor 2>/dev/null || true
 
 # ── Fallback env file (overwritten at runtime by gpu-detect.sh) ───────────────
 cat << 'ENVEOF' > /etc/environment.d/raptor-gpu.conf
@@ -413,15 +451,14 @@ SVCEOF
 systemctl enable raptor-gpu-profile.service 2>/dev/null || true
 
 # ── polkit rule ───────────────────────────────────────────────────────────────
-# Lets the desktop prompt once instead of asking for a password every time a
-# profile is switched from Raptor Cortex. Only gpu-detect.sh is matched: the
-# touch/rm of the marker files are already covered by the sudoers drop-in below.
 cat << 'POLKIT' > /etc/polkit-1/rules.d/49-raptor-gpu.rules
 polkit.addRule(function(action, subject) {
     var allowedActions = ["org.freedesktop.policykit.exec"];
     if (allowedActions.indexOf(action.id) >= 0 &&
         action.lookup("program") &&
-        action.lookup("program").indexOf("gpu-detect.sh") !== -1 &&
+        (action.lookup("program").indexOf("raptor-gpu-profile") !== -1 ||
+         action.lookup("program").indexOf("raptor-gpu-profiler") !== -1 ||
+         action.lookup("program").indexOf("gpu-detect.sh") !== -1) &&
         subject.active && subject.local) {
         return polkit.Result.YES;
     }
@@ -448,17 +485,359 @@ else
     echo "WARNING: visudo unavailable — /etc/sudoers.d/raptor-gpu NOT validated" >&2
 fi
 
+# ── Raptor GPU Profiler — GTK4/Adwaita UI ─────────────────────────────────────
+# Matches Cortex's visual style: dark Adwaita, preference groups, pill buttons.
+# Replaces the old bash TUI with a proper graphical profile switcher.
+cat << 'GPUPYEOF' > /usr/bin/raptor-gpu-profiler
+#!/usr/bin/env python3
+# Raptor OS GPU Profiler — GTK4/Adwaita profile switcher
+
+import gi
+gi.require_version("Gtk",  "4.0")
+gi.require_version("Adw",  "1")
+import os, subprocess, threading, json
+from gi.repository import Gtk, Adw, GLib
+
+PROFILES = {
+    "auto": (
+        "Auto Detect",
+        "Automatically selects settings based on your GPU hardware",
+        "computer-symbolic",
+        [],
+    ),
+    "balanced": (
+        "Balanced",
+        "Normal performance with reasonable power usage — the daily driver",
+        "media-playlist-shuffle-symbolic",
+        ["AMD_VULKAN_ICD=RADV", "MESA_SHADER_CACHE_DISABLE=false",
+         "__GL_SHADER_DISK_CACHE=1"],
+    ),
+    "performance": (
+        "Max Performance",
+        "High GPU power level, shader disk cache, threaded GL optimisations",
+        "starred-symbolic",
+        ["AMD_VULKAN_ICD=RADV", "MESA_SHADER_CACHE_MAX_SIZE=2G",
+         "__GL_THREADED_OPTIMIZATIONS=1", "VKD3D_CONFIG=dxr11"],
+    ),
+    "extreme": (
+        "Extreme",
+        "Maximum power level, DXR raytracing hints, largest shader cache",
+        "trophy-symbolic",
+        ["AMD_VULKAN_ICD=RADV", "MESA_SHADER_CACHE_MAX_SIZE=4G",
+         "__GL_THREADED_OPTIMIZATIONS=1", "VKD3D_CONFIG=dxr11,dxr",
+         "VKD3D_FEATURE_LEVEL=12_2"],
+    ),
+    "powersave": (
+        "Power Saving",
+        "Low GPU power level, shader cache disabled — for battery or thermals",
+        "battery-low-symbolic",
+        ["MESA_SHADER_CACHE_DISABLE=true"],
+    ),
+}
+
+FLAG_DIR   = "/etc"
+FORCE_FILE = {
+    "extreme":     "/etc/raptor-force-extreme",
+    "performance": "/etc/raptor-force-performance",
+    "powersave":   "/etc/raptor-force-powersave",
+    "balanced":    "/etc/raptor-force-balanced",
+}
+DETECT_SCRIPT = "/usr/lib/raptor/gpu-detect.sh"
+
+
+def get_current_profile() -> str:
+    for key, path in FORCE_FILE.items():
+        if os.path.exists(path):
+            return key
+    return "auto"
+
+
+def detect_gpu_info() -> dict:
+    info = {"vendor": "Unknown", "model": "Unknown", "vram_mb": 0}
+    try:
+        r = subprocess.run(["lspci"], capture_output=True, text=True, timeout=3)
+        for line in r.stdout.splitlines():
+            low = line.lower()
+            if any(k in low for k in ("vga", "3d", "display")):
+                if "nvidia" in low:
+                    info["vendor"] = "NVIDIA"
+                    info["model"] = line.split(": ", 1)[-1].strip()[:60]
+                elif "amd" in low or "radeon" in low:
+                    info["vendor"] = "AMD"
+                    info["model"] = line.split(": ", 1)[-1].strip()[:60]
+                elif "intel" in low:
+                    info["vendor"] = "Intel"
+                    info["model"] = line.split(": ", 1)[-1].strip()[:60]
+    except Exception:
+        pass
+    # Try to read VRAM from sysfs
+    try:
+        for card in sorted(os.listdir("/sys/class/drm")):
+            p = f"/sys/class/drm/{card}/device/mem_info_vram_total"
+            if os.path.exists(p):
+                with open(p) as f:
+                    info["vram_mb"] = int(f.read().strip()) // (1024 * 1024)
+                break
+    except Exception:
+        pass
+    return info
+
+
+class GpuProfilerWindow(Adw.ApplicationWindow):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.set_title("Raptor GPU Profiler")
+        self.set_default_size(480, 640)
+        self.set_resizable(False)
+        self._current = get_current_profile()
+        self._mode_rows = {}
+        self._build_ui()
+
+    def _build_ui(self):
+        root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.set_content(root)
+
+        hb = Adw.HeaderBar()
+        root.append(hb)
+
+        toast_overlay = Adw.ToastOverlay()
+        toast_overlay.set_vexpand(True)
+        root.append(toast_overlay)
+        self._toast_overlay = toast_overlay
+
+        scroll = Gtk.ScrolledWindow()
+        scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        scroll.set_vexpand(True)
+        toast_overlay.set_child(scroll)
+
+        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+        content.set_margin_top(20)
+        content.set_margin_bottom(20)
+        content.set_margin_start(20)
+        content.set_margin_end(20)
+        scroll.set_child(content)
+
+        # ── GPU Info banner ────────────────────────────────────────────────────
+        self._gpu_info = detect_gpu_info()
+        vram_str = (f"{self._gpu_info['vram_mb']} MB VRAM"
+                    if self._gpu_info["vram_mb"] > 0 else "")
+        banner = Adw.Banner()
+        banner.set_title(
+            f"{self._gpu_info['vendor']} — {self._gpu_info['model']}"
+            + (f"  ·  {vram_str}" if vram_str else "")
+        )
+        banner.set_revealed(True)
+        content.append(banner)
+
+        # ── Profile selector ──────────────────────────────────────────────────
+        profile_group = Adw.PreferencesGroup(title="GPU Profile")
+        profile_group.set_description(
+            "Select a performance profile. Changes apply immediately — "
+            "no reboot required for most settings.")
+        content.append(profile_group)
+
+        for key, (label, desc, icon_name, _env) in PROFILES.items():
+            icon = Gtk.Image.new_from_icon_name(icon_name)
+            icon.set_pixel_size(20)
+            icon.set_valign(Gtk.Align.CENTER)
+            icon.set_margin_end(4)
+
+            check = Gtk.Image.new_from_icon_name("object-select-symbolic")
+            check.set_pixel_size(16)
+            check.set_valign(Gtk.Align.CENTER)
+            check.set_visible(key == self._current)
+
+            row = Adw.ActionRow(title=label)
+            row.set_subtitle(desc)
+            row.set_activatable(True)
+            row.connect("activated", self._on_profile_select, key)
+            row.add_prefix(icon)
+            row.add_suffix(check)
+            row.set_opacity(1.0 if key == self._current else 0.65)
+
+            profile_group.add(row)
+            self._mode_rows[key] = (row, icon, check)
+
+        # ── Active env vars preview ────────────────────────────────────────────
+        self._env_group = Adw.PreferencesGroup(title="Active Environment Variables")
+        self._env_group.set_description(
+            "Variables written to /etc/environment.d/raptor-gpu.conf and applied "
+            "to all new processes. Add per-game overrides in Steam launch options.")
+        content.append(self._env_group)
+        self._refresh_env_preview()
+
+        # ── Apply button ──────────────────────────────────────────────────────
+        btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        btn_box.set_halign(Gtk.Align.CENTER)
+        content.append(btn_box)
+
+        self.apply_btn = Gtk.Button(label="Apply Profile")
+        self.apply_btn.add_css_class("suggested-action")
+        self.apply_btn.add_css_class("pill")
+        self.apply_btn.connect("clicked", self._on_apply)
+        btn_box.append(self.apply_btn)
+
+        self.spinner = Gtk.Spinner()
+        btn_box.append(self.spinner)
+
+        # ── Per-game tips group ────────────────────────────────────────────────
+        tips_group = Adw.PreferencesGroup(title="Per-Game Launch Options")
+        tips_group.set_description(
+            "Add these to Steam: right-click game → Properties → Launch Options")
+        content.append(tips_group)
+
+        tips = [
+            ("FSR Upscaling",
+             "WINE_FULLSCREEN_FSR=1 %command%",
+             "Upscale from a lower render resolution — set in-game resolution below native first"),
+            ("Async Shader Compilation",
+             "DXVK_ASYNC=1 %command%",
+             "Reduces shader compile stalls — may cause brief visual glitches on first encounter"),
+            ("MangoHud Overlay",
+             "MANGOHUD=1 %command%",
+             "Enable the MangoHud performance overlay (Shift+F12 to toggle)"),
+            ("Gamemode",
+             "ENABLE_GAMEMODE=1 %command%",
+             "Activate Gamemode for this game — suspends background services, boosts CPU"),
+            ("Force Proton",
+             "PROTON_USE_WINED3D=0 %command%",
+             "Force DXVK over WineD3D — better performance for DX9-11 Windows games"),
+        ]
+        for title, cmd, subtitle in tips:
+            tip_row = Adw.ActionRow(title=title)
+            tip_row.set_subtitle(subtitle)
+            code_label = Gtk.Label(label=cmd)
+            code_label.add_css_class("monospace")
+            code_label.add_css_class("dim-label")
+            code_label.set_selectable(True)
+            tip_row.add_suffix(code_label)
+            tips_group.add(tip_row)
+
+    def _refresh_env_preview(self):
+        # Remove old rows
+        child = self._env_group.get_first_child()
+        while child:
+            nxt = child.get_next_sibling()
+            if isinstance(child, Adw.ActionRow):
+                self._env_group.remove(child)
+            child = nxt
+
+        _label, _desc, _icon, env_vars = PROFILES[self._current]
+        always = [
+            "WINE_LARGE_ADDRESS_AWARE=1",
+            "PROTON_FORCE_LARGE_ADDRESS_AWARE=1",
+            "STAGING_SHARED_MEMORY=1",
+            "RADV_PERFTEST=gpl",
+        ]
+        all_vars = always + env_vars
+        for var in all_vars:
+            key_part, _, val_part = var.partition("=")
+            row = Adw.ActionRow(title=key_part)
+            val_label = Gtk.Label(label=val_part if val_part else "1")
+            val_label.add_css_class("monospace")
+            val_label.add_css_class("dim-label")
+            row.add_suffix(val_label)
+            self._env_group.add(row)
+
+    def _on_profile_select(self, row, key):
+        self._current = key
+        for k, (r, icon, check) in self._mode_rows.items():
+            active = (k == key)
+            check.set_visible(active)
+            icon.set_opacity(1.0 if active else 0.4)
+            r.set_opacity(1.0 if active else 0.65)
+        self._refresh_env_preview()
+
+    def _on_apply(self, btn):
+        btn.set_sensitive(False)
+        self.spinner.start()
+
+        # Write the profile flag files
+        def do_apply():
+            try:
+                # Remove all existing force flags
+                for path in FORCE_FILE.values():
+                    subprocess.run(["sudo", "rm", "-f", path],
+                                   capture_output=True)
+                # Write the selected profile flag
+                if self._current != "auto":
+                    subprocess.run(
+                        ["sudo", "touch", FORCE_FILE[self._current]],
+                        capture_output=True
+                    )
+                # Re-run GPU detection to apply the new profile
+                subprocess.run(["sudo", DETECT_SCRIPT],
+                               capture_output=True, timeout=15)
+                GLib.idle_add(self._on_apply_done, True)
+            except Exception as e:
+                GLib.idle_add(self._on_apply_done, False, str(e))
+
+        threading.Thread(target=do_apply, daemon=True).start()
+
+    def _on_apply_done(self, success, err=""):
+        self.spinner.stop()
+        self.apply_btn.set_sensitive(True)
+        label, _, _, _ = PROFILES[self._current]
+        if success:
+            msg = f"Profile set to {label} — applied immediately"
+        else:
+            msg = f"Apply failed: {err}"
+        toast = Adw.Toast.new(msg)
+        toast.set_timeout(4)
+        self._toast_overlay.add_toast(toast)
+
+
+class GpuProfilerApp(Adw.Application):
+    def __init__(self):
+        super().__init__(application_id="io.github.cerberus9dev.RaptorGpuProfiler")
+        self.connect("activate", self.on_activate)
+
+    def on_activate(self, app):
+        win = GpuProfilerWindow(application=app)
+        win.present()
+
+
+if __name__ == "__main__":
+    import sys
+    app = GpuProfilerApp()
+    sys.exit(app.run(sys.argv))
+GPUPYEOF
+chmod +x /usr/bin/raptor-gpu-profiler
+
+# ── .desktop launcher ─────────────────────────────────────────────────────────
+# This was missing entirely in earlier versions — the GTK4 app existed at
+# /usr/bin/raptor-gpu-profiler but had no menu entry, so it could never be
+# launched from the app launcher. Matches raptor-cortex.desktop's format
+# exactly so both apps appear consistently in the menu (same category,
+# same Raptor OS branding).
+mkdir -p /usr/share/applications
+cat << 'DESKTOPEOF' > /usr/share/applications/raptor-gpu-profiler.desktop
+[Desktop Entry]
+Version=1.1
+Type=Application
+Name=Raptor GPU Profiler
+GenericName=GPU Performance Profile Switcher
+Comment=Switch GPU performance profiles, view live environment variables, per-game launch option reference
+Exec=/usr/bin/raptor-gpu-profiler
+Icon=raptor-gpu-profiler
+Terminal=false
+Categories=X-RaptorOS;System;Settings;
+Keywords=gpu;graphics;profile;performance;vulkan;amd;nvidia;intel;
+StartupNotify=true
+X-KDE-SubstituteUID=false
+DESKTOPEOF
+
+echo "GPU_PROFILER_DESKTOP_READY"
 
 
 # ── Self-check ────────────────────────────────────────────────────────────────
-# A malformed heredoc here can install a truncated gpu-detect.sh, and the
-# profile then silently never applies, with an empty build log.
+# A malformed heredoc here can install a truncated binary or a missing .desktop
+# entry, and the app then never appears in the launcher with an empty build log.
 # Verify each artifact landed and is non-empty; fail the build if not.
-#
-# The GTK UI that used to ship here is gone. GPU profile selection now lives in
-# Raptor Cortex, so this package ships only the profile machinery it drives.
 RAPTOR_EXPECTED_PAYLOAD="
+/usr/bin/raptor-gpu-profiler
 /usr/lib/raptor/gpu-detect.sh
+/usr/share/applications/raptor-gpu-profiler.desktop
 "
 raptor_missing=""
 for raptor_f in $RAPTOR_EXPECTED_PAYLOAD; do
