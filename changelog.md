@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### Removed
+
+- **Manual fan control and fan profiles in Raptor Cortex** — removed rather
+  than shipped. The feature was guarded by a chip allowlist, an RPM readback
+  requirement, a thermal interlock and a duty cap, but it could only ever be
+  verified against a synthetic sysfs tree: no machine available for testing had
+  a fan controller on the supported list, so every write path would have gone
+  out unexercised on real silicon. It also did not appear on the machines it
+  was built for, so it was carrying risk for no visible gain. Fan control is
+  left entirely to the kernel and the board firmware, which is where it
+  belongs. CPU temperature, which Cortex displayed alongside it, is unaffected.
+
 ### Fixed
 
 - **The image build failed outright on `raptor-hud.sh`** — the GPU
