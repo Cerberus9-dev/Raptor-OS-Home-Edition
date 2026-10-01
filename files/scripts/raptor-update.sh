@@ -162,6 +162,10 @@ MAX_ATTEMPTS="${RAPTOR_CHECK_MAX_ATTEMPTS:-3}"
 ATTEMPT_TIMEOUT="${RAPTOR_CHECK_ATTEMPT_TIMEOUT:-150}"  # seconds per metadata pull
 RETRY_SLEEP="${RAPTOR_CHECK_RETRY_SLEEP:-5}"           # seconds between attempts
 
+echo "Raptor OS Update Check — starting metadata refresh"
+
+# Connectivity probe (best-effort; don't fail if unreachable, the rpm-ostree
+# attempt will surface the real error)
 if curl -sf --connect-timeout 5 https://ghcr.io/ >/dev/null 2>&1; then
     echo "Connectivity to ghcr.io OK."
 else
@@ -679,25 +683,45 @@ def run_privileged(helper_path, action_id=None):
     rules make the polkit action id unnecessary.
     """
     launchers = []
-    if _have("sudo") and _sudoers_grants(helper_path):
-        launchers.append(["sudo", "-n"])
-    elif _have("pkexec"):
+    sudoers_ok = False
+    if _have("sudo"):
+        try:
+            sudoers_ok = _sudoers_grants(helper_path)
+        except Exception:
+            sudoers_ok = False
+        if sudoers_ok:
+            launchers.append(["sudo", "-n"])
+    if _have("pkexec"):
         launchers.append(["pkexec"])
-    elif _have("sudo"):
-        # sudo exists and we could not read the rule file. Do not lock the
-        # user out on a false negative — try it and let the real error show.
+    if _have("sudo") and not sudoers_ok:
+        # sudo exists but we could not confirm the rule. Try it anyway —
+        # the real error will surface if it fails.
         launchers.append(["sudo", "-n"])
 
     for launcher in launchers:
         try:
-            return subprocess.Popen(
+            proc = subprocess.Popen(
                 launcher + [helper_path],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
                 bufsize=1,
             )
+            # Quick probe: if sudo -n immediately fails with "password required",
+            # don't waste time reading from a dead pipe — try the next launcher.
+            # This avoids the "dead process parsed as output" bug.
+            import time
+            time.sleep(0.05)
+            if proc.poll() is not None:
+                # Process already exited — read stderr to see why
+                _, stderr_data = proc.communicate(timeout=1)
+                if stderr_data and "password" in stderr_data.lower():
+                    if len(launchers) > 1:  # only skip if we have a fallback
+                        continue
+            return proc
         except FileNotFoundError:
+            continue
+        except Exception:
             continue
     raise RuntimeError(
         "Cannot obtain administrator rights: `sudo -n` is not permitted for "
@@ -727,8 +751,26 @@ class RaptorUpdateWindow(Adw.ApplicationWindow):
         self._flatpak_has_update = False
         self._reboot_cancelled  = False
         self._build_ui()
+        self._validate_installation()
         threading.Thread(target=self._do_check,       daemon=True).start()
         threading.Thread(target=self._load_changelog, daemon=True).start()
+
+    def _validate_installation(self):
+        """Check that all required helpers and sudoers are present.
+        Shows a warning in the console if something is missing."""
+        missing = []
+        for helper in (UPDATE_HELPER, CHECK_HELPER, FLATPAK_UPDATE_HELPER, REBOOT_HELPER):
+            if not os.path.exists(helper):
+                missing.append(f"Missing: {helper}")
+        if not os.path.exists(SUDOERS_FILE):
+            missing.append(f"Missing sudoers: {SUDOERS_FILE}")
+        if missing:
+            msg = "Installation issues detected:\n" + "\n".join(missing) + \
+                  "\n\nThe update manager may not work correctly. Please report this."
+            GLib.idle_add(self._append_log, msg + "\n")
+            GLib.idle_add(self._set_status,
+                "Installation incomplete — some features may not work",
+                "dialog-warning-symbolic", "warning")
 
     # ── UI ────────────────────────────────────────────────────────────────────
 
@@ -1237,9 +1279,13 @@ EOF
 # landed and is non-empty; fail the build if not.
 RAPTOR_EXPECTED_PAYLOAD="
 /usr/bin/raptor-update
+/usr/bin/raptor-update-launcher
 /usr/lib/raptor/update-helper
 /usr/lib/raptor/check-helper
+/usr/lib/raptor/flatpak-update-helper
+/usr/lib/raptor/reboot-helper
 /usr/share/applications/raptor-update.desktop
+/usr/share/polkit-1/actions/io.github.cerberus9dev.raptorupdate.policy
 "
 raptor_missing=""
 for raptor_f in $RAPTOR_EXPECTED_PAYLOAD; do
