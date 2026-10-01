@@ -161,10 +161,12 @@ set_default_browser() {
 
 # ── Browser catalogue ─────────────────────────────────────────────────────────
 # Format: "DISPLAY_NAME|FLATPAK_ID|DESKTOP_ID|SIZE|NOTE"
-# All five are downloads; none ships in the image.
+# All are downloads; none ships in the image.
 BROWSERS=(
     "Firefox|org.mozilla.firefox|firefox.desktop|~120 MB|Privacy-first · tab isolation · open source"
     "Brave|com.brave.Browser|com.brave.Browser.desktop|~120 MB|Chromium · built-in ad blocker"
+    "Zen Browser|app.zen_browser.zen|app.zen_browser.zen.desktop|~130 MB|Firefox-based · vertical tabs · privacy-focused"
+    "Helium|com.github.heliumbrowser.Helium|com.github.heliumbrowser.Helium.desktop|~110 MB|Lightweight Chromium fork · minimal UI"
     "Chromium|org.chromium.Chromium|org.chromium.Chromium.desktop|~100 MB|Plain Chromium · the open-source core"
     "Chrome|com.google.Chrome|com.google.Chrome.desktop|~150 MB|Google Chrome · familiar · most compatible"
     "Edge|com.microsoft.Edge|com.microsoft.Edge.desktop|~150 MB|Microsoft Edge · Chromium based"
