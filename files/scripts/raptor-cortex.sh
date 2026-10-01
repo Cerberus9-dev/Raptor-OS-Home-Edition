@@ -416,10 +416,40 @@ case "$ACTION" in
                 # power down — saves ~0.5-1 W on systems with HDA audio hardware.
                 echo Y > /sys/module/snd_hda_intel/parameters/power_save_controller                     2>/dev/null || true
 
+                # HDA audio powersave controller: separate from power_save flag.
+                # Allows the HD-audio controller itself (not just the codec) to
+                # power down — saves ~0.5-1 W on systems with HDA audio hardware.
+                echo Y > /sys/module/snd_hda_intel/parameters/power_save_controller                     2>/dev/null || true
+
                 # Network device runtime PM: powers down NIC hardware between packets.
                 # Does NOT disconnect WiFi — the driver keeps the association alive;
                 # only the radio hardware powers down during idle periods.
                 _apply_net_runtime_pm auto
+
+                # WiFi power save: enable 802.11 power save mode. The AP buffers
+                # frames for the client during sleep periods. Safe for most APs.
+                for iface in /sys/class/net/wl*; do
+                    [ -d "$iface" ] || continue
+                    iw dev "$(basename "$iface")" set power_save on 2>/dev/null || true
+                done
+
+                # Bluetooth power save: allow controller to suspend when idle.
+                # Most modern controllers support this without dropping connections.
+                for hci in /sys/class/bluetooth/hci*; do
+                    [ -d "$hci" ] || continue
+                    hciconfig "$(basename "$hci")" lp rswitch,hold,sniff,park 2>/dev/null || true
+                done
+
+                # Display backlight: reduce to 50% on battery (if supported).
+                # This is the single biggest display power saver.
+                for bl in /sys/class/backlight/*/brightness; do
+                    [ -f "$bl" ] || continue
+                    max_bl="${bl%/brightness}/max_brightness"
+                    [ -f "$max_bl" ] || continue
+                    max_val=$(cat "$max_bl" 2>/dev/null || echo 100)
+                    target=$((max_val / 2))
+                    echo "$target" > "$bl" 2>/dev/null || true
+                done
 
                 powerprofilesctl set power-saver 2>/dev/null || true
                 ;;

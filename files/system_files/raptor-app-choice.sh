@@ -302,6 +302,20 @@ APP_CATALOGUE=(
     "FALSE|Remmina|org.remmina.Remmina|Remote desktop client — RDP, VNC, SSH, SPICE"
     # ── System Tools (additional) ──────────────────────────────────────────
     "FALSE|Stacer|io.github.ozmarties.Stacer|System optimiser — clean, manage startups, monitor resources"
+    "FALSE|Mission Center|io.missioncenter.MissionCenter|GPU/CPU/RAM monitor — Cortex covers live stats, this gives a fuller system view"
+    "FALSE|GNOME System Monitor|org.gnome.SystemMonitor|Windows-like Task Manager — processes, resources, file systems, startup apps"
+    "FALSE|KSysGuard|org.kde.ksysguard|KDE's advanced system monitor — detailed process, system, and network info"
+    "FALSE|Flatseal|com.github.tchx84.Flatseal|Flatpak permission manager — previously a default install"
+    "FALSE|Warehouse|io.github.flattool.Warehouse|Browse, manage and clean up installed Flatpak apps — easy uninstall"
+    "FALSE|Impression|io.gitlab.adhami3310.Impression|Flash OS images to USB drives"
+    "FALSE|CoreCtrl|org.corectrl.CoreCtrl|AMD GPU and CPU control — overclocking, fan curves, power limits"
+    "FALSE|GNOME Backups|org.gnome.DejaDup|Automatic encrypted backups of your home folder"
+    "FALSE|BleachBit|None|Deep system/cache cleanup tool (install via: sudo rpm-ostree install bleachbit)"
+    "FALSE|Filelight|None|Visual disk usage analyser (install via: sudo rpm-ostree install filelight)"
+    "FALSE|Klipper|None|Clipboard manager — keeps history of copied text (install via: sudo rpm-ostree install klipper)"
+    "FALSE|kfind|None|KDE file search tool — find files by name, type, size, date (install via: sudo rpm-ostree install kfind)"
+    "FALSE|file-roller|None|Archive manager — extract and create .zip, .tar.gz, .7z, and more (install via: sudo rpm-ostree install file-roller)"
+    "FALSE|btop|None|System resource monitor (install via: sudo rpm-ostree install btop)"
     "FALSE|NCurses Du|None|Terminal disk usage analyser (install via: sudo rpm-ostree install ncdu)"
     "FALSE|Restic|None|Fast, encrypted backup tool — incremental backups to local/remote (install via: sudo rpm-ostree install restic)"
     "FALSE|Syncthing|org.syncthing.Syncthing|Continuous file synchronisation between your devices"
@@ -309,6 +323,8 @@ APP_CATALOGUE=(
     # ── Media (additional) ─────────────────────────────────────────────────
     "FALSE|Subtitle Edit|None|Subtitle editor — create, adjust, sync subtitles (install via: sudo rpm-ostree install subtitle-edit)"
     "FALSE|MakeMKV|com.makemkv.MakeMKV|Rip Blu-ray and DVD discs to MKV files"
+    # ── Developer Utilities ───────────────────────────────────────────────
+    "FALSE|Raptor Cheatsheet|None|Command reference for Bazzite/Fedora Atomic — terminal & GUI (install via: sudo /usr/local/bin/raptor-cheatsheet-install)"
 )
 
 # ── Build zenity argument list ────────────────────────────────────────────────
