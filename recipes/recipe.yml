@@ -8,8 +8,6 @@ modules:
   # ── Static files ─────────────────────────────────────────────────────────
   - type: files
     files:
-      # User service — must live in the user unit dir so it runs inside the
-      # login session (needed for GUI dialogs and correct env on Wayland).
       - source: ../files/system_files/raptor-firstboot.service
         destination: /usr/lib/systemd/user/raptor-firstboot.service
       - source: ../files/system_files/raptor-ensure-services.service
@@ -28,12 +26,10 @@ modules:
         destination: /usr/bin/raptor-browser-choice.sh
       - source: ../files/system_files/raptor-chat-choice.sh
         destination: /usr/bin/raptor-chat-choice.sh
-      # Default file manager (Dolphin) + image/archive type associations.
       - source: ../files/system_files/raptor-mimeapps.list
         destination: /etc/xdg/mimeapps.list
       - source: ../files/system_files/raptor-mimeapps.list
         destination: /etc/skel/.config/mimeapps.list
-      # ── Audio: PipeWire low-latency gaming config ──────────────────────────
       - source: ../files/system_files/99-raptor-pipewire-lowlatency.conf
         destination: /etc/pipewire/pipewire.conf.d/99-raptor-lowlatency.conf
       - source: ../files/system_files/99-raptor-pipewire-pulse-lowlatency.conf
@@ -50,28 +46,22 @@ modules:
         destination: /etc/systemd/user/wireplumber.service.d/raptor-restart.conf
       - source: ../files/system_files/zram-generator.conf
         destination: /etc/systemd/zram-generator.conf
-      # ── DNS: let systemd-resolved handle everything (ignores DHCP DNS) ─────
       - source: ../files/system_files/91-raptor-dns.conf
         destination: /etc/NetworkManager/conf.d/91-raptor-dns.conf
-      # ── WiFi reconnection hardening ────────────────────────────────────────
       - source: ../files/system_files/91-raptor-network.conf
         destination: /etc/NetworkManager/conf.d/91-raptor-network.conf
       - source: ../files/system_files/raptor-suspend-resume-wifi.sh
         destination: /etc/NetworkManager/dispatcher.d/99-raptor-wifi-resume
-      # ── Input device / cursor fixes ────────────────────────────────────────
       - source: ../files/system_files/61-raptor-libinput.conf
         destination: /etc/libinput/local-overrides.quirks
-      # ── File manager (Dolphin) stability ───────────────────────────────────
       - source: ../files/system_files/dolphinrc
         destination: /etc/xdg/dolphinrc
       - source: ../files/system_files/dolphinrc
         destination: /etc/skel/.config/dolphinrc
-      # ── Baloo (file indexer) stability: disable content indexing ────────────
       - source: ../files/system_files/baloofilerc
         destination: /etc/xdg/baloofilerc
       - source: ../files/system_files/baloofilerc
         destination: /etc/skel/.config/baloofilerc
-      # ── Wine / Proton usability + fd limits ────────────────────────────────
       - source: ../files/system_files/10-raptor-wine.conf
         destination: /etc/environment.d/10-raptor-wine.conf
       - source: ../files/system_files/raptor-nofile.conf
@@ -82,7 +72,6 @@ modules:
   # ── RPM packages ─────────────────────────────────────────────────────────
   - type: rpm-ostree
     install:
-      # System utilities (minimal)
       - fastfetch
       - htop
       - p7zip
@@ -94,34 +83,18 @@ modules:
       - kcalc
       - liberation-fonts
       - power-profiles-daemon
-
-      # Media (minimal)
       - mpv
-
-      # Gaming
       - irqbalance
       - gamemode
-      # Note: mangohud/goverlay are intentionally omitted from the RPM list.
-      # Bazzite's stable base now ships its own packaging of MangoHud
-      # (terra-mangohud), and installing Fedora's mangohud here conflicts with
-      # it on /usr/bin/mangoapp. The overlay therefore comes from the base
-      # image, and the GOverlay config GUI is installed as a Flatpak instead.
       - wine
-      # Wine runtime pieces — without these, Windows apps/.NET and JS-based
-      # program loaders hang on first launch (Wine stalls trying to download
-      # them) or fail outright. See /usr/share/wine/gecko and /usr/share/wine/mono
       - wine-mono
       - mingw32-wine-gecko
       - mingw64-wine-gecko
       - winetricks
       - protontricks
-
-      # Python + GObject — required by Raptor GTK4/Adwaita apps
       - python3
       - python3-gobject
       - libadwaita
-
-      # Theming
       - kde-partitionmanager
       - kvantum
       - kvantum-qt5
@@ -129,37 +102,12 @@ modules:
       - jetbrains-mono-fonts
       - qt5-qtbase
 
-    remove:
-      - tuned-ppd
-      - plasma-systemmonitor
-      - neovim
-      - tmux
-      - ripgrep
-      - fzf
-      - ninja-build
-      - meson
-      - podman
-      - podman-compose
-      - thunderbird
-      - variety
-      - btop
-      - gcc
-      - make
-      - cmake
-      - krita
-      - vlc
-
   # ── Flatpaks ─────────────────────────────────────────────────────────────
   - type: default-flatpaks@v1
     notify: true
     system:
       install:
-        # Core system tools only — everything else moved to firstboot app picker
         - net.davidotek.pupgui2
-        # No browser ships in the image on purpose — the default image stays as
-        # minimal as possible. All popular browsers (Firefox, Brave, Chromium,
-        # Chrome, Edge) are offered as downloads in the firstboot browser-choice
-        # dialog instead, keeping sizing/policy fully in the user's hands.
 
   # ── Kernel boot arguments ─────────────────────────────────────────────────────
   - type: kargs
