@@ -1,4 +1,4 @@
-name: Build Raptor Home Edition ISO
+name: Build ISO
 
 on:
   push:
@@ -39,34 +39,28 @@ jobs:
             "$AGENT_TOOLSDIRECTORY"
           df -h
 
-      # ── Build OSTree image first ─────────────────────────────────────────────
+      # ── Build OSTree image via blue-build ────────────────────────────────────
       - name: Build OSTree image
-        uses: blue-build/github-action@v1
         id: build
+        uses: blue-build/github-action@v1
         with:
           recipe: recipe.yml
           registry_token: ${{ secrets.GITHUB_TOKEN }}
           cosign_private_key: ${{ secrets.SIGNING_SECRET }}
 
-      # ── Generate ISO from OSTree commit ──────────────────────────────────────
-      - name: Generate ISO from OSTree
+      # ── Create ISO from OSTree image ────────────────────────────────────────
+      - name: Install ISO tooling
         run: |
-          # Extract the OSTree commit from the built image
+          sudo dnf install -y coreos-installer xorriso
+
+      - name: Generate ISO from OSTree image
+        id: iso
+        run: |
           IMAGE_REF="${{ steps.build.outputs.image-ref }}"
-          echo "Built image: $IMAGE_REF"
+          echo "Building ISO from: $IMAGE_REF"
           
-          # Use coreos-installer to create ISO from the OSTree image
-          # This creates a bootable ISO that installs the OSTree image
-          sudo dnf install -y coreos-installer
-          
-          # The blue-build action outputs the image reference
-          # We need to extract the ostree commit and create an ISO
-          coreos-installer iso customize \
-            --image-url "$IMAGE_REF" \
-            --output raptor-home-${{ github.run_id }}-amd64.iso \
-            --dest-console tty0 \
-            --dest-device /dev/sda \
-            --config /dev/stdin << 'IGNITION'
+          # Create a minimal Ignition config for the installer
+          cat > /tmp/installer.ign << 'IGNITION'
 {
   "ignition": { "version": "3.2.0" },
   "storage": {
@@ -80,6 +74,16 @@ jobs:
   }
 }
 IGNITION
+
+          # Generate ISO using coreos-installer
+          # This creates a bootable ISO that installs the OSTree image
+          coreos-installer iso customize \
+            --image-url "$IMAGE_REF" \
+            --output raptor-home-${{ github.run_id }}-amd64.iso \
+            --dest-console tty0 \
+            --dest-device /dev/sda \
+            --config /tmp/installer.ign \
+            2>&1 | tee iso-build.log
 
       - name: Verify ISO
         run: |
@@ -95,3 +99,13 @@ IGNITION
             *.iso
             *.iso.sha256
           retention-days: 14
+
+      - name: Upload Failure Logs on Error
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: raptor-home-build-failure-log
+          path: |
+            iso-build.log
+            build.log
+          retention-days: 7
