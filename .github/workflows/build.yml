@@ -5,8 +5,6 @@ on:
     branches:
       - main
     paths:
-      # Only rebuild the image when something that actually affects the build changes.
-      # README, changelog, and docs edits no longer trigger a 15-minute build.
       - "recipes/**"
       - "files/**"
       - ".github/workflows/build.yml"
@@ -19,16 +17,10 @@ on:
       - "files/**"
 
   schedule:
-    # Rebuild weekly on Sunday 04:00 UTC to pick up upstream Bazzite updates.
-    # Change to "0 4 1,15 * *" (1st + 15th) if weekly feels too frequent.
     - cron: "0 4 * * 0"
 
-  # Manual trigger — useful for forcing a rebuild without a code change,
-  # e.g. after upstream Bazzite publishes a hotfix mid-week.
   workflow_dispatch:
 
-# Cancel any in-progress run for the same branch when a new push arrives.
-# Prevents stacked builds queueing up during rapid iteration.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -46,9 +38,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ── Free disk space ─────────────────────────────────────────────────────
-      # The default ubuntu-latest runner has ~14 GB free. Container builds for
-      # Bazzite-based images need ~10 GB. Remove unused toolchains first.
       - name: Free disk space
         run: |
           sudo rm -rf \
@@ -59,17 +48,16 @@ jobs:
             "$AGENT_TOOLSDIRECTORY"
           df -h
 
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      # ── Prepare file context ─────────────────────────────────────────────────
-      # BlueBuild mounts this directory into the build container.
       - name: Prepare files
         run: |
           mkdir -p /tmp/files
           cp -r files/system_files /tmp/files/
 
-      # ── Build and push ───────────────────────────────────────────────────────
+      - name: Validate scripts
+        run: |
+          chmod +x .github/scripts/validate.sh
+          .github/scripts/validate.sh
+
       - name: Build and push image
         uses: blue-build/github-action@v1
         with:

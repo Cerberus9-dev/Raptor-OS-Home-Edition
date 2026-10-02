@@ -1,0 +1,38 @@
+# Core system
+fastfetch
+htop
+p7zip
+curl
+wget
+jq
+zenity
+gwenview
+kcalc
+liberation-fonts
+power-profiles-daemon
+
+# Media
+mpv
+
+# Gaming
+irqbalance
+gamemode
+wine
+wine-mono
+mingw32-wine-gecko
+mingw64-wine-gecko
+winetricks
+protontricks
+
+# Python + GObject for Raptor apps
+python3
+python3-gobject
+libadwaita
+
+# Theming
+kde-partitionmanager
+kvantum
+kvantum-qt5
+papirus-icon-theme
+jetbrains-mono-fonts
+qt5-qtbase
