@@ -62,9 +62,6 @@ modules:
       # ── Input device / cursor fixes ────────────────────────────────────────
       - source: ../files/system_files/61-raptor-libinput.conf
         destination: /etc/libinput/local-overrides.quirks
-      # ── Gaming device udev rules ───────────────────────────────────────────
-      - source: ../files/system_files/99-raptor-gaming-devices.rules
-        destination: /etc/udev/rules.d/99-raptor-gaming-devices.rules
       # ── File manager (Dolphin) stability ───────────────────────────────────
       - source: ../files/system_files/dolphinrc
         destination: /etc/xdg/dolphinrc
