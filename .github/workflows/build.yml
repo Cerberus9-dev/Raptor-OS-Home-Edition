@@ -59,11 +59,9 @@ jobs:
           .github/scripts/validate.sh
 
       - name: Build and push image
-        uses: blue-build/github-action@v1.4.0
+        uses: blue-build/github-action@v1
         with:
           recipe: recipe.yml
           registry_token: ${{ secrets.GITHUB_TOKEN }}
           pr_event_number: ${{ github.event.number }}
-          # Disable signing entirely
-          cosign_private_key: ""
-          skip_signing: true
+          cosign_private_key: ${{ secrets.SIGNING_SECRET }}
