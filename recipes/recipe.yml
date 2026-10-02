@@ -160,9 +160,6 @@ modules:
       install:
         # Core system tools only — everything else moved to firstboot app picker
         - net.davidotek.pupgui2
-        # Task managers (CoyoteTM alternatives)
-        - io.github.ozmarties.Stacer
-        - io.missioncenter.MissionCenter
         # No browser ships in the image on purpose — the default image stays as
         # minimal as possible. All popular browsers (Firefox, Brave, Chromium,
         # Chrome, Edge) are offered as downloads in the firstboot browser-choice
