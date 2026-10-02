@@ -39,7 +39,7 @@ modules:
       - source: ../files/system_files/99-raptor-pipewire-pulse-lowlatency.conf
         destination: /etc/pipewire/pipewire-pulse.conf.d/99-raptor-pulse-lowlatency.conf
       - source: ../files/system_files/99-raptor-wireplumber-alsa.conf
-        destination: /etc/wireplumber/wireplumber.conf.d/99-raptor-alsa.conf
+        destination: /etc/wireplumer/wireplumber.conf.d/99-raptor-alsa.conf
       - source: ../files/system_files/raptor-audio-rt.conf
         destination: /etc/security/limits.d/raptor-audio-rt.conf
       - source: ../files/system_files/raptor-pipewire-restart.conf
@@ -86,7 +86,7 @@ modules:
   # ── RPM packages ─────────────────────────────────────────────────────────
   - type: rpm-ostree
     install:
-      # System utilities (minimal)
+      # System utilities
       - fastfetch
       - htop
       - p7zip
@@ -99,7 +99,7 @@ modules:
       - liberation-fonts
       - power-profiles-daemon
 
-      # Media (minimal)
+      # Media
       - mpv
 
       # Gaming
@@ -160,7 +160,7 @@ modules:
       install:
         # Core system tools only — everything else moved to firstboot app picker
         - net.davidotek.pupgui2
-        # Task managers (CoyoteTM alternatives in app picker)
+        # Task managers (CoyoteTM alternatives)
         - io.github.ozmarties.Stacer
         - io.missioncenter.MissionCenter
         - org.gnome.SystemMonitor
@@ -190,6 +190,8 @@ modules:
       - raptor-wine.sh
       - raptor-dolphin-stability.sh
       - raptor-cheatsheet.sh
+      - raptor-tasks.sh
+      - raptor-gaming-devices.sh
 
   # ── Systemd units ───────────────────────────────────────────────────────────
   - type: systemd
