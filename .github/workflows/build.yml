@@ -64,6 +64,6 @@ jobs:
           recipe: recipe.yml
           registry_token: ${{ secrets.GITHUB_TOKEN }}
           pr_event_number: ${{ github.event.number }}
-          cosign_private_key: ${{ secrets.SIGNING_SECRET }}
-          # Disable signing if key not available
-          skip_signing: ${{ secrets.SIGNING_SECRET == '' }}
+          # Disable signing entirely
+          cosign_private_key: ""
+          skip_signing: true
