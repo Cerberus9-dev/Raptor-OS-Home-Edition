@@ -1,4 +1,4 @@
-name: Build ISO
+name: Build Raptor Home Edition ISO
 
 on:
   push:
