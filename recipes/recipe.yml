@@ -62,6 +62,9 @@ modules:
       # ── Input device / cursor fixes ────────────────────────────────────────
       - source: ../files/system_files/61-raptor-libinput.conf
         destination: /etc/libinput/local-overrides.quirks
+      # ── Gaming device udev rules ───────────────────────────────────────────
+      - source: ../files/system_files/99-raptor-gaming-devices.rules
+        destination: /etc/udev/rules.d/99-raptor-gaming-devices.rules
       # ── File manager (Dolphin) stability ───────────────────────────────────
       - source: ../files/system_files/dolphinrc
         destination: /etc/xdg/dolphinrc
@@ -83,7 +86,7 @@ modules:
   # ── RPM packages ─────────────────────────────────────────────────────────
   - type: rpm-ostree
     install:
-      # System utilities
+      # System utilities (minimal)
       - fastfetch
       - htop
       - p7zip
@@ -96,7 +99,7 @@ modules:
       - liberation-fonts
       - power-profiles-daemon
 
-      # Media
+      # Media (minimal)
       - mpv
 
       # Gaming
@@ -157,6 +160,11 @@ modules:
       install:
         # Core system tools only — everything else moved to firstboot app picker
         - net.davidotek.pupgui2
+        # Task managers (CoyoteTM alternatives in app picker)
+        - io.github.ozmarties.Stacer
+        - io.missioncenter.MissionCenter
+        - org.gnome.SystemMonitor
+        - org.kde.ksysguard
         # No browser ships in the image on purpose — the default image stays as
         # minimal as possible. All popular browsers (Firefox, Brave, Chromium,
         # Chrome, Edge) are offered as downloads in the firstboot browser-choice
@@ -182,8 +190,6 @@ modules:
       - raptor-wine.sh
       - raptor-dolphin-stability.sh
       - raptor-cheatsheet.sh
-      - raptor-tasks.sh
-      - raptor-gaming-devices.sh
 
   # ── Systemd units ───────────────────────────────────────────────────────────
   - type: systemd
