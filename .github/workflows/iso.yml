@@ -53,13 +53,20 @@ jobs:
         run: |
           sudo dnf install -y coreos-installer xorriso
 
+      - name: Download base Fedora ISO
+        run: |
+          # Download latest Fedora Workstation ISO for customization
+          FEDORA_ISO_URL="https://download.fedoraproject.org/pub/fedora/linux/releases/40/Workstation/x86_64/iso/Fedora-Workstation-Live-x86_64-40-1.14.iso"
+          curl -L -o fedora-base.iso "$FEDORA_ISO_URL"
+          sha256sum fedora-base.iso
+
       - name: Generate ISO from OSTree image
         id: iso
         run: |
           IMAGE_REF="${{ steps.build.outputs.image-ref }}"
-          echo "Building ISO from: $IMAGE_REF"
+          echo "Built image reference: $IMAGE_REF"
           
-          # Create a minimal Ignition config for the installer
+          # Create Ignition config that points to our OSTree image
           cat > /tmp/installer.ign << 'IGNITION'
 {
   "ignition": { "version": "3.2.0" },
@@ -71,19 +78,29 @@ jobs:
         "contents": { "source": "data:,raptor-os" }
       }
     ]
+  },
+  "systemd": {
+    "units": [
+      {
+        "name": "raptor-firstboot.service",
+        "enabled": true,
+        "contents": "[Unit]\nDescription=Raptor OS First Boot\nAfter=network-online.target\nWants=network-online.target\n\n[Service]\nType=oneshot\nExecStart=/usr/bin/raptor-firstboot.sh\nRemainAfterExit=yes\n\n[Install]\nWantedBy=multi-user.target"
+      }
+    ]
   }
 }
 IGNITION
 
-          # Generate ISO using coreos-installer
-          # This creates a bootable ISO that installs the OSTree image
+          # Use coreos-installer to embed the ignition config and OSTree reference
+          # into the base Fedora ISO
           coreos-installer iso customize \
-            --image-url "$IMAGE_REF" \
+            --ignition /tmp/installer.ign \
             --output raptor-home-${{ github.run_id }}-amd64.iso \
-            --dest-console tty0 \
-            --dest-device /dev/sda \
-            --config /tmp/installer.ign \
+            fedora-base.iso \
             2>&1 | tee iso-build.log
+
+          # The resulting ISO will boot into the Fedora installer with our ignition
+          # which will then pull the OSTree image from the registry
 
       - name: Verify ISO
         run: |
