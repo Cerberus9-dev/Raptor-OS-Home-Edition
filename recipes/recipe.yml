@@ -74,7 +74,6 @@ modules:
   # ── RPM packages ─────────────────────────────────────────────────────────
   - type: rpm-ostree
     install:
-      # System utilities
       - fastfetch
       - htop
       - p7zip
@@ -86,41 +85,24 @@ modules:
       - kcalc
       - liberation-fonts
       - power-profiles-daemon
-
-      # Media
       - mpv
-
-      # Gaming
       - irqbalance
       - gamemode
-      # Note: mangohud/goverlay are intentionally omitted from the RPM list.
-      # Bazzite's stable base now ships its own packaging of MangoHud
-      # (terra-mangohud), and installing Fedora's mangohud here conflicts with
-      # it on /usr/bin/mangoapp. The overlay therefore comes from the base
-      # image, and the GOverlay config GUI is installed as a Flatpak instead.
       - wine
-      # Wine runtime pieces — without these, Windows apps/.NET and JS-based
-      # program loaders hang on first launch (Wine stalls trying to download
-      # them) or fail outright. See /usr/share/wine/gecko and /usr/share/wine/mono
       - wine-mono
       - mingw32-wine-gecko
       - mingw64-wine-gecko
       - winetricks
       - protontricks
-
-      # Python + GObject — required by Raptor GTK4/Adwaita apps
       - python3
       - python3-gobject
       - libadwaita
-
-      # Theming
       - kde-partitionmanager
       - kvantum
       - kvantum-qt5
       - papirus-icon-theme
       - jetbrains-mono-fonts
       - qt5-qtbase
-
     remove:
       - tuned-ppd
       - plasma-systemmonitor
@@ -146,19 +128,12 @@ modules:
     notify: true
     system:
       install:
-        # Core system tools
         - net.davidotek.pupgui2
-        # Task managers (CoyoteTM alternatives)
         - io.github.ozmarties.Stacer
         - io.missioncenter.MissionCenter
         - org.gnome.SystemMonitor
         - org.kde.ksysguard
-        # No browser ships in the image on purpose — the default image stays as
-        # minimal as possible. All popular browsers (Firefox, Brave, Chromium,
-        # Chrome, Edge) are offered as downloads in the firstboot browser-choice
-        # dialog instead, keeping sizing/policy fully in the user's hands.
 
-  # ── Kernel boot arguments ─────────────────────────────────────────────────────
   - type: kargs
     kargs:
       - split_lock_detect=off
@@ -166,7 +141,6 @@ modules:
       - nowatchdog
       - nmi_watchdog=0
 
-  # ── Custom build scripts ──────────────────────────────────────────────────────
   - type: script
     scripts:
       - raptor-hud.sh
@@ -179,7 +153,6 @@ modules:
       - raptor-dolphin-stability.sh
       - raptor-cheatsheet.sh
 
-  # ── Systemd units ───────────────────────────────────────────────────────────
   - type: systemd
     system:
       enabled:
