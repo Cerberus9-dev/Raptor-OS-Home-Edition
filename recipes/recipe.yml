@@ -39,7 +39,7 @@ modules:
       - source: ../files/system_files/99-raptor-pipewire-pulse-lowlatency.conf
         destination: /etc/pipewire/pipewire-pulse.conf.d/99-raptor-pulse-lowlatency.conf
       - source: ../files/system_files/99-raptor-wireplumber-alsa.conf
-        destination: /etc/wireplumer/wireplumber.conf.d/99-raptor-alsa.conf
+        destination: /etc/wireplumber/wireplumber.conf.d/99-raptor-alsa.conf
       - source: ../files/system_files/raptor-audio-rt.conf
         destination: /etc/security/limits.d/raptor-audio-rt.conf
       - source: ../files/system_files/raptor-pipewire-restart.conf
@@ -163,8 +163,6 @@ modules:
         # Task managers (CoyoteTM alternatives)
         - io.github.ozmarties.Stacer
         - io.missioncenter.MissionCenter
-        - org.gnome.SystemMonitor
-        - org.kde.ksysguard
         # No browser ships in the image on purpose — the default image stays as
         # minimal as possible. All popular browsers (Firefox, Brave, Chromium,
         # Chrome, Edge) are offered as downloads in the firstboot browser-choice
