@@ -38,7 +38,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload cosign.key as artifact (add to secrets then discard)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: cosign-private-key-ADD-TO-SECRETS-THEN-DELETE
           path: cosign.key
