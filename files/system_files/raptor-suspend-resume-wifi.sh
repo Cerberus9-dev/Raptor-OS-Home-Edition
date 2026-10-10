@@ -1,32 +1,27 @@
 #!/bin/bash
-# raptor-suspend-resume-wifi.sh
-# NetworkManager dispatcher script: force WiFi reconnection on resume from suspend.
-# School/corporate networks often deauthenticate clients during suspend;
-# without an explicit cycle, NetworkManager may take 30-60 s to notice and
-# reconnect, or fail entirely if the AP dropped the association.
+# raptor-suspend-resume-wifi.sh  (installed as NetworkManager dispatcher 99-raptor-wifi-resume)
+#
+# After resume, flush stale DNS from the previous network. That is all this
+# script does now.
+#
+# It used to run `nmcli device disconnect` + `connect`. `nmcli device
+# disconnect` BLOCKS autoconnect on the device until the user reconnects by
+# hand, so whenever the follow-up `connect` failed (AP not yet in range after
+# resume) Wi-Fi never came back. It also only fired on the "up" event, i.e.
+# only when Wi-Fi had ALREADY reconnected, and left a stale marker file that
+# could trigger a disconnect/reconnect cycle at a random later time.
+# Reconnection is now handled by /usr/lib/raptor/wifi-recover (resume hook +
+# watchdog), which never uses `device disconnect`.
 
 INTERFACE="$1"
 ACTION="$2"
 
-# Only act on WiFi interfaces
-if [[ "${INTERFACE}" != wlp* && "${INTERFACE}" != wlan* ]]; then
+if [[ "${INTERFACE}" != wlp* && "${INTERFACE}" != wlan* && "${INTERFACE}" != wlx* ]]; then
     exit 0
 fi
 
-case "${ACTION}" in
-    up)
-        # Check if this is a resume event (systemd sets a flag)
-        if [[ -f /run/raptor/resume-event ]]; then
-            logger -t raptor-wifi-resume "Resume detected on ${INTERFACE} — forcing reconnection"
-            # Bring the interface down and up to force a fresh association
-            nmcli device disconnect "${INTERFACE}" 2>/dev/null || true
-            sleep 2
-            nmcli device connect "${INTERFACE}" 2>/dev/null || true
-            # Also tell systemd-resolved to flush stale DNS cache from the old network
-            resolvectl flush-caches 2>/dev/null || true
-            rm -f /run/raptor/resume-event
-        fi
-        ;;
-esac
-
+if [[ "${ACTION}" == "up" && -f /run/raptor/resume-event ]]; then
+    resolvectl flush-caches 2>/dev/null || true
+    rm -f /run/raptor/resume-event
+fi
 exit 0

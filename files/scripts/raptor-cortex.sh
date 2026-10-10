@@ -69,7 +69,7 @@ ACTION="${1:-help}"
 BACKGROUND_PROCS=(
     "tracker-miner" "tracker-store" "tracker3"
     "baloo_file" "baloo_file_extractor" "akonadi"
-    "kded" "kdeconnectd" "gvfs" "zeitgeist"
+    "kdeconnectd" "zeitgeist"
     "tumblerd" "updatedb" "mlocate"
     "snapd" "evolution" "gnome-software"
 )
@@ -133,6 +133,15 @@ _apply_runtime_pm() {
     # auto | on
     local P="$1"
     for f in /sys/bus/pci/devices/*/power/control; do
+        # Network (0x02xxxx) and wireless-controller (0x0dxxxx) PCI devices are
+        # ALWAYS kept awake: runtime-suspending a Wi-Fi/Bluetooth card is a known
+        # cause of dropouts and of "never reconnects after resume" (mt7921e,
+        # rtw89, ath11k and others). The saving is a fraction of a watt.
+        local cls
+        cls=$(cat "${f%/power/control}/class" 2>/dev/null || echo 0)
+        case "$cls" in
+            0x02*|0x0d*) echo on > "$f" 2>/dev/null || true; continue ;;
+        esac
         echo "$P" > "$f" 2>/dev/null || true
     done
 }
@@ -210,6 +219,14 @@ _apply_net_runtime_pm() {
     # The driver keeps the association; the radio powers down between packets.
     local MODE="$1"   # auto | on
     for dev in /sys/class/net/*/device/power/control; do
+        # Wireless NICs are always kept awake (see _apply_runtime_pm); only
+        # wired NICs are runtime-suspended.
+        local netdir
+        netdir="${dev%/device/power/control}"
+        if [ -d "$netdir/wireless" ] || [ -d "$netdir/phy80211" ]; then
+            echo on > "$dev" 2>/dev/null || true
+            continue
+        fi
         echo "$MODE" > "$dev" 2>/dev/null || true
     done
 }
@@ -426,25 +443,19 @@ case "$ACTION" in
                 # only the radio hardware powers down during idle periods.
                 _apply_net_runtime_pm auto
 
-                # WiFi power save: enable 802.11 power save mode. The AP buffers
-                # frames for the client during sleep periods. Safe for most APs.
-                for iface in /sys/class/net/wl*; do
-                    [ -d "$iface" ] || continue
-                    iw dev "$(basename "$iface")" set power_save on 2>/dev/null || true
-                done
+                # Wi-Fi / Bluetooth power save is deliberately NOT forced on here.
+                # 802.11 power save and Bluetooth sniff/park modes cause missed
+                # reconnects, dropped links and dead adapters after resume on many
+                # laptops. NetworkManager owns Wi-Fi power save (wifi.powersave=2 in
+                # 91-raptor-network.conf) and BlueZ owns Bluetooth link policy.
 
-
-
-                # Display backlight: reduce to 50% on battery (if supported).
-                # This is the single biggest display power saver.
-                for bl in /sys/class/backlight/*/brightness; do
-                    [ -f "$bl" ] || continue
-                    max_bl="${bl%/brightness}/max_brightness"
-                    [ -f "$max_bl" ] || continue
-                    max_val=$(cat "$max_bl" 2>/dev/null || echo 100)
-                    target=$((max_val / 2))
-                    echo "$target" > "$bl" 2>/dev/null || true
-                done
+                # Display backlight is deliberately NOT touched here. This used to write
+                # 50% of max straight into /sys/class/backlight every time the mode was
+                # applied (boot, plug/unplug) and never restored it: it overrode the
+                # user's chosen brightness, desynced KDE PowerDevil (so the brightness
+                # keys and slider acted on a stale value) and left the screen dim after
+                # leaving power-saving. PowerDevil already dims on battery per the
+                # user's own Plasma power settings.
 
                 powerprofilesctl set power-saver 2>/dev/null || true
                 ;;
@@ -565,7 +576,7 @@ case "$ACTION" in
         ) &>/dev/null &
         disown
         for proc in "${BACKGROUND_PROCS[@]}"; do
-            pkill -STOP "$proc" 2>/dev/null || true
+            /usr/lib/raptor/safe-signal STOP "$proc"
         done
         for proc in baloo tracker zeitgeist; do
             for pid in $(pgrep -x "$proc" 2>/dev/null); do
@@ -694,18 +705,106 @@ cat << 'EOF' > /etc/raptor/cortex-suspend.conf
 baloo_file
 tracker
 akonadiserver
-kwalletd
 kdeconnectd
 kio_thumbnail
-kactivitymanagerd
 plasma-geolocation
-kbuildsycoca
 zeitgeist
 evolution-data
-gvfsd-metadata
 colord
-pipewire-media-session
+drkonqi
 EOF
+
+# -- Safe freeze / unfreeze helpers ---------------------------------------------
+# Raptor used to SIGSTOP processes by *substring* name match. That froze things
+# every KDE/GTK/Chromium app talks to (kded, kwalletd, kactivitymanagerd, gvfs),
+# and froze single-instance apps (Firefox, Discord, Steam...) so that launching
+# them again just handed off to the frozen copy: "all apps randomly fail to
+# open". These helpers (1) refuse to freeze session-critical processes and
+# (2) un-freeze anything left frozen.
+mkdir -p /usr/lib/raptor
+cat << 'EOF' > /usr/lib/raptor/safe-signal
+#!/bin/bash
+# usage: safe-signal STOP|CONT name [name...]
+# Matches the process *name* (comm) by prefix, never by substring or full
+# command line. STOP is refused for session-critical processes.
+SIG="${1:-}"; shift || true
+case "$SIG" in STOP|CONT) ;; *) echo "usage: $0 STOP|CONT name..." >&2; exit 2 ;; esac
+PROTECTED=(kded kwalletd kactivitymanagerd kglobalaccel kwin plasma ksmserver
+           krunner kscreen kio_ gvfs dbus systemd xdg- pipewire wireplumber
+           pulseaudio polkit Xwayland sddm gamemode sudo pkexec bwrap flatpak
+           steam pressure-vessel srt- raptor- python bash sh login
+           firefox chrome chromium brave vivaldi opera msedge vesktop discord
+           spotify telegram signal slack element thunderbird)
+is_protected() { local p; for p in "${PROTECTED[@]}"; do [[ "$1" == "$p"* ]] && return 0; done; return 1; }
+while read -r pid comm; do
+    [[ -z "$pid" || "$pid" == "$$" || "$pid" == "$PPID" ]] && continue
+    for pat in "$@"; do
+        [[ -z "$pat" ]] && continue
+        if [[ "$comm" == "${pat:0:15}"* ]]; then
+            if [[ "$SIG" == STOP ]] && is_protected "$comm"; then break; fi
+            kill -"$SIG" "$pid" 2>/dev/null || true
+            break
+        fi
+    done
+done < <(ps -eo pid=,comm=)
+exit 0
+EOF
+chmod +x /usr/lib/raptor/safe-signal
+
+cat << 'EOF' > /usr/lib/raptor/unfreeze
+#!/bin/bash
+# Resume processes that Raptor froze and that must not stay frozen.
+#  - session-critical processes and single-instance apps are resumed ALWAYS
+#  - everything else Raptor may freeze is resumed whenever no game is running
+PROTECTED=(kded kwalletd kactivitymanagerd kglobalaccel kwin plasma ksmserver
+           krunner kscreen gvfs dbus xdg- pipewire wireplumber pulseaudio
+           polkit Xwayland firefox chrome chromium brave vivaldi opera msedge
+           vesktop discord spotify telegram signal slack element thunderbird
+           steam)
+KNOWN=(baloo tracker akonadi kdeconnectd zeitgeist tumblerd updatedb mlocate
+       snapd evolution gnome-software packagekitd drkonqi obexd pcscd
+       cups-browsed colord plasma-geolocation kio_thumbnail)
+[ -f /etc/raptor/cortex-suspend.conf ] && while IFS= read -r l; do
+    [[ -z "$l" || "$l" == \#* ]] || KNOWN+=("$l"); done < /etc/raptor/cortex-suspend.conf
+gaming=0
+[ -e /run/raptor-cpu-dma-latency-held ] && gaming=1
+if command -v gamemoded >/dev/null 2>&1 && gamemoded -s 2>/dev/null | grep -qi "is active"; then gaming=1; fi
+match() { local c="$1" p; shift; for p in "$@"; do [[ "$c" == "${p:0:15}"* ]] && return 0; done; return 1; }
+need_root=0
+while read -r pid stat comm uid; do
+    [[ "$stat" == T* ]] || continue
+    if match "$comm" "${PROTECTED[@]}"; then
+        kill -CONT "$pid" 2>/dev/null || true
+    elif [[ "$gaming" -eq 0 ]] && match "$comm" "${KNOWN[@]}"; then
+        if [[ "$uid" == "$(id -u)" ]]; then kill -CONT "$pid" 2>/dev/null || true; else need_root=1; fi
+    fi
+done < <(ps -eo pid=,stat=,comm=,uid=)
+[[ "$need_root" -eq 1 ]] && sudo -n /usr/lib/raptor/cortex-helper restore-background >/dev/null 2>&1
+exit 0
+EOF
+chmod +x /usr/lib/raptor/unfreeze
+
+cat << 'EOF' > /usr/lib/systemd/user/raptor-unfreeze.service
+[Unit]
+Description=Raptor: resume anything left frozen
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/raptor/unfreeze
+EOF
+cat << 'EOF' > /usr/lib/systemd/user/raptor-unfreeze.timer
+[Unit]
+Description=Raptor: periodically resume frozen apps and services
+
+[Timer]
+OnStartupSec=20
+OnUnitActiveSec=45
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target
+EOF
+systemctl --global enable raptor-unfreeze.timer 2>/dev/null || true
 
 # ── Gamemode hooks ────────────────────────────────────────────────────────────
 cat << 'EOF' > /usr/lib/raptor/gamemode-start
@@ -717,7 +816,7 @@ CONFIG=/etc/raptor/cortex-suspend.conf
 while IFS= read -r pattern; do
     [ -z "$pattern" ] && continue
     case "$pattern" in "#"*) continue ;; esac
-    pgrep -f "$pattern" > /dev/null 2>&1 && pkill -STOP -f "$pattern" 2>/dev/null || true
+    /usr/lib/raptor/safe-signal STOP "$pattern"
 done < "$CONFIG"
 EOF
 chmod +x /usr/lib/raptor/gamemode-start
@@ -795,14 +894,10 @@ ALL_SERVICES = [
     ("Akonadi server",          "akonadiserver"),
     ("KDE Connect daemon",      "kdeconnectd"),
     ("Thumbnail generator",     "kio_thumbnail"),
-    ("Activity manager",        "kactivitymanagerd"),
-    ("KDE wallet daemon",       "kwalletd"),
     ("Plasma geolocation",      "plasma-geolocation"),
-    ("KDE sycoca builder",      "kbuildsycoca"),
     # ── GNOME / cross-desktop ─────────────────────────────────────────────────
     ("Evolution data server",   "evolution-data"),
     ("Zeitgeist daemon",        "zeitgeist"),
-    ("GVFS metadata",           "gvfsd-metadata"),
     ("Colour management",       "colord"),
     # ── System daemons safe to pause while gaming ─────────────────────────────
     ("Package manager daemon",  "packagekitd"),      # apt/dnf background checks
@@ -811,7 +906,6 @@ ALL_SERVICES = [
     ("Smart card daemon",       "pcscd"),             # rarely used on gaming desktops
     ("Printer discovery",       "cups-browsed"),      # network printer scan
     # ── Audio session (suspend last — restoring audio can be slow) ────────────
-    ("PipeWire media session",  "pipewire-media-session"),
 ]
 
 PERFORMANCE_MODES = {
@@ -1033,6 +1127,57 @@ def get_gpu_temp():
     return None
 
 
+def get_fan_info():
+    """Read-only fan report from hwmon (and nvidia-smi). Never writes anything.
+
+    Returns a list of (label, text) tuples; empty list if no fan sensors exist.
+    """
+    fans = []
+    base = "/sys/class/hwmon"
+    try:
+        for hw in sorted(os.listdir(base)):
+            d = f"{base}/{hw}"
+            try:
+                with open(f"{d}/name") as f:
+                    chip = f.read().strip()
+            except Exception:
+                chip = hw
+            try:
+                entries = sorted(x for x in os.listdir(d)
+                                 if x.startswith("fan") and x.endswith("_input"))
+            except Exception:
+                continue
+            for ent in entries:
+                idx = ent[3:-6]
+                try:
+                    with open(f"{d}/{ent}") as f:
+                        rpm = int(f.read().strip())
+                except Exception:
+                    continue
+                label = None
+                try:
+                    with open(f"{d}/fan{idx}_label") as f:
+                        label = f.read().strip()
+                except Exception:
+                    pass
+                name = f"{chip} {label}" if label else f"{chip} fan{idx}"
+                fans.append((name, f"{rpm} RPM" if rpm > 0 else "Stopped / idle"))
+    except Exception:
+        pass
+    if not any("nvidia" in n.lower() for n, _ in fans):
+        try:
+            r = subprocess.run(
+                ["nvidia-smi", "--query-gpu=fan.speed", "--format=csv,noheader,nounits"],
+                capture_output=True, text=True, timeout=2)
+            if r.returncode == 0:
+                for i, line in enumerate(r.stdout.strip().splitlines()):
+                    if line.strip().isdigit():
+                        fans.append((f"NVIDIA GPU {i}", f"{line.strip()} %"))
+        except Exception:
+            pass
+    return fans
+
+
 def get_cpu_freq_mhz():
     """Return current CPU frequency in MHz (core 0), or None."""
     try:
@@ -1070,6 +1215,70 @@ def format_relative_time(timestamp):
 
 
 GAMES_CONFIG_FILE = os.path.expanduser("~/.config/raptor-cortex-games.json")
+
+
+_STEAM_ROOTS = (
+    "~/.local/share/Steam",
+    "~/.steam/steam",
+    "~/.steam/root",
+    "~/.var/app/com.valvesoftware.Steam/.local/share/Steam",
+    "~/.var/app/com.valvesoftware.Steam/data/Steam",
+)
+# Steam stores tools as "apps" too; they are not games.
+_STEAM_NOT_GAMES = ("proton", "steam linux runtime", "steamworks common")
+
+
+def scan_steam_libraries(extra_globs=()):
+    """Return installed Steam games as [{"appid": str, "name": str}], sorted by name.
+
+    Reads every library Steam knows about (libraryfolders.vdf), including drives
+    added later, the Flatpak Steam location, and common external-drive mounts.
+    The old version stripped the quotes off each line before testing for
+    '"appid"', so it never matched anything and always reported "No Steam games
+    found"."""
+    import glob
+    import re
+    libs = {}
+
+    def add_lib(path):
+        sa = os.path.join(path, "steamapps")
+        if os.path.isdir(sa):
+            libs[os.path.realpath(sa)] = True
+
+    for root in _STEAM_ROOTS:
+        root = os.path.expanduser(root)
+        add_lib(root)
+        try:
+            with open(os.path.join(root, "steamapps", "libraryfolders.vdf"),
+                      encoding="utf-8", errors="replace") as f:
+                text = f.read()
+        except OSError:
+            continue
+        for m in re.finditer(r'"path"\s+"([^"]+)"', text):
+            add_lib(m.group(1).replace("\\\\", "\\"))
+    for pat in ("/mnt/*/SteamLibrary", "/media/*/SteamLibrary",
+                "/run/media/*/SteamLibrary", "/run/media/*/*/SteamLibrary", *extra_globs):
+        for path in glob.glob(pat):
+            add_lib(path)
+
+    games = {}
+    for sa in libs:
+        for manifest in glob.glob(os.path.join(sa, "appmanifest_*.acf")):
+            try:
+                with open(manifest, encoding="utf-8", errors="replace") as f:
+                    text = f.read()
+            except OSError:
+                continue
+            m_id = re.search(r'"appid"\s+"(\d+)"', text)
+            m_name = re.search(r'"name"\s+"([^"]*)"', text)
+            if not (m_id and m_name):
+                continue
+            name = m_name.group(1).strip()
+            if not name or name.lower().startswith(_STEAM_NOT_GAMES):
+                continue
+            games[m_id.group(1)] = name
+    return [{"appid": a, "name": n}
+            for a, n in sorted(games.items(), key=lambda kv: kv[1].lower())]
 
 
 def load_game_library():
@@ -1402,6 +1611,16 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         self.gpu_temp_label.add_css_class("dim-label")
         self.gpu_temp_row.add_suffix(self.gpu_temp_label)
         stats_group.add(self.gpu_temp_row)
+
+        # Read-only fan information — Cortex never writes fan speed or curves.
+        self.fan_row = Adw.ActionRow(title="Fans")
+        self.fan_row.set_subtitle("Read-only — fan control is left to the kernel and firmware")
+        self.fan_label = Gtk.Label(label="…")
+        self.fan_label.add_css_class("dim-label")
+        self.fan_label.set_wrap(True)
+        self.fan_label.set_justify(Gtk.Justification.RIGHT)
+        self.fan_row.add_suffix(self.fan_label)
+        stats_group.add(self.fan_row)
 
         self.cpu_freq_row = Adw.ActionRow(title="CPU Frequency")
         self.cpu_freq_label = Gtk.Label(label="…")
@@ -1964,37 +2183,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
 
     def _scan_steam_worker(self):
         """Worker thread to scan Steam library folders and appmanifest files."""
-        steam_games = []
-        # Common Steam library locations
-        steam_paths = [
-            os.path.expanduser("~/.local/share/Steam/steamapps"),
-            os.path.expanduser("~/.steam/steam/steamapps"),
-            "/mnt/*/SteamLibrary/steamapps",
-            "/media/*/SteamLibrary/steamapps",
-            "/run/media/*/SteamLibrary/steamapps",
-        ]
-        import glob
-        for base in steam_paths:
-            for path in glob.glob(base):
-                if not os.path.isdir(path):
-                    continue
-                for manifest in glob.glob(os.path.join(path, "appmanifest_*.acf")):
-                    try:
-                        with open(manifest) as f:
-                            content = f.read()
-                        # Parse the ACF file (simple key-value format)
-                        appid = None
-                        name = None
-                        for line in content.splitlines():
-                            line = line.strip().strip('"')
-                            if line.startswith('"appid"'):
-                                appid = line.split('"')[-1]
-                            elif line.startswith('"name"'):
-                                name = line.split('"')[-1]
-                        if appid and name:
-                            steam_games.append({"appid": appid, "name": name})
-                    except Exception:
-                        continue
+        steam_games = scan_steam_libraries()
 
         if not steam_games:
             GLib.idle_add(self._toast_ok, "No Steam games found")
@@ -2297,6 +2486,10 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
             else ["warning"] if gpu_t and gpu_t > 80
             else ["dim-label"])
 
+        fans = get_fan_info()
+        self.fan_label.set_text(
+            "\n".join(f"{n}: {t}" for n, t in fans) if fans else "No fan sensors detected")
+
         freq = get_cpu_freq_mhz()
         self.cpu_freq_label.set_text(
             f"{freq} MHz ({freq/1000:.2f} GHz)" if freq else "N/A")
@@ -2358,9 +2551,9 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         for name, pattern in ALL_SERVICES:
             if pattern not in self._cortex_patterns:
                 continue
-            result = subprocess.run(["pgrep", "-f", pattern], capture_output=True, text=True)
+            result = subprocess.run(["pgrep", "-x", pattern[:15]], capture_output=True, text=True)
             if result.returncode == 0:
-                subprocess.run(["pkill", "-STOP", "-f", pattern], capture_output=True)
+                subprocess.run(["/usr/lib/raptor/safe-signal", "STOP", pattern], capture_output=True)
                 suspended.append(name)
 
         self._suspended_now = suspended

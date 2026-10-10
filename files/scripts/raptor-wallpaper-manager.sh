@@ -245,14 +245,25 @@ def apply_wallpaper(image_path, fill_mode):
     FillMode together). Falls back to plasma-apply-wallpaperimage — which
     sets the image only, with whatever fill mode Plasma currently has — if
     the scripting bridge is unavailable for any reason."""
+    # The path is embedded in a JavaScript string that Plasma evaluates, and in
+    # a URL. Both must be escaped: a filename containing a quote, backslash, '#'
+    # or '%' used to break the script (or inject into it) and fail silently.
+    import json
+    from urllib.parse import quote
+    image_url = "file://" + quote(os.path.abspath(image_path))
+    try:
+        fill = int(fill_mode)
+    except (TypeError, ValueError):
+        fill = 0
     script = f"""
 var allDesktops = desktops();
 for (var i = 0; i < allDesktops.length; i++) {{
     var d = allDesktops[i];
     d.wallpaperPlugin = "org.kde.image";
     d.currentConfigGroup = ["Wallpaper", "org.kde.image", "General"];
-    d.writeConfig("Image", "file://{image_path}");
-    d.writeConfig("FillMode", {fill_mode});
+    d.writeConfig("Image", {json.dumps(image_url)});
+    d.writeConfig("FillMode", {fill});
+    d.reloadConfig();
 }}
 """
     for qdbus_cmd in ("qdbus6", "qdbus"):
@@ -610,7 +621,7 @@ cat << 'EOF' > /usr/share/kio/servicemenus/raptor-set-wallpaper.desktop
 [Desktop Entry]
 Type=Service
 X-KDE-ServiceTypes=KonqPopupMenu/Plugin
-MimeType=image/png;image/jpeg;image/webp;image/bmp;image/svg+xml;
+MimeType=image/png;image/jpeg;image/webp;image/bmp;image/svg+xml;image/avif;image/jxl;image/tiff;image/gif;
 Actions=setRaptorWallpaper;
 X-KDE-Priority=TopLevel
 

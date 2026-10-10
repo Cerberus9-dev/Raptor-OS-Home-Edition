@@ -2,6 +2,110 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Hardware recovery after suspend** (`files/scripts/raptor-hardware-fixes.sh`):
+  one resume hook plus one 1-minute timer, no new apps or menu entries. On
+  every resume it re-binds the touchpad's I2C/PS/2 driver, binds the kernel's
+  mute / mic-mute LEDs to the audio mute state, and recovers Wi-Fi and
+  Bluetooth in detached background jobs so resume is never delayed. Wi-Fi
+  escalates: re-enable autoconnect and reconnect, power-cycle the radio, reload
+  the driver. Bluetooth escalates: unblock and power on, restart
+  `bluetooth.service`, reload `btusb`; its health check requires the
+  controller to accept a discovery command, not just "Powered: yes". The timer
+  is also a Wi-Fi watchdog while awake. Recovery never overrides Wi-Fi or
+  Bluetooth turned off on purpose and never uses `nmcli device disconnect`.
+  `btusb enable_autosuspend=0` stops USB Bluetooth adapters from autosuspending.
+
+### Fixed
+
+- **Cortex "Scan for Steam Games" never found any game.** The `appmanifest`
+  parser stripped the quotes off each line and then tested for `"appid"`
+  (with quotes), which can never match, so every scan reported "No Steam games
+  found". Rewritten: reads every library Steam knows about from
+  `libraryfolders.vdf` (extra drives included), the Flatpak Steam location and
+  common external-drive mounts, skips Proton / Steam Linux Runtime /
+  Steamworks redistributables, and de-duplicates symlinked paths.
+- **"Set as Raptor Wallpaper" failed on unusual filenames.** The image path
+  was pasted unescaped into a JavaScript string evaluated by Plasma and into a
+  `file://` URL, so a name containing a quote, backslash, `#` or `%` broke the
+  call (or injected into it) and failed silently. The path is now URL-encoded
+  and JSON-escaped, `reloadConfig()` is called so the change applies
+  immediately, and the right-click menu also covers AVIF, JXL, TIFF and GIF.
+- **Screen brightness forced to 50% and never restored.** Cortex wrote 50% of
+  max straight into `/sys/class/backlight` every time battery/power-saving
+  mode was applied (boot, plug/unplug), overriding the user's brightness,
+  desyncing KDE PowerDevil (brightness keys and slider acted on a stale value)
+  and leaving the screen dim afterwards. Cortex no longer touches the
+  backlight; PowerDevil's own on-battery dimming still applies.
+- **Wi-Fi never reconnecting; Bluetooth dead after power-saving.** (1) Cortex's
+  power-saving put EVERY PCI device, including the Wi-Fi card, into runtime
+  suspend, runtime-suspended wireless NICs, forced 802.11 power save on, and set
+  Bluetooth sniff/park link modes. Wireless/Bluetooth devices are now always
+  kept awake and those forced settings are gone. (2) `91-raptor-network.conf`
+  used invalid keys (bare `autoconnect-retries`, `wifi.powersave` under
+  `[device]`), so none of it applied; it now sets
+  `[main] autoconnect-retries-default=0` (retry forever) and
+  `[connection] wifi.powersave=2`. (3) The resume dispatcher ran
+  `nmcli device disconnect`, which blocks autoconnect until a manual reconnect;
+  it also only fired once Wi-Fi was already up and left a stale marker file.
+  It now only flushes DNS.
+- **Touchpad dead / barely moving after lid open until two fingers are used.**
+  Two causes. (1) `61-raptor-libinput.conf` was installed as
+  `/etc/libinput/local-overrides.quirks` and applied to *every* touchpad:
+  `AttrEventCodeDisable=ABS_MT_SLOT;ABS_MT_TRACKING_ID` disables the
+  multitouch finger-tracking events libinput needs, and the other keys in it
+  (`AttrTappingEnabled`, `AttrMiddleEmulationEnabled`) are not valid quirk
+  attributes. The file is removed. (2) Nothing re-initialised an I2C-HID
+  touchpad after resume. The systemd-sleep hook
+  `/usr/lib/systemd/system-sleep/raptor-resume` (installed by
+  `files/scripts/raptor-hardware-fixes.sh`) finds whichever device libinput
+  classes as a touchpad and re-binds just its I2C/serio driver on resume.
+  Works on any laptop; USB/Bluetooth touchpads are left alone. The lid-open
+  service no longer tries to call KWin as root (it never worked).
+- **Image build failing: `No installed package matches 'cmake'`.** The recipe's
+  rpm-ostree `remove:` list aborts the entire build when any listed package is
+  absent from the base image, and the base image (now Fedora 44) no longer
+  ships `cmake` (and possibly `krita`/`vlc`). Removals now live in
+  `files/scripts/raptor-remove-packages.sh`, which skips packages that are not
+  installed and downgrades a failed removal to a warning. The `remove:` block
+  was deleted from `recipes/recipe.yml`.
+- **Apps randomly failing to open (all apps).** Gaming mode, Cortex's
+  "Optimize Memory Now" and the manual trim script froze background
+  processes with `SIGSTOP` using substring name matching. The lists included
+  `kded`, `gvfs`, `kwalletd`, `kactivitymanagerd`, `gvfsd-metadata` and
+  `kbuildsycoca` (things nearly every KDE/GTK/Chromium app talks to), plus
+  browsers, Discord, Spotify and Steam. Relaunching a frozen single-instance
+  app just hands off to the frozen copy, so it never appears. If the matching
+  resume was missed (game crash, Cortex closed), they stayed frozen until
+  reboot. Fixes: all freezing now goes through `/usr/lib/raptor/safe-signal`
+  (prefix match on process name, refuses session-critical processes and
+  single-instance apps); those entries were removed from every list; and a
+  user timer (`raptor-unfreeze.timer`, every 45 s and at login) resumes
+  anything left frozen. Crash handler (`drkonqi`) is in the default suspend
+  list.
+- **Raptor Tasks (Windows-style task manager) could never start.** A typo in
+  `raptor-tasks.sh` (`def _setup_shortcuts):`, missing `(self`) was a Python
+  SyntaxError, so the app crashed on launch.
+- **App picker rewritten.** The old picker returned the literal string `None`
+  for every native-package entry, so selecting BleachBit, btop, Neovim etc.
+  all collapsed into one entry and installed the wrong thing. It also listed
+  duplicate apps, no categories, and Flathub IDs that do not exist (Sober,
+  Nook, Piped, NewPipe, Bromite, Proton Auth, Sleepy, Tor Browser, ...).
+  Now: category column, unique IDs, nothing preselected, native packages use
+  `rpm:` keys, and every Flatpak ID is checked against Flathub before install
+  so a bad ID is reported by name instead of failing silently. Removed apps
+  that are not desktop Linux software (NewPipe, Piped, SearXNG, Bromite).
+
+### Added
+
+- **Fan information in Raptor Cortex (read-only)** — a new "Fans" row in the
+  live stats group lists every fan RPM sensor the kernel exposes through
+  hwmon (`fan*_input`, with `fan*_label` when present), plus NVIDIA fan
+  percentage via `nvidia-smi` when available. Shows "No fan sensors
+  detected" when none exist. Cortex only reads; it never writes fan speed,
+  curves or PWM, so the removal of manual fan control above still stands.
+
 ## [v2.7.0] - 2026-10-01 (Major Feature Expansion — Cortex Unification, App Picker Overhaul, Battery, Tasks)
 
 ### Changed

@@ -23,7 +23,9 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Only supersede older runs for the same PR/branch push; never cancel a
+  # scheduled or manually dispatched build because someone pushed meanwhile.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
@@ -48,10 +50,15 @@ jobs:
             "$AGENT_TOOLSDIRECTORY"
           df -h
 
-      - name: Prepare files
+      - name: Check signing secret
+        if: github.event_name != 'pull_request'
+        env:
+          SIGNING_SECRET: ${{ secrets.SIGNING_SECRET }}
         run: |
-          mkdir -p /tmp/files
-          cp -r files/system_files /tmp/files/
+          if [ -z "$SIGNING_SECRET" ]; then
+            echo "::error title=Missing secret::SIGNING_SECRET is not set (Settings > Secrets and variables > Actions). The image cannot be signed, so users' updates will be rejected."
+            exit 1
+          fi
 
       - name: Validate scripts
         run: |

@@ -60,8 +60,6 @@ modules:
       - source: ../files/system_files/raptor-suspend-resume-wifi.sh
         destination: /etc/NetworkManager/dispatcher.d/99-raptor-wifi-resume
       # ── Input device / cursor fixes ────────────────────────────────────────
-      - source: ../files/system_files/61-raptor-libinput.conf
-        destination: /etc/libinput/local-overrides.quirks
       # ── File manager (Dolphin) stability ───────────────────────────────────
       - source: ../files/system_files/dolphinrc
         destination: /etc/xdg/dolphinrc
@@ -130,26 +128,6 @@ modules:
       - jetbrains-mono-fonts
       - qt5-qtbase
 
-    remove:
-      - tuned-ppd
-      - plasma-systemmonitor
-      - neovim
-      - tmux
-      - ripgrep
-      - fzf
-      - ninja-build
-      - meson
-      - podman
-      - podman-compose
-      - thunderbird
-      - variety
-      - btop
-      - gcc
-      - make
-      - cmake
-      - krita
-      - vlc
-
   # ── Flatpaks ─────────────────────────────────────────────────────────────
   - type: default-flatpaks@v1
     notify: true
@@ -173,6 +151,8 @@ modules:
   # ── Custom build scripts ──────────────────────────────────────────────────────
   - type: script
     scripts:
+      # Must run first: removes unwanted base packages (tolerant of missing ones)
+      - raptor-remove-packages.sh
       - raptor-hud.sh
       - raptor-cortex.sh
       - raptor-gpu-profile.sh
@@ -184,6 +164,7 @@ modules:
       - raptor-cheatsheet.sh
       - raptor-tasks.sh
       - raptor-gaming-devices.sh
+      - raptor-hardware-fixes.sh
 
   # ── Systemd units ───────────────────────────────────────────────────────────
   - type: systemd

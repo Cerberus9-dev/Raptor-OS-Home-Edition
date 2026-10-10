@@ -330,13 +330,13 @@ echo "✔ Compacted memory"
 BACKGROUND_PROCS=(
     "tracker-miner" "tracker-store" "tracker3"
     "baloo_file" "baloo_file_extractor" "akonadi"
-    "kded" "kdeconnectd" "gvfs" "zeitgeist"
+    "kdeconnectd" "zeitgeist"
     "tumblerd" "packagekitd" "apt-get" "dpkg"
     "updatedb" "mlocate" "snapd" "unattended-upgrade"
     "evolution" "gnome-software"
 )
 for proc in "${BACKGROUND_PROCS[@]}"; do
-    pkill -STOP "$proc" 2>/dev/null || true
+    /usr/lib/raptor/safe-signal STOP "$proc"
 done
 echo "✔ Paused background indexers"
 
@@ -350,14 +350,12 @@ echo "✔ IO-niced & re-niced indexers"
 
 # ─── Memory-heavy user apps (best-effort) ────────────────────────────────────
 # These are suspended by name pattern. They restart gracefully on resume.
-USER_BACKGROUND_APPS=(
-    "firefox" "vesktop" "discord" "vesktop" "steam" "steamwebhelper"
-    "chromium" "chrome" "brave" "vivaldi" "edge" "opera"
-    "thunderbird" "evolution" "element" "signal" "slack"
-    "spotify" "vesktop" "telegram" "whatsie" "caprine"
-)
+# Deliberately empty. Freezing browsers/chat/Steam made them look like they
+# "fail to open": relaunching a single-instance app hands off to the frozen
+# copy. Memory is reclaimed by cgroup limits (cortex-helper) instead.
+USER_BACKGROUND_APPS=()
 for proc in "${USER_BACKGROUND_APPS[@]}"; do
-    pkill -STOP "$proc" 2>/dev/null || true
+    /usr/lib/raptor/safe-signal STOP "$proc"
 done
 echo "✔ Paused memory-heavy user apps"
 

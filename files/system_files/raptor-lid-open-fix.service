@@ -1,18 +1,18 @@
 [Unit]
-Description=Raptor OS — reinitialise input devices on lid open
-After=suspend.target hibernate.target graphical-session.target
-Wants=graphical-session.target
+Description=Raptor OS -- re-scan input devices after resume
+After=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
 
 [Service]
 Type=oneshot
-# Brief pause for hardware to stabilise after lid-open
-ExecStart=/bin/sleep 1
-# Force re-enumeration of input devices (fixes stuck cursor after lid close)
-ExecStart=/bin/udevadm trigger --subsystem-match=input
-ExecStart=/bin/udevadm settle --timeout=5
-# Force KWin to re-query input device state
-ExecStart=/usr/bin/dbus-send --session --type=method_call \
-    --dest=org.kde.KWin /KWin org.kde.KWin.reloadConfig
+# Touchpad re-initialisation itself is done by the systemd-sleep hook
+# /usr/lib/systemd/system-sleep/raptor-resume (see raptor-hardware-fixes.sh).
+# This unit only asks udev to re-announce input devices so libinput/KWin
+# pick up anything that re-enumerated. (The old KWin "reloadConfig" call was
+# removed: a system service runs as root and cannot reach the user's session
+# bus, so it always failed.)
+ExecStart=/bin/sleep 2
+ExecStart=-/bin/udevadm trigger --subsystem-match=input --action=change
+ExecStart=-/bin/udevadm settle --timeout=5
 
 [Install]
 WantedBy=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target

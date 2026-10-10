@@ -153,7 +153,7 @@ class RaptorTasksWindow(Adw.ApplicationWindow):
         # Keyboard shortcuts
         self._setup_shortcuts()
 
-    def _setup_shortcuts):
+    def _setup_shortcuts(self):
         # Ctrl+N = new task
         shortcut = Gtk.Shortcut.new(
             Gtk.ShortcutTrigger.parse_string("<Ctrl>n"),

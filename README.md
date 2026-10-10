@@ -161,7 +161,7 @@ Gallery-style wallpaper picker — click any thumbnail to apply it, including fo
 ### Input
 - **USB autosuspend disabled** for HID devices and Bluetooth adapters specifically — excluded from Cortex's power-mode switching entirely, so a Bluetooth mouse/keyboard can never be swept into a suspended state by a mode change
 - **Stuck-cursor fix after lid close** — udev device re-enumeration and KWin config reload run on resume so the trackpad/pointing device reinitialises cleanly instead of leaving the cursor frozen
-- **Libinput tuning** (`61-raptor-libinput.conf`) — prevents stuck pointer state by reinitialising input devices on wake
+- **Hardware recovery after suspend** (`raptor-hardware-fixes.sh`) — re-binds the touchpad driver, reconnects Wi-Fi and Bluetooth with escalating steps, and links the mute LEDs, so nothing comes back from sleep dead
 
 ---
 
