@@ -433,12 +433,7 @@ case "$ACTION" in
                     iw dev "$(basename "$iface")" set power_save on 2>/dev/null || true
                 done
 
-                # Bluetooth power save: allow controller to suspend when idle.
-                # Most modern controllers support this without dropping connections.
-                for hci in /sys/class/bluetooth/hci*; do
-                    [ -d "$hci" ] || continue
-                    hciconfig "$(basename "$hci")" lp rswitch,hold,sniff,park 2>/dev/null || true
-                done
+
 
                 # Display backlight: reduce to 50% on battery (if supported).
                 # This is the single biggest display power saver.
