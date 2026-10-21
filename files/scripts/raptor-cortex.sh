@@ -1071,7 +1071,7 @@ GPU_PROFILES = (
     ("balanced", "Balanced", "Normal performance, sensible power use — the daily driver"),
     ("performance", "Max Performance", "High power level, larger shader cache, threaded GL"),
     ("extreme", "Extreme", "Maximum power level, DXR raytracing hints, largest shader cache"),
-    ("powersave", "Power Saving", "Low power level, shader cache off — for battery or heat"),
+    ("powersave", "Power Saving", "Low power level — for battery or heat"),
 )
 
 
@@ -1148,6 +1148,103 @@ def get_gpu_temp():
     except Exception:
         pass
     return None
+
+
+# The performance mode picks the GPU profile too, so there is one decision to
+# make instead of two that can contradict each other (Power Saving + a forced
+# max-performance GPU burns battery for nothing).
+MODE_TO_GPU_PROFILE = {
+    "power_saving": "powersave",
+    "balanced": "balanced",
+    "performance": "performance",
+}
+
+_GPU_NAME_CACHE = None
+
+
+def get_gpu_name():
+    """Model name(s) of the GPU(s), e.g. 'Phoenix1' or 'GeForce RTX 4060'. Cached."""
+    global _GPU_NAME_CACHE
+    if _GPU_NAME_CACHE is not None:
+        return _GPU_NAME_CACHE
+    names = []
+    try:
+        out = subprocess.run(["lspci"], capture_output=True, text=True, timeout=5).stdout
+        for line in out.splitlines():
+            if not re.search(r"VGA compatible|3D controller|Display controller", line):
+                continue
+            desc = line.split(": ", 1)[-1]
+            desc = re.sub(r"\s*\(rev [0-9a-f]+\)\s*$", "", desc)
+            m = re.search(r"\[([^\]]+)\]\s*$", desc)       # 'NVIDIA ... [GeForce RTX 4060]'
+            if m:
+                desc = m.group(1)
+            else:                                           # 'Advanced Micro Devices, Inc. [AMD/ATI] Phoenix1'
+                desc = re.sub(r"^.*\]\s*", "", desc)
+            names.append(desc.strip())
+    except Exception:
+        pass
+    _GPU_NAME_CACHE = " + ".join(dict.fromkeys(n for n in names if n)) or "Unknown GPU"
+    return _GPU_NAME_CACHE
+
+
+def get_gpu_usage(sys_root="/sys"):
+    """Return (busy_percent, clock_mhz) for the first GPU that reports them; either may be None."""
+    busy = clock = None
+    drm = os.path.join(sys_root, "class/drm")
+    try:
+        cards = sorted(d for d in os.listdir(drm) if re.fullmatch(r"card\d+", d))
+    except OSError:
+        cards = []
+
+    def rd(path):
+        try:
+            with open(path) as f:
+                return f.read().strip()
+        except OSError:
+            return None
+
+    for card in cards:
+        dev = os.path.join(drm, card, "device")
+        b = rd(os.path.join(dev, "gpu_busy_percent"))                      # AMD
+        if b is not None and b.isdigit():
+            busy = int(b)
+        sclk = rd(os.path.join(dev, "pp_dpm_sclk"))                        # AMD: line marked with '*'
+        if sclk:
+            for line in sclk.splitlines():
+                m = re.search(r"(\d+)\s*[Mm][Hh][Zz]\s*\*", line)
+                if m:
+                    clock = int(m.group(1))
+        if clock is None:                                                  # Intel
+            for rel in ("gt_cur_freq_mhz", "gt/gt0/rps_cur_freq_mhz"):
+                v = rd(os.path.join(drm, card, rel))
+                if v and v.isdigit():
+                    clock = int(v)
+                    break
+        if busy is not None or clock is not None:
+            return busy, clock
+    if sys_root == "/sys":                                                 # NVIDIA
+        try:
+            r = subprocess.run(
+                ["nvidia-smi", "--query-gpu=utilization.gpu,clocks.gr",
+                 "--format=csv,noheader,nounits"],
+                capture_output=True, text=True, timeout=2)
+            if r.returncode == 0:
+                a, b = [x.strip() for x in r.stdout.splitlines()[0].split(",")[:2]]
+                return int(a), int(b)
+        except Exception:
+            pass
+    return None, None
+
+
+def get_gpu_summary():
+    """One line for the stats panel: 'Phoenix1 · 12% · 800 MHz'."""
+    busy, clock = get_gpu_usage()
+    parts = [get_gpu_name()]
+    if busy is not None:
+        parts.append(f"{busy}%")
+    if clock is not None:
+        parts.append(f"{clock} MHz")
+    return " · ".join(parts)
 
 
 def get_fan_info():
@@ -1466,6 +1563,7 @@ def load_persistent_settings():
     """Load persistent Cortex settings from ~/.config/raptor-cortex-settings.json."""
     defaults = {
         "auto_apply_mode_on_boot": True,
+        "gpu_follows_mode": True,
         "auto_restore_after_game": True,
         "sched_cleanup_enabled": False,
         "sched_cleanup_interval_min": 30,
@@ -1635,6 +1733,14 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         self.gpu_temp_row.add_suffix(self.gpu_temp_label)
         stats_group.add(self.gpu_temp_row)
 
+        self.gpu_info_row = Adw.ActionRow(title="GPU")
+        self.gpu_info_label = Gtk.Label(label="…")
+        self.gpu_info_label.add_css_class("dim-label")
+        self.gpu_info_label.set_wrap(True)
+        self.gpu_info_label.set_justify(Gtk.Justification.RIGHT)
+        self.gpu_info_row.add_suffix(self.gpu_info_label)
+        stats_group.add(self.gpu_info_row)
+
         # Read-only fan information — Cortex never writes fan speed or curves.
         self.fan_row = Adw.ActionRow(title="Fans")
         self.fan_row.set_subtitle("Read-only — fan control is left to the kernel and firmware")
@@ -1698,7 +1804,8 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         # launchers for one machine.
         gfx_group = Adw.PreferencesGroup(
             title="Graphics",
-            description="Tuning for your GPU. Applies immediately and survives reboot.")
+            description="Tuning for your GPU. Applies immediately and survives reboot. "
+                        "By default it follows the performance mode above.")
 
         if not os.path.exists("/usr/lib/raptor/gpu-detect.sh"):
             # gpu-detect.sh ships in the raptor-gpu-profile package. If that
@@ -1710,6 +1817,13 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
                 "performance profile.")
             gfx_group.add(row)
         else:
+            self.gfx_follow_row = self._switch_row(
+                "Match GPU to performance mode",
+                "Power Saving, Balanced and Performance above also set the GPU profile, "
+                "so you only choose once. Pick a profile below to override.",
+                self._settings.get("gpu_follows_mode", True))
+            self.gfx_follow_row.connect("notify::active", self._on_gpu_follow_toggle)
+            gfx_group.add(self.gfx_follow_row)
             self._gfx_rows = {}
             for key, title, subtitle in GPU_PROFILES:
                 check = Gtk.CheckButton(valign=Gtk.Align.CENTER)
@@ -2423,9 +2537,18 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
             subprocess.run(["sudo", HELPER, "1", "0", "0", "0", "0", "0", "0", "0"],
                            capture_output=True)
 
+        gpu_note = ""
+        if (self._settings.get("gpu_follows_mode", True)
+                and os.path.exists("/usr/lib/raptor/gpu-detect.sh")):
+            gpu_profile = MODE_TO_GPU_PROFILE.get(mode_key)
+            if gpu_profile and get_gpu_profile() != gpu_profile:
+                gpu_ok, _gmsg = set_gpu_profile(gpu_profile)
+                gpu_note = " + GPU profile" if gpu_ok else " (GPU profile not changed)"
+                GLib.idle_add(self._refresh_gpu_profile)
+
         label = PERFORMANCE_MODES[mode_key][0]
         if ok:
-            msg = f"Mode set to {label}"
+            msg = f"Mode set to {label}{gpu_note}"
         else:
             msg = f"{label} applied (powerprofilesctl unavailable, kernel tuning still active)"
 
@@ -2437,9 +2560,26 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         for key, (row, check) in getattr(self, "_gfx_rows", {}).items():
             check.set_active(key == current)
 
+    def _on_gpu_follow_toggle(self, row, _param):
+        self._settings["gpu_follows_mode"] = row.get_active()
+        threading.Thread(
+            target=save_persistent_settings, args=(self._settings,), daemon=True
+        ).start()
+        if row.get_active():
+            profile = MODE_TO_GPU_PROFILE.get(self._current_mode)
+            if profile and get_gpu_profile() != profile:
+                def work():
+                    ok, msg = set_gpu_profile(profile)
+                    GLib.idle_add(self._on_gpu_profile_done, ok, profile, msg)
+                threading.Thread(target=work, daemon=True).start()
+
     def _on_gpu_profile(self, row, profile):
         if get_gpu_profile() == profile:
             return
+        # Picking a profile by hand is an override: stop following the mode.
+        follow = getattr(self, "gfx_follow_row", None)
+        if follow is not None and follow.get_active():
+            follow.set_active(False)
         def work():
             ok, msg = set_gpu_profile(profile)
             GLib.idle_add(self._on_gpu_profile_done, ok, profile, msg)
@@ -2504,6 +2644,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
 
         gpu_t = get_gpu_temp()
         self.gpu_temp_label.set_text(f"{gpu_t} °C" if gpu_t is not None else "N/A")
+        self.gpu_info_label.set_text(get_gpu_summary())
         self.gpu_temp_label.set_css_classes(
             ["error"] if gpu_t and gpu_t > 95
             else ["warning"] if gpu_t and gpu_t > 80

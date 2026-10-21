@@ -19,6 +19,17 @@
 
 ### Fixed
 
+- **Cortex and the GPU profile are now one decision.** They were two
+  independent controls (the performance mode, and a separate GPU profile list),
+  so you had to set both and they could contradict each other, e.g. Power
+  Saving with a max-performance GPU. Choosing Power Saving / Balanced /
+  Performance now also sets the matching GPU profile. A new "Match GPU to
+  performance mode" switch (on by default) controls this; picking a GPU profile
+  by hand turns it off as an override. Cortex also shows the GPU model, usage
+  and clock next to the GPU temperature.
+- **Failed builds now explain themselves.** A `diagnose` job in the workflow
+  runs only when the build fails and posts the first real error, with context,
+  as an annotation on the run.
 - **Image build aborting inside a build script.** `raptor-gaming-devices.sh`
   runs under `set -euo pipefail` and wrote files into
   `/usr/share/flatpak/overrides/` and `/usr/share/doc/raptor-gaming-devices/`

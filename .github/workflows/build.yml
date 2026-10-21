@@ -72,3 +72,36 @@ jobs:
           registry_token: ${{ secrets.GITHUB_TOKEN }}
           pr_event_number: ${{ github.event.number }}
           cosign_private_key: ${{ secrets.SIGNING_SECRET }}
+
+  # Runs only when the build fails. GitHub's raw job logs are awkward to get at,
+  # so this reads the failed job's log on the runner and posts the first real
+  # error, with context, as an annotation. It shows on the run page and is
+  # available through the API without downloading any logs.
+  diagnose:
+    name: Explain build failure
+    needs: build
+    if: ${{ failure() }}
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+    steps:
+      - name: Post the build error as an annotation
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set +e
+          for id in $(gh api "repos/$REPO/actions/runs/$RUN_ID/jobs" --jq '.jobs[] | select(.conclusion=="failure") | .id'); do
+            gh api "repos/$REPO/actions/jobs/$id/logs" > job.log 2>/dev/null || { echo "::warning::could not fetch the log for job $id"; continue; }
+            sed -E 's/^[0-9T:.Z-]+ //; s/\x1b\[[0-9;]*m//g' job.log > clean.log
+            n=$(grep -n -m1 -E "Failed '.*' Module|error: |^ERROR|ERROR:" clean.log | head -1 | cut -d: -f1)
+            if [ -n "$n" ]; then
+              start=$((n>40 ? n-40 : 1)); end=$((n+10))
+              sed -n "${start},${end}p" clean.log > ctx.txt
+            else
+              tail -n 60 clean.log > ctx.txt
+            fi
+            msg=$(cut -c1-400 ctx.txt | sed ':a;N;$!ba;s/%/%25/g;s/\r/%0D/g;s/\n/%0A/g')
+            echo "::error title=Build error (job $id)::$msg"
+          done
