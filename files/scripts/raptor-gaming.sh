@@ -998,6 +998,7 @@ fs.file-max                        = 2097152
 NETSYSCTL
 
 # ── BBR / CAKE module preload ─────────────────────────────────────────────────
+mkdir -p /etc/modules-load.d
 cat << 'MODULES' > /etc/modules-load.d/raptor-network.conf
 # Raptor OS: load BBR + CAKE at initramfs so sysctl can reference them
 tcp_bbr

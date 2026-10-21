@@ -5,7 +5,8 @@ set -euo pipefail
 # popular gaming peripherals: Logitech (G Hub), Razer, SteelSeries, Turtle Beach,
 # Corsair, HyperX, Glorious, etc.
 
-mkdir -p /etc/udev/rules.d /usr/lib/systemd/system /usr/share/applications
+mkdir -p /etc/udev/rules.d /usr/lib/systemd/system /usr/share/applications \
+         /usr/share/flatpak/overrides /usr/share/doc/raptor-gaming-devices
 
 # ── udev rules for gaming devices ────────────────────────────────────────────
 # These rules ensure devices are accessible to the user and get proper permissions

@@ -190,9 +190,10 @@ ENVEOF
   powersave)
     cat << ENVEOF > /etc/environment.d/raptor-gpu.conf
 # ── Raptor OS: POWER SAVING profile ──────────────────────────────────────────
-# Shader cache disabled: saves disk reads/writes and storage wake-ups.
-# Shaders will recompile on first launch but power draw is lower overall.
-MESA_SHADER_CACHE_DISABLE=true
+# Shader cache stays ENABLED. It used to be disabled to save disk writes, but
+# recompiling shaders on every launch costs far more CPU/GPU energy than the
+# occasional cache write saves.
+MESA_SHADER_CACHE_DISABLE=false
 # Disable threaded optimizations: fewer background threads = lower idle power.
 __GL_THREADED_OPTIMIZATIONS=0
 $COMMON_VARS
@@ -281,7 +282,6 @@ ENVEOF
 # ── Raptor OS: Intel auto profile ─────────────────────────────────────────────
 MESA_LOADER_DRIVER_OVERRIDE=iris
 LIBGL_DRI3_DISABLE=0
-vblank_mode=0
 $COMMON_VARS
 ENVEOF
     else

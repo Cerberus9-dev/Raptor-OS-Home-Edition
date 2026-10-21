@@ -76,6 +76,22 @@ BACKGROUND_PROCS=(
 
 # ── Hardware power helpers ────────────────────────────────────────────────────
 
+# True when running from mains / USB-C power, or when there is no battery
+# (desktop). Used so battery-draining gaming tweaks never run on battery.
+_on_ac() {
+    local s t found=0 online=0
+    for s in /sys/class/power_supply/*; do
+        t=$(cat "$s/type" 2>/dev/null) || continue
+        case "$t" in
+            Mains|USB|USB_C|USB_PD|USB_PD_DRP|USB_DCP|USB_CDP|USB_ACA)
+                found=1
+                [ "$(cat "$s/online" 2>/dev/null)" = "1" ] && online=1 ;;
+        esac
+    done
+    [ "$found" = "0" ] && return 0
+    [ "$online" = "1" ]
+}
+
 _apply_pcie_aspm() {
     # powersave | performance | default
     local P="$1"
@@ -557,24 +573,31 @@ case "$ACTION" in
         # Stops irqbalance from moving NIC/audio IRQs away from the CPU
         # the game is running on mid-frame.
         systemctl stop irqbalance.service 2>/dev/null || true
-        # Hold /dev/cpu_dma_latency open for the duration of gaming.
-        # IMPORTANT: closing the file descriptor immediately releases the PM
-        # QoS constraint — a one-shot `echo 0 | tee` opens, writes, and closes
-        # the FD in the same instant, so the constraint was released before
-        # the game even started. This was a complete no-op in earlier versions.
-        # Fixed: a backgrounded subshell holds the FD open via `exec`, keeping
-        # the constraint active (CPU stays at C1 or shallower, ~100-300µs less
-        # wake latency) until resume-background removes the sentinel file.
+        # Cap CPU idle-state exit latency for the duration of gaming, so the CPU
+        # wakes quickly. Closing the file descriptor releases the constraint, so a
+        # backgrounded subshell keeps it open.
+        #   * 0x32 = 50 us. This still allows the shallow idle states (C1/C1E) but
+        #     forbids deep ones. It used to be 0, which allows ONLY busy-polling:
+        #     the CPU never idles at all and draws near full power, even sitting
+        #     idle in a menu.
+        #   * Only held on AC. On battery deep idle matters more than shaving
+        #     wake latency, so no constraint is taken.
+        #   * The holder releases itself when the sentinel file is removed OR the
+        #     charger is unplugged. If the end-of-game hook never runs (game
+        #     crash, gamemode crash) the constraint used to stay until reboot.
         rm -f /run/raptor-cpu-dma-latency-held
-        (
-            exec 9<>/dev/cpu_dma_latency
-            echo 0 >&9
-            touch /run/raptor-cpu-dma-latency-held
-            while [ -f /run/raptor-cpu-dma-latency-held ]; do
-                sleep 5
-            done
-        ) &>/dev/null &
-        disown
+        if _on_ac; then
+            (
+                exec 9<>/dev/cpu_dma_latency
+                echo 0x32 >&9
+                touch /run/raptor-cpu-dma-latency-held
+                while [ -f /run/raptor-cpu-dma-latency-held ] && _on_ac; do
+                    sleep 5
+                done
+                rm -f /run/raptor-cpu-dma-latency-held
+            ) &>/dev/null &
+            disown
+        fi
         for proc in "${BACKGROUND_PROCS[@]}"; do
             /usr/lib/raptor/safe-signal STOP "$proc"
         done

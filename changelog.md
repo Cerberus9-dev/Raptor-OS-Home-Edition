@@ -19,6 +19,25 @@
 
 ### Fixed
 
+- **Image build aborting inside a build script.** `raptor-gaming-devices.sh`
+  runs under `set -euo pipefail` and wrote files into
+  `/usr/share/flatpak/overrides/` and `/usr/share/doc/raptor-gaming-devices/`
+  without creating them, so a missing directory aborted the whole image build.
+  It also relied on `/etc/modules-load.d` existing in `raptor-gaming.sh`. Both
+  now `mkdir -p` their targets. Every build script was then executed in recipe
+  order in a clean environment and all 13 exit 0.
+- **Battery drains.** (1) Gaming mode held `/dev/cpu_dma_latency` at 0, which
+  allows only busy-polling, so the CPU never entered an idle state and drew
+  near full power even when idle; the comment claimed "C1 or shallower". It is
+  now 50 us (shallow idle states allowed), is not taken at all on battery, and
+  the holder releases itself when the charger is unplugged or the end-of-game
+  hook never runs. (2) WirePlumber set `session.suspend-timeout-seconds = 0`
+  plus `api.alsa.disable-suspend` on every ALSA device, so the sound card and
+  audio graph never suspended; idle devices now suspend after 30 s. (3) The
+  Intel GPU profile exported `vblank_mode=0` (vsync off for every OpenGL app,
+  GPU runs flat out); removed. (4) The power-saving GPU profile disabled the
+  Mesa shader cache, which forces shaders to recompile on every launch and costs
+  more energy than it saves; the cache stays enabled.
 - **Cortex "Scan for Steam Games" never found any game.** The `appmanifest`
   parser stripped the quotes off each line and then tested for `"appid"`
   (with quotes), which can never match, so every scan reported "No Steam games
