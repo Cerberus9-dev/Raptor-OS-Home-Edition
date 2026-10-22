@@ -93,7 +93,15 @@ jobs:
         run: |
           set +e
           for id in $(gh api "repos/$REPO/actions/runs/$RUN_ID/jobs" --jq '.jobs[] | select(.conclusion=="failure") | .id'); do
-            gh api "repos/$REPO/actions/jobs/$id/logs" > job.log 2>/dev/null || { echo "::warning::could not fetch the log for job $id"; continue; }
+            ok=0
+            for try in 1 2 3 4 5 6; do
+              if gh api "repos/$REPO/actions/jobs/$id/logs" > job.log 2> err.txt && [ -s job.log ]; then ok=1; break; fi
+              sleep 10
+            done
+            if [ "$ok" = 0 ]; then
+              echo "::warning::could not fetch the log for job $id: $(head -c 300 err.txt | tr '\n' ' ')"
+              continue
+            fi
             sed -E 's/^[0-9T:.Z-]+ //; s/\x1b\[[0-9;]*m//g' job.log > clean.log
             n=$(grep -n -m1 -E "Failed '.*' Module|error: |^ERROR|ERROR:" clean.log | head -1 | cut -d: -f1)
             if [ -n "$n" ]; then
