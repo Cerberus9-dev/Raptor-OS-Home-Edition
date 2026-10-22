@@ -103,13 +103,22 @@ jobs:
               continue
             fi
             sed -E 's/^[0-9T:.Z-]+ //; s/\x1b\[[0-9;]*m//g' job.log > clean.log
-            n=$(grep -n -m1 -E "Failed '.*' Module|error: |^ERROR|ERROR:" clean.log | head -1 | cut -d: -f1)
-            if [ -n "$n" ]; then
-              start=$((n>40 ? n-40 : 1)); end=$((n+10))
-              sed -n "${start},${end}p" clean.log > ctx.txt
-            else
-              tail -n 60 clean.log > ctx.txt
+            emit() {  # emit "title" file  -> one annotation, newlines/percent encoded
+              local msg
+              msg=$(cut -c1-400 "$2" | sed ':a;N;$!ba;s/%/%25/g;s/\r/%0D/g;s/\n/%0A/g')
+              echo "::error title=$1 (job $id)::$msg"
+            }
+            # The first "Failed '<name>' Module" is the real failure; otherwise the LAST
+            # error-looking line (not the first: installer scripts print "ERROR:" in their own source).
+            n=$(grep -n -m1 -E "Failed '[^']*' Module" clean.log | cut -d: -f1)
+            if [ -z "$n" ]; then
+              n=$(grep -n -E "(error|Error|ERROR)(:|\])" clean.log | grep -v -E "log_error|alias |echo " | tail -1 | cut -d: -f1)
             fi
-            msg=$(cut -c1-400 ctx.txt | sed ':a;N;$!ba;s/%/%25/g;s/\r/%0D/g;s/\n/%0A/g')
-            echo "::error title=Build error (job $id)::$msg"
+            if [ -n "$n" ]; then
+              start=$((n>45 ? n-45 : 1)); end=$((n+8))
+              sed -n "${start},${end}p" clean.log > ctx.txt
+              emit "Build error" ctx.txt
+            fi
+            tail -n 40 clean.log > tail.txt
+            emit "Log tail" tail.txt
           done
