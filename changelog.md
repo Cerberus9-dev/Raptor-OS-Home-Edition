@@ -19,6 +19,14 @@
 
 ### Fixed
 
+- **Every image build since 2026-10-10 failed at the `files` module.** A cleanup
+  commit deleted `files/system_files/zram-generator.conf` as "dead", but
+  `recipes/recipe.yml` still copies it to `/etc/systemd/zram-generator.conf`
+  (it is the active swap-on-zram config: half of RAM capped at 8 GB, zstd,
+  priority 100, discard). The `files` module aborts on a missing source, so the
+  build never reached the package or script steps and no fix could be published.
+  The file is restored unchanged, and `.github/scripts/validate.sh` now fails
+  the build early if any file the recipe copies is missing from the repo.
 - **Cortex and the GPU profile are now one decision.** They were two
   independent controls (the performance mode, and a separate GPU profile list),
   so you had to set both and they could contradict each other, e.g. Power

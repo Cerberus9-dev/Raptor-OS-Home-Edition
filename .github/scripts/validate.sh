@@ -43,4 +43,19 @@ while IFS= read -r line; do
     fi
 done < recipes/recipe.yml
 
+# Check every file the recipe copies into the image exists in the repo. A missing source
+# aborts the whole image build at the 'files' module ("does not exist in /tmp/files").
+echo "=== Checking recipe.yml file sources exist ==="
+missing=0
+while IFS= read -r src; do
+    [[ -z "$src" ]] && continue
+    if [[ ! -e "files/$src" ]]; then
+        echo "FAIL: recipe copies a file that is not in the repo: $src"
+        missing=1
+    fi
+done < <(grep -E '^[[:space:]]*-?[[:space:]]*source:' recipes/recipe.yml | sed -E "s/.*source:[[:space:]]*//; s/[\"']//g")
+if [[ "$missing" -ne 0 ]]; then
+    exit 1
+fi
+
 echo "All validations passed."
