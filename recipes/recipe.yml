@@ -79,6 +79,14 @@ modules:
         destination: /etc/systemd/user.conf.d/10-raptor-nofile.conf
 
   # ── RPM packages ─────────────────────────────────────────────────────────
+  # Must run BEFORE the rpm-ostree module below. The base image ships tuned-ppd,
+  # which conflicts with power-profiles-daemon (both provide ppd-service), so it
+  # has to be removed before the install resolves. Tolerant of packages that the
+  # base image no longer ships.
+  - type: script
+    scripts:
+      - raptor-remove-packages.sh
+
   - type: rpm-ostree
     install:
       # System utilities
@@ -151,8 +159,6 @@ modules:
   # ── Custom build scripts ──────────────────────────────────────────────────────
   - type: script
     scripts:
-      # Must run first: removes unwanted base packages (tolerant of missing ones)
-      - raptor-remove-packages.sh
       - raptor-hud.sh
       - raptor-cortex.sh
       - raptor-gpu-profile.sh

@@ -19,6 +19,14 @@
 
 ### Fixed
 
+- **`rpm-ostree` module failing with a `tuned-ppd` / `power-profiles-daemon`
+  conflict.** The base image ships `tuned-ppd`, which conflicts with
+  `power-profiles-daemon` (both provide `ppd-service`). The original recipe
+  removed `tuned-ppd` in the same rpm-ostree transaction as the install. Moving
+  the removals to `raptor-remove-packages.sh` (to survive packages the base
+  image no longer ships, such as `cmake`) made it run after the install, so the
+  conflict returned. The script is now its own module placed before the
+  `rpm-ostree` module in `recipes/recipe.yml`.
 - **Every image build since 2026-10-10 failed at the `files` module.** A cleanup
   commit deleted `files/system_files/zram-generator.conf` as "dead", but
   `recipes/recipe.yml` still copies it to `/etc/systemd/zram-generator.conf`
