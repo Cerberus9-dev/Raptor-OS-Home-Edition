@@ -102,23 +102,24 @@ jobs:
               echo "::warning::could not fetch the log for job $id: $(head -c 300 err.txt | tr '\n' ' ')"
               continue
             fi
-            sed -E 's/^[0-9T:.Z-]+ //; s/\x1b\[[0-9;]*m//g' job.log > clean.log
-            emit() {  # emit "title" file  -> one annotation, newlines/percent encoded
+            # Strip timestamps, colours and BlueBuild's repeated "[hh:mm:ss name] =>" prefix, and
+            # shorten lines: GitHub caps one annotation at 4096 characters.
+            sed -E 's/^[0-9T:.Z-]+ //; s/\x1b\[[0-9;]*m//g; s/^ *\[[0-9:]+ [^]]*\] => //' job.log | cut -c1-170 > clean.log
+            emit() {  # emit "title" file -> one annotation (newlines/percent encoded, last 3800 chars kept)
               local msg
-              msg=$(cut -c1-400 "$2" | sed ':a;N;$!ba;s/%/%25/g;s/\r/%0D/g;s/\n/%0A/g')
+              msg=$(tail -c 3800 "$2" | sed ':a;N;$!ba;s/%/%25/g;s/\r/%0D/g;s/\n/%0A/g')
               echo "::error title=$1 (job $id)::$msg"
             }
-            # The first "Failed '<name>' Module" is the real failure; otherwise the LAST
-            # error-looking line (not the first: installer scripts print "ERROR:" in their own source).
+            # 1) every line that looks like a failure (last 25), so the cause is visible at a glance
+            grep -n -i -E "Failed '|error:|ERROR\]|No match|not found|unable to|cannot |conflict|exit code|denied|no such file|syntax error" clean.log \
+              | grep -v -E "log_error|alias |echo |notice|ubuntu-latest" | tail -n 25 | cut -c1-170 > fails.txt
+            [ -s fails.txt ] && emit "Failure lines" fails.txt
+            # 2) the context around the first module failure (or the last failure line)
             n=$(grep -n -m1 -E "Failed '[^']*' Module" clean.log | cut -d: -f1)
-            if [ -z "$n" ]; then
-              n=$(grep -n -E "(error|Error|ERROR)(:|\])" clean.log | grep -v -E "log_error|alias |echo " | tail -1 | cut -d: -f1)
-            fi
+            [ -z "$n" ] && n=$(tail -n 1 fails.txt | cut -d: -f1)
             if [ -n "$n" ]; then
-              start=$((n>45 ? n-45 : 1)); end=$((n+8))
+              start=$((n>28 ? n-28 : 1)); end=$((n+6))
               sed -n "${start},${end}p" clean.log > ctx.txt
-              emit "Build error" ctx.txt
+              emit "Context before the failure" ctx.txt
             fi
-            tail -n 40 clean.log > tail.txt
-            emit "Log tail" tail.txt
           done
