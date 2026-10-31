@@ -77,7 +77,7 @@ cat << 'EOF' > /usr/lib/raptor/update-helper
 
 # Overridable so the retry path can be exercised in seconds instead of the
 # 7+ real-world minutes it represents; the defaults are the shipped values.
-MAX_ATTEMPTS="${RAPTOR_UPDATE_MAX_ATTEMPTS:-3}"
+MAX_ATTEMPTS="${RAPTOR_UPDATE_MAX_ATTEMPTS:-8}"
 LAYER_TIMEOUT="${RAPTOR_UPDATE_LAYER_TIMEOUT:-900}"  # 15 min per attempt — generous for a ~1 GB layer on slow links
 BACKOFF="${RAPTOR_UPDATE_BACKOFF:-15}"              # seconds; doubles each attempt
 NET_WAIT="${RAPTOR_UPDATE_NET_WAIT:-15}"            # seconds to wait when offline
@@ -87,13 +87,15 @@ check_network() {
     curl -sf --connect-timeout 5 https://ghcr.io/ >/dev/null 2>&1
 }
 
-purge_layer_cache() {
-    # A big OCI layer can land on disk truncated when the network drops mid-
-    # import; rpm-ostree then fails every retry with "Processing tar: ...
-    # unexpected end of file" because the cached blob is corrupt and gets
-    # reused blind. Purge the fetched-layer + unpacked-content caches between
-    # attempts so the next try starts from a clean download.
-    rm -rf /var/cache/rpm-ostree-layers /var/cache/rpm-ostree-contents 2>/dev/null || true
+keep_wifi_awake() {
+    # A Wi-Fi radio in power-save mode stalls long downloads, which shows up as
+    # "read: connection timed out ... unexpected end of file" on the big image
+    # layer. Turn it off for the duration of the update (best effort).
+    command -v iw >/dev/null 2>&1 || return 0
+    local d
+    for d in $(iw dev 2>/dev/null | awk '$1=="Interface"{print $2}'); do
+        iw dev "$d" set power_save off 2>/dev/null || true
+    done
 }
 
 for attempt in $(seq 1 $MAX_ATTEMPTS); do
@@ -109,21 +111,24 @@ for attempt in $(seq 1 $MAX_ATTEMPTS); do
     # rpm-ostree doesn't refuse to start ("Another transaction is in progress").
     rm -f /run/lock/rpm-ostree.lock 2>/dev/null || true
 
-    if timeout "${LAYER_TIMEOUT}" rpm-ostree update 2>&1; then
+    keep_wifi_awake
+    timeout "${LAYER_TIMEOUT}" rpm-ostree update 2>&1
+    rc=$?
+    if [ "$rc" -eq 0 ]; then
         echo "✓ System update applied — reboot to finish."
         exit 0
     fi
 
-    rc=$?
     if [ "$rc" -eq 124 ]; then
-        echo "Timed out after ${LAYER_TIMEOUT} s — clearing stuck state…"
+        echo "Timed out after ${LAYER_TIMEOUT} s -- retrying..."
     else
-        echo "Failed (exit ${rc}) — clearing corrupt layer cache…"
+        echo "Failed (exit ${rc}) -- retrying (layers already downloaded are kept)..."
     fi
 
     rm -f /run/lock/rpm-ostree.lock 2>/dev/null || true
-    purge_layer_cache
-    sleep $((attempt * BACKOFF))  # 15 s, then 30 s back-off by default
+    wait_s=$((attempt * BACKOFF))
+    [ "$wait_s" -gt 90 ] && wait_s=90   # 15, 30, 45, 60, 75, 90, 90, ...
+    sleep "$wait_s"
 done
 
 echo "Update failed after ${MAX_ATTEMPTS} attempts. Check your connection."

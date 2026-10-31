@@ -19,6 +19,18 @@
 
 ### Fixed
 
+- **Update manager gave up on a flaky connection and misreported why.** The
+  update helper made 3 attempts, then quit. It printed `Failed (exit 0)` for
+  every failure (it read `$?` after the `if`, so the real exit code was lost and
+  the timeout branch could never run), and its "clearing corrupt layer cache"
+  step deleted two directories rpm-ostree does not use for image layers, so it
+  did nothing. Layers that finished downloading are kept between attempts (the
+  next attempt reports them as "already present"); only the layer that was
+  mid-download restarts. Now: 8 attempts with a capped back-off (15 s up to
+  90 s), the real exit code, a correct timeout message, and Wi-Fi power-save is
+  switched off for the duration of the update, since a radio in power-save
+  stalls long downloads ("read: connection timed out ... unexpected end of
+  file" on the large layer).
 - **`rpm-ostree` module failing with a `tuned-ppd` / `power-profiles-daemon`
   conflict.** The base image ships `tuned-ppd`, which conflicts with
   `power-profiles-daemon` (both provide `ppd-service`). The original recipe
