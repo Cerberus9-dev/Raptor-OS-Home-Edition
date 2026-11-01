@@ -1,105 +1,16 @@
 #!/bin/bash
 set -euo pipefail
 
-# Raptor OS Command Cheatsheet — terminal and GUI reference for Bazzite/Fedora Atomic
+# Raptor OS Command Cheatsheet: one app (GUI, with search) for Bazzite/Fedora Atomic.
+# There used to be a second, terminal-only copy with the same commands; it is gone.
+# Run `raptor-cheatsheet` from a terminal or open it from the app menu.
 
 mkdir -p /usr/bin /usr/share/applications /usr/share/icons/hicolor/scalable/apps
 
-# ── Terminal cheatsheet ──────────────────────────────────────────────────────
-cat << 'EOF' > /usr/bin/raptor-cheatsheet
-#!/bin/bash
-# Raptor OS Command Cheatsheet — terminal version
-# Run without args for interactive fzf search, or with a category name.
-
-CHEATSHEET="
-# System Updates (rpm-ostree)
-rpm-ostree upgrade                  # Check for and apply system updates
-rpm-ostree upgrade --check          # Check for updates without applying
-rpm-ostree status                   # Show current deployment and available updates
-rpm-ostree rollback                 # Rollback to previous deployment
-rpm-ostree deploy <index>           # Switch to a specific deployment
-rpm-ostree install <pkg>            # Layer a package (requires reboot)
-rpm-ostree uninstall <pkg>          # Remove a layered package
-rpm-ostree override replace <pkg>   # Override a base package
-
-# Flatpak Management
-flatpak install flathub <app>       # Install an app from Flathub
-flatpak update                      # Update all Flatpak apps
-flatpak update --app <app>          # Update a specific app
-flatpak uninstall <app>             # Uninstall a Flatpak app
-flatpak list                        # List installed Flatpak apps
-flatpak remote-ls --updates         # List apps with available updates
-flatpak override --user <app> --env=VAR=value  # Set env var for an app
-flatpak permission-show <app>       # Show permissions for an app
-flatpak permission-set <app> <perm> yes/no  # Grant/revoke permission
-
-# Podman / Containers
-podman run -it --rm <image>         # Run a container interactively
-podman ps -a                        # List all containers
-podman images                       # List local images
-podman pull <image>                 # Pull an image
-podman build -t <name> .            # Build an image from Containerfile
-podman volume ls                    # List volumes
-podman system prune                 # Clean up unused containers/images
-systemctl --user enable --now podman.socket  # Enable rootless Podman API
-
-# Development Toolbox
-toolbox create                      # Create a new toolbox container
-toolbox enter                       # Enter the default toolbox
-toolbox enter <name>                # Enter a specific toolbox
-toolbox list                        # List toolbox containers
-toolbox rm <name>                   # Remove a toolbox
-
-# Systemd (User)
-systemctl --user status <unit>      # Check status of a user service
-systemctl --user start <unit>       # Start a user service
-systemctl --user enable <unit>      # Enable a user service at login
-systemctl --user logs <unit>        # Show logs for a user service
-systemctl --user daemon-reload      # Reload user systemd config
-
-# Raptor OS Specific
-raptor-cortex                       # Open Raptor Cortex (performance/memory)
-raptor-wallpaper                    # Open Raptor Wallpaper picker
-raptor-update                       # Open Raptor Update Manager
-raptor-wine --help                  # Raptor Wine launcher help
-/usr/lib/raptor/cortex-helper set-mode performance
-/usr/lib/raptor/cortex-helper trim-background
-/usr/lib/raptor/cortex-helper restore-background
-
-# Troubleshooting
-coredumpctl list                    # List recent crashes
-coredumpctl info <pid>              # Show crash details
-journalctl -b -1                    # Show logs from previous boot
-journalctl -u <unit> -f             # Follow logs for a unit
-dmesg -T                            # Show kernel logs with timestamps
-rpm-ostree status --json | jq       # Pretty-print deployment status
-flatpak repair                      # Repair Flatpak installation
-ostree admin cleanup                # Clean up old deployments
-
-# File System (Atomic)
-ls /var                             # Persistent system data (survives updates)
-ls /etc                             # Configuration (overlaid, survives updates)
-ls /usr                             # Read-only OS image (updated via rpm-ostree)
-ls ~/.local                         # User data
-ostree admin config-diff            # Show config changes from defaults
-"
-
-if [[ $# -eq 0 ]]; then
-    if command -v fzf &>/dev/null; then
-        echo "$CHEATSHEET" | grep -v '^#' | grep -v '^$' | fzf --prompt='Command > ' --preview='echo {}'
-    else
-        echo "$CHEATSHEET"
-    fi
-else
-    echo "$CHEATSHEET" | grep -i "$1" | grep -v '^#'
-fi
-EOF
-chmod +x /usr/bin/raptor-cheatsheet
-
 # ── GUI cheatsheet ───────────────────────────────────────────────────────────
-cat << 'PYEOF' > /usr/bin/raptor-cheatsheet-gui
+cat << 'PYEOF' > /usr/bin/raptor-cheatsheet
 #!/usr/bin/env python3
-"""Raptor OS Command Cheatsheet — GUI version."""
+"""Raptor OS Command Cheatsheet: every command in one searchable window."""
 
 import gi
 gi.require_version("Gtk", "4.0")
@@ -151,13 +62,14 @@ CATEGORIES = {
         ("systemctl --user status <unit>", "Check status of a user service"),
         ("systemctl --user start <unit>", "Start a user service"),
         ("systemctl --user enable <unit>", "Enable a user service at login"),
-        ("systemctl --user logs <unit>", "Show logs for a user service"),
+        ("journalctl --user -u <unit>", "Show logs for a user service"),
         ("systemctl --user daemon-reload", "Reload user systemd config"),
     ],
     "Raptor OS Specific": [
         ("raptor-cortex", "Open Raptor Cortex (performance/memory management)"),
         ("raptor-wallpaper", "Open Raptor Wallpaper picker"),
         ("raptor-update", "Open Raptor Update Manager"),
+        ("raptor-tasks", "Open Raptor Tasks"),
         ("raptor-wine --help", "Raptor Wine launcher help"),
         ("/usr/lib/raptor/cortex-helper set-mode performance", "Set performance mode"),
         ("/usr/lib/raptor/cortex-helper trim-background", "Trim background services for gaming"),
@@ -194,6 +106,12 @@ class CheatsheetWindow(Adw.ApplicationWindow):
         hb = Adw.HeaderBar()
         root.append(hb)
 
+        self.search = Gtk.SearchEntry(placeholder_text="Search commands")
+        self.search.set_size_request(280, -1)
+        self.search.connect("search-changed", self._on_search)
+        hb.set_title_widget(self.search)
+        self._groups = []      # (group, [(row, searchable text)])
+
         self.toast_overlay = Adw.ToastOverlay()
         self.toast_overlay.set_vexpand(True)
         root.append(self.toast_overlay)
@@ -224,6 +142,8 @@ class CheatsheetWindow(Adw.ApplicationWindow):
         for cat_name, commands in CATEGORIES.items():
             group = Adw.PreferencesGroup(title=cat_name)
             content.append(group)
+            group_rows = []
+            self._groups.append((group, group_rows))
 
             for cmd, desc in commands:
                 row = Adw.ActionRow(title=cmd, subtitle=desc)
@@ -236,10 +156,21 @@ class CheatsheetWindow(Adw.ApplicationWindow):
                 row.add_suffix(copy_btn)
                 row.connect("activated", lambda *_, c=cmd: self._copy(c))
                 group.add(row)
+                group_rows.append((row, f"{cmd} {desc} {cat_name}".lower()))
+
+    def _on_search(self, entry):
+        words = entry.get_text().strip().lower().split()
+        for group, rows in self._groups:
+            any_visible = False
+            for row, text in rows:
+                show = all(w in text for w in words)
+                row.set_visible(show)
+                any_visible = any_visible or show
+            group.set_visible(any_visible)
 
     def _copy(self, text):
         clip = self.get_display().get_clipboard()
-        clip.set_text(text)
+        clip.set(text)   # Gdk.Clipboard has no set_text() in GTK4
         toast = Adw.Toast.new(f"Copied: {text}")
         toast.set_timeout(2)
         self.toast_overlay.add_toast(toast)
@@ -263,7 +194,7 @@ if __name__ == "__main__":
     import sys
     sys.exit(main())
 PYEOF
-chmod +x /usr/bin/raptor-cheatsheet-gui
+chmod +x /usr/bin/raptor-cheatsheet
 
 # ── .desktop entries ─────────────────────────────────────────────────────────
 cat << 'EOF' > /usr/share/applications/raptor-cheatsheet.desktop
@@ -273,7 +204,7 @@ Type=Application
 Name=Raptor Cheatsheet
 GenericName=Command Reference
 Comment=Quick reference for Bazzite/Fedora Atomic commands
-Exec=/usr/bin/raptor-cheatsheet-gui
+Exec=/usr/bin/raptor-cheatsheet
 Icon=raptor-cheatsheet
 Terminal=false
 Categories=X-RaptorOS;Utility;Development;
@@ -282,21 +213,6 @@ StartupNotify=true
 X-KDE-SubstituteUID=false
 EOF
 
-cat << 'EOF' > /usr/share/applications/raptor-cheatsheet-terminal.desktop
-[Desktop Entry]
-Version=1.1
-Type=Application
-Name=Raptor Cheatsheet (Terminal)
-GenericName=Command Reference
-Comment=Terminal-based command reference for Bazzite/Fedora Atomic
-Exec=konsole -e /usr/bin/raptor-cheatsheet
-Icon=raptor-cheatsheet
-Terminal=true
-Categories=X-RaptorOS;Utility;Development;
-Keywords=cheatsheet;commands;reference;terminal;bazzite;atomic;
-StartupNotify=true
-X-KDE-SubstituteUID=false
-EOF
 
 # ── Icon ──────────────────────────────────────────────────────────────────────
 cat << 'SVGEOF' > /usr/share/icons/hicolor/scalable/apps/raptor-cheatsheet.svg
@@ -323,9 +239,7 @@ gtk-update-icon-cache /usr/share/icons/hicolor 2>/dev/null || true
 # ── Self-check ────────────────────────────────────────────────────────────────
 RAPTOR_EXPECTED_PAYLOAD="
 /usr/bin/raptor-cheatsheet
-/usr/bin/raptor-cheatsheet-gui
 /usr/share/applications/raptor-cheatsheet.desktop
-/usr/share/applications/raptor-cheatsheet-terminal.desktop
 "
 raptor_missing=""
 for raptor_f in $RAPTOR_EXPECTED_PAYLOAD; do

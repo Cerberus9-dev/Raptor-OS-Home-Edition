@@ -214,7 +214,7 @@ class RaptorTasksWindow(Adw.ApplicationWindow):
         self.toast_overlay.add_toast(toast)
 
 
-class TaskEditDialog(Adw.Dialog):
+class TaskEditDialog(Adw.Window):   # not Adw.Dialog: that has no transient_for/modal/set_default_size and present() needs a parent
     def __init__(self, parent, task, on_save):
         super().__init__(transient_for=parent, modal=True)
         self._on_save = on_save
@@ -226,7 +226,7 @@ class TaskEditDialog(Adw.Dialog):
 
     def _build_ui(self):
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        self.set_child(root)
+        self.set_content(root)
 
         hb = Adw.HeaderBar()
         root.append(hb)

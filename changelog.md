@@ -19,6 +19,27 @@
 
 ### Fixed
 
+- **Raptor Cortex would not open at all.** Since the 2026-09-30 refactor that
+  folded the GPU profiler into Cortex, building the Graphics section called
+  `self.add(gfx_group)`, but the window has no `add` method (every other section
+  uses `content.append`). That raised `AttributeError` while the window was being
+  built, so no window ever appeared. Fixed to `content.append(gfx_group)`. Found
+  by actually launching the app under a virtual display; compile checks and unit
+  tests of the new functions had not caught it.
+- **Raptor Tasks could not create a task.** The New/Edit dialog was an
+  `Adw.Dialog` built with window-style arguments (`transient_for`, `modal`,
+  `set_default_size`, and a `present()` with no parent). `Adw.Dialog` supports
+  none of them, so clicking "+" raised `TypeError` (silently, in the GUI). The
+  dialog is now an `Adw.Window`. Create, empty-text rejection, save to disk,
+  edit, mark done and delete were all exercised in a real window.
+- **Two cheatsheets, now one.** `Raptor Cheatsheet` and `Raptor Cheatsheet
+  (Terminal)` had identical content. The terminal copy, its menu entry and the
+  separate `-gui` binary are removed; everything lives in the single
+  `raptor-cheatsheet` app, which gained the terminal version's search (type to
+  filter commands and categories). Also fixed in the merge: clicking a command to
+  copy it never worked (`Gdk.Clipboard` has no `set_text` in GTK4; it is
+  `set`), and `systemctl --user logs` (not a real command) is now
+  `journalctl --user -u <unit>`.
 - **Update manager gave up on a flaky connection and misreported why.** The
   update helper made 3 attempts, then quit. It printed `Failed (exit 0)` for
   every failure (it read `$?` after the `if`, so the real exit code was lost and

@@ -1837,7 +1837,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
                 self._gfx_rows[key] = (row, check)
             self._refresh_gpu_profile()
 
-        self.add(gfx_group)
+        content.append(gfx_group)
 
         # ── Game Library ─────────────────────────────────────────────────────────
         # The primary, front-and-centre feature: add a game once, then launch
