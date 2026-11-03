@@ -24,7 +24,7 @@ mkdir -p /usr/lib/raptor /usr/lib/systemd/system-sleep /usr/lib/modprobe.d
 # ── Wi-Fi: escalating reconnect (resume | watch | force) ─────────────────────
 cat << 'WIFI' > /usr/lib/raptor/wifi-recover
 #!/bin/bash
-# usage: wifi-recover resume|watch|force
+# usage: wifi-recover pre|resume|watch|force
 MODE="${1:-watch}"
 STATE_DIR=/run/raptor
 COUNT_FILE="$STATE_DIR/wifi-fail-count"
@@ -74,34 +74,64 @@ level3() {  # reload the driver
     d="$(wifi_devs | head -1)"; [[ -n "$d" ]] && wait_for "$d" 30
 }
 
-recover() {  # recover <max_level> <dev>
-    local max="$1" d="$2"
+# Escalate only when there is evidence Wi-Fi SHOULD be working: a known network is
+# in range, or the scan list is completely empty (a wedged driver sees nothing).
+# If other networks are visible but none of ours, we are simply somewhere else and
+# Wi-Fi is working fine -- leave it alone. force mode (manual) skips this check.
+worth_escalating() { known_in_range || scan_empty; }
+
+recover() {  # recover <mode> <dev>
+    local mode="$1" d="$2"
     level1 "$d" && return 0
-    [[ "$max" -ge 2 ]] && level2 "$d" && return 0
-    [[ "$max" -ge 3 ]] && level3 "$d" && return 0
-    return 1
+    if [[ "$mode" != force ]]; then
+        nmcli device wifi rescan >/dev/null 2>&1; sleep 4
+        worth_escalating || { log "$mode: no known network in range, leaving $d alone"; return 1; }
+    fi
+    level2 "$d" && return 0
+    if [[ "$mode" != force ]]; then
+        worth_escalating || { log "$mode: no known network in range after radio cycle, not reloading the driver"; return 1; }
+    fi
+    level3 "$d"
 }
+
+# pre: remember whether Wi-Fi was connected before suspend. Recovery after resume
+# only ever happens for a link that existed; if the user was on Ethernet or Wi-Fi was
+# off, resume must not touch the radio or the driver.
+if [[ "$MODE" == pre ]]; then
+    st=no
+    for d in $(wifi_devs); do connected "$d" && st=yes; done
+    echo "$st" > "$STATE_DIR/wifi-was-connected"
+    exit 0
+fi
 
 for dev in $(wifi_devs); do
     case "$MODE" in
         force)
             nmcli radio wifi on 2>/dev/null || true
             connected "$dev" && { log "force: $dev already connected"; continue; }
-            recover 3 "$dev" && log "force: $dev reconnected" || log "force: $dev still not connected"
+            recover force "$dev" && log "force: $dev reconnected" || log "force: $dev still not connected"
             ;;
         resume)
             have_profiles || continue
             [[ "$(nmcli radio wifi 2>/dev/null)" == enabled ]] || continue   # user turned Wi-Fi off
+            [[ "$(cat "$STATE_DIR/wifi-was-connected" 2>/dev/null)" == yes ]] || {
+                log "resume: Wi-Fi was not connected before suspend, not touching it"; continue; }
             sleep 8                                  # give NetworkManager its normal chance
             n=0; while busy "$dev" && (( n++ < 20 )); do sleep 1; done
             connected "$dev" && continue
             log "resume: $dev not connected after resume"
-            recover 3 "$dev" && log "resume: $dev reconnected" || log "resume: $dev still not connected"
+            recover resume "$dev" && log "resume: $dev reconnected" || log "resume: $dev still not connected"
             ;;
         watch)
             have_profiles || { echo 0 > "$COUNT_FILE"; continue; }
             [[ "$(nmcli radio wifi 2>/dev/null)" == enabled ]] || { echo 0 > "$COUNT_FILE"; continue; }
-            if connected "$dev" || busy "$dev"; then echo 0 > "$COUNT_FILE"; continue; fi
+            if connected "$dev" || busy "$dev"; then
+                connected "$dev" && touch "$STATE_DIR/wifi-ever-connected"
+                echo 0 > "$COUNT_FILE"; continue
+            fi
+            # Wi-Fi that never connected this boot (Ethernet-only use, nothing in range)
+            # is not "dropped": never escalate on it.
+            [[ -e "$STATE_DIR/wifi-ever-connected" ]] || { echo 0 > "$COUNT_FILE"; continue; }
             n=$(( $(cat "$COUNT_FILE" 2>/dev/null || echo 0) + 1 ))
             echo "$n" > "$COUNT_FILE"
             if   (( n == 2 )); then level1 "$dev"
@@ -258,7 +288,8 @@ rebind_touchpads() {
 }
 
 case "${1:-}" in
-    pre)  "$LIB/bt-recover" pre ;;
+    pre)  "$LIB/bt-recover" pre
+          "$LIB/wifi-recover" pre ;;
     post) rebind_touchpads
           "$LIB/leds-sync"
           systemd-run --no-block --quiet --unit="raptor-wifi-resume-$$" "$LIB/wifi-recover" resume

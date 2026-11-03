@@ -19,6 +19,21 @@
 
 ### Fixed
 
+- **Wi-Fi dropped to wired-only after closing the lid, and the radio would not
+  come back (regression from the Wi-Fi/Bluetooth recovery added in this cycle).**
+  After every resume, if Wi-Fi was not connected within ~20 s, the recovery ran
+  all three steps: reconnect, power-cycle the radio, then reload the Wi-Fi
+  driver. It never checked that Wi-Fi had been connected before suspend or that
+  any known network was in range, so anyone on Ethernet, docked, or away from
+  their usual network had the radio and driver torn down on every resume; on
+  many chips a driver reload can leave the device missing until reboot.
+  Recovery is now gated on evidence that Wi-Fi should be working: the pre-suspend
+  hook records whether Wi-Fi was connected (resume does nothing if it was not);
+  escalation past a plain reconnect needs a known network in range or a
+  completely empty scan (a wedged driver sees nothing), and the driver is not
+  reloaded if other networks are visible but none of ours; the one-minute
+  watchdog never escalates for Wi-Fi that has not connected at all this boot.
+  The manual `wifi-recover force` still runs every step unconditionally.
 - **Raptor Cortex would not open at all.** Since the 2026-09-30 refactor that
   folded the GPU profiler into Cortex, building the Graphics section called
   `self.add(gfx_group)`, but the window has no `add` method (every other section
