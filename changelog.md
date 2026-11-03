@@ -19,6 +19,11 @@
 
 ### Fixed
 
+- **Cortex now says why it cannot start.** The menu entry silently did nothing
+  when Cortex failed at startup. `raptor-cortex-launcher` now writes everything
+  Cortex prints to `~/.cache/raptor-cortex.log` and, if Cortex exits with an
+  error, shows a window with the last lines of that log. `get_cpu_temp` also no
+  longer raises when `/sys/class/thermal` does not exist.
 - **Wi-Fi dropped to wired-only after closing the lid, and the radio would not
   come back (regression from the Wi-Fi/Bluetooth recovery added in this cycle).**
   After every resume, if Wi-Fi was not connected within ~20 s, the recovery ran

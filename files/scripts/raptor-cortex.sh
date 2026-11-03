@@ -1035,7 +1035,11 @@ def get_cpu_boost():
 def get_cpu_temp():
     """Return CPU temperature in °C, or None if unavailable."""
     # Try x86_pkg_temp first (most accurate on Intel/AMD)
-    for zone in sorted(os.listdir("/sys/class/thermal")):
+    try:
+        zones = sorted(os.listdir("/sys/class/thermal"))
+    except OSError:               # no thermal class at all (VMs, some boards)
+        zones = []
+    for zone in zones:
         path = f"/sys/class/thermal/{zone}"
         try:
             with open(f"{path}/type") as f:
@@ -2913,8 +2917,19 @@ chmod +x /usr/bin/raptor-cortex
 # ── Launcher wrapper ──────────────────────────────────────────────────────────
 cat << 'EOF' > /usr/bin/raptor-cortex-launcher
 #!/bin/bash
+# Starts Raptor Cortex. Everything it prints goes to ~/.cache/raptor-cortex.log, and if
+# it fails to start a window says why, instead of the menu entry silently doing nothing.
 export ADW_DISABLE_PORTAL=1
-exec /usr/bin/raptor-cortex "$@"
+LOG="${XDG_CACHE_HOME:-$HOME/.cache}/raptor-cortex.log"
+mkdir -p "$(dirname "$LOG")" 2>/dev/null
+echo "== $(date '+%F %T')  Raptor Cortex starting  ($(python3 -V 2>&1), session: ${XDG_SESSION_TYPE:-unknown}) ==" > "$LOG"
+/usr/bin/raptor-cortex "$@" >> "$LOG" 2>&1
+rc=$?
+if [ "$rc" -ne 0 ] && command -v zenity >/dev/null 2>&1; then
+    zenity --error --no-markup --width=620 --title="Raptor Cortex could not start" \
+        --text="Raptor Cortex stopped with an error (exit code $rc):\n\n$(tail -n 14 "$LOG")\n\nFull log: $LOG" 2>/dev/null
+fi
+exit $rc
 EOF
 chmod +x /usr/bin/raptor-cortex-launcher
 
