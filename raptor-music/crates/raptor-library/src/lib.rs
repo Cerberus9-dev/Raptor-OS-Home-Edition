@@ -276,36 +276,23 @@ impl LibraryDatabase {
                 PlaybackSource::Unknown { raw_type: source_type }
             };
 
-            let id = Uuid::parse_str(&id_str).map_err(|e| {
-                rusqlite::Error::FromSqlConversionFailure(
-                    0,
-                    rusqlite::types::Type::Text,
-                    Box::new(e),
-                )
-            })?;
+            // query_map rows are rusqlite::Result, so return the raw string and
+            // parse the UUID after the row has been read.
+            Ok((id_str, title, artist, album, duration_secs, source))
+        })?;
 
-            Ok(Track {
+        let mut tracks = Vec::new();
+        for row in track_iter {
+            let (id_str, title, artist, album, duration_secs, source) = row?;
+            let id = Uuid::parse_str(&id_str)?;
+            tracks.push(Track {
                 id,
                 title,
                 artist,
                 album,
                 duration_secs,
                 source,
-            })
-        })?;
-
-        let mut tracks = Vec::new();
-        for t in track_iter {
-            tracks.push(t.map_err(|e| match e {
-                rusqlite::Error::FromSqlConversionFailure(_, _, boxed) => {
-                    if let Ok(uuid_err) = boxed.downcast::<uuid::Error>() {
-                        LibraryError::Uuid(*uuid_err)
-                    } else {
-                        LibraryError::Sqlite(e)
-                    }
-                }
-                other => LibraryError::Sqlite(other),
-            })?);
+            });
         }
         Ok(tracks)
     }
@@ -329,38 +316,18 @@ impl LibraryDatabase {
             let qid: String = row.get(0)?;
             let tid: String = row.get(1)?;
             let pos: i32 = row.get(2)?;
-            let queue_entry_id = Uuid::parse_str(&qid).map_err(|e| {
-                rusqlite::Error::FromSqlConversionFailure(
-                    0,
-                    rusqlite::types::Type::Text,
-                    Box::new(e),
-                )
-            })?;
-            let track_id = Uuid::parse_str(&tid).map_err(|e| {
-                rusqlite::Error::FromSqlConversionFailure(
-                    1,
-                    rusqlite::types::Type::Text,
-                    Box::new(e),
-                )
-            })?;
-            Ok(QueueEntry {
+            Ok((qid, tid, pos))
+        })?;
+        let mut queue = Vec::new();
+        for row in rows {
+            let (qid, tid, pos) = row?;
+            let queue_entry_id = Uuid::parse_str(&qid)?;
+            let track_id = Uuid::parse_str(&tid)?;
+            queue.push(QueueEntry {
                 queue_entry_id,
                 track_id,
                 position: pos,
-            })
-        })?;
-        let mut queue = Vec::new();
-        for r in rows {
-            queue.push(r.map_err(|e| match e {
-                rusqlite::Error::FromSqlConversionFailure(_, _, boxed) => {
-                    if let Ok(uuid_err) = boxed.downcast::<uuid::Error>() {
-                        LibraryError::Uuid(*uuid_err)
-                    } else {
-                        LibraryError::Sqlite(e)
-                    }
-                }
-                other => LibraryError::Sqlite(other),
-            })?);
+            });
         }
         Ok(queue)
     }
