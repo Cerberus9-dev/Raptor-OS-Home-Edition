@@ -118,7 +118,7 @@ Native Rust/Slint music player. Scans a folder into a SQLite library, shows the 
 
 ## Raptor Shroudly
 
-Local proxy / DPI-bypass service (Rust, Tokio + hyper) that binds `127.0.0.1:10808` and prints a small dashboard (status, port, active mode, monitored apps). Built from the repo root and installed as **Raptor Shroudly** in the **Raptor OS** category; it opens in a terminal, and closing the window stops the proxy.
+Local proxy / DPI-bypass service (Rust, Tokio + hyper) that binds `127.0.0.1:10808` and prints a small dashboard (status, port, active mode, monitored apps). Built from `shroudly-raptor/` and installed as **Raptor Shroudly** in the **Raptor OS** category; it opens in a terminal, and closing the window stops the proxy.
 
 ---
 

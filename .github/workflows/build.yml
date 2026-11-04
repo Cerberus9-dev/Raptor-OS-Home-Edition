@@ -8,9 +8,7 @@ on:
       - "recipes/**"
       - "files/**"
       - "raptor-music/**"
-      - "src/**"
-      - "Cargo.toml"
-      - "Cargo.lock"
+      - "shroudly-raptor/**"
       - ".github/scripts/**"
       - ".github/workflows/build.yml"
 
@@ -21,9 +19,7 @@ on:
       - "recipes/**"
       - "files/**"
       - "raptor-music/**"
-      - "src/**"
-      - "Cargo.toml"
-      - "Cargo.lock"
+      - "shroudly-raptor/**"
       - ".github/scripts/**"
 
   schedule:
@@ -100,8 +96,8 @@ jobs:
 
       - name: Build Shroudly Raptor
         run: |
-          cargo build --release
-          install -Dm755 target/release/shroudly-raptor files/staging/shroudly-raptor
+          cargo build --release --manifest-path shroudly-raptor/Cargo.toml
+          install -Dm755 shroudly-raptor/target/release/shroudly-raptor files/staging/shroudly-raptor
 
       - name: Build and push image
         uses: blue-build/github-action@v1

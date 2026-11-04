@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Shroudly Raptor: install the prebuilt proxy daemon shipped by CI.
-# Source lives at the repo root (Cargo.toml + src/) and is built by
+# Source lives in shroudly-raptor/ (Cargo.toml + src/) and is built by
 # .github/workflows/build.yml, then staged into files/staging/. The recipe's
 # files module copies that directory to /tmp/raptor-staging. Local builds that
 # did not stage a binary are skipped with a warning instead of failing.
@@ -15,8 +15,8 @@ mkdir -p /usr/bin /usr/share/applications /usr/share/icons/hicolor/scalable/apps
 
 if [[ ! -x "$SRC_BIN" ]]; then
     echo "SHROUDLY_RAPTOR_SKIP: no prebuilt binary at ${SRC_BIN}." >&2
-    echo "Build it with: cargo build --release" >&2
-    echo "Then copy target/release/shroudly-raptor to files/staging/shroudly-raptor." >&2
+    echo "Build it with: cargo build --release --manifest-path shroudly-raptor/Cargo.toml" >&2
+    echo "Then copy shroudly-raptor/target/release/shroudly-raptor to files/staging/shroudly-raptor." >&2
     exit 0
 fi
 

@@ -1,7 +1,8 @@
 # Rust build output
-/target/
 raptor-music/target/
 raptor-music/**/target/
+shroudly-raptor/target/
+shroudly-raptor/**/target/
 
 # Binaries staged by CI before the image build (see .github/workflows/build.yml)
 /files/staging/*

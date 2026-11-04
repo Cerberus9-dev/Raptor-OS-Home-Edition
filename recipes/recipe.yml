@@ -83,7 +83,7 @@ modules:
       - source: ../files/system_files/raptor-nofile.conf
         destination: /etc/systemd/user.conf.d/10-raptor-nofile.conf
       # ── Prebuilt Rust apps ──────────────────────────────────────────────
-      # CI builds Raptor Music (raptor-music/) and Shroudly Raptor (src/) and
+      # CI builds Raptor Music (raptor-music/) and Shroudly Raptor (shroudly-raptor/) and
       # drops the binaries in files/staging/. The install scripts then place
       # them in /usr/bin and add the Raptor OS menu entries. If the directory
       # is empty (local build without staging), the scripts warn and skip.
