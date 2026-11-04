@@ -1,0 +1,15 @@
+[workspace]
+members = [
+    "crates/raptor-core",
+    "crates/raptor-library",
+    "crates/raptor-audio",
+    "crates/raptor-desktop"
+]
+resolver = "2"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

@@ -1,13 +1,55 @@
 [Unit]
-Description=Raptor OS First Boot Setup
-After=network-online.target
-Wants=network-online.target
-ConditionPathExists=!/var/lib/raptor-firstboot-done
+Description=Raptor OS First-Boot Setup Dialogs
+# Wait for Plasma shell to be running — GUI dialogs need it
+After=plasma-plasmashell.service
+# XDG_RUNTIME_DIR is set in every Wayland AND X11 user session
+# (it's the /run/user/<uid> directory). This replaces the broken
+# ConditionEnvironment=DISPLAY which was never set on Wayland.
+ConditionEnvironment=XDG_RUNTIME_DIR
+# Run until ALL THREE stamps exist; skip if already complete
+ConditionPathExists=|!%h/.local/share/raptor/browser-choice-done
+ConditionPathExists=|!%h/.local/share/raptor/chat-choice-done
+ConditionPathExists=|!%h/.local/share/raptor/app-choice-done
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/bash -c 'rpm-ostree rebase ostree-unverified-registry:ghcr.io/cerberus9-dev/raptor-os:latest && touch /var/lib/raptor-firstboot-done && systemctl reboot'
+# Each script checks its own stamp and exits 0 immediately if already done,
+# so it's always safe to call all three in sequence.
+ExecStart=/usr/bin/raptor-browser-choice.sh
+ExecStart=/usr/bin/raptor-chat-choice.sh
+ExecStart=/usr/bin/raptor-app-choice.sh
 RemainAfterExit=yes
+StandardOutput=journal
+StandardError=journal
+# zenity returns 1 on "Skip" — treat as success so the chain continues
+SuccessExitStatus=0 1
+
+# ── Hardening: deliberately NOT applied here ────────────────────────────────
+# Unlike the other Raptor services, this one is not a good hardening
+# candidate — the scripts it runs need broad access that most sandboxing
+# directives would break outright. All three ExecStart lines run under the
+# same service unit, so hardening has to accommodate the most permissive of
+# them (raptor-app-choice.sh's sudo requirement) even though the other two
+# scripts alone wouldn't need it:
+#
+#   NoNewPrivileges  — NOT SET: raptor-app-choice.sh calls `sudo rpm-ostree
+#     install` for a handful of optional packages (gcc/make/cmake, gh,
+#     btop, variety). sudo is a setuid binary; NoNewPrivileges blocks the
+#     exact privilege transition sudo depends on.
+#
+#   PrivateTmp        — NOT SET: all three scripts write install logs to
+#     /tmp/raptor-*-install.log specifically so the user can check them
+#     after a failed install. PrivateTmp would give the service its own
+#     isolated /tmp, making those logs invisible from a normal terminal.
+#
+#   ProtectHome        — NOT SET: needs full read/write access to the
+#     user's own home directory (dotfiles, Flatpak user data, GTK/Qt
+#     config) as part of normal first-run setup.
+#
+# This service also needs network access (Flatpak installs) and a full
+# desktop session (Wayland/X11 display, D-Bus session bus) to show its
+# zenity dialogs — neither of which any standard hardening directive here
+# would preserve.
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=graphical-session.target

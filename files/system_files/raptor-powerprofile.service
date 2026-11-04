@@ -1,0 +1,35 @@
+[Unit]
+Description=Raptor OS Initial Power Profile
+# Wants= (not Requires=) — if power-profiles-daemon is slow or briefly
+# fails at boot, this service still attempts to run rather than blocking
+# for up to 90 s and stalling the multi-user target.
+Wants=power-profiles-daemon.service
+After=power-profiles-daemon.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c 'powerprofilesctl set balanced 2>/dev/null || true'
+RemainAfterExit=yes
+StandardOutput=journal
+StandardError=journal
+
+# ── Hardening ──────────────────────────────────────────────────────────────────
+# powerprofilesctl talks to power-profiles-daemon over the D-Bus system bus —
+# no direct filesystem writes, no /tmp usage, no privilege escalation needed.
+# Same safe candidate for full hardening as raptor-ensure-services.service.
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+
+[Install]
+WantedBy=multi-user.target

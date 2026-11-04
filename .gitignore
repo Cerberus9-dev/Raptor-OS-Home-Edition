@@ -1,3 +1,9 @@
-cosign.key
-cosign.private
-/Containerfile
+# Rust build output
+raptor-music/target/
+raptor-music/**/target/
+shroudly-raptor/target/
+shroudly-raptor/**/target/
+
+# Binaries staged by CI before the image build (see .github/workflows/build.yml)
+/files/staging/*
+!/files/staging/.gitkeep

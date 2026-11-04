@@ -1,0 +1,42 @@
+[Unit]
+Description=Raptor OS — GPU Profile Detection & Configuration
+After=sysinit.target
+Before=display-manager.service
+
+[Service]
+Type=oneshot
+# Script is at /usr/lib/raptor/gpu-detect.sh — written by raptor-gpu-profile.sh
+# at build time. /usr/bin/raptor-gpu-profile.sh is the old path (no longer used).
+ExecStart=/usr/lib/raptor/gpu-detect.sh
+RemainAfterExit=yes
+StandardOutput=journal
+StandardError=journal
+
+# ── Hardening ──────────────────────────────────────────────────────────────────
+# This service genuinely needs broad access, so most standard sandboxing
+# directives are deliberately OMITTED here rather than applied and silently
+# breaking things:
+#
+#   ProtectSystem=strict / ProtectHome  — NOT SET: gpu-detect.sh writes
+#     /etc/environment.d/raptor-gpu.conf and, via `sudo -u "#$uid"`, writes
+#     to each logged-in user's own ~/.config/environment.d — arbitrary
+#     /home/* paths that ProtectHome would block.
+#
+#   NoNewPrivileges                     — NOT SET: gpu-detect.sh calls
+#     `sudo -u` to propagate GPU env vars into each user's session. sudo is
+#     a setuid binary; NoNewPrivileges blocks exactly the privilege
+#     transition sudo depends on, which would break this outright.
+#
+#   ProtectKernelTunables                — NOT SET: writes GPU power state
+#     directly to /sys/class/drm/*/device/* (DPM level, power profile mode)
+#     and calls sysctl --system, which needs /proc/sys write access.
+#
+# What's left below is still meaningfully tightened without touching any of
+# the paths this service actually needs.
+PrivateTmp=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

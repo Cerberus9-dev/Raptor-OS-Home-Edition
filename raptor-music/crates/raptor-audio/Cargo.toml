@@ -1,0 +1,13 @@
+[package]
+name = "raptor-audio"
+version = "0.2.17"
+edition = "2021"
+
+[dependencies]
+raptor-core = { path = "../raptor-core" }
+symphonia = { version = "0.5", features = ["aac", "alac", "flac", "mp3", "ogg", "pcm", "all"] }
+cpal = "0.15"
+crossbeam-channel = "0.5"
+thiserror = "1.0"
+ringbuf = "0.3"
+uuid = { version = "1.6", features = ["v4"] }

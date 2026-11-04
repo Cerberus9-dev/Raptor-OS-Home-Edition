@@ -1,0 +1,52 @@
+[Unit]
+Description=Raptor OS CPU Governor
+# Run after the GPU profile service which also sets the CPU governor as part
+# of its profile logic (gpu-detect.sh). This service exists for boot ordering
+# only — it does NOT call gpu-detect.sh again (that would be redundant and add
+# ~0.5 s to boot for no benefit).
+#
+# PartOf= was removed: it incorrectly coupled this service's lifecycle to
+# raptor-gpu-profile.service, causing confusing stop/restart behaviour.
+After=raptor-gpu-profile.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c '\
+  PROFILE="auto"; \
+  [ -f /etc/raptor-force-performance ] && PROFILE="performance"; \
+  [ -f /etc/raptor-force-extreme ]     && PROFILE="extreme"; \
+  case "$PROFILE" in \
+    performance|extreme) GOV="performance" ;; \
+    *) GOV="schedutil" ;; \
+  esac; \
+  for f in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do \
+    echo "$GOV" > "$f" 2>/dev/null || true; \
+  done; \
+  logger -t raptor-cpugovernor "CPU governor set to $GOV (profile=$PROFILE)"'
+RemainAfterExit=yes
+StandardOutput=journal
+StandardError=journal
+
+# ── Hardening ──────────────────────────────────────────────────────────────────
+# Only reads /etc/raptor-force-* (never writes to /etc), writes exclusively to
+# /sys/devices/system/cpu/*/cpufreq/. No home directory access, no /tmp usage,
+# no privilege escalation needed (already runs as root via systemd).
+#
+# ProtectKernelTunables is intentionally OMITTED — it would make /sys
+# read-only, which would break this service's entire purpose (writing the
+# governor to cpufreq sysfs nodes).
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+
+[Install]
+WantedBy=multi-user.target

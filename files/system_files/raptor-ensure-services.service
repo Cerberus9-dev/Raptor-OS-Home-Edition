@@ -1,0 +1,48 @@
+[Unit]
+Description=Raptor OS Service Health Check
+# Validates that essential Raptor services are active after boot and logs
+# warnings for any that failed to start. Does NOT call systemctl enable
+# (that is handled at build time via recipe.yml; runtime enabling on an
+# immutable OSTree image is a no-op or fails silently on the read-only layer).
+After=multi-user.target
+After=raptor-gpu-profile.service
+After=raptor-powerprofile.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/bash -c '\
+  for svc in raptor-gpu-profile.service raptor-powerprofile.service; do \
+    if systemctl is-active --quiet "$svc"; then \
+      logger -t raptor-ensure "OK: $svc is active"; \
+    else \
+      logger -t raptor-ensure -p daemon.warning \
+        "WARNING: $svc is not active — attempting start"; \
+      systemctl start --no-block "$svc" 2>/dev/null || true; \
+    fi; \
+  done'
+StandardOutput=journal
+StandardError=journal
+
+# ── Hardening ──────────────────────────────────────────────────────────────────
+# Purely diagnostic: only calls systemctl (talks to the systemd manager over
+# its private D-Bus-like socket, unaffected by filesystem sandboxing) and
+# logger. No filesystem writes anywhere, no /tmp usage, no privilege
+# escalation needed. This is the safest possible candidate for full hardening
+# — nothing here conflicts with any of these directives.
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+
+[Install]
+WantedBy=multi-user.target

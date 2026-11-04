@@ -1,20 +1,57 @@
-name: Generate Cosign Keys
-on: workflow_dispatch
+name: Generate and Commit Cosign Keys
+
+# Run this ONCE to generate your signing key pair.
+# cosign.pub is committed to the repo so users can verify image signatures.
+# cosign.key is stored as a GitHub Secret (SIGNING_SECRET) — never committed.
+on:
+  workflow_dispatch:
 
 jobs:
-  generate-keys:
+  generate-and-commit:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # needed to push cosign.pub to the repo
+
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3
 
       - name: Generate cosign key pair
-        run: cosign generate-key-pair
+        run: |
+          cosign generate-key-pair
+          echo ""
+          echo "✓ Key pair generated"
+          echo "  cosign.pub  — PUBLIC key (safe to share, will be committed to repo)"
+          echo "  cosign.key  — PRIVATE key (add as repo secret SIGNING_SECRET, then DELETE this file)"
 
-      - name: Upload key files
-        uses: actions/upload-artifact@v4
+      - name: Commit cosign.pub to repo
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add cosign.pub
+          git diff --staged --quiet || git commit -m "chore: add cosign public key for image verification"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload cosign.key as artifact (add to secrets then discard)
+        uses: actions/upload-artifact@v6
         with:
-          name: cosign-keys
-          path: |
-            cosign.key
-            cosign.pub
+          name: cosign-private-key-ADD-TO-SECRETS-THEN-DELETE
+          path: cosign.key
+          retention-days: 1
+
+      - name: Remind to add secret
+        run: |
+          echo ""
+          echo "═══════════════════════════════════════════════════════"
+          echo "  NEXT STEPS:"
+          echo "  1. Download the artifact (cosign.key) from this run"
+          echo "  2. Add its contents as repo secret: SIGNING_SECRET"
+          echo "     Settings → Secrets → Actions → New repository secret"
+          echo "  3. Delete the downloaded file — do not store it anywhere"
+          echo "  4. cosign.pub has been committed to the repo automatically"
+          echo "═══════════════════════════════════════════════════════"

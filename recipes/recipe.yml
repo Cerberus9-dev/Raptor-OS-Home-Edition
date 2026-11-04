@@ -1,76 +1,201 @@
----
 # yaml-language-server: $schema=https://schema.blue-build.org/recipe-v1.json
 name: raptor-os
-description: raptor-os
+description: Raptor OS — a Bazzite-based custom image for gaming, development, and creative workflows.
 base-image: ghcr.io/ublue-os/bazzite
-image-version: latest
+# Pinned to Fedora 44. Bazzite moved its moving `stable` tag from Fedora 44 to Fedora 45 on
+# 2026-11-04, and on a Fedora 45 base `rpm-ostree` commands fail inside the image build
+# ("This system was not booted via libostree"), which broke every build. `stable-44` is the
+# last Fedora 44 build Bazzite published (2026-10-26). Moving to 45 is a separate, deliberate
+# change: the package modules need porting first.
+image-version: stable-44
+
 modules:
+  # ── Static files ─────────────────────────────────────────────────────────
   - type: files
     files:
-      - source: system_files/raptor-firstboot.service
-        destination: /usr/lib/systemd/system/raptor-firstboot.service
-      - source: system/usr/local/bin
-        destination: /usr/local/bin/raptor-browser-choice.sh
+      # User service — must live in the user unit dir so it runs inside the
+      # login session (needed for GUI dialogs and correct env on Wayland).
+      - source: ../files/system_files/raptor-firstboot.service
+        destination: /usr/lib/systemd/user/raptor-firstboot.service
+      - source: ../files/system_files/raptor-ensure-services.service
+        destination: /usr/lib/systemd/system/raptor-ensure-services.service
+      - source: ../files/system_files/raptor-resume-trigger.service
+        destination: /usr/lib/systemd/system/raptor-resume-trigger.service
+      - source: ../files/system_files/raptor-lid-open-fix.service
+        destination: /usr/lib/systemd/system/raptor-lid-open-fix.service
+      - source: ../files/system_files/raptor-cpugovernor.service
+        destination: /usr/lib/systemd/system/raptor-cpugovernor.service
+      - source: ../files/system_files/raptor-powerprofile.service
+        destination: /usr/lib/systemd/system/raptor-powerprofile.service
+      - source: ../files/system_files/raptor-app-choice.sh
+        destination: /usr/bin/raptor-app-choice.sh
+      - source: ../files/system_files/raptor-browser-choice.sh
+        destination: /usr/bin/raptor-browser-choice.sh
+      - source: ../files/system_files/raptor-chat-choice.sh
+        destination: /usr/bin/raptor-chat-choice.sh
+      # Default file manager (Dolphin) + image/archive type associations.
+      - source: ../files/system_files/raptor-mimeapps.list
+        destination: /etc/xdg/mimeapps.list
+      - source: ../files/system_files/raptor-mimeapps.list
+        destination: /etc/skel/.config/mimeapps.list
+      # ── Audio: PipeWire low-latency gaming config ──────────────────────────
+      - source: ../files/system_files/99-raptor-pipewire-lowlatency.conf
+        destination: /etc/pipewire/pipewire.conf.d/99-raptor-lowlatency.conf
+      - source: ../files/system_files/99-raptor-pipewire-pulse-lowlatency.conf
+        destination: /etc/pipewire/pipewire-pulse.conf.d/99-raptor-pulse-lowlatency.conf
+      - source: ../files/system_files/99-raptor-wireplumber-alsa.conf
+        destination: /etc/wireplumber/wireplumber.conf.d/99-raptor-alsa.conf
+      - source: ../files/system_files/raptor-audio-rt.conf
+        destination: /etc/security/limits.d/raptor-audio-rt.conf
+      - source: ../files/system_files/raptor-pipewire-restart.conf
+        destination: /etc/systemd/user/pipewire.service.d/raptor-restart.conf
+      - source: ../files/system_files/raptor-pipewire-restart.conf
+        destination: /etc/systemd/user/pipewire-pulse.service.d/raptor-restart.conf
+      - source: ../files/system_files/raptor-wireplumber-restart.conf
+        destination: /etc/systemd/user/wireplumber.service.d/raptor-restart.conf
+      - source: ../files/system_files/zram-generator.conf
+        destination: /etc/systemd/zram-generator.conf
+      # ── DNS: let systemd-resolved handle everything (ignores DHCP DNS) ─────
+      - source: ../files/system_files/91-raptor-dns.conf
+        destination: /etc/NetworkManager/conf.d/91-raptor-dns.conf
+      # ── WiFi reconnection hardening ────────────────────────────────────────
+      - source: ../files/system_files/91-raptor-network.conf
+        destination: /etc/NetworkManager/conf.d/91-raptor-network.conf
+      # ── WiFi reconnection hardening ────────────────────────────────────────
+      - source: ../files/system_files/raptor-suspend-resume-wifi.sh
+        destination: /etc/NetworkManager/dispatcher.d/99-raptor-wifi-resume
+      # ── Input device / cursor fixes ────────────────────────────────────────
+      # ── File manager (Dolphin) stability ───────────────────────────────────
+      - source: ../files/system_files/dolphinrc
+        destination: /etc/xdg/dolphinrc
+      - source: ../files/system_files/dolphinrc
+        destination: /etc/skel/.config/dolphinrc
+      # ── Baloo (file indexer) stability: disable content indexing ────────────
+      - source: ../files/system_files/baloofilerc
+        destination: /etc/xdg/baloofilerc
+      - source: ../files/system_files/baloofilerc
+        destination: /etc/skel/.config/baloofilerc
+      # ── Wine / Proton usability + fd limits ────────────────────────────────
+      - source: ../files/system_files/10-raptor-wine.conf
+        destination: /etc/environment.d/10-raptor-wine.conf
+      - source: ../files/system_files/raptor-nofile.conf
+        destination: /etc/systemd/system.conf.d/10-raptor-nofile.conf
+      - source: ../files/system_files/raptor-nofile.conf
+        destination: /etc/systemd/user.conf.d/10-raptor-nofile.conf
+      # ── Prebuilt Rust apps ──────────────────────────────────────────────
+      # CI builds Raptor Music (raptor-music/) and Shroudly Raptor (shroudly-raptor/) and
+      # drops the binaries in files/staging/. The install scripts then place
+      # them in /usr/bin and add the Raptor OS menu entries. If the directory
+      # is empty (local build without staging), the scripts warn and skip.
+      - source: ../files/staging
+        destination: /tmp/raptor-staging
+
+  # ── RPM packages ─────────────────────────────────────────────────────────
+  # Must run BEFORE the rpm-ostree module below. The base image ships tuned-ppd,
+  # which conflicts with power-profiles-daemon (both provide ppd-service), so it
+  # has to be removed before the install resolves. Tolerant of packages that the
+  # base image no longer ships.
+  - type: script
+    scripts:
+      - raptor-remove-packages.sh
 
   - type: rpm-ostree
     install:
-      - firefox
+      # System utilities
       - fastfetch
-      - plasma-systemmonitor
-      - libreoffice
-      - thunderbird
-      - kdenlive
-      - gimp
-      - inkscape
-      - krita
-      - vlc
-      - obs-studio
-      - p7zip
-      - gwenview
-      - filelight
-      - gamemode
-      - goverlay
-      - zenity
-      - git
-      - gh
-      - nodejs
-      - python3
-      - python3-pip
-      - gcc
-      - make
-      - cmake
-      - ninja-build
-      - meson
-      - neovim
       - htop
-      - podman
-      - podman-compose
+      - p7zip
       - curl
       - wget
       - jq
-      - ripgrep
-      - fzf
-      - tmux
-      - variety
-      - wine
-      - winetricks
+      - zenity
+      - gwenview
+      - kcalc
+      - liberation-fonts
+      - power-profiles-daemon
 
+      # Media
+      - mpv
+
+      # Gaming
+      - irqbalance
+      - gamemode
+      # Note: mangohud/goverlay are intentionally omitted from the RPM list.
+      # Bazzite's stable base now ships its own packaging of MangoHud
+      # (terra-mangohud), and installing Fedora's mangohud here conflicts with
+      # it on /usr/bin/mangoapp. The overlay therefore comes from the base
+      # image, and the GOverlay config GUI is installed as a Flatpak instead.
+      - wine
+      # Wine runtime pieces — without these, Windows apps/.NET and JS-based
+      # program loaders hang on first launch (Wine stalls trying to download
+      # them) or fail outright. See /usr/share/wine/gecko and /usr/share/wine/mono
+      - wine-mono
+      - mingw32-wine-gecko
+      - mingw64-wine-gecko
+      - winetricks
+      - protontricks
+
+      # Python + GObject — required by Raptor GTK4/Adwaita apps
+      - python3
+      - python3-gobject
+      - libadwaita
+
+      # Theming
+      - kde-partitionmanager
+      - kvantum
+      - kvantum-qt5
+      - papirus-icon-theme
+      - jetbrains-mono-fonts
+      - qt5-qtbase
+
+  # ── Flatpaks ─────────────────────────────────────────────────────────────
   - type: default-flatpaks@v1
     notify: true
     system:
       install:
-        - com.discordapp.Discord
-        - com.heroicgameslauncher.hgl
-        - com.vscodium.codium
-        - com.github.marhkb.Pods
+        # Core system tools only — everything else moved to firstboot app picker
+        - net.davidotek.pupgui2
+        # No browser ships in the image on purpose — the default image stays as
+        # minimal as possible. All popular browsers (Firefox, Brave, Chromium,
+        # Chrome, Edge) are offered as downloads in the firstboot browser-choice
+        # dialog instead, keeping sizing/policy fully in the user's hands.
 
-  - type: systemd
-    system:
-      enabled:
-        - raptor-firstboot.service
+  # ── Kernel boot arguments ─────────────────────────────────────────────────────
+  - type: kargs
+    kargs:
+      - split_lock_detect=off
+      - transparent_hugepage=madvise
+      - nowatchdog
+      - nmi_watchdog=0
 
+  # ── Custom build scripts ──────────────────────────────────────────────────────
   - type: script
     scripts:
       - raptor-hud.sh
-      - raptor-performance.sh
+      - raptor-cortex.sh
+      - raptor-gpu-profile.sh
       - raptor-gaming.sh
+      - raptor-update.sh
+      - raptor-wallpaper-manager.sh
+      - raptor-wine.sh
+      - raptor-dolphin-stability.sh
+      - raptor-cheatsheet.sh
+      - raptor-tasks.sh
+      - raptor-gaming-devices.sh
+      - raptor-hardware-fixes.sh
+      - raptor-music.sh
+      - shroudly-raptor.sh
+
+  # ── Systemd units ───────────────────────────────────────────────────────────
+  - type: systemd
+    system:
+      enabled:
+        - raptor-ensure-services.service
+        - raptor-gpu-profile.service
+        - raptor-powerprofile.service
+        - raptor-resume-trigger.service
+        - raptor-lid-open-fix.service
+    user:
+      enabled:
+        - raptor-firstboot.service
+        - gamemoded.service
