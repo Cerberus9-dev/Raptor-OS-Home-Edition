@@ -3,6 +3,9 @@ name = "raptor-desktop"
 version = "0.2.17"
 edition = "2021"
 
+[build-dependencies]
+slint-build = "1.5"
+
 [dependencies]
 raptor-core = { path = "../raptor-core" }
 raptor-library = { path = "../raptor-library" }

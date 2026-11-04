@@ -82,6 +82,13 @@ modules:
         destination: /etc/systemd/system.conf.d/10-raptor-nofile.conf
       - source: ../files/system_files/raptor-nofile.conf
         destination: /etc/systemd/user.conf.d/10-raptor-nofile.conf
+      # ── Prebuilt Rust apps ──────────────────────────────────────────────
+      # CI builds Raptor Music (raptor-music/) and Shroudly Raptor (src/) and
+      # drops the binaries in files/staging/. The install scripts then place
+      # them in /usr/bin and add the Raptor OS menu entries. If the directory
+      # is empty (local build without staging), the scripts warn and skip.
+      - source: ../files/staging
+        destination: /tmp/raptor-staging
 
   # ── RPM packages ─────────────────────────────────────────────────────────
   # Must run BEFORE the rpm-ostree module below. The base image ships tuned-ppd,
@@ -176,6 +183,8 @@ modules:
       - raptor-tasks.sh
       - raptor-gaming-devices.sh
       - raptor-hardware-fixes.sh
+      - raptor-music.sh
+      - shroudly-raptor.sh
 
   # ── Systemd units ───────────────────────────────────────────────────────────
   - type: systemd

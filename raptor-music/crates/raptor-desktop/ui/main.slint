@@ -1,0 +1,104 @@
+import { Button, HorizontalBox, StandardTableView, VerticalBox } from "std-widgets.slint";
+
+export struct TrackData {
+    id: string,
+    title: string,
+    artist: string,
+    album: string,
+    duration: string,
+}
+
+export component MainWindow inherits Window {
+    title: "Raptor Music";
+    width: 800px;
+    height: 600px;
+
+    in-out property <[TrackData]> track_list: [];
+    in-out property <[TrackData]> queue_list: [];
+    in-out property <int> selected_track_index: -1;
+    in-out property <int> selected_queue_index: -1;
+    in-out property <int> playing_queue_index: -1;
+    in-out property <string> current_track_title: "Not Playing";
+    in-out property <string> current_track_artist: "";
+    in-out property <string> progress_label: "0:00 / 0:00";
+    in-out property <string> player_state_label: "Idle";
+
+    callback scan_directory_clicked();
+    callback track_selected(int);
+    callback queue_selected(int);
+    callback add_to_queue_clicked();
+    callback play_clicked();
+    callback stop_clicked();
+
+    VerticalBox {
+        HorizontalBox {
+            Text { text: "Raptor Music Player"; font-size: 20px; bold: true; }
+            Button { text: "Scan Directory"; clicked => { root.scan_directory_clicked(); } }
+        }
+
+        HorizontalBox {
+            VerticalBox {
+                Text { text: "Library Tracks"; bold: true; }
+                StandardTableView {
+                    columns: [
+                        { title: "Title" },
+                        { title: "Artist" },
+                        { title: "Album" },
+                        { title: "Duration" }
+                    ];
+                    rows: [
+                        for track in root.track_list: [
+                            { text: track.title },
+                            { text: track.artist },
+                            { text: track.album },
+                            { text: track.duration }
+                        ]
+                    ];
+                    current-row-changed(idx) => { root.track_selected(idx); }
+                }
+                Button { text: "Add Selected to Queue"; clicked => { root.add_to_queue_clicked(); } }
+            }
+
+            VerticalBox {
+                Text { text: "Playback Queue"; bold: true; }
+                StandardTableView {
+                    columns: [
+                        { title: "Title" },
+                        { title: "Artist" },
+                        { title: "Duration" }
+                    ];
+                    rows: [
+                        for track in root.queue_list: [
+                            { text: track.title },
+                            { text: track.artist },
+                            { text: track.duration }
+                        ]
+                    ];
+                    current-row-changed(idx) => { root.queue_selected(idx); }
+                }
+            }
+        }
+
+        Rectangle {
+            background: #2a2a2a;
+            height: 80px;
+
+            HorizontalBox {
+                VerticalBox {
+                    Text { text: root.current_track_title; font-size: 16px; bold: true; color: #ffffff; }
+                    Text { text: root.current_track_artist; font-size: 14px; color: #cccccc; }
+                }
+
+                HorizontalBox {
+                    Button { text: "Play / Resume"; clicked => { root.play_clicked(); } }
+                    Button { text: "Stop"; clicked => { root.stop_clicked(); } }
+                }
+
+                VerticalBox {
+                    Text { text: root.player_state_label; color: #ffffff; }
+                    Text { text: root.progress_label; color: #aaaaaa; }
+                }
+            }
+        }
+    }
+}

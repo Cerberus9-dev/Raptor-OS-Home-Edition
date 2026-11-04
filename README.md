@@ -62,7 +62,7 @@ Three dialogs appear on the first login, in sequence:
 | **Gaming** | Heroic Games Launcher (Epic/GOG/Amazon), ProtonUp-Qt, Protontricks, Wine, Winetricks |
 | **Media** | mpv (lightweight playback) |
 | **System** | htop, KDE Partition Manager, Plasma System Monitor, Gwenview, KCalc, Fastfetch, p7zip |
-| **Raptor Apps** | Raptor Cortex, Raptor Wallpaper, Raptor Update Manager — all grouped under their own **Raptor OS** category in the app menu |
+| **Raptor Apps** | Raptor Cortex, Raptor Wallpaper, Raptor Update Manager, Raptor Music, Raptor Shroudly — all grouped under their own **Raptor OS** category in the app menu |
 | **Overlays** | MangoHud (green palette, Shift+F12), Gamemode |
 
 ---
@@ -111,6 +111,14 @@ GPU profile selection now lives inside **Raptor Cortex**, under a **Graphics** g
 ## Raptor Wallpaper
 
 Gallery-style wallpaper picker — click any thumbnail to apply it, including four bundled Raptor-branded wallpapers alongside anything in your Pictures folder. Fit mode control (Fill/Fit/Stretch/Center/Tile). Right-click any image file in Dolphin → **Set as Raptor Wallpaper** to apply it directly with no window opening.
+
+## Raptor Music
+
+Native Rust/Slint music player. Scans a folder into a SQLite library, shows the playback queue, and plays local FLAC/MP3/WAV through a `cpal` audio backend with automatic track advance. Built from `raptor-music/` by CI and installed as **Raptor Music** in the **Raptor OS** category. The library database (`raptor_music.db`) is written to the directory the app is launched from.
+
+## Raptor Shroudly
+
+Local proxy / DPI-bypass service (Rust, Tokio + hyper) that binds `127.0.0.1:10808` and prints a small dashboard (status, port, active mode, monitored apps). Built from the repo root and installed as **Raptor Shroudly** in the **Raptor OS** category; it opens in a terminal, and closing the window stops the proxy.
 
 ---
 
