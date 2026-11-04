@@ -2,7 +2,12 @@
 name: raptor-os
 description: Raptor OS — a Bazzite-based custom image for gaming, development, and creative workflows.
 base-image: ghcr.io/ublue-os/bazzite
-image-version: stable
+# Pinned to Fedora 44. Bazzite moved its moving `stable` tag from Fedora 44 to Fedora 45 on
+# 2026-11-04, and on a Fedora 45 base `rpm-ostree` commands fail inside the image build
+# ("This system was not booted via libostree"), which broke every build. `stable-44` is the
+# last Fedora 44 build Bazzite published (2026-10-26). Moving to 45 is a separate, deliberate
+# change: the package modules need porting first.
+image-version: stable-44
 
 modules:
   # ── Static files ─────────────────────────────────────────────────────────

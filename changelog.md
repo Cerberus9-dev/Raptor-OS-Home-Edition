@@ -19,6 +19,16 @@
 
 ### Fixed
 
+- **Every build failed from 2026-11-04: the base image silently changed.** The
+  recipe used `image-version: stable`. Bazzite moved its `stable` tag from
+  Fedora 44 to Fedora 45 on 2026-11-04 00:43 UTC (it had stopped publishing
+  Fedora 44 builds on 2026-10-26), so the next build switched to a Fedora 45
+  base where `rpm-ostree` commands abort inside the build container with
+  `This system was not booted via libostree` (both the package removal script and
+  the `rpm-ostree` module). Pinned to `stable-44`, the last Fedora 44 build,
+  which is what built successfully on 2026-11-01 to 2026-11-03. Porting the
+  package steps to Fedora 45 is a separate change; note that a pinned base no
+  longer receives Bazzite/Fedora updates until that is done.
 - **Raptor Cortex could hang before its window ever appeared.** The window
   constructor ran `_refresh_stats()` synchronously, before `present()`, and
   again every 2 s on the UI thread. It reads sysfs, hwmon, `lspci` and
