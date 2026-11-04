@@ -395,6 +395,7 @@ kwriteconfig5 --file kwinrc --group org.kde.kdecoration2 --key library org.kde.k
 kwriteconfig5 --file kwinrc --group org.kde.kdecoration2 --key theme "__aurorae__svg__RaptorOS"
 
 kwriteconfig5 --file kdeglobals --group KDE --key LookAndFeelPackage org.kde.breezedark.desktop
+kwriteconfig5 --file kdeglobals --group General --key accentColorFromWallpaper false
 command -v kvantummanager &>/dev/null && kvantummanager --set RaptorOS 2>/dev/null || true
 
 mkdir -p "${HOME}/.config/gtk-3.0"
