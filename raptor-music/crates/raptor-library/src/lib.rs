@@ -276,7 +276,13 @@ impl LibraryDatabase {
                 PlaybackSource::Unknown { raw_type: source_type }
             };
 
-            let id = Uuid::parse_str(&id_str)?;
+            let id = Uuid::parse_str(&id_str).map_err(|e| {
+                rusqlite::Error::FromSqlConversionFailure(
+                    0,
+                    rusqlite::types::Type::Text,
+                    Box::new(e),
+                )
+            })?;
 
             Ok(Track {
                 id,
@@ -323,8 +329,20 @@ impl LibraryDatabase {
             let qid: String = row.get(0)?;
             let tid: String = row.get(1)?;
             let pos: i32 = row.get(2)?;
-            let queue_entry_id = Uuid::parse_str(&qid)?;
-            let track_id = Uuid::parse_str(&tid)?;
+            let queue_entry_id = Uuid::parse_str(&qid).map_err(|e| {
+                rusqlite::Error::FromSqlConversionFailure(
+                    0,
+                    rusqlite::types::Type::Text,
+                    Box::new(e),
+                )
+            })?;
+            let track_id = Uuid::parse_str(&tid).map_err(|e| {
+                rusqlite::Error::FromSqlConversionFailure(
+                    1,
+                    rusqlite::types::Type::Text,
+                    Box::new(e),
+                )
+            })?;
             Ok(QueueEntry {
                 queue_entry_id,
                 track_id,
