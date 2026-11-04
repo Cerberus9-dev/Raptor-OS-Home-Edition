@@ -1,6 +1,5 @@
 use std::fs::File;
 use std::path::Path;
-use symphonia::core::audio::AudioBufferRef;
 use symphonia::core::codecs::DecoderOptions;
 use symphonia::core::errors::Error as SymphoniaError;
 use symphonia::core::formats::FormatOptions;
@@ -37,7 +36,7 @@ impl AudioDecoder {
             .format(&hint, mss, &FormatOptions::default(), &MetadataOptions::default())
             .map_err(|e| format!("Failed to probe format: {}", e))?;
 
-        let format_reader = probed.format;
+        let mut format_reader = probed.format;
         let track = format_reader
             .tracks()
             .iter()
@@ -129,7 +128,7 @@ impl AudioDecoder {
         self.duration_secs
     }
 
-    pub fn next_packet_samples(&mut self) -> Result<Option<AudioBufferRef<'_>>, String> {
+    pub fn next_packet_samples(&mut self) -> Result<Option<Vec<f32>>, String> {
         loop {
             let packet = match self.format_reader.next_packet() {
                 Ok(packet) => packet,
@@ -150,7 +149,18 @@ impl AudioDecoder {
             }
 
             match self.decoder.decode(&packet) {
-                Ok(decoded) => return Ok(Some(decoded)),
+                Ok(decoded) => {
+                    // Copy the decoded frame into an owned interleaved buffer so
+                    // the borrow of `self.decoder` ends here. Returning
+                    // `AudioBufferRef<'_>` directly makes the borrow escape the
+                    // loop, which the borrow checker rejects.
+                    let spec = *decoded.spec();
+                    let capacity = decoded.capacity() as u64;
+                    let mut sample_buf =
+                        symphonia::core::audio::SampleBuffer::<f32>::new(capacity, spec);
+                    sample_buf.copy_interleaved_ref(decoded);
+                    return Ok(Some(sample_buf.samples().to_vec()));
+                }
                 Err(SymphoniaError::DecodeError(_)) => continue,
                 Err(SymphoniaError::IoError(err)) => {
                     if err.kind() == std::io::ErrorKind::UnexpectedEof {

@@ -1,11 +1,11 @@
-use ringbuf::{HeapRb, Producer, Consumer};
+use ringbuf::{HeapConsumer, HeapProducer, HeapRb};
 
-pub fn make_spsc(capacity: usize) -> (Producer<f32>, Consumer<f32>) {
+pub fn make_spsc(capacity: usize) -> (HeapProducer<f32>, HeapConsumer<f32>) {
     let rb = HeapRb::<f32>::new(capacity);
     rb.split()
 }
 
-pub fn push_frames(producer: &mut Producer<f32>, frames: &[f32], channels: usize) -> usize {
+pub fn push_frames(producer: &mut HeapProducer<f32>, frames: &[f32], channels: usize) -> usize {
     if channels == 0 || frames.is_empty() {
         return 0;
     }
@@ -17,7 +17,7 @@ pub fn push_frames(producer: &mut Producer<f32>, frames: &[f32], channels: usize
     (pushed / channels) * channels
 }
 
-pub fn pop_frames(consumer: &mut Consumer<f32>, output: &mut [f32], channels: usize) -> usize {
+pub fn pop_frames(consumer: &mut HeapConsumer<f32>, output: &mut [f32], channels: usize) -> usize {
     if channels == 0 || output.is_empty() {
         return 0;
     }

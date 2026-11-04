@@ -10,3 +10,4 @@ cpal = "0.15"
 crossbeam-channel = "0.5"
 thiserror = "1.0"
 ringbuf = "0.3"
+uuid = { version = "1.6", features = ["v4"] }

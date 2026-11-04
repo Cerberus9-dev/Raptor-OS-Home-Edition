@@ -255,7 +255,7 @@ impl AudioPlayer {
                                             break;
                                         }
                                         for i in 0..n {
-                                            data[offset + i] = cpal::Sample::from(&temp_buf[i]);
+                                            data[offset + i] = (temp_buf[i].clamp(-1.0, 1.0) * i16::MAX as f32) as i16;
                                         }
                                         offset += n;
                                         total_read += n;
@@ -293,7 +293,7 @@ impl AudioPlayer {
                                             break;
                                         }
                                         for i in 0..n {
-                                            data[offset + i] = cpal::Sample::from(&temp_buf[i]);
+                                            data[offset + i] = ((temp_buf[i].clamp(-1.0, 1.0) + 1.0) * 0.5 * u16::MAX as f32) as u16;
                                         }
                                         offset += n;
                                         total_read += n;
@@ -410,12 +410,7 @@ impl AudioPlayer {
                     if !eof_reached {
                         match decoder.next_packet_samples() {
                             Ok(Some(decoded)) => {
-                                let mut sample_buf = symphonia::core::audio::SampleBuffer::<f32>::new(
-                                    decoded.capacity() as u64,
-                                    *decoded.spec(),
-                                );
-                                sample_buf.copy_interleaved_ref(decoded);
-                                let raw_samples = sample_buf.samples();
+                                let raw_samples = &decoded;
 
                                 let mut resampled = Vec::new();
                                 if let Err(e) = resampler.process(raw_samples, &mut resampled) {
