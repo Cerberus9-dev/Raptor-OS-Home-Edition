@@ -4,7 +4,7 @@ set -euo pipefail
 echo "=== Validating installer scripts ==="
 
 # Check all installer scripts exist and have valid syntax
-for script in files/scripts/raptor-*.sh; do
+for script in files/scripts/*/install.sh; do
     if ! bash -n "$script"; then
         echo "FAIL: $script has syntax error"
         exit 1
@@ -33,7 +33,7 @@ while IFS= read -r line; do
         if [[ "$line" =~ ^[[:space:]]*-[[:space:]]*type:[[:space:]]*systemd ]]; then
             break
         fi
-        if [[ "$line" =~ -[[:space:]]*raptor- ]]; then
+        if [[ "$line" =~ -[[:space:]]*(raptor-|shroudly-) ]]; then
             script_name=$(echo "$line" | sed 's/.*- //')
             if [[ ! -f "files/scripts/$script_name" ]]; then
                 echo "FAIL: Recipe references missing script: $script_name"
