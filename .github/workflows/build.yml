@@ -68,7 +68,23 @@ jobs:
           .github/scripts/validate.sh
 
       - name: Build Raptor Music
+        env:
+          FORCE_BUILD_RAPTOR_MUSIC: "false"
         run: |
+          set +e
+          if git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" -- files/scripts/raptor-music/ .github/workflows/build.yml | grep -q .; then
+            echo "Raptor Music source or this workflow changed; building."
+            FORCE_BUILD_RAPTOR_MUSIC=true
+          else
+            echo "Raptor Music source unchanged; reusing existing binary to keep it one-time."
+            FORCE_BUILD_RAPTOR_MUSIC=false
+          fi
+          set -e
+          if [ "$FORCE_BUILD_RAPTOR_MUSIC" != "true" ] && [ -f files/scripts/raptor-music/target/release/raptor-desktop ]; then
+            echo "Existing Raptor Music binary found; skipping rebuild."
+            install -Dm755 files/scripts/raptor-music/target/release/raptor-desktop files/staging/raptor-music
+            exit 0
+          fi
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             pkg-config \
