@@ -19,6 +19,39 @@
 
 ### Fixed
 
+- **Raptor Cortex could hang before its window ever appeared.** The window
+  constructor ran `_refresh_stats()` synchronously, before `present()`, and
+  again every 2 s on the UI thread. It reads sysfs, hwmon, `lspci` and
+  `nvidia-smi`; any of those can block for seconds on some hardware (slow ACPI
+  thermal zones, a sleeping GPU), and then no window appeared and nothing was
+  printed. Readings now run on worker threads, one per sensor, and each updates
+  only its own label when it finishes, so a slow sensor delays only itself. With
+  two sensors artificially blocked for 8 s the window appeared in 0.3 s (it took
+  17 s, frozen, before).
+- **Raptor Tasks: Delete did nothing.** The row menu's Edit/Delete items pointed
+  at actions (`app.edit`, `app.delete`) that were created but never registered,
+  so GTK showed them disabled. They are now registered on the row under the
+  `row.` prefix. (Clicking a task still opened the editor, which is why Edit
+  seemed to work.)
+- **Update manager showed a false "Missing sudoers" warning.** The startup check
+  ran `os.path.exists("/etc/sudoers.d/raptor-update")` as an ordinary user, but
+  `/etc/sudoers.d` is mode 0750 root:root on Fedora, so the file always looked
+  missing. The same unreadable file made `run_privileged` conclude "no sudoers"
+  and demote `sudo -n` behind a polkit prompt, and its refusal check read stderr
+  after merging stderr into stdout, so it could never see a refusal. Now
+  `sudo -n` is always tried first (it refuses within milliseconds when not
+  allowed), then pkexec, with real refusal detection and a clear error if
+  neither works. The update helper also no longer "clears a stale lock" by
+  deleting a file rpm-ostree does not use: when rpm-ostree answers "Transaction
+  in progress" it waits for the other operation and, after about 90 s, runs
+  `rpm-ostree cancel`.
+- **Cheatsheet: 21 of 56 commands rendered as empty boxes.** Row titles are
+  Pango markup, so `rpm-ostree install <pkg>` was parsed as an unknown `<pkg>`
+  tag and the row showed nothing (GTK logged "Failed to set text ... from
+  markup"). Titles, descriptions, group titles and the copy toast are now
+  escaped; the clipboard still receives the raw command. The `--check` entry now
+  notes that it can wrongly report "No updates available" on image-based systems
+  (documented in the update manager's source: coreos/rpm-ostree #4891).
 - **Cortex now says why it cannot start.** The menu entry silently did nothing
   when Cortex failed at startup. `raptor-cortex-launcher` now writes everything
   Cortex prints to `~/.cache/raptor-cortex.log` and, if Cortex exits with an

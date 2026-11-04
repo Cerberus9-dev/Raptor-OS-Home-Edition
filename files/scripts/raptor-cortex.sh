@@ -1663,7 +1663,8 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         self._toast_overlay = None
         self._build_ui()
         GLib.timeout_add_seconds(2, self._refresh_stats)
-        self._refresh_stats()
+        # First reading happens after the window is on screen (on a worker thread).
+        GLib.idle_add(lambda: (self._refresh_stats(), False)[1])
 
     def _build_ui(self):
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -2607,64 +2608,111 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         return False
 
     def _refresh_stats(self):
-        used, total = mem_used_mb()
-        if total > 0:
-            ratio = used / total
-            self.ram_bar.set_value(ratio)
-            self.ram_label.set_text(f"{fmt_mb(used)} / {fmt_mb(total)}")
-            if ratio > 0.85:
-                self.ram_bar.remove_css_class("success")
-                self.ram_bar.add_css_class("error")
-            elif ratio > 0.65:
-                self.ram_bar.remove_css_class("error")
-                self.ram_bar.add_css_class("warning")
+        """Start one worker per reading; each updates its own label when it finishes.
+
+        Reading sysfs, hwmon, lspci or nvidia-smi can block for seconds on some hardware
+        (ACPI thermal zones, a sleeping GPU, a slow EC). This used to run on the UI thread,
+        before the window was even shown, so one slow sensor meant Cortex never opened and
+        printed nothing. Now nothing here can block the UI, and a slow sensor delays only
+        its own label."""
+        readers = {
+            "mem": (mem_used_mb, (0, 0)),
+            "swap": (get_swap_usage, (0, 0)),
+            "zram": (get_zram_usage, (0, 0, False)),
+            "boost": (get_cpu_boost, None),
+            "cpu_t": (get_cpu_temp, None),
+            "freq": (get_cpu_freq_mhz, None),
+            "gpu_t": (get_gpu_temp, None),
+            "gpu_info": (get_gpu_summary, "GPU"),
+            "fans": (get_fan_info, []),
+        }
+        busy = self.__dict__.setdefault("_stats_busy", set())
+        for key, (fn, default) in readers.items():
+            if key in busy:
+                continue                      # previous reading still running: skip this tick
+            busy.add(key)
+
+            def work(key=key, fn=fn, default=default):
+                try:
+                    value = fn()
+                except Exception:
+                    value = default
+                GLib.idle_add(self._apply_stats, {key: value})
+
+            threading.Thread(target=work, daemon=True).start()
+        return True
+
+    def _apply_stats(self, d):
+        busy = self.__dict__.setdefault("_stats_busy", set())
+        for k in d:
+            busy.discard(k)
+        if "mem" in d:
+            used, total = d["mem"]
+            if total > 0:
+                ratio = used / total
+                self.ram_bar.set_value(ratio)
+                self.ram_label.set_text(f"{fmt_mb(used)} / {fmt_mb(total)}")
+                if ratio > 0.85:
+                    self.ram_bar.remove_css_class("success")
+                    self.ram_bar.add_css_class("error")
+                elif ratio > 0.65:
+                    self.ram_bar.remove_css_class("error")
+                    self.ram_bar.add_css_class("warning")
+                else:
+                    self.ram_bar.remove_css_class("error")
+                    self.ram_bar.remove_css_class("warning")
+
+        if "swap" in d:
+            swap_used, swap_total = d["swap"]
+            self.swap_label.set_text(
+                f"{fmt_mb(swap_used)} / {fmt_mb(swap_total)}" if swap_total > 0 else "No swap")
+
+        if "zram" in d:
+            zram_orig, zram_total, zram_active = d["zram"]
+            if zram_active:
+                if zram_orig > 0:
+                    ratio = zram_orig / max(zram_total, 1)
+                    self.zram_label.set_text(f"{fmt_mb(zram_orig)} → {fmt_mb(zram_total)} ({ratio:.1f}x)")
+                else:
+                    self.zram_label.set_text(f"{fmt_mb(zram_total)} slot, idle")
             else:
-                self.ram_bar.remove_css_class("error")
-                self.ram_bar.remove_css_class("warning")
+                self.zram_label.set_text("Not active")
 
-        swap_used, swap_total = get_swap_usage()
-        self.swap_label.set_text(
-            f"{fmt_mb(swap_used)} / {fmt_mb(swap_total)}" if swap_total > 0 else "No swap")
+        if "boost" in d:
+            boost = d["boost"]
+            self.boost_label.set_text("Enabled ✓" if boost else "Disabled" if boost is not None else "N/A")
 
-        zram_orig, zram_total, zram_active = get_zram_usage()
-        if zram_active:
-            if zram_orig > 0:
-                ratio = zram_orig / max(zram_total, 1)
-                self.zram_label.set_text(f"{fmt_mb(zram_orig)} → {fmt_mb(zram_total)} ({ratio:.1f}x)")
-            else:
-                self.zram_label.set_text(f"{fmt_mb(zram_total)} slot, idle")
-        else:
-            self.zram_label.set_text("Not active")
+        if "cpu_t" in d:
+            cpu_t = d["cpu_t"]
+            self.cpu_temp_label.set_text(f"{cpu_t} °C" if cpu_t is not None else "N/A")
+            self.cpu_temp_label.set_css_classes(
+                ["error"] if cpu_t and cpu_t > 90
+                else ["warning"] if cpu_t and cpu_t > 75
+                else ["dim-label"])
 
-        boost = get_cpu_boost()
-        self.boost_label.set_text("Enabled ✓" if boost else "Disabled" if boost is not None else "N/A")
+        if "gpu_t" in d:
+            gpu_t = d["gpu_t"]
+            self.gpu_temp_label.set_text(f"{gpu_t} °C" if gpu_t is not None else "N/A")
+            self.gpu_temp_label.set_css_classes(
+                ["error"] if gpu_t and gpu_t > 95
+                else ["warning"] if gpu_t and gpu_t > 80
+                else ["dim-label"])
 
-        cpu_t = get_cpu_temp()
-        self.cpu_temp_label.set_text(f"{cpu_t} °C" if cpu_t is not None else "N/A")
-        self.cpu_temp_label.set_css_classes(
-            ["error"] if cpu_t and cpu_t > 90
-            else ["warning"] if cpu_t and cpu_t > 75
-            else ["dim-label"])
+        if "gpu_info" in d:
+            self.gpu_info_label.set_text(d["gpu_info"])
+        if "fans" in d:
+            fans = d["fans"]
+            self.fan_label.set_text(
+                "\n".join(f"{n}: {t}" for n, t in fans) if fans else "No fan sensors detected")
 
-        gpu_t = get_gpu_temp()
-        self.gpu_temp_label.set_text(f"{gpu_t} °C" if gpu_t is not None else "N/A")
-        self.gpu_info_label.set_text(get_gpu_summary())
-        self.gpu_temp_label.set_css_classes(
-            ["error"] if gpu_t and gpu_t > 95
-            else ["warning"] if gpu_t and gpu_t > 80
-            else ["dim-label"])
-
-        fans = get_fan_info()
-        self.fan_label.set_text(
-            "\n".join(f"{n}: {t}" for n, t in fans) if fans else "No fan sensors detected")
-
-        freq = get_cpu_freq_mhz()
-        self.cpu_freq_label.set_text(
-            f"{freq} MHz ({freq/1000:.2f} GHz)" if freq else "N/A")
+        if "freq" in d:
+            freq = d["freq"]
+            self.cpu_freq_label.set_text(
+                f"{freq} MHz ({freq/1000:.2f} GHz)" if freq else "N/A")
 
         self.last_optimize_label.set_text(
             format_relative_time(self._settings.get("last_optimize_timestamp")))
-        return True
+        return False
 
     def on_quick_optimize(self, btn):
         """One-click optimization auto-tuned to current performance profile."""

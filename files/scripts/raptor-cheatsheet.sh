@@ -22,7 +22,7 @@ import sys
 CATEGORIES = {
     "System Updates (rpm-ostree)": [
         ("rpm-ostree upgrade", "Check for and apply system updates"),
-        ("rpm-ostree upgrade --check", "Check for updates without applying"),
+        ("rpm-ostree upgrade --check", "Check for updates without applying. On image-based systems it can wrongly say \"No updates available\"; run rpm-ostree upgrade to be sure"),
         ("rpm-ostree status", "Show current deployment and available updates"),
         ("rpm-ostree rollback", "Rollback to previous deployment"),
         ("rpm-ostree deploy <index>", "Switch to a specific deployment"),
@@ -140,13 +140,17 @@ class CheatsheetWindow(Adw.ApplicationWindow):
         content.append(subtitle)
 
         for cat_name, commands in CATEGORIES.items():
-            group = Adw.PreferencesGroup(title=cat_name)
+            group = Adw.PreferencesGroup(title=GLib.markup_escape_text(cat_name))
             content.append(group)
             group_rows = []
             self._groups.append((group, group_rows))
 
             for cmd, desc in commands:
-                row = Adw.ActionRow(title=cmd, subtitle=desc)
+                # Row titles are Pango markup. Commands such as `rpm-ostree install <pkg>` contain
+                # "<pkg>", which GTK parses as an unknown tag, so the row rendered completely
+                # empty (21 of 56 commands). Escape them; the clipboard gets the raw command.
+                row = Adw.ActionRow(title=GLib.markup_escape_text(cmd),
+                                    subtitle=GLib.markup_escape_text(desc))
                 row.add_css_class("monospace")
                 row.set_activatable(True)
                 copy_btn = Gtk.Button(icon_name="edit-copy-symbolic")
@@ -171,7 +175,7 @@ class CheatsheetWindow(Adw.ApplicationWindow):
     def _copy(self, text):
         clip = self.get_display().get_clipboard()
         clip.set(text)   # Gdk.Clipboard has no set_text() in GTK4
-        toast = Adw.Toast.new(f"Copied: {text}")
+        toast = Adw.Toast.new(GLib.markup_escape_text(f"Copied: {text}"))
         toast.set_timeout(2)
         self.toast_overlay.add_toast(toast)
 

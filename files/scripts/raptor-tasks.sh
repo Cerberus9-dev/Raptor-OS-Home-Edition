@@ -89,8 +89,8 @@ class TaskRow(Adw.ActionRow):
 
     def _build_menu(self, on_edit, on_delete):
         gio_menu = Gio.Menu()
-        edit_item = Gio.MenuItem.new("Edit", "app.edit")
-        delete_item = Gio.MenuItem.new("Delete", "app.delete")
+        edit_item = Gio.MenuItem.new("Edit", "row.edit")
+        delete_item = Gio.MenuItem.new("Delete", "row.delete")
         gio_menu.append_item(edit_item)
         gio_menu.append_item(delete_item)
 
@@ -98,6 +98,15 @@ class TaskRow(Adw.ActionRow):
         action_edit.connect("activate", lambda *_: on_edit(self))
         action_delete = Gio.SimpleAction.new("delete", None)
         action_delete.connect("activate", lambda *_: on_delete(self))
+
+        # The actions used to be created but never registered anywhere, so the menu items
+        # pointed at actions that did not exist and GTK showed them disabled: Delete (and
+        # Edit from the menu) could never work. Register them on this row under the "row"
+        # prefix (not "app", which belongs to the application).
+        group = Gio.SimpleActionGroup()
+        group.add_action(action_edit)
+        group.add_action(action_delete)
+        self.insert_action_group("row", group)
 
         return gio_menu
 

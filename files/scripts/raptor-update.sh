@@ -98,6 +98,7 @@ keep_wifi_awake() {
     done
 }
 
+busy=0
 for attempt in $(seq 1 $MAX_ATTEMPTS); do
     echo "── Attempt ${attempt}/${MAX_ATTEMPTS} ──"
 
@@ -107,13 +108,30 @@ for attempt in $(seq 1 $MAX_ATTEMPTS); do
         continue
     fi
 
-    # Clear any stale transaction lock left by a previous killed attempt so
-    # rpm-ostree doesn't refuse to start ("Another transaction is in progress").
-    rm -f /run/lock/rpm-ostree.lock 2>/dev/null || true
-
     keep_wifi_awake
-    timeout "${LAYER_TIMEOUT}" rpm-ostree update 2>&1
-    rc=$?
+    out="$(mktemp)"
+    timeout "${LAYER_TIMEOUT}" rpm-ostree update 2>&1 | tee "$out"
+    rc=${PIPESTATUS[0]}
+    # A previous or parallel operation (an interrupted update, the background updater) can
+    # still hold an rpm-ostree transaction: rpm-ostree refuses with "Transaction in progress".
+    # Wait for it to finish; after ~90 s treat it as stale and cancel it. (The old code
+    # "cleared a stale lock" by deleting /run/lock/rpm-ostree.lock, a file rpm-ostree does
+    # not use, so it never worked.)
+    if [ "$rc" -ne 0 ] && grep -qiE 'transaction.*in progress' "$out"; then
+        rm -f "$out"
+        busy=$((busy + 1))
+        if [ "$busy" -ge 3 ]; then
+            echo "Another operation has held rpm-ostree for about $((busy * 30)) s -- cancelling the stale transaction..."
+            rpm-ostree cancel 2>&1 || true
+            busy=0
+        else
+            echo "Another update operation is already in progress -- waiting for it to finish..."
+        fi
+        sleep 30
+        continue
+    fi
+    busy=0
+    rm -f "$out"
     if [ "$rc" -eq 0 ]; then
         echo "✓ System update applied — reboot to finish."
         exit 0
@@ -125,7 +143,6 @@ for attempt in $(seq 1 $MAX_ATTEMPTS); do
         echo "Failed (exit ${rc}) -- retrying (layers already downloaded are kept)..."
     fi
 
-    rm -f /run/lock/rpm-ostree.lock 2>/dev/null || true
     wait_s=$((attempt * BACKOFF))
     [ "$wait_s" -gt 90 ] && wait_s=90   # 15, 30, 45, 60, 75, 90, 90, ...
     sleep "$wait_s"
@@ -637,72 +654,29 @@ def _have(binary):
     return shutil.which(binary) is not None
 
 
-def _sudoers_grants(helper_path):
-    """Does /etc/sudoers.d/raptor-update grant NOPASSWD for this helper?
-
-    Checked statically, on purpose. The tempting alternative is to ask sudo at
-    runtime with `sudo -n -l <helper>`, but that is ambiguous: on a stock
-    Bazzite install the user is in `wheel` (`%wheel ALL=(ALL) ALL`, password
-    required) *as well as* having this NOPASSWD drop-in, and `sudo -l` can
-    then want to authenticate before it will print anything. Under `-n` that
-    authentication cannot happen, so the listing comes back non-zero even
-    though `sudo -n <helper>` would have worked fine. Trusting that as "sudo
-    is broken" would push every user onto a polkit password prompt for no
-    reason — a worse regression than the bug being fixed.
-
-    The rules in this file are written by the same installer that validates
-    them with `visudo -c` at build time, so reading them back is exact and
-    cannot produce a false negative for a correctly installed system.
-    """
-    try:
-        with open(SUDOERS_FILE, "r", encoding="utf-8", errors="replace") as fh:
-            rules = fh.read()
-    except OSError:
-        return False
-    if not rules.strip():
-        return False
-    # Drop comments so a commented-out rule cannot be mistaken for a live one.
-    body = "\n".join(
-        ln.split("#", 1)[0] for ln in rules.splitlines()
-    )
-    return f"NOPASSWD: {helper_path}" in body
-
-
 def run_privileged(helper_path, action_id=None):
-    """Spawn a privileged helper, degrading to pkexec when sudo can't.
+    """Spawn a privileged helper and return the running process.
 
-    Order matters: the NOPASSWD rules in /etc/sudoers.d/raptor-update make
-    `sudo -n` silent and polkit-agent-free, so it is preferred whenever it is
-    actually usable. pkexec is the fallback and prompts via polkit.
+    `sudo -n` is always tried first: the NOPASSWD drop-in in /etc/sudoers.d/raptor-update
+    makes it silent, and when it is not allowed it refuses within milliseconds, so trying
+    it costs nothing. Then pkexec (polkit prompt). The previous version tried to *read*
+    /etc/sudoers.d/raptor-update to decide, but that file is mode 0440 root:root inside a
+    0750 directory, so an ordinary user could never read it: it always concluded "no
+    sudoers" and demoted sudo behind a polkit prompt. Its refusal check also looked at
+    stderr after merging stderr into stdout, so it could never see a refusal.
 
-    The previous version looped over both launchers catching only
-    FileNotFoundError. That covers a *missing binary* and nothing else: when
-    sudo exists but refuses (missing/stale sudoers file, user not covered by
-    the rule, sudo wanting a TTY) Popen had already returned successfully, the
-    pkexec fallback was never reached, and the caller was handed a dead process
-    whose stderr got parsed as helper output — surfacing as a confusing
-    "Could not refresh update state (sudo: a password is required)" with no
-    way for the user to proceed. Decide *before* spawning instead.
-
-    `action_id` is accepted for call-site compatibility; the shipped sudoers
-    rules make the polkit action id unnecessary.
+    `action_id` is accepted for call-site compatibility.
     """
+    import io
+    import time
     launchers = []
-    sudoers_ok = False
     if _have("sudo"):
-        try:
-            sudoers_ok = _sudoers_grants(helper_path)
-        except Exception:
-            sudoers_ok = False
-        if sudoers_ok:
-            launchers.append(["sudo", "-n"])
+        launchers.append(["sudo", "-n"])
     if _have("pkexec"):
         launchers.append(["pkexec"])
-    if _have("sudo") and not sudoers_ok:
-        # sudo exists but we could not confirm the rule. Try it anyway —
-        # the real error will surface if it fails.
-        launchers.append(["sudo", "-n"])
-
+    refusals = ("a password is required", "may not run sudo", "not in the sudoers",
+                "is not allowed to", "no tty present", "a terminal is required")
+    last_error = ""
     for launcher in launchers:
         try:
             proc = subprocess.Popen(
@@ -712,28 +686,24 @@ def run_privileged(helper_path, action_id=None):
                 text=True,
                 bufsize=1,
             )
-            # Quick probe: if sudo -n immediately fails with "password required",
-            # don't waste time reading from a dead pipe — try the next launcher.
-            # This avoids the "dead process parsed as output" bug.
-            import time
-            time.sleep(0.05)
-            if proc.poll() is not None:
-                # Process already exited — read stderr to see why
-                _, stderr_data = proc.communicate(timeout=1)
-                if stderr_data and "password" in stderr_data.lower():
-                    if len(launchers) > 1:  # only skip if we have a fallback
-                        continue
-            return proc
-        except FileNotFoundError:
+        except (FileNotFoundError, OSError):
             continue
-        except Exception:
+        try:
+            proc.wait(timeout=0.5)
+        except subprocess.TimeoutExpired:
+            return proc                      # still running after 0.5 s: it was accepted
+        # It exited almost immediately. Either sudo refused, or the helper genuinely
+        # finished instantly; keep its output readable for the caller either way.
+        out = proc.stdout.read() if proc.stdout else ""
+        if any(r in out.lower() for r in refusals):
+            last_error = out.strip()
             continue
+        proc.stdout = io.StringIO(out)
+        return proc
     raise RuntimeError(
-        "Cannot obtain administrator rights: `sudo -n` is not permitted for "
-        f"{helper_path} and no polkit agent is available. Check {SUDOERS_FILE}."
+        "Cannot obtain administrator rights: neither `sudo -n` nor pkexec could run "
+        f"{helper_path}. {last_error or 'Check ' + SUDOERS_FILE + '.'}"
     )
-
-
 
 
 class RaptorUpdateApp(Adw.Application):
@@ -767,8 +737,11 @@ class RaptorUpdateWindow(Adw.ApplicationWindow):
         for helper in (UPDATE_HELPER, CHECK_HELPER, FLATPAK_UPDATE_HELPER, REBOOT_HELPER):
             if not os.path.exists(helper):
                 missing.append(f"Missing: {helper}")
-        if not os.path.exists(SUDOERS_FILE):
-            missing.append(f"Missing sudoers: {SUDOERS_FILE}")
+        # NOTE: do not os.path.exists(SUDOERS_FILE) here. /etc/sudoers.d is mode 0750
+        # root:root, so an ordinary user cannot see into it and the check always reported
+        # the file as missing, even when it was installed correctly.
+        if not (_have("sudo") or _have("pkexec")):
+            missing.append("Neither sudo nor pkexec is available")
         if missing:
             msg = "Installation issues detected:\n" + "\n".join(missing) + \
                   "\n\nThe update manager may not work correctly. Please report this."
