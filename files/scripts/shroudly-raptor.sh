@@ -15,8 +15,8 @@ mkdir -p /usr/bin /usr/share/applications /usr/share/icons/hicolor/scalable/apps
 
 if [[ ! -x "$SRC_BIN" ]]; then
     echo "SHROUDLY_RAPTOR_SKIP: no prebuilt binary at ${SRC_BIN}." >&2
-    echo "Build it with: cargo build --release --manifest-path shroudly-raptor/Cargo.toml" >&2
-    echo "Then copy shroudly-raptor/target/release/shroudly-raptor to files/staging/shroudly-raptor." >&2
+    echo "Build it with: (cd shroudly-raptor && cargo build --release --workspace)" >&2
+    echo "Then copy target/release/shroudly-raptor to files/staging/shroudly-raptor." >&2
     exit 0
 fi
 

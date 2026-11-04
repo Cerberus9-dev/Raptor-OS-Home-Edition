@@ -96,7 +96,7 @@ jobs:
 
       - name: Build Shroudly Raptor
         run: |
-          cargo build --release --manifest-path shroudly-raptor/Cargo.toml
+          cargo build --release --workspace --manifest-path shroudly-raptor/Cargo.toml
           install -Dm755 shroudly-raptor/target/release/shroudly-raptor files/staging/shroudly-raptor
 
       - name: Build and push image
