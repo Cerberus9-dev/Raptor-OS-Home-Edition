@@ -7,8 +7,6 @@ on:
     paths:
       - "recipes/**"
       - "files/**"
-      - "raptor-music/**"
-      - "shroudly-raptor/**"
       - ".github/scripts/**"
       - ".github/workflows/build.yml"
 
@@ -18,8 +16,6 @@ on:
     paths:
       - "recipes/**"
       - "files/**"
-      - "raptor-music/**"
-      - "shroudly-raptor/**"
       - ".github/scripts/**"
 
   schedule:
@@ -91,13 +87,13 @@ jobs:
             libgtk-3-dev \
             libudev-dev \
             libdbus-1-dev
-          cargo build --release --workspace --manifest-path raptor-music/Cargo.toml
-          install -Dm755 raptor-music/target/release/raptor-desktop files/staging/raptor-music
+          cargo build --release --workspace --manifest-path files/scripts/raptor-music/Cargo.toml
+          install -Dm755 files/scripts/raptor-music/target/release/raptor-desktop files/staging/raptor-music
 
       - name: Build Shroudly Raptor
         run: |
-          cargo build --release --workspace --manifest-path shroudly-raptor/Cargo.toml
-          install -Dm755 shroudly-raptor/target/release/shroudly-raptor files/staging/shroudly-raptor
+          cargo build --release --workspace --manifest-path files/scripts/shroudly-raptor/Cargo.toml
+          install -Dm755 files/scripts/shroudly-raptor/target/release/shroudly-raptor files/staging/shroudly-raptor
 
       - name: Build and push image
         uses: blue-build/github-action@v1

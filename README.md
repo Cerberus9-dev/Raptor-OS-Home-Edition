@@ -114,11 +114,11 @@ Gallery-style wallpaper picker — click any thumbnail to apply it, including fo
 
 ## Raptor Music
 
-Native Rust/Slint music player. Scans a folder into a SQLite library, shows the playback queue, and plays local FLAC/MP3/WAV through a `cpal` audio backend with automatic track advance. Built from `raptor-music/` by CI and installed as **Raptor Music** in the **Raptor OS** category. The library database (`raptor_music.db`) is written to the directory the app is launched from.
+Native Rust/Slint music player. Scans a folder into a SQLite library, shows the playback queue, and plays local FLAC/MP3/WAV through a `cpal` audio backend with automatic track advance. Built from `files/scripts/raptor-music/` by CI and installed as **Raptor Music** in the **Raptor OS** category. The library database (`raptor_music.db`) is written to the directory the app is launched from.
 
 ## Raptor Shroudly
 
-Local proxy / DPI-bypass service (Rust, Tokio + hyper) that binds `127.0.0.1:10808` and prints a small dashboard (status, port, active mode, monitored apps). Built from `shroudly-raptor/` and installed as **Raptor Shroudly** in the **Raptor OS** category; it opens in a terminal, and closing the window stops the proxy.
+Local proxy / DPI-bypass service (Rust, Tokio + hyper) that binds `127.0.0.1:10808` and prints a small dashboard (status, port, active mode, monitored apps). Built from `files/scripts/shroudly-raptor/` and installed as **Raptor Shroudly** in the **Raptor OS** category; it opens in a terminal, and closing the window stops the proxy.
 
 ---
 

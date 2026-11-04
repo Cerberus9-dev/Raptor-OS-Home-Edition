@@ -83,7 +83,7 @@ modules:
       - source: ../files/system_files/raptor-nofile.conf
         destination: /etc/systemd/user.conf.d/10-raptor-nofile.conf
       # ── Prebuilt Rust apps ──────────────────────────────────────────────
-      # CI builds Raptor Music (raptor-music/) and Shroudly Raptor (shroudly-raptor/) and
+      # CI builds Raptor Music and Shroudly Raptor from files/scripts/ and
       # drops the binaries in files/staging/. The install scripts then place
       # them in /usr/bin and add the Raptor OS menu entries. If the directory
       # is empty (local build without staging), the scripts warn and skip.
@@ -97,7 +97,7 @@ modules:
   # base image no longer ships.
   - type: script
     scripts:
-      - raptor-remove-packages.sh
+      - raptor-remove-packages/install.sh
 
   - type: rpm-ostree
     install:
@@ -171,20 +171,20 @@ modules:
   # ── Custom build scripts ──────────────────────────────────────────────────────
   - type: script
     scripts:
-      - raptor-hud.sh
-      - raptor-cortex.sh
-      - raptor-gpu-profile.sh
-      - raptor-gaming.sh
-      - raptor-update.sh
-      - raptor-wallpaper-manager.sh
-      - raptor-wine.sh
-      - raptor-dolphin-stability.sh
-      - raptor-cheatsheet.sh
-      - raptor-tasks.sh
-      - raptor-gaming-devices.sh
-      - raptor-hardware-fixes.sh
-      - raptor-music.sh
-      - shroudly-raptor.sh
+      - raptor-hud/install.sh
+      - raptor-cortex/install.sh
+      - raptor-gpu-profile/install.sh
+      - raptor-gaming/install.sh
+      - raptor-update/install.sh
+      - raptor-wallpaper-manager/install.sh
+      - raptor-wine/install.sh
+      - raptor-dolphin-stability/install.sh
+      - raptor-cheatsheet/install.sh
+      - raptor-tasks/install.sh
+      - raptor-gaming-devices/install.sh
+      - raptor-hardware-fixes/install.sh
+      - raptor-music/install.sh
+      - shroudly-raptor/install.sh
 
   # ── Systemd units ───────────────────────────────────────────────────────────
   - type: systemd
