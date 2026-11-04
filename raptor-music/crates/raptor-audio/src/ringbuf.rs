@@ -10,7 +10,7 @@ pub fn push_frames(producer: &mut HeapProducer<f32>, frames: &[f32], channels: u
         return 0;
     }
     let total_frames = frames.len() / channels;
-    let available_slots = producer.remaining();
+    let available_slots = producer.free_len();
     let frames_to_push = std::cmp::min(total_frames, available_slots / channels);
     let samples_to_push = frames_to_push * channels;
     let pushed = producer.push_slice(&frames[..samples_to_push]);
