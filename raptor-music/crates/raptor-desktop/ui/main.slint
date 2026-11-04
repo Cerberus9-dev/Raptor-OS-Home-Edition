@@ -1,4 +1,4 @@
-import { Button, HorizontalBox, StandardTableView, VerticalBox } from "std-widgets.slint";
+import { Button, ListView } from "std-widgets.slint";
 
 export struct TrackData {
     id: string,
@@ -10,8 +10,9 @@ export struct TrackData {
 
 export component MainWindow inherits Window {
     title: "Raptor Music";
-    width: 800px;
-    height: 600px;
+    width: 900px;
+    height: 620px;
+    background: #0f141c;
 
     in-out property <[TrackData]> track_list: [];
     in-out property <[TrackData]> queue_list: [];
@@ -30,74 +31,173 @@ export component MainWindow inherits Window {
     callback play_clicked();
     callback stop_clicked();
 
-    VerticalBox {
-        HorizontalBox {
-            Text { text: "Raptor Music Player"; font-size: 20px; bold: true; }
-            Button { text: "Scan Directory"; clicked => { root.scan_directory_clicked(); } }
-        }
+    VerticalLayout {
+        padding: 16px;
+        spacing: 12px;
 
-        HorizontalBox {
-            VerticalBox {
-                Text { text: "Library Tracks"; bold: true; }
-                StandardTableView {
-                    columns: [
-                        { title: "Title" },
-                        { title: "Artist" },
-                        { title: "Album" },
-                        { title: "Duration" }
-                    ];
-                    rows: [
-                        for track in root.track_list: [
-                            { text: track.title },
-                            { text: track.artist },
-                            { text: track.album },
-                            { text: track.duration }
-                        ]
-                    ];
-                    current-row-changed(idx) => { root.track_selected(idx); }
-                }
-                Button { text: "Add Selected to Queue"; clicked => { root.add_to_queue_clicked(); } }
+        // ── Header ───────────────────────────────────────────────────────
+        HorizontalLayout {
+            spacing: 12px;
+            Text {
+                text: "Raptor Music";
+                font-size: 24px;
+                bold: true;
+                color: #5ab0ff;
+                vertical-alignment: center;
             }
-
-            VerticalBox {
-                Text { text: "Playback Queue"; bold: true; }
-                StandardTableView {
-                    columns: [
-                        { title: "Title" },
-                        { title: "Artist" },
-                        { title: "Duration" }
-                    ];
-                    rows: [
-                        for track in root.queue_list: [
-                            { text: track.title },
-                            { text: track.artist },
-                            { text: track.duration }
-                        ]
-                    ];
-                    current-row-changed(idx) => { root.queue_selected(idx); }
-                }
+            Rectangle { horizontal-stretch: 1; }
+            Text {
+                text: root.player_state_label;
+                color: #9aa7b8;
+                font-size: 13px;
+                vertical-alignment: center;
             }
         }
 
+        // ── Library + queue ──────────────────────────────────────────────
+        HorizontalLayout {
+            spacing: 16px;
+            vertical-stretch: 1;
+
+            VerticalLayout {
+                horizontal-stretch: 3;
+                vertical-stretch: 1;
+                spacing: 6px;
+
+                Text { text: "Library"; bold: true; color: #c7d2e0; font-size: 15px; }
+
+                ListView {
+                    vertical-stretch: 1;
+
+                    for t[index] in root.track_list : Rectangle {
+                        height: 46px;
+                        border-radius: 4px;
+                        background: index == root.selected_track_index ? #24405f : transparent;
+
+                        HorizontalLayout {
+                            padding-left: 10px;
+                            padding-right: 10px;
+                            spacing: 10px;
+
+                            Text {
+                                text: t.title;
+                                color: #e6edf6;
+                                font-size: 14px;
+                                vertical-alignment: center;
+                                horizontal-stretch: 1;
+                                overflow: elide;
+                            }
+                            Text {
+                                text: t.artist;
+                                color: #9aa7b8;
+                                font-size: 12px;
+                                vertical-alignment: center;
+                                width: 130px;
+                                overflow: elide;
+                            }
+                            Text {
+                                text: t.album;
+                                color: #9aa7b8;
+                                font-size: 12px;
+                                vertical-alignment: center;
+                                width: 130px;
+                                overflow: elide;
+                            }
+                            Text {
+                                text: t.duration;
+                                color: #9aa7b8;
+                                font-size: 12px;
+                                vertical-alignment: center;
+                                width: 56px;
+                            }
+                        }
+
+                        TouchArea {
+                            clicked => { root.track_selected(index); }
+                        }
+                    }
+                }
+
+                Button {
+                    text: "Add Selected to Queue";
+                    clicked => { root.add_to_queue_clicked(); }
+                }
+            }
+
+            VerticalLayout {
+                horizontal-stretch: 2;
+                vertical-stretch: 1;
+                spacing: 6px;
+
+                Text { text: "Playback Queue"; bold: true; color: #c7d2e0; font-size: 15px; }
+
+                ListView {
+                    vertical-stretch: 1;
+
+                    for t[index] in root.queue_list : Rectangle {
+                        height: 46px;
+                        border-radius: 4px;
+                        background: index == root.playing_queue_index ? #1f4d3a : (index == root.selected_queue_index ? #24405f : transparent);
+
+                        HorizontalLayout {
+                            padding-left: 10px;
+                            padding-right: 10px;
+                            spacing: 10px;
+
+                            Text {
+                                text: t.title;
+                                color: #e6edf6;
+                                font-size: 14px;
+                                vertical-alignment: center;
+                                horizontal-stretch: 1;
+                                overflow: elide;
+                            }
+                            Text {
+                                text: t.artist;
+                                color: #9aa7b8;
+                                font-size: 12px;
+                                vertical-alignment: center;
+                                width: 110px;
+                                overflow: elide;
+                            }
+                            Text {
+                                text: t.duration;
+                                color: #9aa7b8;
+                                font-size: 12px;
+                                vertical-alignment: center;
+                                width: 56px;
+                            }
+                        }
+
+                        TouchArea {
+                            clicked => { root.queue_selected(index); }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── Now playing + controls ───────────────────────────────────────
         Rectangle {
-            background: #2a2a2a;
-            height: 80px;
+            background: #1a2230;
+            border-radius: 8px;
+            height: 92px;
 
-            HorizontalBox {
-                VerticalBox {
+            HorizontalLayout {
+                padding: 12px;
+                spacing: 12px;
+
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                    spacing: 2px;
                     Text { text: root.current_track_title; font-size: 16px; bold: true; color: #ffffff; }
-                    Text { text: root.current_track_artist; font-size: 14px; color: #cccccc; }
+                    Text { text: root.current_track_artist; font-size: 13px; color: #cccccc; }
+                    Text { text: root.progress_label; font-size: 12px; color: #5ab0ff; }
                 }
 
-                HorizontalBox {
-                    Button { text: "Play / Resume"; clicked => { root.play_clicked(); } }
-                    Button { text: "Stop"; clicked => { root.stop_clicked(); } }
-                }
-
-                VerticalBox {
-                    Text { text: root.player_state_label; color: #ffffff; }
-                    Text { text: root.progress_label; color: #aaaaaa; }
-                }
+                Button { text: "Scan Folder"; clicked => { root.scan_directory_clicked(); } }
+                Button { text: "Play / Resume"; clicked => { root.play_clicked(); } }
+                Button { text: "Stop"; clicked => { root.stop_clicked(); } }
             }
         }
     }
