@@ -91,14 +91,14 @@ Three dialogs appear on the first login, in sequence:
 
 ## Raptor Cortex — Performance & Memory Manager
 
-GTK4/Adwaita app with three modes (Power Saving / Balanced / Performance), each applying correctly-differentiated `vm.swappiness` (180/30/5), CPU governor, Energy Performance Preference, CPU max frequency, ACPI platform profile, PCIe ASPM, NVMe power, and audio power settings — switching modes always does a full reset before applying the target mode's settings, so nothing can get stuck half-applied.
+GTK4/Adwaita app with three modes (Power Saving / Balanced / Performance), using ZRAM-aware `vm.swappiness` values (100/100/80), CPU governor, Energy Performance Preference, CPU frequency limits, ACPI platform profile, PCIe ASPM, NVMe power, and audio-device stability safeguards. Mode changes reset the managed settings before applying the selected profile.
 
 - **Live stats** — RAM, swap, ZRAM, CPU boost, CPU/GPU temperature (colour-coded), CPU frequency, and time since the last optimization run
-- **Optimize Memory Now** — reclaims real application memory (Firefox/Vesktop heap), not just kernel page cache, via cgroup v2 `memory.reclaim`
-- **Quick Actions** — Pre-Game Boost (Performance mode + cache drop in one click), Restore Desktop, Clear Shader Cache
-- **Persistent Settings** — apply saved mode on every boot, auto-switch to Performance when a game launches, auto-restore Balanced when it exits
-- **Scheduled Cleanup** — optional background optimization on a configurable timer (5–120 min)
-- **Game Mode** — suspends 17 background services on game launch (Baloo, Akonadi, KDE Connect, speech-dispatcher, and more), stops `irqbalance`, disables CPU deep sleep for the duration; all resumed automatically on exit
+- **Optimize Memory Now** — requests bounded application-memory reclaim only when available RAM is genuinely low; it does not flush useful file/game caches
+- **Quick Actions** — Pre-Game Boost (Performance mode + optional indexer pause), Restore Desktop, Clear Shader Cache
+- **Persistent Settings** — apply saved mode on every boot, auto-switch to Performance for games launched from the Game Library, auto-restore the previous mode when they exit
+- **Scheduled Cleanup** — optional, disabled-by-default pressure-aware memory reclaim on a configurable timer (5–120 min)
+- **Game Mode** — pauses only optional file indexers and thumbnail work; audio, networking, Bluetooth, package management, storage maintenance, and user applications remain available. Suspended work is restored when Game Mode ends
 
 ## Raptor GPU Profiler
 
