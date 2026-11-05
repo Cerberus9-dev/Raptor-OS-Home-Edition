@@ -118,7 +118,7 @@ Native Rust/Slint music player. Scans a folder into a SQLite library, shows the 
 
 ## Raptor Shroudly
 
-Local proxy / DPI-bypass service (Rust, Tokio + hyper) that binds `127.0.0.1:10808` and prints a small dashboard (status, port, active mode, monitored apps). Built from `files/scripts/shroudly-raptor/` and installed as **Raptor Shroudly** in the **Raptor OS** category; it opens in a terminal, and closing the window stops the proxy.
+**Experimental prototype — not a working proxy yet.** The current Rust daemon binds `127.0.0.1:10808` and prints a terminal status summary, but its request handler does not forward traffic: it returns `501 Not Implemented` for ordinary HTTP requests and incorrectly acknowledges `CONNECT` without establishing an upstream tunnel. Its displayed mode/app counts are placeholders, not live detection. Advanced packet mode is disabled because the previous cleanup could erase the host's entire nftables ruleset. Do not configure applications to use this build for network access. The original desktop GUI and functional proxy behavior are not present in the current source.
 
 ---
 
