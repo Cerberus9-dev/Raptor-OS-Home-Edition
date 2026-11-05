@@ -136,14 +136,15 @@ CHOICE=$(
     zenity \
         --list \
         --title="Chat Client" \
-        --text="<b>Choose a Discord client</b>\\n\\nPick the client that suits your setup. Discord is the official option; Vesktop and Equibop add customisation. Meowcord is a separate, self-hosted federated project rather than a desktop client.\\n" \\
-        --radiolist \\
-        --column="" \\
-        --column="Client" \\
-        --column="Notes" \\
-        TRUE  "Discord" "Official client · broad compatibility (~150 MB)" \\
-        FALSE "Vesktop" "Vencord built in · plugins and themes (~100 MB)" \\
-        FALSE "Equibop" "Equicord built in · Linux-focused features (~166 MB)" \\
+        --text="<b>Choose a Discord client</b>\n\nPick the client that suits your setup. Discord is the official option; Vesktop, Equibop and GoofCord offer different customisation choices. Meowcord is a separate, self-hosted federated project rather than a desktop client.\n" \
+        --radiolist \
+        --column="" \
+        --column="Client" \
+        --column="Notes" \
+        TRUE  "Discord" "Official client · broad compatibility (~150 MB)" \
+        FALSE "Vesktop" "Vencord built in · plugins and themes (~100 MB)" \
+        FALSE "Equibop" "Equicord built in · Linux-focused features (~166 MB)" \
+        FALSE "GoofCord" "Privacy-focused · plugins/themes and Wayland screen share (~130 MB)" \
         --width=560 --height=340 \
         --ok-label="Confirm" \
         --cancel-label="Skip — Install Neither" \
@@ -179,6 +180,15 @@ case "${CHOICE:-}" in
             finish
         else
             err "Equibop was not installed — choice deferred to next login."
+        fi
+        ;;
+
+    GoofCord)
+        log "User selected GoofCord."
+        if install_with_retry "io.github.milkshiift.GoofCord" "GoofCord" "~130 MB"; then
+            finish
+        else
+            err "GoofCord was not installed — choice deferred to next login."
         fi
         ;;
 
