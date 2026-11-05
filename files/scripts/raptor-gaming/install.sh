@@ -324,14 +324,34 @@ setup_brave_optimizations "/etc/skel/.var/app/com.brave.Browser/config/BraveSoft
 # (/usr/local is reset on OSTree layer deployments)
 cat << 'BRAVELAUNCHER' > /usr/bin/brave-optimized
 #!/bin/bash
+set -euo pipefail
+
 FLAGS_FILE="$HOME/.config/BraveSoftware/Brave-Browser/Default/raptor-brave-flags.conf"
 FLATPAK_FLAGS_FILE="$HOME/.var/app/com.brave.Browser/config/BraveSoftware/Brave-Browser/Default/raptor-brave-flags.conf"
 if [ -f "$FLATPAK_FLAGS_FILE" ]; then
     FLAGS_FILE="$FLATPAK_FLAGS_FILE"
 fi
-EXTRA_FLAGS=""
+
+# Keep each configured Chromium flag as one array element. Avoid unquoted
+# command substitution: it breaks on spaces and makes shell syntax fragile.
+EXTRA_FLAGS=()
 if [ -f "$FLAGS_FILE" ]; then
-    EXTRA_FLAGS=$(grep -v '^#' "$FLAGS_FILE" | grep -v '^
+    while IFS= read -r flag || [ -n "$flag" ]; do
+        [[ -z "$flag" || "$flag" == \\#* ]] && continue
+        EXTRA_FLAGS+=("$flag")
+    done < "$FLAGS_FILE"
+fi
+
+# Scale worker caps to installed RAM without weakening Chromium site isolation.
+TOTAL_KB=$(awk '/^MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null || echo 0)
+if [[ "$TOTAL_KB" =~ ^[0-9]+$ ]] && [ "$TOTAL_KB" -le 8388608 ]; then
+    EXTRA_FLAGS+=(--num-raster-threads=2 --renderer-process-limit=4)
+else
+    EXTRA_FLAGS+=(--num-raster-threads=4 --renderer-process-limit=6)
+fi
+
+exec brave-browser "${EXTRA_FLAGS[@]}" "$@"
+BRAVELAUNCHER
 chmod +x /usr/bin/brave-optimized
 
 # ── Background process trimmer ─────────────────────────────────────────────────
