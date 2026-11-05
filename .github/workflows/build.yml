@@ -26,7 +26,7 @@ on:
   workflow_dispatch:
     inputs:
       include_one_time_apps:
-        description: 'Maintainer recovery fallback; release marker enables the first successful v3.0.0 main image build'
+        description: 'Maintainer recovery fallback; include the one-time app payload in this image build'
         required: false
         type: boolean
         default: false
@@ -103,11 +103,11 @@ jobs:
             exit 0
           fi
 
-          # The v3.0.0 release marker opts the first successful main-branch
-          # image build into the one-time payload. End users never run Actions.
+          # This repository marker opts the first successful main-branch image
+          # build into the one-time payload. End users never run Actions.
           if [[ "$EVENT_NAME" == "push" && "$REF_NAME" == "main" && -f ".github/one-time-apps-v3.0.0" ]]; then
             echo "include=true" >> "$GITHUB_OUTPUT"
-            echo "Including the one-time app payload in the v3.0.0 release image."
+            echo "Including the one-time app payload in this update image."
             exit 0
           fi
 
@@ -240,12 +240,47 @@ jobs:
       # and pushed the image. A failed image build must not burn the one-time run.
       - name: Permanently consume the one-time integration
         if: ${{ steps.one_time_apps.outputs.include == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          IMAGE_COMMIT: ${{ github.sha }}
         run: |
           set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -a raptor-one-time-apps-consumed -m "One-time Raptor Music and Shroudly image integration consumed"
-          git push origin refs/tags/raptor-one-time-apps-consumed
+
+          # Use the authenticated GitHub API rather than relying on checkout's
+          # persisted Git credentials, which image-build tooling may alter.
+          # The tag is the durable one-time gate and must point at the commit
+          # whose image was successfully built and pushed.
+          ref="refs/tags/raptor-one-time-apps-consumed"
+
+          if gh api "repos/$REPOSITORY/git/ref/tags/raptor-one-time-apps-consumed" --jq .object.sha >/dev/null 2>&1; then
+            existing_sha="$(gh api "repos/$REPOSITORY/git/ref/tags/raptor-one-time-apps-consumed" --jq .object.sha)"
+            if [[ "$existing_sha" == "$IMAGE_COMMIT" ]]; then
+              echo "One-time integration tag already exists for this image commit; finalization is complete."
+              exit 0
+            fi
+            echo "::error::The one-time integration tag already exists but points to $existing_sha, not $IMAGE_COMMIT."
+            exit 1
+          fi
+
+          if ! gh api --method POST "repos/$REPOSITORY/git/refs" \
+            -f ref="$ref" \
+            -f sha="$IMAGE_COMMIT"; then
+            # A concurrent retry may have created the tag after our first
+            # lookup. Accept that only when it points to this exact commit.
+            existing_sha="$(gh api "repos/$REPOSITORY/git/ref/tags/raptor-one-time-apps-consumed" --jq .object.sha 2>/dev/null || true)"
+            if [[ "$existing_sha" != "$IMAGE_COMMIT" ]]; then
+              echo "::error::Could not create the one-time integration tag; existing target is '${existing_sha:-missing}'."
+              exit 1
+            fi
+          fi
+
+          verified_sha="$(gh api "repos/$REPOSITORY/git/ref/tags/raptor-one-time-apps-consumed" --jq .object.sha)"
+          if [[ "$verified_sha" != "$IMAGE_COMMIT" ]]; then
+            echo "::error::Created one-time integration tag points to $verified_sha instead of $IMAGE_COMMIT."
+            exit 1
+          fi
+          echo "One-time integration consumed and verified at $verified_sha."
 
   # Runs only when the build fails. GitHub's raw job logs are awkward to get at,
   # so this reads the failed job's log on the runner and posts the first real
