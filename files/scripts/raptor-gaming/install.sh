@@ -695,6 +695,13 @@ pin_cores=no
 # Empty whitelist means any GameMode-compatible supervisor may request it.
 # Games without native integration can use gamemoderun %command%.
 supervisor_whitelist=
+
+[custom]
+# GameMode calls the same idempotent Cortex helper as the One-Click Boost
+# button. These hooks are part of the active /etc/gamemode.ini (not an
+# unreferenced conf.d file), and restore exactly the processes paused at start.
+start=/usr/lib/raptor/gamemode-start
+end=/usr/lib/raptor/gamemode-end
 GAMEMODE
 
 # ── GameMode compatibility notes ─────────────────────────────────────────────
