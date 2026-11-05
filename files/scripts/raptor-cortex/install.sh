@@ -233,42 +233,9 @@ _reclaim_user_slice() {
 # FIX: clear Powerdevil session action so switching to power-saver
 # doesn't trigger a logout/suspend. Patches every user's config and
 # tells the running daemon to reload.
-_clear_powerdevil_session_action() {
-    while IFS=: read -r _ _ uid _ _ home _; do
-        [ "$uid" -lt 1000 ] && continue
-        [ -d "$home" ] || continue
-        PPRC="$home/.config/powermanagementprofilesrc"
-        [ -f "$PPRC" ] || continue
-        [ -f "${PPRC}.raptorbak" ] || cp "$PPRC" "${PPRC}.raptorbak"
-        for grp in "Battery][SuspendSession" "LowBattery][SuspendSession" \
-                   "AC][SuspendSession"; do
-            if grep -q "\[$grp\]" "$PPRC" 2>/dev/null; then
-                sed -i "/\[$grp\]/,/^\[/ s/^idleTime=.*/idleTime=0/"     "$PPRC" 2>/dev/null || true
-                sed -i "/\[$grp\]/,/^\[/ s/^suspendType=.*/suspendType=0/" "$PPRC" 2>/dev/null || true
-            fi
-        done
-        if grep -q "\[Battery\]\[HandleButtonEvents\]" "$PPRC" 2>/dev/null; then
-            sed -i "/\[Battery\]\[HandleButtonEvents\]/,/^\[/ s/^powerButtonAction=.*/powerButtonAction=0/" \
-                "$PPRC" 2>/dev/null || true
-        fi
-    done < /etc/passwd
-    # Tell Powerdevil daemon to reload
-    for uid in $(loginctl list-users --no-legend 2>/dev/null | awk '{print $1}' || true); do
-        # sudo + env: reliably passes the session bus path to the target user.
-        # runuser does not inherit the session environment consistently on
-        # Bazzite; bare env-prefix (VAR=x sudo ...) is not interpreted by sudo.
-        RUNTIME_DIR="/run/user/$uid"
-        if [ -d "$RUNTIME_DIR" ]; then
-            sudo -u "#$uid" \
-                env DBUS_SESSION_BUS_ADDRESS="unix:path=$RUNTIME_DIR/bus" \
-                dbus-send --session \
-                    --dest=org.kde.Solid.PowerManagement \
-                    /org/kde/Solid/PowerManagement \
-                    org.kde.Solid.PowerManagement.refreshStatus \
-                    2>/dev/null || true
-        fi
-    done
-}
+# Powerdevil owns lid, idle, suspend and button actions. Cortex must never
+# rewrite a user's power-management configuration or disable their sleep policy.
+
 case "$ACTION" in
     # ── RAM optimization flags ─────────────────────────────────────────────
     0|1|2|3|4|5|6|7|8)
@@ -338,9 +305,8 @@ case "$ACTION" in
 
         case "$MODE" in
             power_saving)
-                # FIX: clear Powerdevil logout action BEFORE switching profile
-                _clear_powerdevil_session_action
-
+                # Leave all Powerdevil idle, suspend, lid and button settings
+                # untouched; the desktop power manager owns those actions.
                 echo 100  > /proc/sys/vm/swappiness                2>/dev/null || true
                 echo 5    > /proc/sys/vm/dirty_ratio               2>/dev/null || true
                 echo 2    > /proc/sys/vm/dirty_background_ratio    2>/dev/null || true
