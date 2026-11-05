@@ -23,6 +23,7 @@ pub struct AudioPlayer {
     event_rx: Receiver<PlayerEvent>,
     state: Arc<Mutex<PlayerState>>,
     position_secs: Arc<Mutex<u64>>,
+    duration_secs: Arc<Mutex<Option<u64>>>,
 }
 
 impl AudioPlayer {
@@ -31,15 +32,17 @@ impl AudioPlayer {
         let (event_tx, event_rx) = unbounded();
         let state = Arc::new(Mutex::new(PlayerState::Idle));
         let position_secs = Arc::new(Mutex::new(0));
+        let duration_secs = Arc::new(Mutex::new(None));
 
         let state_clone = Arc::clone(&state);
         let pos_clone = Arc::clone(&position_secs);
+        let duration_clone = Arc::clone(&duration_secs);
 
         thread::spawn(move || {
-            Self::audio_worker_loop(command_rx, event_tx, state_clone, pos_clone);
+            Self::audio_worker_loop(command_rx, event_tx, state_clone, pos_clone, duration_clone);
         });
 
-        Self { command_tx, event_rx, state, position_secs }
+        Self { command_tx, event_rx, state, position_secs, duration_secs }
     }
 
     pub fn play(&self, source: PlaybackSource, track_id: Uuid, queue_entry_id: Uuid, session_token: Uuid) -> Result<(), String> {
@@ -69,6 +72,10 @@ impl AudioPlayer {
         *self.position_secs.lock().unwrap()
     }
 
+    pub fn get_duration_secs(&self) -> Option<u64> {
+        *self.duration_secs.lock().unwrap()
+    }
+
     pub fn poll_events(&self) -> Vec<PlayerEvent> {
         let mut events = Vec::new();
         while let Ok(ev) = self.event_rx.try_recv() {
@@ -82,6 +89,7 @@ impl AudioPlayer {
         event_tx: Sender<PlayerEvent>,
         state: Arc<Mutex<PlayerState>>,
         position_secs: Arc<Mutex<u64>>,
+        duration_secs: Arc<Mutex<Option<u64>>>,
     ) {
         let host = cpal::default_host();
         let is_paused_shared = Arc::new(AtomicBool::new(false));
@@ -124,6 +132,7 @@ impl AudioPlayer {
                 *state.lock().unwrap() = PlayerState::Loading;
                 is_paused_shared.store(false, Ordering::Release);
                 *position_secs.lock().unwrap() = 0;
+                *duration_secs.lock().unwrap() = None;
 
                 let device = match host.default_output_device() {
                     Some(d) => d,
@@ -163,6 +172,8 @@ impl AudioPlayer {
                         break 'play_session;
                     }
                 };
+
+                *duration_secs.lock().unwrap() = decoder.duration_secs();
 
                 let config = match device.default_output_config() {
                     Ok(c) => c,

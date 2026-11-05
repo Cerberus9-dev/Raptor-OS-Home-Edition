@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **Raptor Music playback controls and persistence:** the main play control now
+  pauses and resumes the active session instead of restarting the selected
+  track. The library database now lives under the user's XDG data directory
+  (or `~/.local/share`) rather than whichever directory launched the app.
+  The desktop UI displays the decoded track duration, periodically persists
+  playback position, and the recursive scanner recognizes additional
+  Symphonia-supported audio extensions.
+
 ### Added
 
 - **Raptor Music and Raptor Shroudly are now installed and in the app menu.**

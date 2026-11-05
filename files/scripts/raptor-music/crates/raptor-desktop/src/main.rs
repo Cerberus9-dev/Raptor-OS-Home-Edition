@@ -5,12 +5,13 @@ use raptor_audio::decoder::AudioDecoder;
 use raptor_library::{LibraryDatabase, QueueEntry};
 use raptor_core::models::{Track, PlaybackSource, PlayerState, PlayerEvent};
 use std::sync::{Arc, Mutex};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use uuid::Uuid;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let db_path = std::env::current_dir()?.join("raptor_music.db");
+    let db_path = music_data_dir()?.join("raptor_music.db");
     let db = Arc::new(Mutex::new(LibraryDatabase::new(&db_path)?));
     let player = Arc::new(AudioPlayer::new());
 
@@ -127,8 +128,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Some(u) => u,
             None => return,
         };
+        match player_for_play.get_state() {
+            PlayerState::Playing => {
+                if let Some(token) = *session_token_for_play.lock().unwrap() {
+                    player_for_play.pause(token);
+                    return;
+                }
+            }
+            PlayerState::Paused => {
+                if let Some(token) = *session_token_for_play.lock().unwrap() {
+                    player_for_play.resume(token);
+                    return;
+                }
+            }
+            _ => {}
+        }
         manual_stopped_for_play.store(false, Ordering::Release);
-        
+
         let (target_source, target_id, target_queue_entry_id) = {
             let db_lock = db_for_play.lock().unwrap();
             let queue_entries = db_lock.get_queue().unwrap_or_default();
@@ -196,6 +212,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let player_for_adv = Arc::clone(&player);
 
     std::thread::spawn(move || {
+        let mut last_persisted_position = u64::MAX;
         loop {
             std::thread::sleep(std::time::Duration::from_millis(100));
             if ui_handle_poll.upgrade().is_none() {
@@ -299,10 +316,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             let pos = player_for_poll.get_position_secs();
+            let duration = player_for_poll.get_duration_secs().unwrap_or(0);
+            if pos != last_persisted_position {
+                if let Ok(db_l) = db_for_poll.lock() {
+                    let _ = db_l.set_state_value("position_secs", &pos.to_string());
+                }
+                last_persisted_position = pos;
+            }
             let ui_weak_tick = ui_handle_poll.clone();
             let _ = slint::invoke_from_event_loop(move || {
                 if let Some(ui) = ui_weak_tick.upgrade() {
-                    ui.set_progress_label(format!("{}:{:02} / --:--", pos / 60, pos % 60).into());
+                    ui.set_progress_label(format!(
+                        "{}:{:02} / {}:{:02}",
+                        pos / 60, pos % 60, duration / 60, duration % 60
+                    ).into());
                 }
             });
         }
@@ -349,6 +376,19 @@ fn refresh_queue_list(ui: &MainWindow, db: &Arc<Mutex<LibraryDatabase>>) {
     ui.set_queue_list(slint::ModelRc::new(slint::VecModel::from(slint_queue)));
 }
 
+fn music_data_dir() -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let base = if let Some(xdg) = std::env::var_os("XDG_DATA_HOME") {
+        PathBuf::from(xdg)
+    } else if let Some(home) = std::env::var_os("HOME") {
+        PathBuf::from(home).join(".local").join("share")
+    } else {
+        return Err("Neither XDG_DATA_HOME nor HOME is set".into());
+    };
+    let dir = base.join("raptor-music");
+    std::fs::create_dir_all(&dir)?;
+    Ok(dir)
+}
+
 fn walk_dir_and_import(dir: &std::path::Path, db: &mut LibraryDatabase) {
     if let Ok(entries) = std::fs::read_dir(dir) {
         for entry in entries.flatten() {
@@ -357,7 +397,11 @@ fn walk_dir_and_import(dir: &std::path::Path, db: &mut LibraryDatabase) {
                 walk_dir_and_import(&path, db);
             } else if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
                 let ext_lower = ext.to_lowercase();
-                if ext_lower == "flac" || ext_lower == "mp3" || ext_lower == "wav" {
+                if matches!(
+                    ext_lower.as_str(),
+                    "aac" | "aif" | "aiff" | "alac" | "caf" | "flac" | "m4a" |
+                    "mp3" | "mp4" | "ogg" | "opus" | "wav"
+                ) {
                     let metadata = match AudioDecoder::extract_metadata(&path) {
                         Ok(m) => m,
                         Err(_) => continue,
