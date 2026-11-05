@@ -329,9 +329,9 @@ fi
 # process counts: site isolation and browser security remain enabled.
 TOTAL_KB=$(awk '/^MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null)
 if [[ "$TOTAL_KB" =~ ^[0-9]+$ ]] && [ "$TOTAL_KB" -le 8388608 ]; then
-    EXTRA_FLAGS="$EXTRA_FLAGS --num-raster-threads=2 --renderer-process-limit=4"
+    EXTRA_FLAGS="$EXTRA_FLAGS --num-raster-threads=2"
 else
-    EXTRA_FLAGS="$EXTRA_FLAGS --num-raster-threads=4 --renderer-process-limit=6"
+    EXTRA_FLAGS="$EXTRA_FLAGS --num-raster-threads=4"
 fi
 exec brave-browser $EXTRA_FLAGS "$@"
 BRAVELAUNCHER
