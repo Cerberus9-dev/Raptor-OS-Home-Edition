@@ -114,6 +114,19 @@ modules:
       - liberation-fonts
       - power-profiles-daemon
 
+      # Runtime libraries for the one-time upstream Shroudly Electron desktop app.
+      - gtk3
+      - libnotify
+      - nss
+      - libXtst
+      - at-spi2-core
+      - libuuid
+      - libsecret
+      - xdg-utils
+      - libdrm
+      - mesa-libgbm
+      - alsa-lib
+
       # Media
       - mpv
 
