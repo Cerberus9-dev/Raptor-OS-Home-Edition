@@ -313,7 +313,8 @@ case "$ACTION" in
             echo madvise       > /sys/kernel/mm/transparent_hugepage/enabled 2>/dev/null || true
             echo defer+madvise > /sys/kernel/mm/transparent_hugepage/defrag  2>/dev/null || true
         fi
-        [ "$DO_CPU" = "1" ] && echo 1 > /sys/devices/system/cpu/cpufreq/boost 2>/dev/null || true
+        # CPU boost is controlled by power-profiles-daemon, never by Cortex's
+        # memory-optimization path.
         ;;
 
     # ── Per-mode kernel tuning ─────────────────────────────────────────────
