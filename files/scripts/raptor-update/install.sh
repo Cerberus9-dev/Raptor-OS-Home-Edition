@@ -127,7 +127,7 @@ for attempt in $(seq 1 $MAX_ATTEMPTS); do
 
     keep_wifi_awake
     out="$(mktemp)"
-    timeout "${LAYER_TIMEOUT}" rpm-ostree update 2>&1 | tee "$out"
+    timeout "${LAYER_TIMEOUT}" rpm-ostree upgrade 2>&1 | tee "$out"
     rc=${PIPESTATUS[0]}
     # rpm-ostree owns its transaction lock. Never delete lock files or cancel a
     # transaction that may belong to PackageKit, Discover, the automatic checker,
@@ -589,11 +589,7 @@ def check_for_updates(emit=None):
 
     if refresh_rc == "timeout":
         try:
-            helper.kill()
-        except Exception:
-            pass
-        try:
-            helper.wait(timeout=5)
+            _stop_process_group(helper)
         except Exception:
             pass
     else:
@@ -601,8 +597,7 @@ def check_for_updates(emit=None):
             refresh_rc = helper.wait(timeout=max(1, deadline - time.monotonic()))
         except subprocess.TimeoutExpired:
             try:
-                helper.kill()
-                helper.wait(timeout=5)
+                _stop_process_group(helper)
             except Exception:
                 pass
             refresh_rc = "timeout"
