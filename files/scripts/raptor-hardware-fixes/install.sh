@@ -164,7 +164,10 @@ healthy() {
     local info
     info="$(timeout 5 bluetoothctl show 2>/dev/null)" || return 1
     grep -Eq '^Controller [[:xdigit:]:]{17} ' <<<"$info" || return 1
-    grep -q '^Powered: yes rfkill unblock bluetooth 2>/dev/null; timeout 8 bluetoothctl power on >/dev/null 2>&1; sleep 2; }
+    grep -q '^Powered: yes$' <<<"$info"
+}
+
+power_on() { rfkill unblock bluetooth 2>/dev/null; timeout 8 bluetoothctl power on >/dev/null 2>&1; sleep 2; }
 
 case "$MODE" in
     pre)
