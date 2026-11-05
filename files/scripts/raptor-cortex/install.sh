@@ -432,9 +432,15 @@ case "$ACTION" in
 
     # ── Background trimming for gaming ─────────────────────────────────────
     trim-background)
-        # Game Mode pauses only optional indexers selected in the Cortex UI.
-        # Never flush caches, compact memory, stop irqbalance, or stop system
-        # services: those actions can create I/O spikes or disrupt peripherals.
+        # Idempotent: Cortex's button, manual Performance mode and GameMode's
+        # start hook can all arrive for the same session. Never overwrite the
+        # first session's restore list or a process could remain SIGSTOP'd.
+        if [ -f "$GAME_MODE_MARKER" ]; then
+            echo "Raptor Game Mode background trim is already active."
+            exit 0
+        fi
+        # Pause only optional indexers selected in the Cortex UI. Never flush
+        # caches, compact memory, stop irqbalance, or stop system services.
         touch "$GAME_MODE_MARKER"
         : > "$GAME_MODE_PROCS_FILE"
         for proc in "${BACKGROUND_PROCS[@]}"; do
@@ -703,7 +709,7 @@ cat << 'EOF' > /usr/lib/raptor/gamemode-start
 # Single source of truth: Cortex pauses only configured optional indexers and
 # applies its bounded AC-only wake-latency constraint. No duplicate STOP loop.
 # Avoid compaction, zram recompression and OOM-score changes on every launch.
-sudo /usr/lib/raptor/cortex-helper trim-background 2>/dev/null || true
+exec sudo -n /usr/lib/raptor/cortex-helper trim-background
 EOF
 chmod +x /usr/lib/raptor/gamemode-start
 
@@ -711,7 +717,7 @@ cat << 'EOF' > /usr/lib/raptor/gamemode-end
 #!/bin/bash
 # Restore exactly the process set that Cortex paused. The helper owns both
 # lists and the Game Mode marker, avoiding duplicate or drifting resume logic.
-sudo /usr/lib/raptor/cortex-helper restore-background 2>/dev/null || true
+exec sudo -n /usr/lib/raptor/cortex-helper restore-background
 EOF
 chmod +x /usr/lib/raptor/gamemode-end
 
@@ -720,24 +726,9 @@ chmod +x /usr/lib/raptor/gamemode-end
 # the enable the unit exists but never runs and the mode resets on reboot.
 systemctl --global enable raptor-cortex-mode.service 2>/dev/null || true
 
-# ── Gamemode config ───────────────────────────────────────────────────────────
-mkdir -p /etc/gamemode.d
-cat << 'EOF' > /etc/gamemode.d/raptor-cortex.ini
-[general]
-renice=10
-inhibit_screensaver=1
-softrealtime=auto
-reaper_freq=5
-
-[gpu]
-apply_gpu_optimisations=accept-responsibility
-gpu_device=0
-amd_performance_level=high
-
-[custom]
-start=/usr/lib/raptor/gamemode-start
-end=/usr/lib/raptor/gamemode-end
-EOF
+# GameMode's active configuration and hooks are written by
+# raptor-gaming/install.sh to /etc/gamemode.ini. Do not create an unreferenced
+# /etc/gamemode.d file that GameMode may never load.
 
 # ── Python GUI ────────────────────────────────────────────────────────────────
 cat << 'PYEOF' > /usr/bin/raptor-cortex
