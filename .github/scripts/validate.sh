@@ -146,6 +146,8 @@ assert_not_contains files/system_files/raptor-browser-choice.sh 'Helium'
 
 echo "=== Checking Shroudly local-monitor-only integration ==="
 assert_contains .github/workflows/build.yml 'cargo build --release --workspace --manifest-path files/scripts/shroudly-raptor/Cargo.toml'
+assert_not_contains .github/workflows/build.yml 'Fetch pinned upstream Shroudly source once'
+assert_not_contains .github/workflows/build.yml 'Verify pinned upstream Shroudly source'
 assert_contains files/scripts/shroudly-raptor/install.sh 'Local Application Monitor'
 assert_contains files/scripts/shroudly-raptor/install.sh 'network routing is not enabled'
 assert_contains files/scripts/shroudly-raptor/install.sh 'v3.0.0 release image build'
