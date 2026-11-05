@@ -53,7 +53,6 @@ fn classify_process_name(name: &str) -> Option<&'static str> {
         ("bottles", "Bottles"),
         ("gamescope", "Gamescope"),
         ("prismlauncher", "Prism Launcher"),
-        ("prismlauncher", "Prism Launcher"),
         ("modrinth", "Modrinth App"),
         ("atlauncher", "ATLauncher"),
         ("gdlauncher", "GDLauncher"),
