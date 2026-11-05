@@ -270,13 +270,24 @@ _apply_audio_powersave() {
 # Scoped to user.slice: covers Firefox/Vesktop/Steam/etc., not the kernel
 # or system daemons.
 _reclaim_user_slice() {
-    local amount="${1:-1073741824}"  # bytes; default 1 GiB request
-    local wrote=0
+    # Reclaim only when the machine is genuinely under memory pressure.
+    # One write at user.slice covers descendants; repeated nested writes can
+    # multiply reclaim and evict active applications unnecessarily.
+    local amount="${1:-268435456}"  # 256 MiB maximum request
+    local total_kb available_kb threshold_kb
+    total_kb=$(awk '/^MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null)
+    available_kb=$(awk '/^MemAvailable:/ {print $2}' /proc/meminfo 2>/dev/null)
+    [[ "$total_kb" =~ ^[0-9]+$ && "$available_kb" =~ ^[0-9]+$ ]] || return 0
+    threshold_kb=$(( total_kb / 10 ))
+    [ "$threshold_kb" -lt 524288 ] && threshold_kb=524288
+    [ "$available_kb" -ge "$threshold_kb" ] && return 0
+
+    local f
     for f in /sys/fs/cgroup/user.slice/memory.reclaim \
-             /sys/fs/cgroup/user.slice/user-*.slice/memory.reclaim \
-             /sys/fs/cgroup/user.slice/user-*.slice/user@*.service/memory.reclaim; do
+             /sys/fs/cgroup/user.slice/user-*.slice/memory.reclaim; do
         if [ -w "$f" ]; then
-            echo "$amount" > "$f" 2>/dev/null && wrote=1
+            echo "$amount" > "$f" 2>/dev/null || true
+            break
         fi
     done
     return 0
@@ -329,18 +340,15 @@ case "$ACTION" in
         DO_THP="${7:-0}";    DO_CPU="${8:-0}"
 
         if [ "$DO_CACHE" = "1" ]; then
-            sync || true
-            echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || true
-            echo 2 > /proc/sys/vm/drop_caches 2>/dev/null || true
-            echo 1 > /proc/sys/vm/drop_caches 2>/dev/null || true
-            # Reclaim ~1 GiB from running user apps (Firefox, Vesktop, Steam, etc.)
-            _reclaim_user_slice 1073741824
+            # Keep useful file/game caches; reclaim only under real pressure.
+            _reclaim_user_slice 268435456
         fi
         [ "$DO_COMPACT" = "1" ] && echo 1 > /proc/sys/vm/compact_memory 2>/dev/null || true
-        if [ "$DO_ZRAM" = "1" ]; then
-            echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || true
-            echo recompress > /sys/block/zram0/recompress 2>/dev/null || true
-            echo writeback   > /sys/block/zram0/writeback   2>/dev/null || true
+        if [ "$DO_ZRAM" = "1" ] && [ -w /sys/block/zram0/recompress ]; then
+            # Recompress a bounded number of idle pages only. No backing device
+            # is configured, so writeback is deliberately never requested.
+            echo all > /sys/block/zram0/idle 2>/dev/null || true
+            echo "type=idle max_pages=128" > /sys/block/zram0/recompress 2>/dev/null || true
         fi
         if [ "$DO_OOM" = "1" ]; then
             for proc in plasmashell kwin_wayland kwin_x11 ksmserver kded6; do
@@ -404,14 +412,12 @@ case "$ACTION" in
                 echo 180  > /proc/sys/vm/swappiness                2>/dev/null || true
                 echo 5    > /proc/sys/vm/dirty_ratio               2>/dev/null || true
                 echo 2    > /proc/sys/vm/dirty_background_ratio    2>/dev/null || true
-                # Longer writeback: 150 s means fewer storage controller wake-ups.
-                # Storage (especially NVMe) goes into deep low-power states between
-                # writes; longer intervals = more time in deep sleep.
-                echo 15000 > /proc/sys/vm/dirty_writeback_centisecs 2>/dev/null || true
-                echo 60000 > /proc/sys/vm/dirty_expire_centisecs    2>/dev/null || true
-                # laptop_mode=5: more aggressive disk caching, even less frequent
-                # actual writes to storage (5 is max useful value on modern kernels)
-                echo 5    > /proc/sys/vm/laptop_mode                2>/dev/null || true
+                # Conservative writeback intervals avoid large dirty-page buildup
+                # and long flush bursts while retaining reasonable idle periods.
+                echo 5000  > /proc/sys/vm/dirty_writeback_centisecs 2>/dev/null || true
+                echo 30000 > /proc/sys/vm/dirty_expire_centisecs    2>/dev/null || true
+                # Avoid legacy laptop_mode write deferral on modern NVMe systems.
+                echo 0 > /proc/sys/vm/laptop_mode 2>/dev/null || true
 
                 # CPU: governor + turbo off
                 echo 0 > /sys/devices/system/cpu/cpufreq/boost      2>/dev/null || true
@@ -442,7 +448,9 @@ case "$ACTION" in
                 _apply_usb_autosuspend 1
                 _apply_runtime_pm      auto
                 _apply_sata_link_power min_power
-                _apply_audio_powersave 1
+                # Keep audio codec power-save disabled in Balanced mode to avoid
+                # wake-up clicks, delayed audio, and device transition glitches.
+                _apply_audio_powersave 0
 
                 # HDA audio powersave controller: separate from power_save flag.
                 # Allows the HD-audio controller itself (not just the codec) to
@@ -552,10 +560,8 @@ case "$ACTION" in
                 _apply_sata_link_power max_performance
                 _apply_audio_powersave 0
 
-                sync || true
-                echo 1 > /proc/sys/vm/drop_caches    2>/dev/null || true
-                echo 1 > /proc/sys/vm/compact_memory 2>/dev/null || true
-
+                # Avoid cache drops and memory compaction on mode switches:
+                # both can cause avoidable I/O or CPU spikes during game launch.
                 powerprofilesctl set performance 2>/dev/null || true
                 ;;
         esac
@@ -1998,20 +2004,20 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         advanced_expander.set_subtitle("Choose exactly what runs — off by default, Quick Optimize above covers most cases")
         opts_group.add(advanced_expander)
 
-        self.opt_caches  = self._switch_row("Drop caches + reclaim app memory",
-                                             "Frees kernel caches AND asks running apps (Firefox, Vesktop, Steam) to release cold pages",
+        self.opt_caches  = self._switch_row("Pressure-aware app memory reclaim",
+                                             "Requests up to 256 MiB only when available RAM is low; keeps useful file/game caches",
                                              True)
         advanced_expander.add_row(self.opt_caches)
-        self.opt_compact = self._switch_row("Memory compaction",                 "Reduces fragmentation",                          True)
+        self.opt_compact = self._switch_row("Memory compaction",                 "Manual only; can briefly use CPU and is disabled in Quick Optimize", False)
         advanced_expander.add_row(self.opt_compact)
-        self.opt_zram    = self._switch_row("zram recompress",                   "Re-squeeze compressed swap pages",               True)
+        self.opt_zram    = self._switch_row("zram recompress",                   "Recompress up to 128 idle pages when supported; no disk writeback", False)
         advanced_expander.add_row(self.opt_zram)
         self.opt_swap    = self._switch_row("Swap pressure flush",               "Push cold pages to ZRAM swap (aggressive — use before gaming)",
                                              False)
         advanced_expander.add_row(self.opt_swap)
-        self.opt_oom     = self._switch_row("Adjust OOM scores",                 "Protect KDE shell; make browsers killable",      True)
+        self.opt_oom     = self._switch_row("Adjust OOM scores",                 "Optional process-priority policy; disabled by default", False)
         advanced_expander.add_row(self.opt_oom)
-        self.opt_deep    = self._switch_row("Deep Clean (slow)",                 "Flush hugepages + NUMA + slab caches + reclaim 3 GiB", False)
+        self.opt_deep    = self._switch_row("Deep Clean (slow)",                 "Advanced manual operation; can interrupt responsiveness", False)
         advanced_expander.add_row(self.opt_deep)
 
         cortex_group = Adw.PreferencesGroup(title="Raptor Cortex — Game Mode")
@@ -2623,15 +2629,13 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
             ok = False
 
         if mode_key == "performance":
-            subprocess.run(["sudo", HELPER, "1", "1", "1", "1", "0", "0", "0", "1"],
-                           capture_output=True)
+            # Game Mode suspends its configured background workload only.
+            # It does not flush caches, compact memory, or rewrite OOM scores.
             subprocess.run(["sudo", HELPER, "trim-background"],
                            capture_output=True)
-        elif mode_key == "balanced":
-            subprocess.run(["sudo", HELPER, "1", "1", "0", "1", "0", "0", "0", "0"],
-                           capture_output=True)
-        elif mode_key == "power_saving":
-            subprocess.run(["sudo", HELPER, "1", "0", "0", "0", "0", "0", "0", "0"],
+        else:
+            # Restore anything Game Mode paused when leaving Performance.
+            subprocess.run(["sudo", HELPER, "restore-background"],
                            capture_output=True)
 
         gpu_note = ""
@@ -2815,13 +2819,10 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         self.spinner.start()
 
         # Auto-select options based on current performance mode
-        mode = self._current_mode
-        if mode == "performance":
-            opts = {"caches": True, "compact": True, "zram": True, "oom": True, "deep": False, "swap": True}
-        elif mode == "power_saving":
-            opts = {"caches": True, "compact": True, "zram": True, "oom": True, "deep": False, "swap": False}
-        else:  # balanced
-            opts = {"caches": True, "compact": True, "zram": True, "oom": True, "deep": False, "swap": False}
+        # Safe defaults in every mode: no cache flush, compaction, forced swap,
+        # zram recompression, or OOM-score changes during a one-click operation.
+        opts = {"caches": True, "compact": False, "zram": False,
+                "oom": False, "deep": False, "swap": False}
 
         before_used, before_total = mem_used_mb()
         threading.Thread(target=self._do_optimize, args=(opts, before_used, before_total), daemon=True).start()
@@ -2855,16 +2856,10 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
             "0", "0"
         ], capture_output=True)
 
+        # Memory cleanup must never freeze desktop services. Game Mode owns
+        # suspension through trim-background/restore-background exclusively.
         suspended = []
-        for name, pattern in ALL_SERVICES:
-            if pattern not in self._cortex_patterns:
-                continue
-            result = subprocess.run(["pgrep", "-x", pattern[:15]], capture_output=True, text=True)
-            if result.returncode == 0:
-                subprocess.run(["/usr/lib/raptor/safe-signal", "STOP", pattern], capture_output=True)
-                suspended.append(name)
-
-        self._suspended_now = suspended
+        self._suspended_now = []
         after_used, _ = mem_used_mb()
         freed = max(0, before_used - after_used)
         GLib.idle_add(self._show_result, before_used, before_total, after_used, freed, suspended)
