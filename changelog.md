@@ -2,7 +2,6 @@
 
 ## [Unreleased]
 
-### [0.2.18] (upcoming)
 
 - **Raptor Music queue index consistency:** removing a queue row before the currently playing entry now shifts the active-row index to match the reindexed queue; removing the active entry also resets the visible player state to Idle.
 
