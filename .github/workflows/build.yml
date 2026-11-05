@@ -9,6 +9,7 @@ on:
       - "files/**"
       - ".github/scripts/**"
       - ".github/workflows/build.yml"
+      - "changelog.md"
 
   pull_request:
     branches:
@@ -24,17 +25,48 @@ on:
 
   workflow_dispatch:
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  # Keep only the newest push/PR build for a branch. Rapid commits otherwise
-  # queue several full image builds, wasting runner time and disk. Scheduled
-  # and manually dispatched builds are deliberately allowed to finish.
-  cancel-in-progress: ${{ github.event_name == 'push' || github.event_name == 'pull_request' }}
-
 jobs:
+  # Push webhook deliveries can arrive out of order. Check the live branch head
+  # before entering the build concurrency group, so a delayed older event cannot
+  # cancel a build for a newer commit.
+  check-latest-push:
+    name: Check whether this push is still current
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      should_build: ${{ steps.latest.outputs.should_build }}
+    steps:
+      - name: Compare event SHA with current branch head
+        id: latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          REPOSITORY: ${{ github.repository }}
+          REF_NAME: ${{ github.ref_name }}
+          PUSH_SHA: ${{ github.sha }}
+        run: |
+          if [[ "$EVENT_NAME" != "push" ]]; then
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          latest_sha="$(gh api "repos/$REPOSITORY/commits/$REF_NAME" --jq .sha)"
+          if [[ "$latest_sha" == "$PUSH_SHA" ]]; then
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Skipping superseded push $PUSH_SHA; current branch head is $latest_sha."
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+          fi
+
   build:
+    needs: check-latest-push
+    if: ${{ needs.check-latest-push.outputs.should_build == 'true' }}
     name: Build & Push Image
     runs-on: ubuntu-latest
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+      cancel-in-progress: ${{ github.event_name == 'push' || github.event_name == 'pull_request' }}
     permissions:
       contents: read
       packages: write
