@@ -28,6 +28,12 @@
 
 ### Fixed
 
+- **CI could silently ship a stale Raptor Music binary.** The build workflow
+  treated the presence of a cached release executable as proof that the current
+  source had already been built, then skipped Cargo entirely. A source-only
+  change could therefore bypass compilation and leave an old binary staged.
+  The workflow now always runs `cargo build --release --workspace`; the
+  existing Cargo target cache remains available for incremental compilation.
 - **Rapid main-branch pushes could run multiple full image builds concurrently.**
   The build workflow previously cancelled superseded pull-request builds only.
   It now cancels an in-progress push build when a newer push arrives on the
