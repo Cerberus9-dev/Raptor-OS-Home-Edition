@@ -899,6 +899,26 @@ if [ -n "$raptor_missing" ]; then
     echo "GAMING_PAYLOAD_MISSING:$raptor_missing" >&2
     exit 1
 fi
+
+# Syntax-check every generated shell helper, including the adaptive Brave
+# launcher. A broken heredoc must fail the image build instead of shipping.
+for raptor_shell in \
+    /usr/bin/brave-optimized \
+    /usr/bin/raptor-trim-background.sh \
+    /usr/bin/raptor-restore-background.sh \
+    /usr/bin/raptor-zram-teardown.sh; do
+    if ! bash -n "$raptor_shell"; then
+        echo "GAMING_SHELL_SYNTAX_ERROR:$raptor_shell" >&2
+        exit 1
+    fi
+done
+
+# Validate managed Firefox policy JSON before the image can be published.
+python3 - <<'PY'
+import json
+with open("/etc/firefox/policies/policies.json", encoding="utf-8") as source:
+    json.load(source)
+PY
 echo "GAMING_READY payload=$(echo $RAPTOR_EXPECTED_PAYLOAD | wc -w | tr -d ' ') files verified"
  "$FLAGS_FILE" | tr '\n' ' ')
 fi
