@@ -82,7 +82,7 @@ This is the consolidation release for more than two months of sustained Raptor O
 
 - **Raptor Music playlist integrity:** playlist creation and renaming now reject blank names at the library API (not only in the desktop UI), and a transactional reorder method moves entries without losing their IDs or changing other tracks' relative order. Added regression tests for both cases.
 
-- **Shroudly false-success listener removed:** the app no longer opens a listener that acknowledged CONNECT without an upstream tunnel. Proxy launch now returns an explicit unsupported error, and documentation/installer comments state that the prototype is disabled.
+- **Retired Raptor Shroudly prototype — false-success listener removed:** the app no longer opens a listener that acknowledged CONNECT without an upstream tunnel. Proxy launch now returns an explicit unsupported error, and documentation/installer comments state that the prototype is disabled.
 
 - **Bluetooth recovery watchdog:** health checks now query the controller state without starting a discovery scan, avoiding unsolicited device discovery and leaving the user's scan state untouched.
 
@@ -154,7 +154,7 @@ This is the consolidation release for more than two months of sustained Raptor O
   not a usable proxy. Functional proxy forwarding and the original desktop UI
   remain outstanding; no managed-network bypass behavior is being added.
 
-- **Shroudly advanced-mode cleanup could erase the entire host firewall.**
+- **Retired Raptor Shroudly prototype — advanced-mode cleanup could erase the entire host firewall.**
   Its cleanup path called `nft flush ruleset`, which removes rules owned by
   firewalld, containers, VPNs, and other applications—not just Shroudly.
   Packet mode now reports itself as unimplemented and performs no nftables
