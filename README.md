@@ -169,7 +169,7 @@ Native Rust/Slint local music player. Recursively scans folders into a SQLite li
 
 ### Audio
 - **PipeWire 512-sample default quantum** (~10.7 ms) for both the native graph and the `pipewire-pulse` compatibility layer used by Electron/Chromium apps; real-time scheduling is enabled with bounded RT runtime
-- **ALSA buffering is device-aware** — built-in outputs use a 512-sample period; USB audio uses a more conservative 1024-sample period and avoids USB autosuspend; resampling quality is kept at 6 to avoid unnecessary CPU load on low-power systems
+- **ALSA buffering is device-aware** — built-in outputs use a 512-sample period; USB audio uses a more conservative 1024-sample period and avoids USB autosuspend; the general resampling path uses quality 6 while USB audio retains quality 10 for fidelity
 - **Audio devices suspend after 60 seconds idle** rather than being held awake indefinitely; Bluetooth profile switching prefers high-quality A2DP when a headset supports it
 - **PipeWire, pipewire-pulse and WirePlumber restart on failure**, with systemd start limits to prevent crash loops
 
