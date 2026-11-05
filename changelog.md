@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+### Updates
+
 - **Raptor Music in-library search:** added a live, case-insensitive search across track title, artist, and album. Search results retain their real track IDs, so adding a filtered result to a playlist or queue and playing it no longer uses the filtered row number as an index into the unfiltered database.
 
 - **Raptor Music folder scanning no longer follows directory-link cycles forever.** Recursive scans now track canonical directory paths, preventing a folder symlink back to a parent (or another already visited directory) from causing unbounded recursion and repeated imports.
@@ -48,7 +50,7 @@
 
 - **Raptor Music queue controls:** added previous/next controls that select and start the adjacent queue entry, while the main play control pauses/resumes the current entry rather than restarting it. The home-page feature description now reflects the XDG database location and scanner formats.
 
-#### Fixed
+### Fixed
 
 - **Raptor Music playback controls and persistence:** the main play control now
   pauses and resumes the active session instead of restarting the selected
@@ -58,29 +60,6 @@
   playback position, and the recursive scanner recognizes additional
   Symphonia-supported audio extensions.
 
-#### Added
-
-- **Raptor Music and the Shroudly prototype are packaged separately.**
-  CI builds the Rust applications and stages their binaries in
-  `files/staging/`. Raptor Music is installed as a usable local music-player
-  app with a Raptor OS desktop entry. Shroudly's desktop entry currently opens
-  only a disabled prototype that reports its status; it is not a working proxy
-  and does not open a listener or forward traffic. If a local build does not
-  stage a binary, the install scripts warn and skip instead of failing the image.
-- **Hardware recovery after suspend** (`files/scripts/raptor-hardware-fixes.sh`):
-  one resume hook plus one 1-minute timer, no new apps or menu entries. On
-  every resume it re-binds the touchpad's I2C/PS/2 driver, binds the kernel's
-  mute / mic-mute LEDs to the audio mute state, and recovers Wi-Fi and
-  Bluetooth in detached background jobs so resume is never delayed. Wi-Fi
-  escalates: re-enable autoconnect and reconnect, power-cycle the radio, reload
-  the driver. Bluetooth escalates: unblock and power on, restart
-  `bluetooth.service`, reload `btusb`; its health check requires the
-  controller to report a live, powered state without starting discovery. The
-  timer is also a Wi-Fi watchdog while awake. Recovery never overrides Wi-Fi or
-  Bluetooth turned off on purpose and never uses `nmcli device disconnect`.
-  `btusb enable_autosuspend=0` stops USB Bluetooth adapters from autosuspending.
-
-#### Fixed
 
 - **CI could silently ship a stale Raptor Music binary.** The build workflow
   treated the presence of a cached release executable as proof that the current
@@ -349,7 +328,28 @@
   so a bad ID is reported by name instead of failing silently. Removed apps
   that are not desktop Linux software (NewPipe, Piped, SearXNG, Bromite).
 
-#### Added
+### Added
+
+- **Raptor Music and the Shroudly prototype are packaged separately.**
+  CI builds the Rust applications and stages their binaries in
+  `files/staging/`. Raptor Music is installed as a usable local music-player
+  app with a Raptor OS desktop entry. Shroudly's desktop entry currently opens
+  only a disabled prototype that reports its status; it is not a working proxy
+  and does not open a listener or forward traffic. If a local build does not
+  stage a binary, the install scripts warn and skip instead of failing the image.
+- **Hardware recovery after suspend** (`files/scripts/raptor-hardware-fixes.sh`):
+  one resume hook plus one 1-minute timer, no new apps or menu entries. On
+  every resume it re-binds the touchpad's I2C/PS/2 driver, binds the kernel's
+  mute / mic-mute LEDs to the audio mute state, and recovers Wi-Fi and
+  Bluetooth in detached background jobs so resume is never delayed. Wi-Fi
+  escalates: re-enable autoconnect and reconnect, power-cycle the radio, reload
+  the driver. Bluetooth escalates: unblock and power on, restart
+  `bluetooth.service`, reload `btusb`; its health check requires the
+  controller to report a live, powered state without starting discovery. The
+  timer is also a Wi-Fi watchdog while awake. Recovery never overrides Wi-Fi or
+  Bluetooth turned off on purpose and never uses `nmcli device disconnect`.
+  `btusb enable_autosuspend=0` stops USB Bluetooth adapters from autosuspending.
+
 
 - **Fan information in Raptor Cortex (read-only)** — a new "Fans" row in the
   live stats group lists every fan RPM sensor the kernel exposes through
