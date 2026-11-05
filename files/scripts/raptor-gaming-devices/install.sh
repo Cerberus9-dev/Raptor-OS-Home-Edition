@@ -123,14 +123,17 @@ in Flatpak or sandboxed Wine prefixes. For these games, use:
 Most Turtle Beach headsets work as standard USB audio devices.
 For advanced features (EQ, mic monitoring), check manufacturer software.
 
-## Input Latency
-USB autosuspend is disabled for all gaming devices via udev rules.
-Bluetooth adapters are also excluded from autosuspend to prevent
-mouse/keyboard wake latency.
+## Input Access and Latency
+Input device nodes use mode 0660 with active-session `uaccess` ACLs rather than
+world-writable permissions. This lets the logged-in desktop user access devices
+without granting every local process unrestricted HID access.
+
+Raptor Gaming's separate udev rules disable autosuspend for HID, Bluetooth,
+and USB audio devices to reduce wake latency and avoid audio dropouts.
 
 ## Troubleshooting
-- Device not detected? `sudo udevadm control --reload && sudo udevadm trigger`
-- Permission denied? Check `groups $USER` includes `input`
+- Device not detected? Run `sudo udevadm control --reload-rules && sudo udevadm trigger`
+- Permission denied? Check that the device has the `uaccess` tag and that you are in an active local desktop session.
 - RGB not working? Install OpenRazer/Polychromatic or Piper from app picker
 EOF
 
