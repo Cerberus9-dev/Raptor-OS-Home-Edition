@@ -2011,7 +2011,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         """Apply Performance mode and pressure-aware Game Mode tuning."""
         self._on_mode_switch(None, "performance")
         opts = {"caches": True, "compact": False, "zram": False,
-                "swap": False, "oom": True, "deep": False, "thp": False, "cpu": False}
+                "swap": False, "oom": False, "deep": False, "thp": False, "cpu": False}
         before, total = mem_used_mb()
         threading.Thread(
             target=self._do_optimize, args=(opts, before, total), daemon=True
