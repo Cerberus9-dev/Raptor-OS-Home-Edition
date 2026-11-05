@@ -345,12 +345,21 @@ fi
 # Scale worker caps to installed RAM without weakening Chromium site isolation.
 TOTAL_KB=$(awk '/^MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null || echo 0)
 if [[ "$TOTAL_KB" =~ ^[0-9]+$ ]] && [ "$TOTAL_KB" -le 8388608 ]; then
-    EXTRA_FLAGS+=(--num-raster-threads=2 --renderer-process-limit=4)
+    EXTRA_FLAGS+=(--num-raster-threads=2)
 else
-    EXTRA_FLAGS+=(--num-raster-threads=4 --renderer-process-limit=6)
+    EXTRA_FLAGS+=(--num-raster-threads=4)
 fi
 
-exec brave-browser "${EXTRA_FLAGS[@]}" "$@"
+if command -v brave-browser >/dev/null 2>&1; then
+    exec brave-browser "${EXTRA_FLAGS[@]}" "$@"
+elif command -v brave >/dev/null 2>&1; then
+    exec brave "${EXTRA_FLAGS[@]}" "$@"
+elif command -v flatpak >/dev/null 2>&1 && flatpak info com.brave.Browser >/dev/null 2>&1; then
+    exec flatpak run com.brave.Browser "${EXTRA_FLAGS[@]}" "$@"
+else
+    echo "Brave is not installed. Install the native or Flatpak Brave package first." >&2
+    exit 127
+fi
 BRAVELAUNCHER
 chmod +x /usr/bin/brave-optimized
 
