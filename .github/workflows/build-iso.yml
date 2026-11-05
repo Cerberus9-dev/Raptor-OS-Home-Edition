@@ -1,4 +1,4 @@
-name: Build and Release Raptor OS ISO
+name: Build Raptor OS ISO
 
 on:
   workflow_dispatch:
