@@ -28,6 +28,13 @@
 
 ### Fixed
 
+- **Background-process resume no longer matches arbitrary command lines.**
+  Cortex's manual Resume action and GameMode's end hook used
+  `pkill -CONT -f`, which matches full command lines and could resume
+  unrelated processes. All corresponding resume paths now use the existing
+  `safe-signal CONT` helper, matching process names with the same bounded
+  prefix logic used when suspending them.
+
 - **Every build failed from 2026-11-04: the base image silently changed.** The
   recipe used `image-version: stable`. Bazzite moved its `stable` tag from
   Fedora 44 to Fedora 45 on 2026-11-04 00:43 UTC (it had stopped publishing
