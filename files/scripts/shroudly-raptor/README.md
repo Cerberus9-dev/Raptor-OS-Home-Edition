@@ -14,3 +14,15 @@ Do not configure applications to use Shroudly or rely on it for network access.
 
 A successful CI compile only validates the prototype's Rust code; it does not
 mean proxy functionality is implemented.
+
+## Upstream attribution
+
+The original **Shroudly** project was created by **umutxyp** and is a
+**Codeshare Technology Ltd** product:
+https://github.com/umutxyp/Shroudly
+
+The upstream project is licensed under the MIT License. This Raptor prototype
+is an independent integration and does not include or claim to reproduce the
+upstream packet engine. It is not an official release or an endorsed build of
+the original project. This credit identifies the original creator and project;
+it does not imply that the upstream implementation is present here.
