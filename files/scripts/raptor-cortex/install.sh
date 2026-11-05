@@ -2815,8 +2815,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         threading.Thread(target=self._do_optimize, args=(opts, before_used, before_total), daemon=True).start()
 
     def _do_optimize(self, opts, before_used, before_total):
-        subprocess.run([
-            "sudo", HELPER,
+        result = run_cortex_helper(
             "1" if opts["caches"]  else "0",
             "1" if opts["compact"] else "0",
             "1" if opts["zram"]    else "0",
@@ -2824,7 +2823,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
             "1" if opts["deep"]    else "0",
             "1" if opts["swap"]    else "0",
             "0", "0"
-        ], capture_output=True)
+        )
 
         # Memory cleanup must never freeze desktop services. Game Mode owns
         # suspension through trim-background/restore-background exclusively.
@@ -2832,28 +2831,36 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         self._suspended_now = []
         after_used, _ = mem_used_mb()
         freed = max(0, before_used - after_used)
-        GLib.idle_add(self._show_result, before_used, before_total, after_used, freed, suspended)
+        detail = (result.stderr or result.stdout or "").strip()
+        GLib.idle_add(
+            self._show_result, before_used, before_total, after_used, freed,
+            suspended, result.returncode == 0, detail
+        )
 
-    def _show_result(self, before, total, after, freed, suspended):
+    def _show_result(self, before, total, after, freed, suspended, ok, detail):
         self._running = False
         self.run_btn.set_sensitive(True)
         self.spinner.stop()
 
-        # Record the timestamp for any completed optimization run — manual
-        # "Optimize Memory Now", Pre-Game Boost, and Scheduled Cleanup all
-        # converge on this method, so this one write covers all three.
-        self._settings["last_optimize_timestamp"] = time.time()
-        threading.Thread(
-            target=save_persistent_settings, args=(self._settings,), daemon=True
-        ).start()
-
+        if ok:
+            # Record only successful runs; failed helper calls must not look
+            # like completed optimization work in the dashboard.
+            self._settings["last_optimize_timestamp"] = time.time()
+            threading.Thread(
+                target=save_persistent_settings, args=(self._settings,), daemon=True
+            ).start()
 
         self._refresh_stats()
 
         self.result_group.set_visible(True)
-        self.result_row.set_title(f"Freed {fmt_mb(freed)}")
+        self.result_row.set_title(f"Freed {fmt_mb(freed)}" if ok else "Optimization failed")
         self.result_row.set_subtitle(
-            f"Before: {fmt_mb(before)} / {fmt_mb(total)}   After: {fmt_mb(after)} / {fmt_mb(total)}")
+            f"Before: {fmt_mb(before)} / {fmt_mb(total)}   After: {fmt_mb(after)} / {fmt_mb(total)}"
+            + ("" if ok else f"   {detail[:180] or 'Check sudo and the system journal.'}"))
+        if ok:
+            self._toast_ok("Memory optimization completed")
+        else:
+            self._toast_error("Memory optimization failed; no success was recorded")
 
         if suspended:
             self.resume_btn.set_sensitive(True)
