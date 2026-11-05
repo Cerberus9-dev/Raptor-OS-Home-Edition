@@ -1,47 +1,22 @@
-# Shroudly Raptor
+# Shroudly for Raptor OS
 
-Raptor's Shroudly integration is based on the complete upstream **Shroudly**
-project by **umutxyp**, a **Codeshare Technology Ltd** product.
+Raptor OS packages the original upstream **Shroudly** Linux desktop application by **umutxyp**, a **Codeshare Technology Ltd** product.
 
-- Pinned source: [upstream/](upstream/)
-- Upstream revision: `8c1ddbf4abfb3fafa73dca652830415d1b0aea7f`
-- License: MIT; see [UPSTREAM-LICENSE](UPSTREAM-LICENSE) and the upstream
-  repository's own `LICENSE`.
+- Upstream repository: https://github.com/umutxyp/Shroudly
+- Pinned upstream revision: `8c1ddbf4abfb3fafa73dca652830415d1b0aea7f`
+- Upstream license: MIT; see `UPSTREAM-LICENSE`
+- The upstream source is a Git submodule at `upstream/`.
 
-The upstream repository is included as a Git submodule rather than copied into
-a partial reimplementation. This retains its original directory structure,
-source files, build scripts, tests, Linux integration, and platform-specific
-code while keeping the upstream revision traceable. GitHub Actions fetches the pinned submodule and verifies the key upstream source and license files only during the explicitly requested one-time image build.
+## v3.0.0 integration
 
-## Integration status
+The first successful v3.0.0 main-branch image build fetches the pinned submodule, installs the Node dependencies, runs the upstream core tests and verification build, compiles the Linux Advanced-mode engine, and packages the original Electron desktop app. The image installer stages the app under `/opt/Shroudly`, installs the upstream polkit policy and icon, and adds a desktop entry.
 
-Shroudly is not installed in the Raptor OS v3.0.0 image. The incomplete local Rust monitoring prototype remains in the repository as a development artifact only; it is not installed, exposed as a proxy, or advertised as the original upstream Shroudly application. The upstream network-filter circumvention engine is not built, fetched, or installed.
+The integration is deliberately one-time. Pull requests build and test the app but do not stage it into the image. The first successful v3.0.0 main-branch image build stages it alongside Raptor Music and creates the permanent `raptor-one-time-apps-consumed` tag only after the image is successfully built and pushed. Later image builds skip both payloads.
 
-Do not describe the transitional Rust binary as a complete Shroudly port.
-Raptor-specific work will be applied as a clearly documented patch layer over
-the upstream project, rather than replacing its architecture or discarding
-its original files.
+Installation does not enable a background service, login autostart, or automatically change the system proxy. Shroudly starts only when the user launches it; proxy/protection modes remain user-controlled and Advanced mode requests administrator authorization through the upstream polkit action.
 
-## Raptor improvement goals
+The earlier Raptor Rust application-monitor prototype is not installed or advertised as the upstream application. Its source is retained only as a historical development artifact.
 
-- Preserve the original Shroudly desktop UI, settings, engine architecture,
-  Linux desktop integration, and upstream behavior.
-- Improve KDE Plasma integration and compatibility with other supported
-  Linux desktops.
-- Improve startup, shutdown, diagnostics, logging, and error recovery.
-- Reduce unnecessary background resource use without removing useful
-  functionality.
-- Make application state and capability reporting accurate.
-- Keep Raptor-specific changes isolated and documented so upstream updates
-  can be reviewed and merged deliberately.
+## Attribution and maintenance
 
-## Attribution
-
-Shroudly is maintained by **umutxyp** and is a product of
-**Codeshare Technology Ltd**. The upstream MIT license and copyright notice
-are preserved. Raptor OS is an independent downstream integration, not an
-official upstream release and not endorsed by Codeshare Technology Ltd.
-
-## Image integration lifecycle
-
-Shroudly is not installed or staged in v3.0.0. The current local-monitor prototype is incomplete and is not presented as a working proxy or as the original Shroudly application. The upstream network-filter circumvention engine is not built, fetched, or installed.
+Shroudly remains the work of **umutxyp** and **Codeshare Technology Ltd**. Raptor OS packages the pinned upstream source and preserves its MIT license; it does not claim authorship of the upstream application. Upstream updates should be reviewed and pinned deliberately rather than silently tracking a moving branch.
