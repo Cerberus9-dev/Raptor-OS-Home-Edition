@@ -11,7 +11,7 @@ jobs:
   build-iso:
     name: Build Raptor OS Home Edition ISO
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 240
 
     steps:
       - name: Checkout repository
@@ -23,29 +23,101 @@ jobs:
           df -h
           sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /opt/pipx
           docker system prune -af --volumes
+          mkdir -p output
           echo "Disk space after cleanup:"
           df -h
 
-      - name: Build installer ISO
-        id: build
-        uses: jasonn3/build-container-installer@v1.4.0
-        with:
-          arch: x86_64
-          image_name: raptor-os
-          image_repo: ghcr.io/cerberus9-dev
-          image_tag: latest
-          image_signed: "true"
-          version: "44"
-          variant: kinoite
-          iso_name: build/raptor-os-home-${{ github.run_number }}.iso
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
 
-      - name: Upload ISO and checksum
+      - name: Authenticate to GHCR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_ACTOR: ${{ github.actor }}
+        run: |
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GH_ACTOR" --password-stdin
+
+      - name: Verify and pin the published Raptor image
+        id: image
+        env:
+          IMAGE_REF: ghcr.io/cerberus9-dev/raptor-os:latest
+        run: |
+          set -euo pipefail
+          cosign verify --key cosign.pub "$IMAGE_REF" > verified-signatures.json
+          DIGEST="$(jq -r '.[0].critical.image.docker-manifest-digest' verified-signatures.json)"
+          if ! [[ "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::Cosign verification did not return a valid image digest."
+            cat verified-signatures.json
+            exit 1
+          fi
+          echo "Verified image: $IMAGE_REF@$DIGEST"
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+
+      - name: Create Fedora 44 Kinoite installer blueprint
+        env:
+          IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
+        run: |
+          set -euo pipefail
+          cat > raptor-installer.toml <<EOF
+          name = "raptor-os-home-installer"
+          version = "44.0.0"
+          description = "Interactive Fedora Kinoite installer that deploys the verified Raptor OS image."
+          distro = "fedora-44"
+
+          [customizations.installer.kickstart]
+          contents = """
+          # Keep Anaconda interactive: no automatic disk clearing or partitioning.
+          # The user selects the target disk and confirms the installation.
+          ostreecontainer --url ghcr.io/cerberus9-dev/raptor-os@${IMAGE_DIGEST}
+          """
+          EOF
+          cat raptor-installer.toml
+
+      - name: Build ISO with Fedora Image Builder
+        run: |
+          set -euo pipefail
+          docker run --privileged --rm \
+            -v "$PWD/raptor-installer.toml:/raptor-installer.toml:ro" \
+            -v "$PWD/output:/output" \
+            -v "$HOME/.docker/config.json:/root/.docker/config.json:ro" \
+            -e REGISTRY_AUTH_FILE=/root/.docker/config.json \
+            ghcr.io/osbuild/image-builder-cli:latest \
+            build --distro fedora-44 \
+              --blueprint /raptor-installer.toml \
+              --output-dir /output \
+              --output-name "raptor-os-home-${GITHUB_RUN_NUMBER}" \
+              --with-buildlog \
+              --with-manifest \
+              kinoite-installer
+
+      - name: Verify ISO output and create checksum
+        id: artifact
+        run: |
+          set -euo pipefail
+          ISO="$(find output -maxdepth 1 -type f -name '*.iso' -print -quit)"
+          if [ -z "$ISO" ]; then
+            echo "::error::Image Builder completed without producing an ISO."
+            find output -maxdepth 2 -type f -ls
+            exit 1
+          fi
+          SIZE="$(stat -c '%s' "$ISO")"
+          if [ "$SIZE" -lt 1073741824 ]; then
+            echo "::error::ISO is unexpectedly small (${SIZE} bytes)."
+            exit 1
+          fi
+          sha256sum "$ISO" | tee "$ISO.sha256"
+          printf '%s\n' "${{ steps.image.outputs.digest }}" > output/raptor-os-image-digest.txt
+          echo "iso=$ISO" >> "$GITHUB_OUTPUT"
+          ls -lh "$ISO" "$ISO.sha256" output/raptor-os-image-digest.txt
+
+      - name: Upload ISO, checksum and image digest
         uses: actions/upload-artifact@v4
         with:
           name: raptor-os-home-iso-${{ github.run_number }}
           path: |
-            ${{ steps.build.outputs.iso_path }}/${{ steps.build.outputs.iso_name }}
-            ${{ steps.build.outputs.iso_path }}/${{ steps.build.outputs.iso_name }}-CHECKSUM
+            ${{ steps.artifact.outputs.iso }}
+            ${{ steps.artifact.outputs.iso }}.sha256
+            output/raptor-os-image-digest.txt
           if-no-files-found: error
           retention-days: 7
           compression-level: 0
