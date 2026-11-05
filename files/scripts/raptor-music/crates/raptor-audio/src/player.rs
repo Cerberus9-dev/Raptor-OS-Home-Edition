@@ -109,7 +109,7 @@ impl AudioPlayer {
                     active_session_token = Some(session_token);
                     is_paused_shared.store(false, Ordering::Release);
                     preserve_paused = false;
-                    (source, track_id, queue_entry_id, session_token, 0.0)
+                    (source, track_id, queue_entry_id, session_token, 0.0_f64)
                 }
                 PlayerCommand::Stop { session_token } => {
                     if Some(session_token) == active_session_token {
@@ -382,7 +382,7 @@ impl AudioPlayer {
 
                 let mut eof_reached = false;
 
-                'decode_loop: loop {
+                loop {
                     if let Ok(_err) = err_rx.try_recv() {
                         drop(stream);
                         *state.lock().unwrap() = PlayerState::Error;
