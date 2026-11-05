@@ -1,5 +1,5 @@
 # Raptor OS
-**Current version: v2.6.9**
+**Current version: v2.8.0**
 
 A custom Bazzite-based Linux distribution built for gaming — automatic GPU optimisation, low-latency audio, a green accent theme with Windows-style window management, and a zero-terminal firstboot experience.
 
