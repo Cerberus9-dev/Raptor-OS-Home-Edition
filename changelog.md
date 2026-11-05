@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- **Bluetooth recovery watchdog:** health checks now query the controller state without starting a discovery scan, avoiding unsolicited device discovery and leaving the user's scan state untouched.
+
 - **Raptor Music Slint compatibility:** replaced the Slider `released` callback (not available in the project's Slint 1.5 dependency) with its supported `changed` callback and an explicit Seek action, preventing a UI compile failure.
 
 - **Slint 1.5 compatibility:** use the standard Slider's supported `changed` callback for seek requests; Slint 1.5 does not expose the newer `released` callback.
