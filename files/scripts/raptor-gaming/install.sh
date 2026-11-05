@@ -6,7 +6,7 @@ set -euo pipefail
 # Covers: app launcher configs (Lutris, Steam), browser hardening (Firefox,
 #         Brave), background process trimmer, I/O scheduler tuning, MangoHud
 #         theme, gamemode.ini, input udev rules, fastfetch config, network
-#         sysctl, DNS, journald caps, ModemManager masking, and systemd
+#         sysctl, DNS, journald caps, and systemd
 #         cgroup memory caps for background services.
 # ════════════════════════════════════════════════════════════════��[...]
 
@@ -548,13 +548,9 @@ RuntimeMaxUse=64M
 SystemMaxUse=200M
 JOURNALD
 
-# ── Mask ModemManager ────────────────────────────────────────────────────────[...]
-# ModemManager probes for cellular/WWAN hardware on every boot and stays
-# resident. Desktop and laptop gaming systems essentially never have a modem.
-# Masking (symlink to /dev/null) fully prevents it from starting; users with
-# a WWAN card can re-enable with: sudo systemctl unmask ModemManager.service
-mkdir -p /etc/systemd/system
-ln -sf /dev/null /etc/systemd/system/ModemManager.service
+# Keep ModemManager available for laptops and Chromebooks with WWAN
+# hardware. Its small potential idle-memory saving is not worth breaking
+# cellular connectivity on devices that actually have a modem.
 
 # ── Game launch option hints ───────────────────────────────────────────────────
 cat << 'EOF' > /etc/raptor/unturned-launch-options.txt
