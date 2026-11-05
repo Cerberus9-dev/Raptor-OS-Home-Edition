@@ -1,5 +1,5 @@
 #!/bin/bash
-set -oue pipefail
+set -euo pipefail
 
 # =============================================================================
 # Raptor OS — laptop hardware recovery (touchpad, Wi-Fi, Bluetooth, mute LEDs)
