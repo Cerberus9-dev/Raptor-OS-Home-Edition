@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- **Raptor Music channel conversion and SPSC tests:** expanded common mono/stereo/quad/5.1/7.1 mapping paths and added tests for downmix/upmix layouts, malformed frames, complete-frame ring-buffer transfers, and capacity-limited writes.
+
 - **Raptor Music track switching:** corrected the audio worker's in-session Play handling so next/previous and selecting another queued track actually restart the decoder with the new track and session token instead of dropping the command.
 
 - **Raptor Music CI tests:** the image workflow now runs the complete workspace test suite after compiling the release binaries, so database, resampler, and player regression tests are exercised instead of merely being compiled.
