@@ -145,7 +145,7 @@ jobs:
           fi
 
       - name: Lint all GitHub Actions workflows
-        uses: rhysd/actionlint@v1.7.7
+        run: docker run --rm -v "$PWD:/repo" --workdir /repo rhysd/actionlint:1.7.12 -color
 
       - name: Validate scripts
         run: |
