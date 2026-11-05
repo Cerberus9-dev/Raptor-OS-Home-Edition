@@ -6,7 +6,7 @@ set -euo pipefail
 # Covers: app launcher configs (Lutris, Steam), browser hardening (Firefox,
 #         Brave), background process trimmer, I/O scheduler tuning, MangoHud
 #         theme, gamemode.ini, input udev rules, fastfetch config, network
-#         sysctl, DNS, journald caps, ModemManager masking, and systemd
+#         sysctl, DNS, journald caps, and systemd
 #         cgroup memory caps for background services.
 # ════════════════════════════════════════════════════════════════��[...]
 
@@ -207,9 +207,10 @@ user_pref("network.http.http3.enable", true);
 user_pref("network.prefetch-next", false);
 user_pref("network.dns.disablePrefetch", true);
 user_pref("network.predictor.enabled", false);
-// DNS-over-HTTPS via Cloudflare (mode 2 = preferred, falls back to system)
-user_pref("network.trr.mode", 2);
-user_pref("network.trr.uri", "https://cloudflare-dns.com/dns-query");
+// Respect the operating system's active per-network DNS resolver.
+// This preserves captive-portal and managed-network DNS behavior; Raptor's
+// system resolver already has a network-aware fallback policy.
+user_pref("network.trr.mode", 5);
 
 // ── Telemetry & bloat OFF ─────────────────────────────────────────────────────
 user_pref("toolkit.telemetry.enabled", false);
@@ -548,10 +549,9 @@ RuntimeMaxUse=64M
 SystemMaxUse=200M
 JOURNALD
 
-# ── Mask ModemManager ────────────────────────────────────────────────────────[...]
-# Do not mask ModemManager. Its idle footprint is small, while disabling it
-# breaks WWAN/LTE/5G modems and mobile broadband on supported laptops.
-# systemd and the distro's device activation policy decide when it is needed.
+# Keep ModemManager available for laptops and Chromebooks with WWAN
+# hardware. Its small potential idle-memory saving is not worth breaking
+# cellular connectivity on devices that actually have a modem.
 
 # ── Game launch option hints ───────────────────────────────────────────────────
 cat << 'EOF' > /etc/raptor/unturned-launch-options.txt
