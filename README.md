@@ -76,7 +76,7 @@ Three dialogs appear on the first login, in sequence:
 | **Media** | mpv (lightweight playback) |
 | **System** | htop, KDE Partition Manager, Plasma System Monitor, Gwenview, KCalc, Fastfetch, p7zip |
 | **Raptor Apps** | Raptor Cortex, Raptor Wallpaper, Raptor Update Manager — grouped under their own **Raptor OS** category in the app menu |
-| **One-time integrations** | Raptor Music and the transitional Shroudly monitor prototype are staged only in the first successful v3.0.0 image; the original Shroudly Linux app is not yet integrated and is not claimed as complete |
+| **One-time integrations** | Raptor Music and the original upstream Shroudly Linux desktop application are staged only in the first successful v3.0.0 image; later image builds skip both one-time payloads |
 | **Overlays** | MangoHud (green palette, Shift+F12), Gamemode |
 
 ---
@@ -138,7 +138,7 @@ The first-boot chooser offers the official Discord client, Vesktop, Equibop, and
 
 ## Raptor Shroudly
 
-**Experimental prototype — not a completed Shroudly port.** The current Rust app is a transitional monitor; it does not provide the original upstream desktop UI, proxy routing, or packet-processing engine. The original Shroudly source is pinned as a submodule and preserved with MIT attribution to **umutxyp / Codeshare Technology Ltd**, but it has not yet been wired into the image. Image inclusion is limited to the first successful v3.0.0 release image build; the workflow permanently skips it on subsequent builds. Do not configure applications to use this prototype as a proxy.
+**Original upstream Shroudly Linux application.** v3.0.0 builds the pinned upstream Electron desktop app and both Linux engine binaries from source, preserves the upstream MIT license, and installs the original desktop entry and polkit action. The integration is staged only in the first successful v3.0.0 image build; later image builds skip the one-time payload. Attribution: **umutxyp / Codeshare Technology Ltd**. The upstream app remains separately maintained; Raptor's integration does not claim ownership of its source.
 
 
 ---
