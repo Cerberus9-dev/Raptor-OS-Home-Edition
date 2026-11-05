@@ -1,5 +1,5 @@
 #!/bin/bash
-set -ou pipefail
+set -uo pipefail
 
 # =============================================================================
 # Raptor OS — remove unwanted base-image packages (tolerant)
