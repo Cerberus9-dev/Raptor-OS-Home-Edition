@@ -2024,7 +2024,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         # has completed. CPU policy stays with power-profiles-daemon.
         mode = subprocess.run(
             ["sudo", HELPER, "set-mode", "performance"],
-            capture_output=True, text=True, timeout=30
+            capture_output=True, text=True
         )
         if mode.returncode != 0:
             err = (mode.stderr or mode.stdout or "Power profile failed").strip()
@@ -2034,7 +2034,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
 
         game = subprocess.run(
             ["sudo", HELPER, "trim-background"],
-            capture_output=True, text=True, timeout=30
+            capture_output=True, text=True
         )
         if game.returncode != 0:
             err = (game.stderr or game.stdout or "Game Mode setup failed").strip()
@@ -2046,7 +2046,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         # compact memory, rewrite OOM scores, or recompress live zram pages.
         memory = subprocess.run(
             ["sudo", HELPER, "1", "0", "0", "0", "0", "0", "0", "0"],
-            capture_output=True, text=True, timeout=30
+            capture_output=True, text=True
         )
         if memory.returncode != 0:
             err = (memory.stderr or memory.stdout or "Memory reclaim failed").strip()
@@ -2076,6 +2076,11 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         threading.Thread(
             target=save_persistent_settings, args=(self._settings,), daemon=True
         ).start()
+        if ok:
+            self._current_mode = "performance"
+            persist_mode("performance")
+            self._refresh_mode_buttons()
+            self._update_mode_banner()
         self._refresh_stats()
         self.result_group.set_visible(True)
         self.result_row.set_title(f"Memory change: {fmt_mb(freed)}")
