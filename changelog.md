@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+### v2.8.1 (planned)
+
 ### One-time app integration
 
 - Raptor Music and Shroudly are opt-in for one manually dispatched image build. The workflow defaults the one-time app input to false; normal pushes, pull requests, and scheduled rebuilds do not fetch the Shroudly submodule, compile either app, run their tests, or stage their binaries.
