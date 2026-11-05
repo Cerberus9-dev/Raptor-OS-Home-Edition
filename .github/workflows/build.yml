@@ -80,6 +80,19 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Verify pinned upstream Shroudly source
+        run: |
+          set -euo pipefail
+          UPSTREAM=files/scripts/shroudly-raptor/upstream
+          test -f "$UPSTREAM/package.json"
+          test -f "$UPSTREAM/electron/main.js"
+          test -f "$UPSTREAM/core/src/engine.c"
+          test -f "$UPSTREAM/LICENSE"
+          git -C "$UPSTREAM" rev-parse --short HEAD
+          echo "Upstream Shroudly source and MIT license are present."
 
       - name: Free disk space
         run: |
