@@ -10,7 +10,7 @@ This is the consolidation release for more than two months of sustained Raptor O
 
 - Expanded the first-boot chat-client chooser beyond official Discord and Vesktop to include Equibop (Equicord) and GoofCord. All are optional downloads; none is silently preinstalled, and skipping remains supported.
 - Documented Meowcord accurately as a separate self-hosted, federated Discord-like service in very early alpha, not a desktop client that can be installed from the first-boot Flatpak chooser.
-- Browser choice now documents the full optional catalogue: Firefox, Brave, Zen Browser, Helium, Chromium, Chrome, and Edge. The image remains browser-minimal by default.
+- Browser choice now documents the full optional catalogue: Firefox, Brave, Zen Browser, Floorp, Waterfox, Chromium, Chrome, and Edge. The image remains browser-minimal by default.
 - The Internet Archive item is the sole public ISO distribution destination. End users are directed to the Archive.org page and its matching checksum; instructions to run GitHub Actions or retrieve short-lived CI artifacts have been removed from the user-facing installation guide.
 - Repaired the generated Brave launcher that previously emitted malformed shell syntax. Its optional flags are now parsed as an argument array, and the adaptive raster-thread setting remains conservative on low-memory systems.
 - GPU power-profile transitions now use hardware-reported Intel frequency bounds, return AMD DPM to driver-managed modes without leaving manual overdrive caps behind, and restore NVIDIA firmware-default power limits outside Power Saving. Unsupported device controls remain best-effort rather than blocking the desktop.
