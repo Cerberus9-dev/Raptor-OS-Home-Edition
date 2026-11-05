@@ -17,6 +17,7 @@ on:
       - "recipes/**"
       - "files/**"
       - ".github/scripts/**"
+      - ".github/workflows/build.yml"
 
   schedule:
     - cron: "0 4 * * 0"
