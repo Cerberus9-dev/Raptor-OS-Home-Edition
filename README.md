@@ -130,6 +130,12 @@ Gallery-style wallpaper picker — click any thumbnail to apply it, including fo
 
 Native Rust/Slint local music player. Recursively scans folders into a SQLite library, extracts available tags and durations, supports local playlists and queue loading, and plays local audio through a `cpal` backend with pause/resume, previous/next queue controls, and automatic track advance. The scanner recognizes AAC, AIFF, ALAC, CAF, FLAC, M4A, MP3, MP4, Ogg, Opus, and WAV extensions supported by its Symphonia build. The library database is stored under `$XDG_DATA_HOME/raptor-music/` (or `~/.local/share/raptor-music/`). **Image inclusion is limited to the first successful v3.0.0 release image build**; the workflow permanently skips it on subsequent builds. This is a local-player prototype, not yet the completed independent multi-service music platform described in the project roadmap.
 
+## Release pipeline (maintainers)
+
+The **Build Raptor OS** workflow builds and publishes the signed OCI image used by existing installations and Raptor Update Manager. It does **not** create an installer ISO.
+
+The separate **Build ISO** workflow verifies that published image and remasters the Fedora Kinoite installer into a fresh-install ISO with a matching SHA-256 checksum. An image update and an ISO build are intentionally separate operations. The ISO is not considered publicly released until the ISO and checksum are uploaded to the Internet Archive item linked above.
+
 ## Discord alternatives
 
 The first-boot chooser offers the official Discord client, Vesktop, Equibop, and GoofCord as optional downloads. Equibop is the Equicord-based Discord desktop client and is available on Flathub as `org.equicord.equibop`. GoofCord is another community Discord client with privacy-focused settings and plugin/theme support.
