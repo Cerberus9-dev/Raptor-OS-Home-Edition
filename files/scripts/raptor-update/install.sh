@@ -402,7 +402,7 @@ import ssl
 import urllib.request
 import sys
 import re
-import select
+from queue import Queue, Empty
 import os
 import shutil
 import time
@@ -536,35 +536,53 @@ def check_for_updates(emit=None):
         return False, f"Could not start update check ({exc})."
 
     deadline = time.monotonic() + CHECK_TIMEOUT
-    try:
-        # select() keeps this loop responsive even when the pipe has no data
-        # yet; readline() then never blocks past the next line to arrive.
-        while True:
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                helper.kill()
-                refresh_rc = "timeout"
-                break
-            ready, _, _ = select.select([helper.stdout], [], [], remaining)
-            if not ready:
-                helper.kill()
-                refresh_rc = "timeout"
-                break
-            line = helper.stdout.readline()
-            if not line:
-                break
-            if emit is not None:
-                emit(line)
-            refresh_out += line
-    except (OSError, ValueError):
-        pass
+    lines = Queue()
 
-    if refresh_rc != "timeout":
+    def _read_helper_output():
         try:
-            refresh_rc = helper.wait(timeout=CHECK_TIMEOUT)
-        except subprocess.TimeoutExpired:
+            for line in helper.stdout:
+                lines.put(line)
+        finally:
+            lines.put(None)
+
+    # A reader thread avoids mixing select() with TextIOWrapper buffering.
+    # select()+readline() can falsely time out when Python already buffered
+    # later lines while the underlying file descriptor has no new bytes.
+    threading.Thread(target=_read_helper_output, daemon=True).start()
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            refresh_rc = "timeout"
+            break
+        try:
+            line = lines.get(timeout=remaining)
+        except Empty:
+            refresh_rc = "timeout"
+            break
+        if line is None:
+            break
+        if emit is not None:
+            emit(line)
+        refresh_out += line
+
+    if refresh_rc == "timeout":
+        try:
             helper.kill()
-            helper.wait()
+        except Exception:
+            pass
+        try:
+            helper.wait(timeout=5)
+        except Exception:
+            pass
+    else:
+        try:
+            refresh_rc = helper.wait(timeout=max(1, deadline - time.monotonic()))
+        except subprocess.TimeoutExpired:
+            try:
+                helper.kill()
+                helper.wait(timeout=5)
+            except Exception:
+                pass
             refresh_rc = "timeout"
 
     # Clean result codes: 0 or 77 both mean "the check ran and we know the
