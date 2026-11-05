@@ -2,34 +2,42 @@
 
 ## [Unreleased]
 
-### v2.8.1 (planned)
+### v3.0.0 (Major Release — planned)
+
+This is the consolidation release for more than two months of sustained Raptor OS overhaul work. The scope includes substantial changes across performance and memory management, gaming and GPU behavior, audio, Cortex, update reliability, hardware recovery, browser and chat-client choice, build validation, and the installation/distribution path. The intent is to ship the work as one coherent major update rather than scatter it across a long sequence of small version bumps.
+
+### Choice, compatibility, and distribution improvements
+
+- Expanded the first-boot chat-client chooser beyond official Discord and Vesktop to include Equibop (Equicord) and GoofCord. All are optional downloads; none is silently preinstalled, and skipping remains supported.
+- Documented Meowcord accurately as a separate self-hosted, federated Discord-like service in very early alpha, not a desktop client that can be installed from the first-boot Flatpak chooser.
+- Browser choice now documents the full optional catalogue: Firefox, Brave, Zen Browser, Floorp, Waterfox, Chromium, Chrome, and Edge. The image remains browser-minimal by default.
+- The Internet Archive item is the sole public ISO distribution destination. End users are directed to the Archive.org page and its matching checksum; instructions to run GitHub Actions or retrieve short-lived CI artifacts have been removed from the user-facing installation guide.
+- Corrected the window-management documentation: KDE KWin runs on Wayland, while X11 applications use XWayland compatibility. The documentation distinguishes X11 from Microsoft Windows and lists the actual decoration, focus, snapping, and panel features.
+- Repaired the generated Brave launcher that previously emitted malformed shell syntax. Its optional flags are now parsed as an argument array, and the adaptive raster-thread setting remains conservative on low-memory systems.
+- GPU power-profile transitions now use hardware-reported Intel frequency bounds, return AMD DPM to driver-managed modes without leaving manual overdrive caps behind, and restore NVIDIA firmware-default power limits outside Power Saving. Unsupported device controls remain best-effort rather than blocking the desktop.
+- USB audio uses a 512-frame, three-period buffer for USB ALSA devices (about 32 ms of period queue at 48 kHz), while retaining resampling quality 10 and existing PipeWire scheduling behavior.
+- Kernel watchdog diagnostics and split-lock mitigation remain enabled; the small theoretical performance gain from disabling them did not justify losing diagnostics or weakening the mitigation.
+
 
 ### One-time app integration
 
-- Raptor Music and Shroudly are opt-in for one manually dispatched image build. The workflow defaults the one-time app input to false; normal pushes, pull requests, and scheduled rebuilds do not fetch the Shroudly submodule, compile either app, run their tests, or stage their binaries.
-- A permanent Git tag, `raptor-one-time-apps-consumed`, locks the integration after the first successful opted-in image build. A second manual dispatch cannot rebuild or reinstall these apps.
-- The installers require the one-time staging marker. Without it, they remove any stale staged app binaries and skip installation. Generated binaries are no longer tracked in the source tree.
-- To include them in the intended build, manually dispatch **Build Raptor OS** once with `include_one_time_apps=true`. The successful build creates the permanent lock tag automatically.
+- A release marker opts the first successful v3.0.0 main-branch image build into the one-time Raptor Music and original upstream Shroudly Linux desktop payloads. Pull requests build and test both apps without staging them; unrelated pushes and scheduled rebuilds skip the one-time payloads.
+- A permanent Git tag, `raptor-one-time-apps-consumed`, locks the integration only after that image has been successfully built and pushed. Later builds cannot rebuild or reinstall this app.
+- The Raptor Music installer requires the one-time staging marker. Without it, they remove stale staged app binaries and skip installation. Generated binaries are no longer tracked in the source tree.
+- A maintainer-only manual dispatch remains as a recovery fallback; end users never need to run GitHub Actions. The one-time integration is not consumed by a failed image build.
 
 ### Performance, audio, gaming, and update reliability
 
-- Cortex now confirms the requested Power Profiles profile before applying device-level tuning; a failed request no longer leaves the UI showing a mode that was not applied. Cortex polls the active PPD profile so its mode indicator follows changes made through KDE Powerdevil's battery slider, and the saved mode follows external changes for the next login. The boot readiness unit now queries PPD without resetting the saved profile to Balanced.
+- Cortex now confirms the requested Power Profiles profile before applying device-level tuning; a failed request no longer leaves the UI showing a mode that was not applied. Cortex polls the active PPD profile so its mode indicator follows changes made through KDE Powerdevil's battery slider, and the saved mode follows external changes for the next login.
 - One-Click Boost now performs one pressure-aware memory-reclaim request (rather than reclaiming twice), then pauses the configured optional indexers. It rolls back to Balanced and restores any partial Game Mode state if a stage fails. The ordinary Optimize Memory action also reports helper failures instead of recording them as successful runs.
 - GameMode's start/end hooks now live in the active `/etc/gamemode.ini`, not an unreferenced drop-in. Cortex's process-pause helper is idempotent, so the UI button and GameMode cannot overwrite the same session's restore list and leave indexers frozen.
 - PipeWire and WirePlumber restart limits now use valid systemd `[Unit]` directives. Audio RT memory locking is capped at 16 MiB, normal scheduling priority matches PipeWire's request, while USB audio retains quality 10 to preserve fidelity.
 - Firefox's low-memory profile defaults now also seed Flatpak Firefox profiles. Brave's optimized launcher scales raster-worker count to installed RAM without reducing Chromium's site-isolation process model. Generated browser and gaming helper scripts are syntax-checked during image construction.
 - ModemManager remains available for WWAN-equipped laptops; Firefox uses the active system DNS resolver instead of forcing Cloudflare DoH, preserving network-provided DNS behavior.
-- Update Manager output streaming now uses a queue-backed reader instead of mixing `select()` with buffered text reads, preventing false timeouts. Flatpak update checks cover system and user installations separately; system refs update as root, user refs update as the logged-in account. Wi-Fi power-save state is restored after system updates.
+- Update Manager now streams every privileged and user-scoped helper through a queue-backed reader with hard deadlines and process-group cleanup. Silent or stalled helpers can no longer block the GUI indefinitely. Flatpak update checks and updates cover system and user installations separately; system refs update as root, user refs update as the logged-in account. Wi-Fi power-save state is restored after system updates.
 - Update Manager build-time checks now parse its generated Python GUI and polkit XML and syntax-check all generated shell helpers.
 - The ISO workflow no longer depends on the archived `build-container-installer` project. It verifies the signed Raptor image with the repository's Cosign public key, pins the verified digest, verifies the official Fedora 44 Kinoite ISO, and remasters it with `mkksiso`; disk selection remains interactive.
 - Game Mode now includes the KDE crash reporter in its reversible optional-process pause list; it is resumed when the game session ends.
-- README hardware requirements now state the Bazzite quad-core ~2 GHz / 8 GB baseline, Vulkan 1.3 capability, clearer AMD/Intel/NVIDIA driver-generation caveats, and the fact that 4 GB is still an unvalidated optimization target rather than a supported minimum.
-
-- Cortex now confirms the requested Power Profiles profile before applying device-level tuning; a failed request no longer leaves the UI showing a mode that was not applied. Cortex polls the active PPD profile so its mode indicator follows changes made through KDE Powerdevil's battery slider, and the saved mode follows external changes for the next login.
-- One-Click Boost now performs one pressure-aware memory-reclaim request (rather than reclaiming twice), then pauses the configured optional indexers. It rolls back to Balanced and restores any partial Game Mode state if a stage fails. The ordinary Optimize Memory action also reports helper failures instead of recording them as successful runs.
-- GameMode's start/end hooks now live in the active `/etc/gamemode.ini`, not an unreferenced drop-in. Cortex's process-pause helper is idempotent, so the UI button and GameMode cannot overwrite the same session's restore list and leave indexers frozen.
-- PipeWire and WirePlumber restart limits now use valid systemd `[Unit]` directives. Audio RT memory locking is capped at 16 MiB, the normal scheduling priority matches PipeWire's request, and USB audio resampling uses quality 6 to reduce CPU overhead on low-power devices.
-- Firefox's low-memory profile defaults now also seed Flatpak Firefox profiles. Brave's optimized launcher scales raster-worker count to installed RAM without reducing Chromium's site-isolation process model. Generated browser and gaming helper scripts are syntax-checked during image construction.
 - README hardware requirements now state the Bazzite quad-core ~2 GHz / 8 GB baseline, Vulkan 1.3 capability, clearer AMD/Intel/NVIDIA driver-generation caveats, and the fact that 4 GB is still an unvalidated optimization target rather than a supported minimum.
 
 - Cortex memory cleanup is now pressure-aware: it checks available RAM, caps normal reclaim at 256 MiB, and preserves useful page/file caches instead of forcing cache drops or repeatedly reclaiming nested cgroups. Compaction, zRAM recompression, OOM-score changes, and deeper reclaim are no longer part of Quick Optimize or Pre-Game Boost by default.
@@ -45,11 +53,12 @@
 
 ### Shroudly Raptor
 
-- Added the complete upstream Shroudly repository as a pinned Git submodule, preserving its original source tree and making the upstream revision auditable. Preserved upstream MIT licensing and attribution to umutxyp / Codeshare Technology Ltd.
-- Updated the workflow to fetch the pinned upstream submodule only during the one-time manually dispatched build, then verify the upstream desktop entrypoint, Linux engine source, and license before compiling.
-- Updated the Shroudly Raptor README to distinguish the newly vendored upstream source from the still-transitional Rust prototype. The original Linux application is not yet wired into the Raptor image; that integration remains outstanding.
+- The first successful v3.0.0 image build fetches the pinned upstream Shroudly submodule, runs its core tests and verification build, compiles the Linux Advanced-mode engine, packages the original Electron desktop app, and installs its desktop entry, icon, MIT license, and polkit action.
+- Pull requests compile and test the original upstream app but do not stage it into the image. Later image builds skip both one-time app payloads after the successful v3.0.0 build consumes the permanent lock tag.
+- Installation does not enable a service or login autostart and does not change proxy settings. The app is launched explicitly by the user; upstream protection modes remain user-controlled and Advanced mode requests administrator authorization.
+- The separate incomplete Raptor Rust application-monitor prototype is not installed or advertised as the upstream Shroudly application.
 
-## [v2.8.0] - 2026-11-05 (Raptor Music Expansion, Hardware Recovery & CI Reliability)
+### November 4–5 work consolidated into v3.0.0 — Raptor Music Expansion, Hardware Recovery & CI Reliability
 
 ### Updates
 
@@ -73,7 +82,7 @@
 
 - **Raptor Music playlist integrity:** playlist creation and renaming now reject blank names at the library API (not only in the desktop UI), and a transactional reorder method moves entries without losing their IDs or changing other tracks' relative order. Added regression tests for both cases.
 
-- **Shroudly false-success listener removed:** the app no longer opens a listener that acknowledged CONNECT without an upstream tunnel. Proxy launch now returns an explicit unsupported error, and documentation/installer comments state that the prototype is disabled.
+- **Retired Raptor Shroudly prototype — false-success listener removed:** the app no longer opens a listener that acknowledged CONNECT without an upstream tunnel. Proxy launch now returns an explicit unsupported error, and documentation/installer comments state that the prototype is disabled.
 
 - **Bluetooth recovery watchdog:** health checks now query the controller state without starting a discovery scan, avoiding unsolicited device discovery and leaving the user's scan state untouched.
 
@@ -145,7 +154,7 @@
   not a usable proxy. Functional proxy forwarding and the original desktop UI
   remain outstanding; no managed-network bypass behavior is being added.
 
-- **Shroudly advanced-mode cleanup could erase the entire host firewall.**
+- **Retired Raptor Shroudly prototype — advanced-mode cleanup could erase the entire host firewall.**
   Its cleanup path called `nft flush ruleset`, which removes rules owned by
   firewalld, containers, VPNs, and other applications—not just Shroudly.
   Packet mode now reports itself as unimplemented and performs no nftables
@@ -385,13 +394,7 @@
 
 ### Added
 
-- **Raptor Music and the Shroudly prototype are packaged separately.**
-  CI builds the Rust applications and stages their binaries in
-  `files/staging/`. Raptor Music is installed as a usable local music-player
-  app with a Raptor OS desktop entry. Shroudly's desktop entry currently opens
-  only a disabled prototype that reports its status; it is not a working proxy
-  and does not open a listener or forward traffic. If a local build does not
-  stage a binary, the install scripts warn and skip instead of failing the image.
+- **Raptor Music and the original upstream Shroudly desktop app are the one-time v3.0.0 payloads.** CI builds and tests both on pull requests without staging them; the first successful main-branch image build stages both apps. The permanent lock tag is created only after the image is successfully built and pushed.
 - **Hardware recovery after suspend** (`files/scripts/raptor-hardware-fixes.sh`):
   one resume hook plus one 1-minute timer, no new apps or menu entries. On
   every resume it re-binds the touchpad's I2C/PS/2 driver, binds the kernel's
@@ -574,8 +577,8 @@
   rpm-ostree `--check` exit 77 ("nothing new") as the clean success it
   is; (2) the GUI streams the helper's output *live* into a built-in
   Console that is visible from launch (not hidden until an update
-  starts), reading via a `select()` loop with a `CHECK_TIMEOUT=500`
-  wall-clock ceiling so a stalled pipe can never freeze the check again;
+  starts), reading through a queue-backed reader with a `CHECK_TIMEOUT=660`
+  wall-clock ceiling and process-group cleanup so a stalled pipe cannot freeze the check;
   (3) if the refresh *does* fail, the manager falls back to local
   rpm-ostree state first — a staged-but-not-booted deployment or a
   populated `cached-update` is still reported as an available update
@@ -1790,8 +1793,7 @@
   and `getattr` guard in countdown to prevent silent `AttributeError` deaths
 - **Update Manager** ANSI escape codes were printed raw into the log view — now
   stripped before display for clean readable output
-- **Update Manager** switched from `ujust update` to `rpm-ostree update` — `ujust`
-  is not available in all environments and would silently fail with "not found"
+- **Update Manager** uses the canonical `rpm-ostree upgrade` operation instead of relying on `ujust update`, which is not available in all environments and can silently fail with "not found"
 
 ### Added
 - mpv media player

@@ -26,7 +26,7 @@ on:
   workflow_dispatch:
     inputs:
       include_one_time_apps:
-        description: 'Include Raptor Music and Shroudly in this single image build'
+        description: 'Maintainer recovery fallback; release marker enables the first successful v3.0.0 main image build'
         required: false
         type: boolean
         default: false
@@ -93,46 +93,68 @@ jobs:
         id: one_time_apps
         env:
           EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
           INCLUDE_ONE_TIME_APPS: ${{ inputs.include_one_time_apps }}
         run: |
           set -euo pipefail
-          if [[ "$EVENT_NAME" != "workflow_dispatch" || "$INCLUDE_ONE_TIME_APPS" != "true" ]]; then
-            echo "include=false" >> "$GITHUB_OUTPUT"
-            echo "One-time applications are disabled for this run."
-            exit 0
-          fi
           if git ls-remote --exit-code origin refs/tags/raptor-one-time-apps-consumed >/dev/null 2>&1; then
             echo "include=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::The one-time Raptor Music/Shroudly integration has already been consumed."
+            echo "The one-time Raptor Music integration has already been consumed."
             exit 0
           fi
-          echo "include=true" >> "$GITHUB_OUTPUT"
 
-      - name: Fetch pinned upstream Shroudly source once
-        if: ${{ steps.one_time_apps.outputs.include == 'true' }}
-        run: git submodule update --init --recursive files/scripts/shroudly-raptor/upstream
+          # The v3.0.0 release marker opts the first successful main-branch
+          # image build into the one-time payload. End users never run Actions.
+          if [[ "$EVENT_NAME" == "push" && "$REF_NAME" == "main" && -f ".github/one-time-apps-v3.0.0" ]]; then
+            echo "include=true" >> "$GITHUB_OUTPUT"
+            echo "Including the one-time app payload in the v3.0.0 release image."
+            exit 0
+          fi
 
-      - name: Verify pinned upstream Shroudly source
-        if: ${{ steps.one_time_apps.outputs.include == 'true' }}
+          # Retain a maintainer-only manual fallback for recovery if needed.
+          if [[ "$EVENT_NAME" == "workflow_dispatch" && "$INCLUDE_ONE_TIME_APPS" == "true" ]]; then
+            echo "include=true" >> "$GITHUB_OUTPUT"
+            echo "One-time app payload explicitly enabled by maintainer."
+            exit 0
+          fi
+
+          echo "include=false" >> "$GITHUB_OUTPUT"
+          echo "One-time applications are disabled for this run."
+
+      - name: Fetch pinned upstream Shroudly source
+        if: ${{ steps.one_time_apps.outputs.include == 'true' || github.event_name == 'pull_request' }}
+        run: git submodule update --init --depth 1 files/scripts/shroudly-raptor/upstream
+
+      - name: Set up Node.js for upstream Shroudly
+        if: ${{ steps.one_time_apps.outputs.include == 'true' || github.event_name == 'pull_request' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: files/scripts/shroudly-raptor/upstream/package-lock.json
+
+      - name: Install and verify upstream Shroudly
+        if: ${{ steps.one_time_apps.outputs.include == 'true' || github.event_name == 'pull_request' }}
+        working-directory: files/scripts/shroudly-raptor/upstream
         run: |
-          set -euo pipefail
-          UPSTREAM=files/scripts/shroudly-raptor/upstream
-          test -f "$UPSTREAM/package.json"
-          test -f "$UPSTREAM/electron/main.js"
-          test -f "$UPSTREAM/core/src/engine.c"
-          test -f "$UPSTREAM/LICENSE"
-          git -C "$UPSTREAM" rev-parse --short HEAD
-          echo "Upstream Shroudly source and MIT license are present."
+          npm ci
+          npm run test:core
+          npm run verify
+          npm run build:core:advanced
+          npx electron-builder --linux dir --publish never
+          test -x dist/linux-unpacked/shroudly
+          test -x dist/linux-unpacked/resources/app.asar.unpacked/electron/tools/core/linux-x64/shroudly-core
+          test -x dist/linux-unpacked/resources/app.asar.unpacked/electron/tools/core/linux-x64/shroudly-core-adv
 
-      - name: Free disk space
+      - name: Stage original Shroudly desktop app
+        if: ${{ steps.one_time_apps.outputs.include == 'true' }}
+        working-directory: files/scripts/shroudly-raptor/upstream
         run: |
-          sudo rm -rf \
-            /usr/share/dotnet \
-            /usr/local/lib/android \
-            /opt/ghc \
-            /usr/local/share/boost \
-            "$AGENT_TOOLSDIRECTORY"
-          df -h
+          install -d ../../../staging/shroudly-app
+          cp -a dist/linux-unpacked/. ../../../staging/shroudly-app/
+          install -Dm644 LICENSE ../../../staging/shroudly-app/LICENSE
+          install -Dm644 scripts/linux/me.codeshare.shroudly.policy ../../../staging/shroudly-app/me.codeshare.shroudly.policy
+          install -Dm644 public/icon.png ../../../staging/shroudly-app/shroudly.png
 
       - name: Check signing secret
         if: github.event_name != 'pull_request'
@@ -152,8 +174,18 @@ jobs:
           chmod +x .github/scripts/validate.sh
           .github/scripts/validate.sh
 
+      - name: Free disk space
+        run: |
+          sudo rm -rf \
+            /usr/share/dotnet \
+            /usr/local/lib/android \
+            /opt/ghc \
+            /usr/local/share/boost \
+            "$AGENT_TOOLSDIRECTORY"
+          df -h
+
       - name: Cache Raptor Music workspace
-        if: ${{ steps.one_time_apps.outputs.include == 'true' }}
+        if: ${{ steps.one_time_apps.outputs.include == 'true' || github.event_name == 'pull_request' }}
         uses: actions/cache@v4
         with:
           path: files/scripts/raptor-music/target
@@ -161,7 +193,7 @@ jobs:
           restore-keys: raptor-music-target-${{ runner.os }}-
 
       - name: Build Raptor Music
-        if: ${{ steps.one_time_apps.outputs.include == 'true' }}
+        if: ${{ steps.one_time_apps.outputs.include == 'true' || github.event_name == 'pull_request' }}
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
@@ -182,17 +214,15 @@ jobs:
             libudev-dev \
             libdbus-1-dev
           cargo build --release --workspace --manifest-path files/scripts/raptor-music/Cargo.toml
-          install -Dm755 files/scripts/raptor-music/target/release/raptor-desktop files/staging/raptor-music
+          if [[ "${{ steps.one_time_apps.outputs.include }}" == "true" ]]; then
+            install -Dm755 files/scripts/raptor-music/target/release/raptor-desktop files/staging/raptor-music
+          else
+            echo "PR validation only: built Raptor Music without staging it into the image."
+          fi
 
       - name: Test Raptor Music workspace
-        if: ${{ steps.one_time_apps.outputs.include == 'true' }}
+        if: ${{ steps.one_time_apps.outputs.include == 'true' || github.event_name == 'pull_request' }}
         run: cargo test --workspace --manifest-path files/scripts/raptor-music/Cargo.toml
-
-      - name: Build Shroudly Raptor
-        if: ${{ steps.one_time_apps.outputs.include == 'true' }}
-        run: |
-          cargo build --release --workspace --manifest-path files/scripts/shroudly-raptor/Cargo.toml
-          install -Dm755 files/scripts/shroudly-raptor/target/release/shroudly-raptor files/staging/shroudly-raptor
 
       - name: Mark one-time app payload for this image only
         if: ${{ steps.one_time_apps.outputs.include == 'true' }}

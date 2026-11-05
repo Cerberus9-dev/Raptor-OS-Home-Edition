@@ -1,7 +1,8 @@
 # Raptor OS
-**Current version: v2.8.0**
+**Current stable version: v2.8.0**  
+**Next release: v3.0.0 (Major Release) — in preparation**
 
-A custom Bazzite-based Linux distribution built for gaming — automatic GPU optimisation, low-latency audio, a green accent theme with Windows-style window management, and a zero-terminal firstboot experience.
+A custom Bazzite-based Linux distribution built for gaming — automatic GPU optimisation, low-latency audio, a green accent theme with familiar desktop window management, and a zero-terminal firstboot experience.
 
 > **Heavy W.I.P — Feedback appreciated!** This is **not** a live OS. It needs its own drive, replaces your current OS, or runs alongside it as a dual boot. Minimum 40–50 GB free for dual boot. Can be tested in a VM first.
 
@@ -31,7 +32,7 @@ Hardware baseline follows [Bazzite's published gaming requirements](https://docs
 
 ## Installation
 
-A previously published Raptor OS Home Edition ISO snapshot is available from the [Internet Archive](https://archive.org/details/raptor-os_202605). For a fresh installer matching the current signed image, open **GitHub Actions → Build Raptor OS ISO → Run workflow**. The workflow verifies the image signature, pins its immutable digest, verifies the official Fedora 44 Kinoite installer ISO, injects an interactive Raptor Kickstart with `mkksiso`, and uploads the remastered ISO plus SHA-256 checksum as a 7-day artifact. The installer leaves disk selection and partitioning interactive; it does not automatically erase a drive.
+**Download Raptor OS only from the official [Internet Archive release page](https://archive.org/details/raptor-os_202605).** The page is the public distribution point for the ISO and its matching SHA-256 checksum. End users do not need GitHub Actions access, repository permissions, or CI artifacts. When v3.0.0 (Major Release) is published, its ISO and checksum will be added to that same Archive.org item. The installer leaves disk selection and partitioning interactive; it does not automatically erase a drive.
 
 After downloading the ISO, flash it to a USB drive:
 
@@ -59,8 +60,8 @@ systemctl reboot
 
 Three dialogs appear on the first login, in sequence:
 
-1. **Browser choice** — no browser ships in the image; Raptor keeps the default *minimal*. Choose Firefox, Brave, Chromium, Chrome, or Edge (each a one-time ~100–150 MB Flathub download, Firefox pre-selected). Shows a network check, download progress bar, and retry prompt on failure. "Skip — No Browser" installs nothing and forces no default.
-2. **Chat client choice** — Discord (~150 MB) or Vesktop (~100 MB, Vencord built in). Neither is pre-installed. "Skip — Install Neither" is always available.
+1. **Browser choice** — no browser ships in the image; Raptor keeps the default *minimal*. Choose Firefox, Brave, Zen Browser, Floorp, Waterfox, Chromium, Chrome, or Edge (each a one-time Flathub download, Firefox pre-selected). Shows a network check, download progress bar, and retry prompt on failure. "Skip — No Browser" installs nothing and forces no default.
+2. **Chat client choice** — choose official Discord, Vesktop (Vencord), Equibop (Equicord), or GoofCord. None is pre-installed. "Skip — Install Neither" is always available.
 3. **App picker** — 90+ optional apps across 20 categories, including the GOverlay MangoHud config GUI, game-streaming stack (Moonlight + Sunshine), extra emulators, JetBrains IDEs, and VS Code. Nothing is pre-ticked. Everything here is also installable later from Discover or `flatpak install flathub <id>`. "Skip — Install Nothing" is always available.
 
 ---
@@ -75,7 +76,7 @@ Three dialogs appear on the first login, in sequence:
 | **Media** | mpv (lightweight playback) |
 | **System** | htop, KDE Partition Manager, Plasma System Monitor, Gwenview, KCalc, Fastfetch, p7zip |
 | **Raptor Apps** | Raptor Cortex, Raptor Wallpaper, Raptor Update Manager — grouped under their own **Raptor OS** category in the app menu |
-| **One-time integrations** | Raptor Music and Shroudly are included only in the explicitly requested one-time image build; they are not part of normal subsequent rebuilds |
+| **One-time integration** | Raptor Music and the original Shroudly desktop app are staged only in the first successful v3.0.0 image; later image builds skip both one-time payloads |
 | **Overlays** | MangoHud (green palette, Shift+F12), Gamemode |
 
 ---
@@ -84,8 +85,8 @@ Three dialogs appear on the first login, in sequence:
 
 | Category | Apps |
 |---|---|
-| **Browser** | Firefox, Brave, Chromium, Chrome, Edge — all downloads (~100–150 MB), Firefox pre-selected |
-| **Chat** | Discord (~150 MB), Vesktop (~100 MB, Vencord built in) |
+| **Browser** | Firefox, Brave, Zen Browser, Floorp, Waterfox, Chromium, Chrome, Edge — all optional Flathub downloads, Firefox pre-selected |
+| **Chat** | Discord, Vesktop (Vencord), Equibop (Equicord), GoofCord — optional Flathub downloads |
 | **Communication** | Telegram, Signal, Slack, Zoom, Thunderbird, Element (Matrix) |
 | **Productivity** | ONLYOFFICE, Bitwarden, Joplin, MarkText, Calibre, Obsidian, Zotero |
 | **Office** | LibreOffice |
@@ -104,7 +105,7 @@ Three dialogs appear on the first login, in sequence:
 
 ## Raptor Cortex — Performance & Memory Manager
 
-GTK4/Adwaita app with Power Saving / Balanced / Performance modes. **power-profiles-daemon is the sole owner of CPU governor, boost, EPP, frequency and firmware power policy**, keeping KDE Powerdevil's battery slider functional. The boot readiness check no longer forces Balanced over the user's saved profile. Cortex applies separate device-level tuning (such as PCIe/NVMe where supported) and reports failures instead of silently claiming success.
+GTK4/Adwaita app with Power Saving / Balanced / Performance modes. **power-profiles-daemon is the sole owner of CPU governor, boost, EPP, frequency and firmware power policy**, keeping KDE Powerdevil's battery slider functional. Cortex applies separate device-level tuning (such as PCIe/NVMe where supported) and reports failures instead of silently claiming success.
 
 - **Live stats** — RAM, swap, ZRAM, CPU boost, CPU/GPU temperature (colour-coded), CPU frequency, and time since the last optimization run
 - **Optimize Memory Now** — performs bounded, pressure-aware reclaim; it does not indiscriminately flush useful file/game caches
@@ -127,11 +128,23 @@ Gallery-style wallpaper picker — click any thumbnail to apply it, including fo
 
 ## Raptor Music
 
-Native Rust/Slint local music player. Recursively scans folders into a SQLite library, extracts available tags and durations, supports local playlists and queue loading, and plays local audio through a `cpal` backend with pause/resume, previous/next queue controls, and automatic track advance. The scanner recognizes AAC, AIFF, ALAC, CAF, FLAC, M4A, MP3, MP4, Ogg, Opus, and WAV extensions supported by its Symphonia build. The library database is stored under `$XDG_DATA_HOME/raptor-music/` (or `~/.local/share/raptor-music/`). **Image inclusion is opt-in for the single manually dispatched build** using `include_one_time_apps=true`; normal future builds skip it. This is a local-player prototype, not yet the completed independent multi-service music platform described in the project roadmap.
+Native Rust/Slint local music player. Recursively scans folders into a SQLite library, extracts available tags and durations, supports local playlists and queue loading, and plays local audio through a `cpal` backend with pause/resume, previous/next queue controls, and automatic track advance. The scanner recognizes AAC, AIFF, ALAC, CAF, FLAC, M4A, MP3, MP4, Ogg, Opus, and WAV extensions supported by its Symphonia build. The library database is stored under `$XDG_DATA_HOME/raptor-music/` (or `~/.local/share/raptor-music/`). **Image inclusion is limited to the first successful v3.0.0 release image build**; the workflow permanently skips it on subsequent builds. This is a local-player prototype, not yet the completed independent multi-service music platform described in the project roadmap.
+
+## Release pipeline (maintainers)
+
+The **Build Raptor OS** workflow builds and publishes the signed OCI image used by existing installations and Raptor Update Manager. It does **not** create an installer ISO.
+
+The separate **Build ISO** workflow verifies that published image and remasters the Fedora Kinoite installer into a fresh-install ISO with a matching SHA-256 checksum. An image update and an ISO build are intentionally separate operations. The ISO is not considered publicly released until the ISO and checksum are uploaded to the Internet Archive item linked above.
+
+## Discord alternatives
+
+The first-boot chooser offers the official Discord client, Vesktop, Equibop, and GoofCord as optional downloads. Equibop is the Equicord-based Discord desktop client and is available on Flathub as `org.equicord.equibop`. GoofCord is another community Discord client with privacy-focused settings and plugin/theme support.
+
+[Meowcord](https://github.com/meowcorded/meowcord) is also documented as an alternative, but it is **not a desktop Discord client**: it is a self-hosted, federated Discord-like service, currently described by its maintainers as very early alpha. It requires hosting infrastructure and a server instance, so Raptor does not pretend it can be installed as a normal first-boot desktop app. Users can explore or self-host it separately.
 
 ## Raptor Shroudly
 
-**Experimental prototype — not a completed Shroudly port.** The current Rust app is a transitional monitor; it does not provide the original upstream desktop UI, proxy routing, or packet-processing engine. The original Shroudly source is pinned as a submodule and preserved with MIT attribution to **umutxyp / Codeshare Technology Ltd**, but it has not yet been wired into the image. Image inclusion is opt-in for the single manually dispatched build using `include_one_time_apps=true`; normal future builds skip it. Do not configure applications to use this prototype as a proxy.
+**Original upstream application included once in v3.0.0.** The first successful v3.0.0 main-branch image build packages the pinned Shroudly Linux desktop app, its normal and Advanced-mode engines, desktop entry, icon, and polkit action. It does not enable autostart or change proxy settings during installation; users launch it and choose when to activate protection. The transitional Rust monitor prototype is not packaged. Upstream MIT attribution: **umutxyp / Codeshare Technology Ltd**.
 
 
 ---
@@ -187,14 +200,15 @@ Native Rust/Slint local music player. Recursively scans folders into a SQLite li
 
 ---
 
-## Window Management (KWin on Wayland)
-Raptor OS uses KDE Plasma's **KWin** window manager on a **Wayland** session (the documented Bazzite base). The Windows-style description refers to familiar desktop behavior and layout; it does **not** mean Microsoft Windows, and this configuration is not an X11 window manager or an Xlib/XCB-based implementation.
+## Window Management (KWin, Wayland and X11 application compatibility)
+Raptor OS uses KDE Plasma's **KWin** compositor on the Bazzite **Wayland** desktop. **X11 applications are supported through XWayland**; this is X11 compatibility, not Microsoft Windows and not a separate Xorg desktop session. The window decorations and controls provide a familiar desktop workflow without claiming that Raptor OS is Windows.
 
+- **X11 application compatibility** — XWayland runs legacy X11 applications inside the Wayland session
 - **Window decorations** — Raptor OS Aurorae decoration with Minimize, Maximize, and Close buttons on the right, plus the App Menu button on the left
 - **Titlebar double-click** — maximizes the window
-- **Focus behavior** — click-to-focus, matching a familiar desktop workflow
-- **Window snapping** — KWin provides screen-edge tiling/snapping; exact behavior depends on the active Plasma/KWin configuration
-- **Panel/taskbar** — KDE Plasma's stock panel theme; the Raptor green accent and window decoration are configured separately
+- **Focus behavior** — click-to-focus
+- **Window snapping and tiling** — KWin provides screen-edge snapping/tiling; exact behavior follows the active Plasma/KWin configuration
+- **Panel/taskbar** — KDE Plasma's stock panel, with the Raptor green accent and window decoration configured separately
 
 ---
 

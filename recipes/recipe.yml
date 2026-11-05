@@ -82,11 +82,10 @@ modules:
         destination: /etc/systemd/system.conf.d/10-raptor-nofile.conf
       - source: ../files/system_files/raptor-nofile.conf
         destination: /etc/systemd/user.conf.d/10-raptor-nofile.conf
-      # ── Prebuilt Rust apps ──────────────────────────────────────────────
-      # CI builds Raptor Music and Shroudly Raptor from files/scripts/ and
-      # drops the binaries in files/staging/. The install scripts then place
-      # them in /usr/bin and add the Raptor OS menu entries. If the directory
-      # is empty (local build without staging), the scripts warn and skip.
+      # ── Prebuilt one-time application payloads ────────────────────────
+      # CI builds Raptor Music and the original upstream Shroudly desktop app
+      # into files/staging/. Installers skip these apps when the one-time
+      # staging marker is absent.
       - source: ../files/staging
         destination: /tmp/raptor-staging
 
@@ -113,6 +112,18 @@ modules:
       - kcalc
       - liberation-fonts
       - power-profiles-daemon
+
+      # Original Shroudly Electron runtime libraries (optional one-time app).
+      - gtk3
+      - libnotify
+      - nss
+      - libXtst
+      - at-spi2-core
+      - libsecret
+      - xdg-utils
+      - libdrm
+      - mesa-libgbm
+      - alsa-lib
 
       # Media
       - mpv
@@ -163,10 +174,7 @@ modules:
   # ── Kernel boot arguments ─────────────────────────────────────────────────────
   - type: kargs
     kargs:
-      - split_lock_detect=off
       - transparent_hugepage=madvise
-      - nowatchdog
-      - nmi_watchdog=0
 
   # ── Custom build scripts ──────────────────────────────────────────────────────
   - type: script

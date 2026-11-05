@@ -105,6 +105,20 @@ assert_contains files/scripts/raptor-update/install.sh "from queue import Queue,
 assert_contains files/scripts/raptor-update/install.sh 'flatpak", "update", "--user'
 assert_contains files/scripts/raptor-update/install.sh "trap restore_wifi_power_save EXIT"
 assert_contains files/scripts/raptor-update/install.sh "UPDATE_MANAGER_SHELL_SYNTAX_ERROR"
+assert_contains files/scripts/raptor-update/install.sh "def stream_process"
+assert_contains files/scripts/raptor-update/install.sh "CHECK_TIMEOUT         = 660"
+assert_contains files/scripts/raptor-update/install.sh "start_new_session=True"
+assert_contains files/scripts/raptor-update/install.sh "os.killpg"
+assert_contains files/scripts/raptor-update/install.sh "timeout=3 * 60 * 60"
+assert_contains files/scripts/raptor-update/install.sh "timeout=900"
+assert_contains files/scripts/raptor-update/install.sh 'rpm-ostree upgrade 2>&1 | tee "$out"'
+assert_contains files/scripts/raptor-update/install.sh "_stop_process_group(helper)"
+assert_contains .github/workflows/build.yml "steps.one_time_apps.outputs.include == 'true' || github.event_name == 'pull_request'"
+assert_contains .github/workflows/build.yml 'cargo build --release --workspace --manifest-path files/scripts/raptor-music/Cargo.toml'
+assert_contains .github/workflows/build.yml 'cargo test --workspace --manifest-path files/scripts/raptor-music/Cargo.toml'
+assert_contains .github/workflows/build.yml 'PR validation only: built Raptor Music without staging it into the image.'
+assert_not_contains files/scripts/raptor-update/install.sh "for line in user_proc.stdout"
+assert_not_contains files/scripts/raptor-update/install.sh "for line in fp_proc.stdout"
 
 echo "=== Checking ISO and requirements documentation ==="
 assert_not_contains .github/workflows/build-iso.yml "jasonn3/build-container-installer"
@@ -113,6 +127,42 @@ assert_contains .github/workflows/build-iso.yml "mkksiso --ks"
 assert_contains README.md "Intel Core i5-8250U"
 assert_contains README.md "Vulkan 1.3+"
 assert_contains README.md "optimization target under development"
-assert_contains changelog.md "v2.8.1 (planned)"
+assert_contains changelog.md "v3.0.0 (Major Release — planned)"
 
 echo "All validations passed."
+
+echo "=== Checking v3.0.0 release integration ==="
+assert_contains .github/workflows/build.yml 'REF_NAME: ${{ github.ref_name }}'
+assert_contains .github/workflows/build.yml 'raptor-one-time-apps-consumed'
+assert_contains .github/one-time-apps-v3.0.0 'first successful'
+assert_contains files/scripts/raptor-cortex/install.sh 'auto|on)'
+assert_contains files/scripts/raptor-cortex/install.sh '/sys/class/nvme/nvme*/power/control'
+assert_not_contains files/scripts/raptor-cortex/install.sh '_apply_nvme_power      min_power'
+assert_not_contains files/scripts/raptor-cortex/install.sh '_apply_nvme_power      max_performance'
+assert_contains files/scripts/raptor-gpu-profile/install.sh '_set_intel_gpu_power_mode'
+assert_contains files/system_files/99-raptor-wireplumber-alsa.conf 'api.alsa.period-size            = 512'
+assert_contains files/system_files/raptor-chat-choice.sh 'Equibop'
+assert_contains files/system_files/raptor-chat-choice.sh 'GoofCord'
+assert_contains files/system_files/raptor-browser-choice.sh 'Zen Browser'
+assert_contains files/system_files/raptor-browser-choice.sh 'Floorp'
+assert_contains files/system_files/raptor-browser-choice.sh 'Waterfox'
+assert_not_contains files/system_files/raptor-browser-choice.sh 'Helium'
+
+echo "=== Checking original upstream Shroudly v3.0.0 integration ==="
+assert_contains .github/workflows/build.yml 'git submodule update --init --depth 1 files/scripts/shroudly-raptor/upstream'
+assert_contains .github/workflows/build.yml 'npm ci'
+assert_contains .github/workflows/build.yml 'npm run test:core'
+assert_contains .github/workflows/build.yml 'npm run verify'
+assert_contains .github/workflows/build.yml 'npm run build:core:advanced'
+assert_contains .github/workflows/build.yml 'npx electron-builder --linux dir --publish never'
+assert_contains .github/workflows/build.yml 'test -x dist/linux-unpacked/shroudly'
+assert_contains .github/workflows/build.yml '../../../staging/shroudly-app'
+assert_contains recipes/recipe.yml 'shroudly-raptor/install.sh'
+assert_contains recipes/recipe.yml 'mesa-libgbm'
+assert_contains files/scripts/shroudly-raptor/install.sh '/opt/Shroudly'
+assert_contains files/scripts/shroudly-raptor/install.sh 'shroudly-core-adv'
+assert_contains files/scripts/shroudly-raptor/install.sh 'me.codeshare.shroudly.policy'
+assert_contains files/scripts/shroudly-raptor/install.sh 'SHROUDLY_READY'
+assert_not_contains files/scripts/shroudly-raptor/install.sh 'Terminal=true'
+assert_not_contains files/scripts/shroudly-raptor/install.sh 'systemctl enable'
+echo "All v3.0.0 release contracts passed."

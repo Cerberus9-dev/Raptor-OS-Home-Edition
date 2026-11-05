@@ -3,8 +3,8 @@
 # First-boot browser selection dialog for Raptor OS.
 #
 # Features:
-#  - No browser ships in the image — the default stays minimal. Five popular
-#    browsers (Firefox, Brave, Chromium, Chrome, Edge) are all offered here
+#  - No browser ships in the image — the default stays minimal. Eight popular
+#    browsers (Firefox, Brave, Zen, Floorp, Waterfox, Chromium, Chrome, Edge) are all offered here
 #    as on-demand Flathub downloads.
 #  - Network connectivity check before even showing the dialog, and an offline
 #    first boot deliberately leaves the stamp unwritten so the choice is offered
@@ -166,7 +166,8 @@ BROWSERS=(
     "Firefox|org.mozilla.firefox|firefox.desktop|~120 MB|Privacy-first · tab isolation · open source"
     "Brave|com.brave.Browser|com.brave.Browser.desktop|~120 MB|Chromium · built-in ad blocker"
     "Zen Browser|app.zen_browser.zen|app.zen_browser.zen.desktop|~130 MB|Firefox-based · vertical tabs · privacy-focused"
-    "Helium|com.github.heliumbrowser.Helium|com.github.heliumbrowser.Helium.desktop|~110 MB|Lightweight Chromium fork · minimal UI"
+    "Floorp|one.ablaze.floorp|one.ablaze.floorp.desktop|~144 MB|Firefox-based · deep interface customisation"
+    "Waterfox|net.waterfox.waterfox|net.waterfox.waterfox.desktop|~157 MB|Privacy-focused Firefox fork · power-user controls"
     "Chromium|org.chromium.Chromium|org.chromium.Chromium.desktop|~100 MB|Plain Chromium · the open-source core"
     "Chrome|com.google.Chrome|com.google.Chrome.desktop|~150 MB|Google Chrome · familiar · most compatible"
     "Edge|com.microsoft.Edge|com.microsoft.Edge.desktop|~150 MB|Microsoft Edge · Chromium based"
@@ -209,7 +210,7 @@ CHOICE=$(
         --column="Browser" \
         --column="Notes" \
         "${ZENITY_ARGS[@]}" \
-        --width=560 --height=330 \
+        --width=620 --height=440 \
         --ok-label="Install & Use" \
         --cancel-label="Skip — No Browser" \
         2>/dev/null
