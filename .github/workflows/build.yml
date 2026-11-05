@@ -107,34 +107,6 @@ jobs:
           cargo build --release --workspace --manifest-path files/scripts/shroudly-raptor/Cargo.toml
           install -Dm755 files/scripts/shroudly-raptor/target/release/shroudly-raptor files/staging/shroudly-raptor
 
-      - name: Upload Rust apps
-        uses: actions/upload-artifact@v4
-        with:
-          name: raptor-rust-apps
-          path: files/staging/raptor-music
-          if-no-files-found: error
-          retention-days: 1
-
-      - name: Upload Shroudly Raptor
-        uses: actions/upload-artifact@v4
-        with:
-          name: shroudly-raptor
-          path: files/staging/shroudly-raptor
-          if-no-files-found: error
-          retention-days: 1
-
-      - name: Download Rust apps
-        uses: actions/download-artifact@v8
-        with:
-          name: raptor-rust-apps
-          path: /tmp/raptor-rust-apps
-
-      - name: Download Shroudly Raptor
-        uses: actions/download-artifact@v8
-        with:
-          name: shroudly-raptor
-          path: /tmp/shroudly-raptor
-
       - name: Build and push image
         uses: blue-build/github-action@v1
         with:
