@@ -58,4 +58,54 @@ if [[ "$missing" -ne 0 ]]; then
     exit 1
 fi
 
+# Guard the cross-component contracts that keep low-memory, audio, gaming,
+# power-profile, update and ISO behavior working together.
+assert_contains() {
+    local file="$1" needle="$2"
+    if ! grep -Fq -- "$needle" "$file"; then
+        echo "FAIL: expected '$needle' in $file"
+        exit 1
+    fi
+}
+assert_not_contains() {
+    local file="$1" needle="$2"
+    if grep -Fq -- "$needle" "$file"; then
+        echo "FAIL: unexpected '$needle' in $file"
+        exit 1
+    fi
+}
+
+echo "=== Checking power-profile and Cortex contracts ==="
+assert_contains files/system_files/raptor-powerprofile.service "ExecStart=/usr/bin/powerprofilesctl get"
+assert_not_contains files/system_files/raptor-powerprofile.service "powerprofilesctl set balanced"
+assert_contains recipes/recipe.yml "- power-profiles-daemon.service"
+assert_contains files/scripts/raptor-cortex/install.sh "def _sync_external_power_mode"
+assert_contains files/scripts/raptor-cortex/install.sh "def _do_one_click_boost"
+assert_contains files/scripts/raptor-cortex/install.sh "ACTUAL_PROFILE"
+assert_contains files/scripts/raptor-cortex/install.sh '"drkonqi"'
+
+echo "=== Checking memory, audio and browser contracts ==="
+assert_contains files/system_files/zram-generator.conf "compression-algorithm = lz4"
+assert_contains files/system_files/99-raptor-wireplumber-alsa.conf "resample.quality                = 10"
+assert_contains files/scripts/raptor-gaming/install.sh "org.mozilla.firefox/.mozilla/firefox"
+assert_contains files/scripts/raptor-gaming/install.sh "flatpak run com.brave.Browser"
+assert_not_contains files/scripts/raptor-gaming/install.sh "ln -sf /dev/null /etc/systemd/system/ModemManager.service"
+assert_contains files/scripts/raptor-gaming/install.sh "cat << 'BRAVELAUNCHER'"
+assert_contains files/scripts/raptor-gaming/install.sh "cat << 'TRIMMER'"
+
+echo "=== Checking Update Manager contracts ==="
+assert_contains files/scripts/raptor-update/install.sh "from queue import Queue, Empty"
+assert_contains files/scripts/raptor-update/install.sh 'flatpak", "update", "--user'
+assert_contains files/scripts/raptor-update/install.sh "trap restore_wifi_power_save EXIT"
+assert_contains files/scripts/raptor-update/install.sh "UPDATE_MANAGER_SHELL_SYNTAX_ERROR"
+
+echo "=== Checking ISO and requirements documentation ==="
+assert_not_contains .github/workflows/build-iso.yml "jasonn3/build-container-installer"
+assert_contains .github/workflows/build-iso.yml "cosign verify --key cosign.pub"
+assert_contains .github/workflows/build-iso.yml "mkksiso --ks"
+assert_contains README.md "Intel Core i5-8250U"
+assert_contains README.md "Vulkan 1.3+"
+assert_contains README.md "optimization target under development"
+assert_contains changelog.md "v2.8.1 (planned)"
+
 echo "All validations passed."
