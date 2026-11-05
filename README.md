@@ -31,7 +31,7 @@ Hardware baseline follows [Bazzite's published gaming requirements](https://docs
 
 ## Installation
 
-A previously published Raptor OS Home Edition ISO snapshot is available from the [Internet Archive](https://archive.org/details/raptor-os_202605). For a fresh installer matching the current signed image, open **GitHub Actions → Build Raptor OS ISO → Run workflow**. The workflow verifies the image signature, pins its immutable digest, builds a Fedora 44 Kinoite installer with Image Builder, and uploads the ISO plus SHA-256 checksum as a 7-day artifact. The installer leaves disk selection and partitioning interactive; it does not automatically erase a drive.
+A previously published Raptor OS Home Edition ISO snapshot is available from the [Internet Archive](https://archive.org/details/raptor-os_202605). For a fresh installer matching the current signed image, open **GitHub Actions → Build Raptor OS ISO → Run workflow**. The workflow verifies the image signature, pins its immutable digest, verifies the official Fedora 44 Kinoite installer ISO, injects an interactive Raptor Kickstart with `mkksiso`, and uploads the remastered ISO plus SHA-256 checksum as a 7-day artifact. The installer leaves disk selection and partitioning interactive; it does not automatically erase a drive.
 
 After downloading the ISO, flash it to a USB drive:
 
