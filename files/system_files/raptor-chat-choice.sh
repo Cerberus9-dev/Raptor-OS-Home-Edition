@@ -144,7 +144,7 @@ CHOICE=$(
         TRUE  "Discord" "Official client · broad compatibility (~150 MB)" \
         FALSE "Vesktop" "Vencord built in · plugins and themes (~100 MB)" \
         FALSE "Equibop" "Equicord built in · Linux-focused features (~166 MB)" \
-        FALSE "GoofCord" "Privacy-focused · plugins/themes and Wayland screen share (~130 MB)" \
+        FALSE "GoofCord" "Privacy-focused · plugins/themes and Wayland screen share (~120 MiB)" \
         --width=560 --height=340 \
         --ok-label="Confirm" \
         --cancel-label="Skip — Install Neither" \
