@@ -52,6 +52,8 @@
 
 ### Fixed
 
+- **Rapid-push cancellation no longer lets delayed events cancel newer builds.** A lightweight preflight compares each push SHA with the live branch head; superseded events skip before entering the image-build concurrency group. The changelog is included in the push path filter so a final changelog-only commit still starts the build for the latest complete source tree.
+
 - **CI no longer uploads and re-downloads Rust binaries it already has locally.** Both applications are built directly into `files/staging/`, and the BlueBuild recipe copies that directory in the same job. The artifact upload/download round trips wrote to unused temporary paths, so those four redundant steps are removed.
 
 - **Cortex GPU temperature selection:** AMD `junction` readings are hotspot temperatures, not the conventional edge/core value. They were incorrectly ranked alongside `edge`, so a junction sensor could win alphabetically. Cortex now prefers edge/core, then generic GPU readings, and uses hotspot/junction only when no better sensor exists.
