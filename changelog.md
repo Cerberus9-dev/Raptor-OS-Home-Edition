@@ -14,8 +14,6 @@
 
 - **Raptor Music Slint compatibility:** replaced the Slider `released` callback (not available in the project's Slint 1.5 dependency) with its supported `changed` callback and an explicit Seek action, preventing a UI compile failure.
 
-- **Slint 1.5 compatibility:** use the standard Slider's supported `changed` callback for seek requests; Slint 1.5 does not expose the newer `released` callback.
-
 - **Cortex hardware telemetry:** expanded CPU temperature detection across common thermal-zone and hwmon drivers, selects labelled CPU package sensors instead of blindly reporting thermal_zone0, reads GPU edge/core labels from AMD/Intel hwmon, and handles multi-GPU NVIDIA temperature output without a parse failure.
 
 - **Raptor Music seeking:** added a real playback seek command that restarts decoding at the requested timestamp, keeps paused playback paused, and exposes a duration-bounded Slint progress slider. The position display no longer uses a hard-coded unknown-duration placeholder.
@@ -36,7 +34,7 @@
 
 - **Raptor Music queue controls:** added previous/next controls that select and start the adjacent queue entry, while the main play control pauses/resumes the current entry rather than restarting it. The home-page feature description now reflects the XDG database location and scanner formats.
 
-### Fixed
+#### Fixed
 
 - **Raptor Music playback controls and persistence:** the main play control now
   pauses and resumes the active session instead of restarting the selected
@@ -46,7 +44,7 @@
   playback position, and the recursive scanner recognizes additional
   Symphonia-supported audio extensions.
 
-### Added
+#### Added
 
 - **Raptor Music and Raptor Shroudly are now installed and in the app menu.**
   Both Rust apps lived in the repo as source only. CI now builds them and
@@ -65,12 +63,12 @@
   escalates: re-enable autoconnect and reconnect, power-cycle the radio, reload
   the driver. Bluetooth escalates: unblock and power on, restart
   `bluetooth.service`, reload `btusb`; its health check requires the
-  controller to accept a discovery command, not just "Powered: yes". The timer
-  is also a Wi-Fi watchdog while awake. Recovery never overrides Wi-Fi or
+  controller to report a live, powered state without starting discovery. The
+  timer is also a Wi-Fi watchdog while awake. Recovery never overrides Wi-Fi or
   Bluetooth turned off on purpose and never uses `nmcli device disconnect`.
   `btusb enable_autosuspend=0` stops USB Bluetooth adapters from autosuspending.
 
-### Fixed
+#### Fixed
 
 - **CI could silently ship a stale Raptor Music binary.** The build workflow
   treated the presence of a cached release executable as proof that the current
@@ -339,7 +337,7 @@
   so a bad ID is reported by name instead of failing silently. Removed apps
   that are not desktop Linux software (NewPipe, Piped, SearXNG, Bromite).
 
-### Added
+#### Added
 
 - **Fan information in Raptor Cortex (read-only)** — a new "Fans" row in the
   live stats group lists every fan RPM sensor the kernel exposes through
