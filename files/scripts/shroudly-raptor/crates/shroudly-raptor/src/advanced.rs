@@ -1,35 +1,23 @@
-use std::process::Command;
-
-pub struct AdvancedModeManager {
-    active: bool,
-}
+/// Advanced packet-level mode is intentionally unavailable until Shroudly
+/// has a dedicated, isolated nftables table and matching cleanup logic.
+///
+/// Never flush the global nftables ruleset here: that would delete firewall,
+/// container, VPN, and other applications' network rules.
+pub struct AdvancedModeManager;
 
 impl AdvancedModeManager {
     pub fn new() -> Self {
-        Self { active: false }
+        Self
     }
 
     pub fn enable_packet_mode(&mut self) -> Result<(), String> {
-        let status = Command::new("nft").arg("--version").status();
-        match status {
-            Ok(s) if s.success() => {
-                self.active = true;
-                Ok(())
-            }
-            _ => Err("Netfilter/nftables utility not accessible in current context.".into()),
-        }
+        Err(
+            "Advanced packet mode is not implemented; no nftables rules were changed."
+                .into(),
+        )
     }
 
     pub fn cleanup(&mut self) {
-        if self.active {
-            let _ = Command::new("nft").args(["flush", "ruleset"]).status();
-            self.active = false;
-        }
-    }
-}
-
-impl Drop for AdvancedModeManager {
-    fn drop(&mut self) {
-        self.cleanup();
+        // No packet-mode rules are installed by this implementation.
     }
 }
