@@ -54,6 +54,7 @@ cat << 'EOF' > /usr/lib/raptor/cortex-helper
 # Args: CACHE COMPACT ZRAM OOM DEEP SWAP THP CPU | trim-background |
 #       restore-background | set-mode <power_saving|balanced|performance>
 ACTION="${1:-help}"
+GAME_MODE_MARKER="/run/raptor-game-mode-active"
 
 # ── Suspended process set ─────────────────────────────────────────────────────
 # Single source of truth for both trim-background and restore-background.
@@ -426,7 +427,7 @@ case "$ACTION" in
 
                 # Cap max frequency to 65% of physical max — prevents high-freq
                 # bursts under light loads. Restore with _apply_cpu_max_freq_pct 100
-                _apply_cpu_max_freq_pct 65
+                _apply_cpu_max_freq_pct 80
 
                 # Firmware-level power profile: coordinates fan curves, VRM limits,
                 # and thermal targets at the ACPI/EC level. More effective than any
@@ -486,7 +487,9 @@ case "$ACTION" in
                 echo 1500 > /proc/sys/vm/dirty_expire_centisecs    2>/dev/null || true
                 echo 0    > /proc/sys/vm/laptop_mode               2>/dev/null || true
 
-                echo 0 > /sys/devices/system/cpu/cpufreq/boost     2>/dev/null || true
+                # Balanced mode keeps normal CPU boost available; schedutil
+                # still scales down at idle, avoiding the old turbo-off penalty.
+                echo 1 > /sys/devices/system/cpu/cpufreq/boost 2>/dev/null || true
                 for gov in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
                     echo schedutil > "$gov" 2>/dev/null || true
                 done
@@ -564,6 +567,7 @@ case "$ACTION" in
         # Game Mode pauses only optional indexers selected in the Cortex UI.
         # Never flush caches, compact memory, stop irqbalance, or stop system
         # services: those actions can create I/O spikes or disrupt peripherals.
+        touch "$GAME_MODE_MARKER"
         _reclaim_user_slice 134217728
         for proc in "${BACKGROUND_PROCS[@]}"; do
             if [ ! -f /etc/raptor/cortex-suspend.conf ] || grep -Fxq "$proc" /etc/raptor/cortex-suspend.conf; then
@@ -587,13 +591,19 @@ case "$ACTION" in
 
     # ── Background restoration after gaming ────────────────────────────────
     restore-background)
+        # A mode switch at boot must not send SIGCONT to unrelated processes.
+        # Only restore work if this session actually entered Game Mode.
+        if [ ! -f "$GAME_MODE_MARKER" ]; then
+            rm -f /run/raptor-cpu-dma-latency-held
+            exit 0
+        fi
         # Resume only the optional indexers that Game Mode may have paused.
         for proc in "${BACKGROUND_PROCS[@]}"; do
             /usr/lib/raptor/safe-signal CONT "$proc"
         done
         balooctl6 resume 2>/dev/null || balooctl resume 2>/dev/null || true
         # Release the AC-only CPU wake-latency constraint.
-        rm -f /run/raptor-cpu-dma-latency-held
+        rm -f /run/raptor-cpu-dma-latency-held "$GAME_MODE_MARKER"
         ;;
 
     *)
