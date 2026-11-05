@@ -53,53 +53,58 @@ jobs:
           echo "Verified image: $IMAGE_REF@$DIGEST"
           echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
 
-      - name: Create Fedora 44 Kinoite installer blueprint
+      - name: Download and verify the Fedora 44 Kinoite installer
+        env:
+          ISO_NAME: Fedora-Kinoite-ostree-x86_64-44-1.7.iso
+          CHECKSUM_NAME: Fedora-Kinoite-44-1.7-x86_64-CHECKSUM
+          EXPECTED_SHA256: 4a944312b4e861ab625fd9786957174ef122a8a406bbb54caba7665e0d9f0e92
+        run: |
+          set -euo pipefail
+          BASE_URL="https://download.fedoraproject.org/pub/fedora/linux/releases/44/Kinoite/x86_64/iso"
+          curl -fL --retry 5 --retry-delay 5 "$BASE_URL/$ISO_NAME" -o "$ISO_NAME"
+          curl -fL --retry 5 --retry-delay 5 "$BASE_URL/$CHECKSUM_NAME" -o "$CHECKSUM_NAME"
+          curl -fL --retry 5 --retry-delay 5 https://fedoraproject.org/fedora.gpg -o fedora.gpg
+          gpgv --keyring fedora.gpg --output - "$CHECKSUM_NAME" | sha256sum -c --ignore-missing
+          echo "$EXPECTED_SHA256  $ISO_NAME" | sha256sum -c -
+
+      - name: Create interactive Raptor OS Kickstart
         env:
           IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
         run: |
           set -euo pipefail
-          cat > raptor-installer.toml <<EOF
-          name = "raptor-os-home-installer"
-          version = "44.0.0"
-          description = "Interactive Fedora Kinoite installer that deploys the verified Raptor OS image."
-          distro = "fedora-44"
-
-          [customizations.installer.kickstart]
-          contents = """
-          # Keep Anaconda interactive: no automatic disk clearing or partitioning.
-          # The user selects the target disk and confirms the installation.
-          ostreecontainer --url ghcr.io/cerberus9-dev/raptor-os@${IMAGE_DIGEST}
-          """
+          cat > raptor-ks.cfg <<EOF
+          # Raptor OS Home Edition — interactive installation.
+          # No clearpart, autopart, or disk-selection directives are supplied:
+          # Anaconda leaves target disk selection and partitioning to the user.
+          graphical
+          lang en_US.UTF-8
+          keyboard us
+          ostreecontainer --url=ghcr.io/cerberus9-dev/raptor-os@${IMAGE_DIGEST} --transport=registry
           EOF
-          cat raptor-installer.toml
+          cat raptor-ks.cfg
 
-      - name: Build ISO with Fedora Image Builder
+      - name: Remaster Fedora Kinoite ISO with mkksiso
+        env:
+          ISO_NAME: Fedora-Kinoite-ostree-x86_64-44-1.7.iso
         run: |
           set -euo pipefail
-          docker run --privileged --rm \
-            -v "$PWD/raptor-installer.toml:/raptor-installer.toml:ro" \
-            -v "$PWD/output:/output" \
-            -v "$HOME/.docker/config.json:/root/.docker/config.json:ro" \
-            -e REGISTRY_AUTH_FILE=/root/.docker/config.json \
-            ghcr.io/osbuild/image-builder-cli:latest \
-            build --distro fedora-44 \
-              --blueprint /raptor-installer.toml \
-              --output-dir /output \
-              --output-name "raptor-os-home-${GITHUB_RUN_NUMBER}" \
-              --with-buildlog \
-              --with-manifest \
-              kinoite-installer
+          docker run --rm --privileged \
+            -e ISO_NAME="$ISO_NAME" \
+            -v "$PWD:/work" \
+            -w /work \
+            quay.io/fedora/fedora:44 \
+            bash -lc '
+              set -euo pipefail
+              dnf install -y lorax xorriso isomd5sum
+              mkksiso --ks raptor-ks.cfg "$ISO_NAME" output/raptor-os-home-edition.iso
+              xorriso -indev output/raptor-os-home-edition.iso -toc
+            '
 
       - name: Verify ISO output and create checksum
-        id: artifact
         run: |
           set -euo pipefail
-          ISO="$(find output -maxdepth 1 -type f -name '*.iso' -print -quit)"
-          if [ -z "$ISO" ]; then
-            echo "::error::Image Builder completed without producing an ISO."
-            find output -maxdepth 2 -type f -ls
-            exit 1
-          fi
+          ISO=output/raptor-os-home-edition.iso
+          test -s "$ISO"
           SIZE="$(stat -c '%s' "$ISO")"
           if [ "$SIZE" -lt 1073741824 ]; then
             echo "::error::ISO is unexpectedly small (${SIZE} bytes)."
@@ -107,7 +112,6 @@ jobs:
           fi
           sha256sum "$ISO" | tee "$ISO.sha256"
           printf '%s\n' "${{ steps.image.outputs.digest }}" > output/raptor-os-image-digest.txt
-          echo "iso=$ISO" >> "$GITHUB_OUTPUT"
           ls -lh "$ISO" "$ISO.sha256" output/raptor-os-image-digest.txt
 
       - name: Upload ISO, checksum and image digest
@@ -115,8 +119,8 @@ jobs:
         with:
           name: raptor-os-home-iso-${{ github.run_number }}
           path: |
-            ${{ steps.artifact.outputs.iso }}
-            ${{ steps.artifact.outputs.iso }}.sha256
+            output/raptor-os-home-edition.iso
+            output/raptor-os-home-edition.iso.sha256
             output/raptor-os-image-digest.txt
           if-no-files-found: error
           retention-days: 7
