@@ -55,6 +55,7 @@ cat << 'EOF' > /usr/lib/raptor/cortex-helper
 #       restore-background | set-mode <power_saving|balanced|performance>
 ACTION="${1:-help}"
 GAME_MODE_MARKER="/run/raptor-game-mode-active"
+GAME_MODE_PROCS_FILE="/run/raptor-game-mode-procs"
 
 # ── Suspended process set ─────────────────────────────────────────────────────
 # Single source of truth for both trim-background and restore-background.
@@ -426,10 +427,13 @@ case "$ACTION" in
         # Never flush caches, compact memory, stop irqbalance, or stop system
         # services: those actions can create I/O spikes or disrupt peripherals.
         touch "$GAME_MODE_MARKER"
+        : > "$GAME_MODE_PROCS_FILE"
         _reclaim_user_slice 134217728
         for proc in "${BACKGROUND_PROCS[@]}"; do
-            if [ ! -f /etc/raptor/cortex-suspend.conf ] || grep -Fxq "$proc" /etc/raptor/cortex-suspend.conf; then
+            if { [ ! -f /etc/raptor/cortex-suspend.conf ] || grep -Fxq "$proc" /etc/raptor/cortex-suspend.conf; } &&
+               pgrep -x "$proc" >/dev/null 2>&1; then
                 /usr/lib/raptor/safe-signal STOP "$proc"
+                printf '%s\n' "$proc" >> "$GAME_MODE_PROCS_FILE"
             fi
         done
         if [ -f /etc/raptor/cortex-suspend.conf ] && grep -Fxq "baloo_file" /etc/raptor/cortex-suspend.conf; then
@@ -456,13 +460,16 @@ case "$ACTION" in
         # A mode switch at boot must not send SIGCONT to unrelated processes.
         # Only restore work if this session actually entered Game Mode.
         if [ ! -f "$GAME_MODE_MARKER" ]; then
-            rm -f /run/raptor-cpu-dma-latency-held
+            rm -f /run/raptor-cpu-dma-latency-held "$GAME_MODE_PROCS_FILE"
             exit 0
         fi
-        # Resume only the optional indexers that Game Mode may have paused.
-        for proc in "${BACKGROUND_PROCS[@]}"; do
-            /usr/lib/raptor/safe-signal CONT "$proc"
-        done
+        # Resume only process patterns recorded by this Game Mode session.
+        if [ -f "$GAME_MODE_PROCS_FILE" ]; then
+            while IFS= read -r proc; do
+                [ -n "$proc" ] && /usr/lib/raptor/safe-signal CONT "$proc"
+            done < "$GAME_MODE_PROCS_FILE"
+            rm -f "$GAME_MODE_PROCS_FILE"
+        fi
         if [ -f /run/raptor-game-mode-baloo-active ]; then
             balooctl6 resume 2>/dev/null || balooctl resume 2>/dev/null || true
             rm -f /run/raptor-game-mode-baloo-active
