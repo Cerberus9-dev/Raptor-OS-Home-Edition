@@ -7,7 +7,7 @@ set -e
 # • Background service trimming/restoring for gaming
 # • Seamless performance mode switching (no login required)
 # • Game mode auto-suspend/resume via Cortex patterns
-# • CPU boost management (complements GPU Profiler)
+# • Power Profiles integration (KDE Powerdevil remains the CPU-policy owner)
 # • Per-mode kernel tuning (power/balanced/performance)
 # • Battery slider passthrough via power-profiles-daemon
 # • PCIe ASPM, NVMe power states, USB autosuspend, runtime PM
@@ -1677,8 +1677,8 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
 
         mode_group = Adw.PreferencesGroup(title="Performance Mode")
         mode_group.set_description(
-            "Applies kernel tuning instantly — CPU, PCIe ASPM, NVMe, SATA, USB, audio power. "
-            "Battery tray slider remains functional.")
+            "Selects the matching system power profile through power-profiles-daemon, then tunes "
+            "independent device power settings. KDE retains control of CPU policy and the battery slider.")
         content.append(mode_group)
 
         ICON_FALLBACKS = {
@@ -1711,9 +1711,8 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
 
         # ── Graphics ────────────────────────────────────────────────────────────
         # GPU performance profile. This used to be a separate app called Raptor
-        # GPU Profiler; it lives here now because it is the same decision as the
-        # CPU boost mode above, and splitting it out meant two windows and two
-        # launchers for one machine.
+        # GPU Profiler; it lives here now alongside system power modes, avoiding
+        # two windows and two launchers for related performance controls.
         gfx_group = Adw.PreferencesGroup(
             title="Graphics",
             description="Tuning for your GPU. Applies immediately and survives reboot. "
