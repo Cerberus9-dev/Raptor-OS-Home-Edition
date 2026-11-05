@@ -110,6 +110,8 @@ assert_contains files/scripts/raptor-update/install.sh "start_new_session=True"
 assert_contains files/scripts/raptor-update/install.sh "os.killpg"
 assert_contains files/scripts/raptor-update/install.sh "timeout=3 * 60 * 60"
 assert_contains files/scripts/raptor-update/install.sh "timeout=900"
+assert_contains files/scripts/raptor-update/install.sh 'rpm-ostree upgrade 2>&1 | tee "$out"'
+assert_contains files/scripts/raptor-update/install.sh "_stop_process_group(helper)"
 assert_not_contains files/scripts/raptor-update/install.sh "for line in user_proc.stdout"
 assert_not_contains files/scripts/raptor-update/install.sh "for line in fp_proc.stdout"
 
