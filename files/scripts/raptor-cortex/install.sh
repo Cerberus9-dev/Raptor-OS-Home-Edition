@@ -2040,26 +2040,32 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
                           f"Performance mode failed: {err[:220]}")
             return
 
-        game = subprocess.run(
-            ["sudo", HELPER, "trim-background"],
-            capture_output=True, text=True
-        )
-        if game.returncode != 0:
-            err = (game.stderr or game.stdout or "Game Mode setup failed").strip()
-            GLib.idle_add(self._one_click_boost_done, False, before, total, 0,
-                          f"Performance mode applied, but Game Mode failed: {err[:180]}")
-            return
-
-        # Reclaim is pressure-aware and capped. Do not flush page cache,
-        # compact memory, rewrite OOM scores, or recompress live zram pages.
+        # Reclaim only the current user's cgroup, and only when MemAvailable
+        # is genuinely low. Useful file/game caches and system services remain.
         memory = subprocess.run(
             ["sudo", HELPER, "1", "0", "0", "0", "0", "0", "0", "0"],
-            capture_output=True, text=True
+            capture_output=True, text=True, timeout=30
         )
         if memory.returncode != 0:
             err = (memory.stderr or memory.stdout or "Memory reclaim failed").strip()
+            subprocess.run(["sudo", HELPER, "set-mode", "balanced"],
+                           capture_output=True, timeout=30)
             GLib.idle_add(self._one_click_boost_done, False, before, total, 0,
-                          f"Performance mode and Game Mode applied; memory step failed: {err[:180]}")
+                          f"Memory optimization failed; reverted to Balanced: {err[:160]}")
+            return
+
+        game = subprocess.run(
+            ["sudo", HELPER, "trim-background"],
+            capture_output=True, text=True, timeout=30
+        )
+        if game.returncode != 0:
+            err = (game.stderr or game.stdout or "Game Mode setup failed").strip()
+            subprocess.run(["sudo", HELPER, "restore-background"],
+                           capture_output=True, timeout=30)
+            subprocess.run(["sudo", HELPER, "set-mode", "balanced"],
+                           capture_output=True, timeout=30)
+            GLib.idle_add(self._one_click_boost_done, False, before, total, 0,
+                          f"Game Mode failed; reverted to Balanced: {err[:160]}")
             return
 
         gpu_note = ""
