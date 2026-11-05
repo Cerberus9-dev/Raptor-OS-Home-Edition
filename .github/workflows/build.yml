@@ -25,9 +25,10 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  # Only supersede older runs for the same PR/branch push; never cancel a
-  # scheduled or manually dispatched build because someone pushed meanwhile.
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  # Keep only the newest push/PR build for a branch. Rapid commits otherwise
+  # queue several full image builds, wasting runner time and disk. Scheduled
+  # and manually dispatched builds are deliberately allowed to finish.
+  cancel-in-progress: ${{ github.event_name == 'push' || github.event_name == 'pull_request' }}
 
 jobs:
   build:
