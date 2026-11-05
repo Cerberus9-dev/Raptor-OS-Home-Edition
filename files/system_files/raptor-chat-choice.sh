@@ -185,7 +185,7 @@ case "${CHOICE:-}" in
 
     GoofCord)
         log "User selected GoofCord."
-        if install_with_retry "io.github.milkshiift.GoofCord" "GoofCord" "~130 MB"; then
+        if install_with_retry "io.github.milkshiift.GoofCord" "GoofCord" "~120 MiB"; then
             finish
         else
             err "GoofCord was not installed — choice deferred to next login."
