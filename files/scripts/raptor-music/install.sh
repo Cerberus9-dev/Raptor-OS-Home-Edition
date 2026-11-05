@@ -8,8 +8,8 @@ set -euo pipefail
 # with a warning instead of failing the whole image build.
 
 # One-time payload gate: only the staged payload from the first successful
-# v3.0.0 release image build (or a maintainer recovery dispatch) may install.
-if [[ ! -f "/tmp/raptor-staging/.include-one-time-apps" ]]; then
+# one-time update image build (or a maintainer recovery dispatch) may install.
+if [[ ! -f "/tmp/raptor-staging/include-one-time-apps" ]]; then
     rm -f "/tmp/raptor-staging/raptor-music"
     echo "RAPTOR_MUSIC_SKIP: one-time app integration was not requested; staged binary removed."
     exit 0
@@ -22,10 +22,8 @@ BIN_DEST="/usr/bin/raptor-music"
 mkdir -p /usr/bin /usr/share/applications /usr/share/icons/hicolor/scalable/apps
 
 if [[ ! -x "$SRC_BIN" ]]; then
-    echo "RAPTOR_MUSIC_SKIP: no prebuilt binary at ${SRC_BIN}." >&2
-    echo "Build it with: (cd raptor-music && cargo build --release --workspace)" >&2
-    echo "Then copy target/release/raptor-desktop to files/staging/raptor-music." >&2
-    exit 0
+    echo "RAPTOR_MUSIC_INSTALL_ERROR: required staged binary missing at ${SRC_BIN}." >&2
+    exit 1
 fi
 
 install -m 0755 "$SRC_BIN" "$BIN_DEST"
