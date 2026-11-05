@@ -92,6 +92,52 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
+    let db_for_next = Arc::clone(&db);
+    let ui_handle_next = ui.as_weak();
+    ui.on_next_clicked(move || {
+        let ui = match ui_handle_next.upgrade() {
+            Some(ui) => ui,
+            None => return,
+        };
+        let queue = db_for_next.lock().unwrap().get_queue().unwrap_or_default();
+        if queue.is_empty() {
+            return;
+        }
+        let base = if ui.get_playing_queue_index() >= 0 {
+            ui.get_playing_queue_index()
+        } else {
+            ui.get_selected_queue_index()
+        };
+        let next = if base < 0 { 0 } else { base + 1 };
+        if (next as usize) < queue.len() {
+            ui.set_selected_queue_index(next);
+            ui.invoke_play_clicked();
+        }
+    });
+
+    let db_for_previous = Arc::clone(&db);
+    let ui_handle_previous = ui.as_weak();
+    ui.on_previous_clicked(move || {
+        let ui = match ui_handle_previous.upgrade() {
+            Some(ui) => ui,
+            None => return,
+        };
+        let queue = db_for_previous.lock().unwrap().get_queue().unwrap_or_default();
+        if queue.is_empty() {
+            return;
+        }
+        let base = if ui.get_playing_queue_index() >= 0 {
+            ui.get_playing_queue_index()
+        } else {
+            ui.get_selected_queue_index()
+        };
+        let previous = if base < 0 { return; } else { base - 1 };
+        if previous >= 0 {
+            ui.set_selected_queue_index(previous);
+            ui.invoke_play_clicked();
+        }
+    });
+
     let db_for_add = Arc::clone(&db);
     let ui_handle_add = ui.as_weak();
     ui.on_add_to_queue_clicked(move || {
@@ -128,14 +174,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Some(u) => u,
             None => return,
         };
+        let selection_changed = ui.get_selected_queue_index() != ui.get_playing_queue_index();
         match player_for_play.get_state() {
-            PlayerState::Playing => {
+            PlayerState::Playing if !selection_changed => {
                 if let Some(token) = *session_token_for_play.lock().unwrap() {
                     player_for_play.pause(token);
                     return;
                 }
             }
-            PlayerState::Paused => {
+            PlayerState::Paused if !selection_changed => {
                 if let Some(token) = *session_token_for_play.lock().unwrap() {
                     player_for_play.resume(token);
                     return;

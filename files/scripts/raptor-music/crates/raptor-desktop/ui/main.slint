@@ -29,6 +29,8 @@ export component MainWindow inherits Window {
     callback queue_selected(int);
     callback add_to_queue_clicked();
     callback play_clicked();
+    callback previous_clicked();
+    callback next_clicked();
     callback stop_clicked();
 
     VerticalLayout {
@@ -196,7 +198,9 @@ export component MainWindow inherits Window {
                 }
 
                 Button { text: "Scan Folder"; clicked => { root.scan_directory_clicked(); } }
+                Button { text: "Previous"; clicked => { root.previous_clicked(); } }
                 Button { text: "Play / Pause"; clicked => { root.play_clicked(); } }
+                Button { text: "Next"; clicked => { root.next_clicked(); } }
                 Button { text: "Stop"; clicked => { root.stop_clicked(); } }
             }
         }

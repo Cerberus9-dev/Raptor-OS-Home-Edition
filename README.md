@@ -114,7 +114,7 @@ Gallery-style wallpaper picker — click any thumbnail to apply it, including fo
 
 ## Raptor Music
 
-Native Rust/Slint music player. Scans a folder into a SQLite library, shows the playback queue, and plays local FLAC/MP3/WAV through a `cpal` audio backend with automatic track advance. Built from `files/scripts/raptor-music/` by CI and installed as **Raptor Music** in the **Raptor OS** category. The library database (`raptor_music.db`) is written to the directory the app is launched from.
+Native Rust/Slint music player. Recursively scans folders into a SQLite library, extracts available tags and durations, and plays local audio through a `cpal` backend with pause/resume, previous/next queue controls, and automatic track advance. The scanner recognizes AAC, AIFF, ALAC, CAF, FLAC, M4A, MP3, MP4, Ogg, Opus, and WAV extensions supported by its Symphonia build. The library database is stored under `$XDG_DATA_HOME/raptor-music/` (or `~/.local/share/raptor-music/`). Built from `files/scripts/raptor-music/` by CI and installed as **Raptor Music** in the **Raptor OS** category.
 
 ## Raptor Shroudly
 

@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- **Raptor Music queue controls:** added previous/next controls that select and start the adjacent queue entry, while the main play control pauses/resumes the current entry rather than restarting it. The home-page feature description now reflects the XDG database location and scanner formats.
+
 ### Fixed
 
 - **Raptor Music playback controls and persistence:** the main play control now
