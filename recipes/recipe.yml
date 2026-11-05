@@ -144,17 +144,17 @@ modules:
       - kde-partitionmanager
       - kvantum
       - kvantum-qt5
-      - papirus-icon-theme
       - jetbrains-mono-fonts
       - qt5-qtbase
 
   # ── Flatpaks ─────────────────────────────────────────────────────────────
-  - type: default-flatpaks@v1
-    notify: true
-    system:
-      install:
+  - type: default-flatpaks
+    configurations:
+      - notify: true
+        scope: system
         # Core system tools only — everything else moved to firstboot app picker
-        - net.davidotek.pupgui2
+        install:
+          - net.davidotek.pupgui2
         # No browser ships in the image on purpose — the default image stays as
         # minimal as possible. All popular browsers (Firefox, Brave, Chromium,
         # Chrome, Edge) are offered as downloads in the firstboot browser-choice
