@@ -263,8 +263,8 @@ setup_brave_optimizations() {
 --enable-oop-rasterization
 --enable-raw-draw
 --enable-hardware-overlays=single-fullscreen
---num-raster-threads=4
---renderer-process-limit=6
+# Raster threads and renderer count are selected by brave-optimized at
+# launch based on installed RAM, keeping low-memory machines responsive.
 --disk-cache-size=536870912
 --memory-model=low
 --enable-quic
@@ -312,7 +312,593 @@ cat << 'BRAVELAUNCHER' > /usr/bin/brave-optimized
 FLAGS_FILE="$HOME/.config/BraveSoftware/Brave-Browser/Default/raptor-brave-flags.conf"
 EXTRA_FLAGS=""
 if [ -f "$FLAGS_FILE" ]; then
-    EXTRA_FLAGS=$(grep -v '^#' "$FLAGS_FILE" | grep -v '^$' | tr '\n' ' ')
+    EXTRA_FLAGS=$(grep -v '^#' "$FLAGS_FILE" | grep -v '^
+BRAVELAUNCHER
+chmod +x /usr/bin/brave-optimized
+
+# ── Background process trimmer ─────────────────────────────────────────────────
+cat << 'TRIMMER' > /usr/bin/raptor-trim-background.sh
+#!/bin/bash
+set -euo pipefail
+MARKER="/run/raptor-gaming-trim-active"
+PROCS_FILE="/run/raptor-gaming-trim-procs"
+BALOO_MARKER="/run/raptor-gaming-trim-baloo-active"
+if [ -f "$MARKER" ]; then
+    echo "Raptor Game Mode background trim is already active."
+    exit 0
+fi
+touch "$MARKER"
+: > "$PROCS_FILE"
+echo "=== Raptor Background Trimmer ==="
+
+# Pause optional indexing/thumbnail work only. Never flush page caches,
+# compact memory, freeze package managers, stop storage maintenance, or
+# suspend communication/audio/user applications.
+BACKGROUND_PROCS=(
+    tracker-miner tracker-store tracker3
+    baloo_file baloo_file_extractor kio_thumbnail
+    zeitgeist tumblerd updatedb mlocate
+)
+for proc in "${BACKGROUND_PROCS[@]}"; do
+    if pgrep -x "$proc" >/dev/null 2>&1; then
+        /usr/lib/raptor/safe-signal STOP "$proc" || true
+        printf '%s\n' "$proc" >> "$PROCS_FILE"
+    fi
+done
+if balooctl6 suspend 2>/dev/null || balooctl suspend 2>/dev/null; then
+    touch "$BALOO_MARKER"
+fi
+echo "=== Optional indexers paused. Run raptor-restore-background.sh after gaming. ==="
+TRIMMER
+chmod +x /usr/bin/raptor-trim-background.sh
+
+cat << 'RESTORE' > /usr/bin/raptor-restore-background.sh
+#!/bin/bash
+set -euo pipefail
+MARKER="/run/raptor-gaming-trim-active"
+PROCS_FILE="/run/raptor-gaming-trim-procs"
+BALOO_MARKER="/run/raptor-gaming-trim-baloo-active"
+if [ ! -f "$MARKER" ]; then
+    echo "No Raptor Game Mode background trim is active."
+    exit 0
+fi
+echo "=== Raptor: Restoring background indexers ==="
+if [ -f "$PROCS_FILE" ]; then
+    while IFS= read -r proc; do
+        [ -n "$proc" ] && /usr/lib/raptor/safe-signal CONT "$proc" || true
+    done < "$PROCS_FILE"
+fi
+if [ -f "$BALOO_MARKER" ]; then
+    balooctl6 resume 2>/dev/null || balooctl resume 2>/dev/null || true
+fi
+rm -f "$MARKER" "$PROCS_FILE" "$BALOO_MARKER"
+echo "=== Optional indexers restored; system services and user apps were left untouched. ==="
+RESTORE
+chmod +x /usr/bin/raptor-restore-background.sh
+
+# sudoers: allow passwordless background trim/restore
+# NOTE: this file is also written (truncated) by raptor-gpu-profile.sh earlier in
+# the build. Because we append rather than replace, the result must be validated
+# AFTER the append — a malformed line here corrupts the GPU profile rules too.
+cat << 'SUDOERS' >> /etc/sudoers.d/raptor-gpu
+ALL ALL=(root) NOPASSWD: /usr/bin/raptor-trim-background.sh
+ALL ALL=(root) NOPASSWD: /usr/bin/raptor-restore-background.sh
+ALL ALL=(root) NOPASSWD: /usr/bin/raptor-zram-teardown.sh
+SUDOERS
+chmod 440 /etc/sudoers.d/raptor-gpu
+if command -v visudo >/dev/null 2>&1; then
+    if ! visudo -cf /etc/sudoers.d/raptor-gpu; then
+        echo "FATAL: /etc/sudoers.d/raptor-gpu is invalid after appending the" >&2
+        echo "       background-trim rules. sudo ignores a malformed drop-in" >&2
+        echo "       entirely, which would break both the trim scripts and the" >&2
+        echo "       GPU profile switching." >&2
+        exit 1
+    fi
+else
+    echo "WARNING: visudo unavailable — /etc/sudoers.d/raptor-gpu NOT validated" >&2
+fi
+
+# ── Vesktop: system-level Flatpak overrides ────────────────────────────────────
+# Run on the build image so every user gets Wayland-native Vesktop out of the box.
+# Per-user memory flags (V8 heap cap, renderer limit) are written by
+# raptor-appconfig.sh on first login, since flatpak override --user is per-user.
+if command -v flatpak &>/dev/null; then
+    flatpak override --system dev.vencord.Vesktop \
+        --env=OZONE_PLATFORM=wayland \
+        --env=ELECTRON_OZONE_PLATFORM_HINT=auto \
+        2>/dev/null || true
+    echo "Vesktop: system-level Flatpak overrides applied (Wayland-native)"
+fi
+
+# ── Baseline sysctl: low-memory-safe defaults ─────────────────────────────────
+# Raptor Cortex applies per-mode overrides after login. Keep boot-time values
+# compatible with compressed ZRAM and avoid reserving excessive RAM.
+cat << 'SYSCTL' > /etc/sysctl.d/90-raptor-memory.conf
+# Raptor OS: baseline memory tuning
+# ZRAM is the primary swap device; allow the kernel to use it under pressure.
+vm.swappiness = 100
+# Keep normal VFS cache reclaim behaviour instead of retaining extra cache on
+# 4 GB systems where every reserved MiB matters.
+vm.vfs_cache_pressure = 100
+vm.dirty_ratio = 10
+vm.dirty_background_ratio = 3
+vm.dirty_writeback_centisecs = 1500
+vm.dirty_expire_centisecs = 3000
+vm.oom_kill_allocating_task = 0
+vm.panic_on_oom = 0
+vm.max_map_count = 2147483642
+# 32 MiB reserve is more proportionate for 4 GB-class systems than 128 MiB.
+vm.min_free_kbytes = 32768
+# Read one compressed page at a time from ZRAM to avoid wasted decompression.
+vm.page-cluster = 0
+kernel.sched_autogroup_enabled = 1
+SYSCTL
+
+# ── Soft memory pressure guard for the file indexer ──────────────────────────
+# Use MemoryHigh only: it asks systemd to reclaim/throttle this optional indexer
+# under pressure without imposing a hard MemoryMax that could kill it mid-index.
+mkdir -p /etc/systemd/user/baloo_file.service.d
+cat << 'DROP' > /etc/systemd/user/baloo_file.service.d/raptor-memcap.conf
+[Service]
+MemoryHigh=192M
+DROP
+echo "Soft memory pressure guard installed for Baloo; no user-facing service is masked."
+
+# ── PowerDevil: KDE power management profiles ─────────────────────────────────
+# Written to /etc/skel so every new user gets sensible battery/AC defaults.
+# Without this, KDE's default is "never dim, never suspend" on all profiles,
+# which is a large battery drain on laptops.
+# Users can override in System Settings → Power Management.
+mkdir -p /etc/skel/.config
+cat << 'PDEOF' > /etc/skel/.config/powermanagementprofilesrc
+[AC]
+[AC][Display]
+dimDisplayIdleTime=300
+dimDisplayWhenIdle=true
+displayBrightnessValue=100
+turnOffDisplayIdleTime=600
+turnOffDisplayWhenIdle=true
+
+[AC][SuspendSession]
+idleTime=0
+inhibitLidActionExternalMonitor=true
+lidAction=0
+powerButtonAction=28
+suspendThenHibernate=false
+whenSleepingEnter=standby then memory then disk
+whenLaptopLidClosed=0
+
+[Battery]
+[Battery][Display]
+# Dim display after 60 s idle on battery
+dimDisplayIdleTime=60
+dimDisplayWhenIdle=true
+# Brightness on battery: 70% saves meaningful power vs 100%
+displayBrightnessValue=70
+# Turn off display after 2 min idle
+turnOffDisplayIdleTime=120
+turnOffDisplayWhenIdle=true
+
+[Battery][SuspendSession]
+# Suspend after 10 min idle on battery (600000 ms)
+idleTime=600000
+inhibitLidActionExternalMonitor=false
+# Lid close: suspend (1)
+lidAction=1
+# Power button: suspend (1)
+powerButtonAction=1
+suspendThenHibernate=false
+whenSleepingEnter=standby then memory then disk
+whenLaptopLidClosed=1
+
+[LowBattery]
+[LowBattery][Display]
+dimDisplayIdleTime=30
+dimDisplayWhenIdle=true
+displayBrightnessValue=30
+turnOffDisplayIdleTime=60
+turnOffDisplayWhenIdle=true
+
+[LowBattery][SuspendSession]
+# Suspend after 5 min idle when battery is low
+idleTime=300000
+inhibitLidActionExternalMonitor=false
+lidAction=1
+powerButtonAction=1
+suspendThenHibernate=true
+whenSleepingEnter=standby then memory then disk
+whenLaptopLidClosed=1
+PDEOF
+
+echo "PowerDevil battery profiles written to /etc/skel."
+
+# ── journald: cap in-memory/disk usage ────────────────────────────────────────
+# journald keeps a chunk of recent logs in a tmpfs-backed runtime journal
+# (/run/log/journal) — this is RAM. Default limits scale with disk/RAM size
+# and can reach several hundred MB. Capping both runtime (RAM) and persistent
+# (disk) journals keeps logging from quietly eating into available memory.
+mkdir -p /etc/systemd/journald.conf.d
+cat << 'JOURNALD' > /etc/systemd/journald.conf.d/raptor-memory.conf
+[Journal]
+# Runtime journal lives in /run (tmpfs = RAM). Cap it small.
+RuntimeMaxUse=64M
+# Persistent journal on disk — generous enough for troubleshooting,
+# small enough not to matter on any modern SSD.
+SystemMaxUse=200M
+JOURNALD
+
+# ── Mask ModemManager ────────────────────────────────────────────────────────[...]
+# ModemManager probes for cellular/WWAN hardware on every boot and stays
+# resident. Desktop and laptop gaming systems essentially never have a modem.
+# Masking (symlink to /dev/null) fully prevents it from starting; users with
+# a WWAN card can re-enable with: sudo systemctl unmask ModemManager.service
+mkdir -p /etc/systemd/system
+ln -sf /dev/null /etc/systemd/system/ModemManager.service
+
+# ── Game launch option hints ───────────────────────────────────────────────────
+cat << 'EOF' > /etc/raptor/unturned-launch-options.txt
+Recommended Steam launch options for Unturned (Unity / low-RAM systems):
+
+  PROTON_FORCE_LARGE_ADDRESS_AWARE=1 STAGING_SHARED_MEMORY=1 \
+  WINE_LARGE_ADDRESS_AWARE=1 DXVK_ASYNC=1 %command% \
+    -gc.maxreserved 128 \
+    -force-gfx-jobs native \
+    -disable-gpu-skinning \
+    -no-sandbox \
+    -force-vulkan
+
+Notes:
+  -gc.maxreserved 128     Cap Unity's reserved GC heap to 128 MB
+  -force-gfx-jobs native  Native threads for graphics jobs
+  -disable-gpu-skinning   Moves skinning to CPU (frees iGPU VRAM)
+  -no-sandbox             Removes Chromium sandbox (~40 MB address space savings)
+  -force-vulkan           Use Vulkan renderer (better on Mesa/RADV)
+  DXVK_ASYNC=1            Async shader compilation (reduces stutter)
+EOF
+
+cat << 'EOF' > /etc/raptor/zomboid-launch-options.txt
+Recommended Steam launch options for Project Zomboid:
+
+  PROTON_FORCE_LARGE_ADDRESS_AWARE=1 STAGING_SHARED_MEMORY=1 \
+  WINE_LARGE_ADDRESS_AWARE=1 %command% \
+    -Xmx4096m \
+    -Xms512m \
+    -XX:+UseG1GC \
+    -XX:MaxGCPauseMillis=20
+
+Notes:
+  -Xmx4096m     Cap Java heap at 4 GB (adjust to your RAM)
+  -Xms512m      Start JVM heap small
+  -XX:+UseG1GC  G1 GC — fewer long pauses vs default collector
+EOF
+
+# ── MangoHud: Raptor OS themed HUD config ─────────────────────────────────────
+mkdir -p /etc/mangohud
+cat << 'MANGOCFG' > /etc/mangohud/MangoHud.conf
+# ── Raptor OS MangoHud — F-22 HUD palette ─────────────────────────────────────
+# Toggle overlay:  Shift_R + F12
+# Toggle FPS cap:  Shift_R + F1
+# Log metrics:     Shift_R + F2
+
+toggle_hud=Shift_R+F12
+toggle_fps_limit=Shift_R+F1
+toggle_logging=Shift_R+F2
+reload_cfg=Shift_R+F4
+
+# ── Layout ───────────────────────────���───────────────────────────────��[...]
+position=top-left
+legacy_layout=false
+hud_compact=false
+round_corners=4
+table_columns=3
+font_size=18
+font_size_text=14
+font_file=/usr/share/fonts/jetbrains-mono/JetBrainsMono-Regular.ttf
+text_outline=true
+text_outline_thickness=1
+
+# ── GPU metrics ──────────────────────────────────────────────────────────[...]
+gpu_stats
+gpu_temp
+gpu_junction_temp
+gpu_core_clock
+gpu_mem_clock
+gpu_mem_used
+gpu_power
+gpu_load_change
+throttling_status
+vram
+
+# ── CPU metrics ──────────────────────────────────────────────────────────[...]
+cpu_stats
+cpu_temp
+cpu_mhz
+cpu_power
+
+# ── System ───────────────────────────────────────────────────────────��[...]
+ram
+swap
+io_read
+io_write
+gamemode
+wine
+vulkan_driver
+engine_version
+arch
+os
+kernel
+
+# ── FPS / Frametimes ────────────────────────────────────────────────────────�[...]
+fps
+fps_color_change=1
+fps_value=30,60
+fps_color=FF3333,F5C211,33FF33
+frame_timing=1
+frametime
+histogram
+show_fps_limit
+
+# ── Colours (Raptor OS F-22 palette) ─────────────────────────────────────────
+background_color=020F12
+background_alpha=0.60
+text_color=C8E8C8
+gpu_color=33FF33
+cpu_color=00E5C8
+memory_color=A8FF78
+engine_color=F5A623
+frametime_color=00E5FF
+wine_color=C890FF
+vram_color=33FF33
+media_player_color=33FF33
+battery_color=F5A623
+text_outline=true
+
+# ── FPS cap (0 = uncapped; override per-game via MANGOHUD_CONFIG) ─────────────
+fps_limit=0
+fps_limit_method=early
+
+# ── Logging (output to ~/mangohud_logs/) ─────────────────────────────────────
+log_interval=100
+output_folder=$HOME/mangohud_logs
+MANGOCFG
+
+# ── Gamemode: full configuration ──────────────────────────────────────────────
+cat << 'GAMEMODE' > /etc/gamemode.ini
+[general]
+reaper_freq=5
+# power-profiles-daemon is the sole CPU-policy owner. GameMode must not
+# override the governor while a game starts, or KDE's battery slider can drift.
+softrealtime=off
+# Keep the game's normal scheduler priority; avoid lowering it with renice=10.
+renice=0
+ioprio=0
+inhibit_screensaver=1
+
+[filter]
+whitelist=
+blacklist=
+
+[gpu]
+# Standard driver power profiles only; no clock offsets or overclocking.
+apply_gpu_optimisations=accept-responsibility
+amd_performance_level=high
+nv_powermizer_mode=1
+
+[cpu]
+# Let the kernel scheduler manage affinity and heterogeneous cores.
+park_cores=no
+pin_cores=no
+
+[supervisor]
+# Empty whitelist means any GameMode-compatible supervisor may request it.
+# Games without native integration can use gamemoderun %command%.
+supervisor_whitelist=
+
+[custom]
+# GameMode calls the same idempotent Cortex helper as the One-Click Boost
+# button. These hooks are part of the active /etc/gamemode.ini (not an
+# unreferenced conf.d file), and restore exactly the processes paused at start.
+start=/usr/lib/raptor/gamemode-start
+end=/usr/lib/raptor/gamemode-end
+GAMEMODE
+
+# ── GameMode compatibility notes ─────────────────────────────────────────────
+mkdir -p /usr/share/doc/raptor-gaming
+cat << 'GAMEDOC' > /usr/share/doc/raptor-gaming/README.md
+# Raptor OS GameMode compatibility
+
+Raptor OS does not restrict GameMode supervisors by launcher name. Any
+GameMode-compatible launcher or supervisor may request GameMode; this avoids
+blocking newer or less common clients.
+
+This does not force every launcher or game to request GameMode automatically.
+Clients need native GameMode integration, or a custom launch command using
+the standard gamemoderun wrapper.
+
+For a game or client without native GameMode integration, use the standard
+GameMode wrapper in that client's launch-command / launch-options field:
+
+    gamemoderun %command%
+
+For a standalone executable:
+
+    gamemoderun ./game
+
+This wrapper works with any game executable that can be launched through it;
+it is not limited to a fixed list of game titles. A launcher that does not
+support custom launch commands and does not integrate GameMode natively cannot
+be made universally compatible by an allow-list alone.
+
+GameMode temporarily applies the configured local performance settings and
+restores them when the session ends. Raptor's audio services and gaming
+services are not removed or disabled by this configuration.
+GAMEDOC
+
+# ── Input device udev rules ───────────────────────────────────────────────────
+cat << 'INPUTRULES' > /usr/lib/udev/rules.d/61-raptor-input.rules
+# Disable USB autosuspend for all HID input devices (mice, keyboards, pads).
+# Autosuspend saves ~0.5 W but causes 16-500 ms input latency spikes on wake.
+ACTION=="add", SUBSYSTEM=="usb", DRIVERS=="usbhid", \
+    ATTR{power/autosuspend}="-1"
+
+# Disable USB autosuspend for Bluetooth adapters (btusb driver). This is a
+# SEPARATE device from any HID rule above — a Bluetooth mouse/keyboard talks
+# to the OS through this adapter, not as its own USB HID node, so the usbhid
+# rule above never protected it. Applying autosuspend to a Bluetooth adapter
+# is a known way to leave it unresponsive after its next suspend cycle,
+# breaking every Bluetooth input device connected through it until a manual
+# USB reset or reboot. This affects internal laptop Bluetooth chips too —
+# most enumerate as USB devices even though they're physically built in.
+ACTION=="add", SUBSYSTEM=="usb", DRIVERS=="btusb", \
+    ATTR{power/control}="on", \
+    ATTR{power/autosuspend}="-1"
+
+# Disable USB autosuspend for USB audio devices (snd-usb-audio driver).
+# Wireless headset/gaming dongles almost always enumerate as USB audio
+# regardless of the RF protocol used internally — this covers those in
+# addition to any wired USB DAC/audio interface. Autosuspend mid-stream on
+# a USB audio device is a well-known cause of crackling and audio dropouts.
+ACTION=="add", SUBSYSTEM=="usb", DRIVERS=="snd-usb-audio", \
+    ATTR{power/control}="on", \
+    ATTR{power/autosuspend}="-1"
+
+# uinput: allow user-space to create virtual devices (antimicro, xpadneo, etc.)
+KERNEL=="uinput", SUBSYSTEM=="misc", \
+    OPTIONS+="static_node=uinput", TAG+="uaccess", TAG+="udev-acl", \
+    MODE="0660", GROUP="input"
+
+# Xbox controllers
+SUBSYSTEM=="input", ATTRS{name}=="Xbox*", TAG+="uaccess"
+SUBSYSTEM=="input", ATTRS{name}=="Microsoft X-Box*", TAG+="uaccess"
+
+# Sony DualSense / DualShock — hidraw access for Chiaki / PS Remote Play
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="054c", TAG+="uaccess"
+KERNEL=="hidraw*", ATTRS{idVendor}=="054c", MODE="0660", GROUP="input"
+
+# Steam Controller / Valve Index
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="28de", TAG+="uaccess"
+KERNEL=="hidraw*", ATTRS{idVendor}=="28de", MODE="0660", GROUP="input"
+INPUTRULES
+udevadm control --reload-rules 2>/dev/null || true
+
+# ── Fastfetch: Raptor OS themed config ────────────────────────────────────────
+mkdir -p /etc/xdg/fastfetch
+cat << 'FFCONF' > /etc/xdg/fastfetch/config.jsonc
+{
+  "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
+  "logo": { "source": "small", "color": { "1": "green", "2": "cyan" } },
+  "display": {
+    "separator": "  ",
+    "color": { "keys": "green", "title": "cyan", "output": "white" },
+    "brightColor": true
+  },
+  "modules": [
+    { "type": "title",    "format": "{user-name}@{host-name}" },
+    "break",
+    { "type": "os",       "key": "OS       " },
+    { "type": "kernel",   "key": "Kernel   " },
+    { "type": "uptime",   "key": "Uptime   " },
+    { "type": "packages", "key": "Packages " },
+    { "type": "shell",    "key": "Shell    " },
+    "break",
+    { "type": "de",       "key": "Desktop  " },
+    { "type": "wm",       "key": "WM       " },
+    { "type": "theme",    "key": "Theme    " },
+    "break",
+    { "type": "cpu",      "key": "CPU      " },
+    { "type": "gpu",      "key": "GPU      ", "detectionMethod": "pci" },
+    { "type": "memory",   "key": "RAM      " },
+    { "type": "swap",     "key": "Swap     " },
+    { "type": "disk",     "key": "Disk     ", "folders": "/" },
+    "break",
+    { "type": "localip",  "key": "IP       " },
+    "break",
+    "colors"
+  ]
+}
+FFCONF
+mkdir -p /etc/skel/.config/fastfetch
+cp /etc/xdg/fastfetch/config.jsonc /etc/skel/.config/fastfetch/config.jsonc
+
+
+# ── Network gaming sysctl ─────────────────────────────────────────────────────
+cat << 'NETSYSCTL' > /etc/sysctl.d/91-raptor-network.conf
+# Raptor OS: moderate networking defaults for games and everyday traffic.
+# Avoid oversized socket queues and busy-poll spinning on low-memory CPUs.
+net.core.rmem_max                  = 16777216
+net.core.wmem_max                  = 16777216
+net.core.rmem_default              = 262144
+net.core.wmem_default              = 262144
+net.ipv4.tcp_rmem                  = 4096 262144 16777216
+net.ipv4.tcp_wmem                  = 4096 262144 16777216
+net.ipv4.udp_rmem_min              = 8192
+net.ipv4.udp_wmem_min              = 8192
+net.core.default_qdisc             = fq_codel
+net.ipv4.tcp_congestion_control    = bbr
+net.ipv4.tcp_fastopen              = 3
+net.ipv4.tcp_tw_reuse              = 1
+net.ipv4.tcp_fin_timeout           = 15
+net.ipv4.tcp_slow_start_after_idle = 0
+net.core.netdev_max_backlog        = 4096
+net.core.netdev_budget             = 300
+net.core.netdev_budget_usecs       = 3000
+net.core.somaxconn                 = 4096
+net.ipv4.ip_local_port_range       = 1024 65535
+fs.file-max                        = 2097152
+NETSYSCTL
+
+# ── BBR / FQ-CoDel module preload ─────────────────────────────────────────────
+mkdir -p /etc/modules-load.d
+cat << 'MODULES' > /etc/modules-load.d/raptor-network.conf
+# Raptor OS: load BBR and fair-queueing CoDel before applying network sysctls
+tcp_bbr
+sch_fq_codel
+MODULES
+
+# ── DNS-over-TLS ─────────────────────────────────────────────────────────��[...]
+mkdir -p /etc/systemd/resolved.conf.d
+cat << 'RESOLVED' > /etc/systemd/resolved.conf.d/raptor-dns.conf
+# Raptor OS: fast public DoT resolvers as a FALLBACK.
+# The per-link (DHCP) resolver — e.g. a school/corporate DNS — always wins;
+# Cloudflare/Quad9 DoT are only used when a network provides no DNS server.
+# Pinning Cloudflare DoT as the SOLE resolver broke school/corporate DPI
+# networks that raw-block 1.1.1.1: every uncached lookup stalled, including
+# the network's own sites.
+[Resolve]
+FallbackDNS=1.1.1.1#cloudflare-dns.com 1.0.0.1#cloudflare-dns.com 9.9.9.9#dns.quad9.net 8.8.8.8#dns.google
+DNSOverTLS=opportunistic
+DNSSEC=allow-downgrade
+Cache=yes
+DNSStubListener=yes
+RESOLVED
+
+# ── Self-check ────────────────────────────────────────────────────────────────
+# A malformed heredoc here can install a truncated trim/restore script, and the
+# feature then silently does nothing with an empty build log. Verify each
+# artifact landed and is non-empty; fail the build if not.
+RAPTOR_EXPECTED_PAYLOAD="
+/usr/bin/raptor-trim-background.sh
+/usr/bin/raptor-restore-background.sh
+/usr/bin/raptor-zram-teardown.sh
+"
+raptor_missing=""
+for raptor_f in $RAPTOR_EXPECTED_PAYLOAD; do
+    [ -s "$raptor_f" ] || raptor_missing="$raptor_missing $raptor_f"
+done
+if [ -n "$raptor_missing" ]; then
+    echo "GAMING_PAYLOAD_MISSING:$raptor_missing" >&2
+    exit 1
+fi
+echo "GAMING_READY payload=$(echo $RAPTOR_EXPECTED_PAYLOAD | wc -w | tr -d ' ') files verified"
+ "$FLAGS_FILE" | tr '\n' ' ')
+fi
+# Scale Chromium worker counts to installed RAM. These are caps, not forced
+# process counts: site isolation and browser security remain enabled.
+TOTAL_KB=$(awk '/^MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null)
+if [[ "$TOTAL_KB" =~ ^[0-9]+$ ]] && [ "$TOTAL_KB" -le 8388608 ]; then
+    EXTRA_FLAGS="$EXTRA_FLAGS --num-raster-threads=2 --renderer-process-limit=4"
+else
+    EXTRA_FLAGS="$EXTRA_FLAGS --num-raster-threads=4 --renderer-process-limit=6"
 fi
 exec brave-browser $EXTRA_FLAGS "$@"
 BRAVELAUNCHER
