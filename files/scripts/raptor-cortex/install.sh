@@ -1830,13 +1830,15 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         content.append(opts_group)
 
         # Quick Optimize — pressure-aware and deliberately non-disruptive
-        quick_row = Adw.ActionRow(title="Quick Optimize")
-        quick_row.set_subtitle("Small, pressure-aware memory reclaim only; no cache flushes or service shutdowns")
+        quick_row = Adw.ActionRow(title="One-Click Boost")
+        quick_row.set_subtitle(
+            "Apply Performance mode, tune the GPU when supported, pause optional indexers, "
+            "and reclaim memory only under real pressure. Use Restore Desktop to undo.")
         quick_row.set_activatable(True)
         quick_icon = Gtk.Image.new_from_icon_name("system-run-symbolic")
         quick_icon.set_pixel_size(18)
         quick_row.add_prefix(quick_icon)
-        quick_row.connect("activated", self.on_quick_optimize)
+        quick_row.connect("activated", self._on_pregame_boost)
         opts_group.add(quick_row)
 
         advanced_expander = Adw.ExpanderRow(title="Advanced Options")
@@ -2005,17 +2007,86 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
     # ── Quick Action handlers ──────────────────────────────────────────────────
 
     def _on_pregame_boost(self, row):
-        """Apply Performance mode and pressure-aware Game Mode tuning."""
-        self._on_mode_switch(None, "performance")
-        opts = {"caches": True, "compact": False, "zram": False,
-                "swap": False, "oom": False, "deep": False, "thp": False, "cpu": False}
+        """One-button boost: apply the profile, then safe memory/process tuning."""
+        if self._running:
+            self._toast_error("Cortex is already running an optimization")
+            return
+        self._running = True
+        self.run_btn.set_sensitive(False)
+        self.spinner.start()
         before, total = mem_used_mb()
         threading.Thread(
-            target=self._do_optimize, args=(opts, before, total), daemon=True
+            target=self._do_one_click_boost, args=(before, total), daemon=True
         ).start()
-        toast = Adw.Toast.new("Pre-Game Boost applied — Performance mode active")
-        toast.set_timeout(3)
-        self._toast_overlay.add_toast(toast)
+
+    def _do_one_click_boost(self, before, total):
+        # Run in strict order: never claim success before each requested stage
+        # has completed. CPU policy stays with power-profiles-daemon.
+        mode = subprocess.run(
+            ["sudo", HELPER, "set-mode", "performance"],
+            capture_output=True, text=True, timeout=30
+        )
+        if mode.returncode != 0:
+            err = (mode.stderr or mode.stdout or "Power profile failed").strip()
+            GLib.idle_add(self._one_click_boost_done, False, before, total, 0,
+                          f"Performance mode failed: {err[:220]}")
+            return
+
+        game = subprocess.run(
+            ["sudo", HELPER, "trim-background"],
+            capture_output=True, text=True, timeout=30
+        )
+        if game.returncode != 0:
+            err = (game.stderr or game.stdout or "Game Mode setup failed").strip()
+            GLib.idle_add(self._one_click_boost_done, False, before, total, 0,
+                          f"Performance mode applied, but Game Mode failed: {err[:180]}")
+            return
+
+        # Reclaim is pressure-aware and capped. Do not flush page cache,
+        # compact memory, rewrite OOM scores, or recompress live zram pages.
+        memory = subprocess.run(
+            ["sudo", HELPER, "1", "0", "0", "0", "0", "0", "0", "0"],
+            capture_output=True, text=True, timeout=30
+        )
+        if memory.returncode != 0:
+            err = (memory.stderr or memory.stdout or "Memory reclaim failed").strip()
+            GLib.idle_add(self._one_click_boost_done, False, before, total, 0,
+                          f"Performance mode and Game Mode applied; memory step failed: {err[:180]}")
+            return
+
+        gpu_note = ""
+        if (self._settings.get("gpu_follows_mode", True)
+                and os.path.exists("/usr/lib/raptor/gpu-detect.sh")):
+            profile = MODE_TO_GPU_PROFILE.get("performance")
+            if profile and get_gpu_profile() != profile:
+                gpu_ok, _ = set_gpu_profile(profile)
+                gpu_note = " GPU profile updated." if gpu_ok else " GPU profile unchanged."
+
+        after, _ = mem_used_mb()
+        freed = max(0, before - after)
+        GLib.idle_add(self._one_click_boost_done, True, before, total, freed,
+                      "Performance mode and Game Mode are active. Optional indexers paused; "
+                      "memory reclaim was applied only if RAM pressure was high." + gpu_note)
+
+    def _one_click_boost_done(self, ok, before, total, freed, message):
+        self._running = False
+        self.run_btn.set_sensitive(True)
+        self.spinner.stop()
+        self._settings["last_optimize_timestamp"] = time.time()
+        threading.Thread(
+            target=save_persistent_settings, args=(self._settings,), daemon=True
+        ).start()
+        self._refresh_stats()
+        self.result_group.set_visible(True)
+        self.result_row.set_title(f"Memory change: {fmt_mb(freed)}")
+        self.result_row.set_subtitle(
+            f"Before: {fmt_mb(before)} / {fmt_mb(total)}; after: {fmt_mb(mem_used_mb()[0])} / {fmt_mb(total)}")
+        if ok:
+            self._toast_ok(message)
+            self.resume_btn.set_sensitive(True)
+        else:
+            self._toast_error(message)
+        return False
 
     def _on_restore_desktop(self, row):
         """Switch to Balanced + resume all suspended services."""
