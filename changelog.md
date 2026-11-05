@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- **Pull requests now validate image-workflow edits.** The push trigger watched `.github/workflows/build.yml`, but the pull-request path filter did not, so changes to the main image workflow could merge without running its PR build. Added the workflow file to the PR path filter.
+
 - **CI no longer pushes generated application binaries to `main`.** The build already stages both Rust executables in `files/staging/` for the BlueBuild `files` module; the later copy step duplicated that work, and the GitHub Actions job committed and pushed those generated binaries, unnecessarily mutating the source branch and triggering another workflow run. Removed the duplicate staging/push steps and reduced the job's contents permission to read-only.
 
 
