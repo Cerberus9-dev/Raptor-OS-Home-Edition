@@ -657,8 +657,10 @@ MANGOCFG
 cat << 'GAMEMODE' > /etc/gamemode.ini
 [general]
 reaper_freq=5
-# Raptor Cortex owns CPU governor and platform-profile changes. Leave
-# desiredgov/defaultgov unset so GameMode cannot override the user's mode.
+# Temporarily boost CPU governor while a GameMode session is active.
+# With defaultgov unset, GameMode restores the governor it found on entry,
+# preserving whichever Raptor Cortex mode was active before the game.
+desiredgov=performance
 softrealtime=off
 # Keep the game's normal scheduler priority; avoid lowering it with renice=10.
 renice=0
