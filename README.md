@@ -85,7 +85,7 @@ Three dialogs appear on the first login, in sequence:
 
 | Category | Apps |
 |---|---|
-| **Browser** | Firefox, Brave, Zen Browser, Helium, Chromium, Chrome, Edge — all optional Flathub downloads, Firefox pre-selected |
+| **Browser** | Firefox, Brave, Zen Browser, Floorp, Waterfox, Chromium, Chrome, Edge — all optional Flathub downloads, Firefox pre-selected |
 | **Chat** | Discord, Vesktop (Vencord), Equibop (Equicord), GoofCord — optional Flathub downloads |
 | **Communication** | Telegram, Signal, Slack, Zoom, Thunderbird, Element (Matrix) |
 | **Productivity** | ONLYOFFICE, Bitwarden, Joplin, MarkText, Calibre, Obsidian, Zotero |
