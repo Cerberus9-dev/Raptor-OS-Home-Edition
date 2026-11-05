@@ -11,14 +11,21 @@ A custom Bazzite-based Linux distribution built for gaming — automatic GPU opt
 
 | Component | Minimum to install and use | Recommended |
 |---|---|---|
-| **CPU / architecture** | 64-bit x86_64 (AMD64/Intel 64); 4 cores, around 2 GHz | Recent 6-core AMD Ryzen or Intel Core processor |
-| **Memory** | 8 GB RAM for the supported baseline | 16 GB+ for gaming, browsers and multitasking |
-| **Graphics** | GPU with a working Linux driver and **Vulkan 1.3+** for the intended gaming experience | Modern AMD Radeon; Intel Arc is supported; NVIDIA requires the matching Raptor/NVIDIA image and has additional gaming caveats |
+| **CPU / architecture** | x86-64 (AMD64/Intel 64); quad-core at approximately 2 GHz or better | Recent 6-core AMD Ryzen or Intel Core processor |
+| **Memory** | 8 GB RAM | 16 GB+ for gaming, browsers and multitasking |
+| **Graphics API** | Working Linux graphics driver with **Vulkan 1.3+** | Modern discrete or integrated GPU with current Mesa / vendor driver |
+| **AMD GPU** | Radeon GCN/RDNA GPU supported by the in-kernel `amdgpu` driver and RADV | Radeon RX 5000-series / RDNA or newer |
+| **Intel GPU** | Vulkan 1.3-capable Intel graphics; Arc supported with caveats | Intel Arc or newer supported integrated graphics |
+| **NVIDIA GPU** | Requires a matching NVIDIA driver image; support depends on GPU generation | Turing (GTX 16 / RTX) or newer with the appropriate driver image |
 | **Storage** | 50 GB free on an internal SSD; GPT partitioning | 120 GB+ SSD, plus separate space for games and optional apps |
 | **Firmware** | UEFI; legacy BIOS/CSM is unsupported | UEFI with Secure Boot configured if desired |
 | **Network** | Internet access for installation, updates and optional app downloads | Stable broadband |
 
-**Low-memory / Chromebook-class hardware:** Raptor is x86_64 only; ARM Chromebooks are not supported. Some x86_64 Chromebooks may boot if they provide compatible UEFI firmware, graphics/Vulkan support, storage and Wi-Fi, but device compatibility is not guaranteed. The 4 GB RAM configuration is an **optimization target under development, not a supported minimum**; expect reduced multitasking and game compatibility until it has been tested on real 4 GB devices. Vulkan 1.3 support is a capability requirement, not a promise that a particular game will run well.
+**NVIDIA notes:** Bazzite's legacy proprietary-driver image covers Pascal, Maxwell and Volta; its modern open-driver image covers Turing and newer. Kepler and older are not supported by the current proprietary-driver images. Raptor must be built/rebased on the matching NVIDIA base image; the generic image should not be assumed to include every NVIDIA driver.
+
+**Low-memory / Chromebook-class hardware:** Raptor is x86-64 only; ARM Chromebooks are unsupported. The upstream Bazzite gaming baseline is a quad-core 2 GHz CPU and 8 GB RAM, so many entry-level Chromebook processors and 4 GB devices fall below the supported baseline. The 4 GB configuration is an **optimization target under development, not a supported minimum**. Compatible x86-64 Chromebooks still need UEFI, a supported Wi-Fi device and Vulkan 1.3 graphics; compatibility is model-specific and not guaranteed. Vulkan API support alone does not guarantee useful game performance.
+
+Hardware baseline follows [Bazzite's published gaming requirements](https://docs.bazzite.gg/Gaming/Hardware_compatibility_for_gaming/) and [GPU support notes](https://docs.bazzite.gg/General/FAQ/); AMD Vulkan support is documented in the [Mesa RADV guide](https://docs.mesa3d.org/drivers/radv.html).
 
 ---
 
