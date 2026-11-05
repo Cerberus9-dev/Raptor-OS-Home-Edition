@@ -668,10 +668,8 @@ MANGOCFG
 cat << 'GAMEMODE' > /etc/gamemode.ini
 [general]
 reaper_freq=5
-# Temporarily boost CPU governor while a GameMode session is active.
-# With defaultgov unset, GameMode restores the governor it found on entry,
-# preserving whichever Raptor Cortex mode was active before the game.
-desiredgov=performance
+# power-profiles-daemon is the sole CPU-policy owner. GameMode must not
+# override the governor while a game starts, or KDE's battery slider can drift.
 softrealtime=off
 # Keep the game's normal scheduler priority; avoid lowering it with renice=10.
 renice=0
