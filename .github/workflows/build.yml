@@ -195,6 +195,16 @@ jobs:
         if: ${{ steps.one_time_apps.outputs.include == 'true' }}
         run: install -Dm644 /dev/null files/staging/.include-one-time-apps
 
+      - name: Build and push image
+        uses: blue-build/github-action@v1
+        with:
+          recipe: recipe.yml
+          registry_token: ${{ secrets.GITHUB_TOKEN }}
+          pr_event_number: ${{ github.event.number }}
+          cosign_private_key: ${{ secrets.SIGNING_SECRET }}
+
+      # Consume the one-time switch ONLY after BlueBuild has successfully built
+      # and pushed the image. A failed image build must not burn the one-time run.
       - name: Permanently consume the one-time integration
         if: ${{ steps.one_time_apps.outputs.include == 'true' }}
         run: |
@@ -203,14 +213,6 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -a raptor-one-time-apps-consumed -m "One-time Raptor Music and Shroudly image integration consumed"
           git push origin refs/tags/raptor-one-time-apps-consumed
-
-      - name: Build and push image
-        uses: blue-build/github-action@v1
-        with:
-          recipe: recipe.yml
-          registry_token: ${{ secrets.GITHUB_TOKEN }}
-          pr_event_number: ${{ github.event.number }}
-          cosign_private_key: ${{ secrets.SIGNING_SECRET }}
 
   # Runs only when the build fails. GitHub's raw job logs are awkward to get at,
   # so this reads the failed job's log on the runner and posts the first real
