@@ -471,7 +471,7 @@ def fetch_changelog():
     return (
         "Could not load changelog.\n\n"
         "Check your internet connection or visit:\n"
-        "https://github.com/Cerberus9-dev/Raptor-OS/blob/main/CHANGELOG.md"
+        "https://github.com/Cerberus9-dev/Raptor-OS-Home-Edition/blob/main/changelog.md"
     )
 
 
