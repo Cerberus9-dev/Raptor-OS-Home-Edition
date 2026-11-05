@@ -2,14 +2,14 @@
 set -euo pipefail
 
 # Install the original, pinned upstream Shroudly Electron application.
-# It is staged only in the first successful v3.0.0 image build. No service or
+# It is staged only in the one-time update image build. No service or
 # autostart entry is created; users start Shroudly explicitly from the menu.
 STAGE_DIR="/tmp/raptor-staging/shroudly-app"
 APP_DIR="/opt/Shroudly"
 
-if [[ ! -f "/tmp/raptor-staging/.include-one-time-apps" ]]; then
+if [[ ! -f "/tmp/raptor-staging/include-one-time-apps" ]]; then
     rm -rf "$STAGE_DIR"
-    echo "SHROUDLY_SKIP: one-time v3.0.0 payload was not requested."
+    echo "SHROUDLY_SKIP: one-time app payload was not requested."
     exit 0
 fi
 
