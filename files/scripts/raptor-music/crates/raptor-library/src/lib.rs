@@ -155,15 +155,22 @@ impl LibraryDatabase {
                 )?;
             }
 
-            tx.execute(
+            // This migration creates two indexes. execute() accepts one SQL
+            // statement; execute_batch() is required for the pair. Keeping both
+            // statements inside the migration transaction makes the migration
+            // atomic and allows a fresh database to finish initialization.
+            tx.execute_batch(
                 r#"
-                CREATE UNIQUE INDEX IF NOT EXISTS idx_tracks_local 
-                ON tracks(source_type, source_uri) WHERE source_type = 'local' AND source_uri IS NOT NULL;
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_tracks_local
+                ON tracks(source_type, source_uri)
+                WHERE source_type = 'local' AND source_uri IS NOT NULL;
 
-                CREATE UNIQUE INDEX IF NOT EXISTS idx_tracks_remote 
-                ON tracks(source_type, provider_id, provider_track_id) WHERE source_type = 'remote' AND provider_id IS NOT NULL AND provider_track_id IS NOT NULL;
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_tracks_remote
+                ON tracks(source_type, provider_id, provider_track_id)
+                WHERE source_type = 'remote'
+                  AND provider_id IS NOT NULL
+                  AND provider_track_id IS NOT NULL;
                 "#,
-                [],
             )?;
 
             tx.execute("INSERT INTO schema_migrations (version) VALUES (2)", [])?;
@@ -488,5 +495,32 @@ impl LibraryDatabase {
         } else {
             Ok(None)
         }
+    }
+}
+
+#[cfg(test)]
+mod migration_tests {
+    use super::*;
+
+    #[test]
+    fn fresh_database_applies_all_migrations_and_creates_track_indexes() {
+        let db = LibraryDatabase::new(":memory:")
+            .expect("a fresh in-memory library database should initialize");
+
+        let version: i32 = db.conn.query_row(
+            "SELECT COALESCE(MAX(version), 0) FROM schema_migrations",
+            [],
+            |row| row.get(0),
+        ).expect("migration version should be readable");
+        assert_eq!(version, 2, "fresh database should reach schema version 2");
+
+        let index_count: i64 = db.conn.query_row(
+            "SELECT COUNT(*) FROM sqlite_master
+             WHERE type = 'index'
+               AND name IN ('idx_tracks_local', 'idx_tracks_remote')",
+            [],
+            |row| row.get(0),
+        ).expect("track indexes should be queryable");
+        assert_eq!(index_count, 2, "both partial unique indexes should exist");
     }
 }
