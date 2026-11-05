@@ -620,7 +620,7 @@ case "$ACTION" in
     restore-background)
         # Continue all previously stopped background processes
         for proc in "${BACKGROUND_PROCS[@]}"; do
-            pkill -CONT "$proc" 2>/dev/null || true
+            /usr/lib/raptor/safe-signal CONT "$proc"
         done
         # Resume Baloo indexing
         balooctl6 resume 2>/dev/null || balooctl resume 2>/dev/null || true
@@ -851,7 +851,7 @@ CONFIG=/etc/raptor/cortex-suspend.conf
 while IFS= read -r pattern; do
     [ -z "$pattern" ] && continue
     case "$pattern" in "#"*) continue ;; esac
-    pkill -CONT -f "$pattern" 2>/dev/null || true
+    /usr/lib/raptor/safe-signal CONT "$pattern"
 done < "$CONFIG"
 # Also restore any processes from the default cortex config
 CONFIG2=/etc/raptor/cortex-suspend.conf.default
@@ -859,7 +859,7 @@ CONFIG2=/etc/raptor/cortex-suspend.conf.default
 while IFS= read -r pattern; do
     [ -z "$pattern" ] && continue
     case "$pattern" in "#"*) continue ;; esac
-    pkill -CONT -f "$pattern" 2>/dev/null || true
+    /usr/lib/raptor/safe-signal CONT "$pattern"
 done < "$CONFIG2"
 sudo /usr/lib/raptor/cortex-helper restore-background 2>/dev/null || true
 EOF
@@ -2816,7 +2816,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
     def on_resume(self, btn):
         for _, pattern in ALL_SERVICES:
             if pattern in self._cortex_patterns:
-                subprocess.run(["pkill", "-CONT", "-f", pattern], capture_output=True)
+                subprocess.run(["/usr/lib/raptor/safe-signal", "CONT", pattern], capture_output=True)
         self._suspended_now.clear()
         self.resume_btn.set_sensitive(False)
         self.sus_group.set_visible(False)
