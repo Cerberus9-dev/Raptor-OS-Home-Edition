@@ -247,7 +247,6 @@ ENVEOF
             [ "$TARGET" -gt 0 ] && nvidia-smi -pl "$TARGET" > /dev/null 2>&1 || true
         fi
     fi
-    fi
     ;;
 
   auto|*)
@@ -443,6 +442,10 @@ for raptor_f in $RAPTOR_EXPECTED_PAYLOAD; do
 done
 if [ -n "$raptor_missing" ]; then
     echo "GPU_PROFILE_PAYLOAD_MISSING:$raptor_missing" >&2
+    exit 1
+fi
+if ! bash -n /usr/lib/raptor/gpu-detect.sh; then
+    echo "GPU_PROFILE_SHELL_SYNTAX_ERROR:/usr/lib/raptor/gpu-detect.sh" >&2
     exit 1
 fi
 echo "GPU_PROFILE_READY payload=$(echo $RAPTOR_EXPECTED_PAYLOAD | wc -w | tr -d ' ') files verified"
