@@ -121,6 +121,41 @@ jobs:
           echo "include=false" >> "$GITHUB_OUTPUT"
           echo "One-time applications are disabled for this run."
 
+      - name: Fetch pinned upstream Shroudly source
+        if: ${{ steps.one_time_apps.outputs.include == 'true' || github.event_name == 'pull_request' }}
+        run: git submodule update --init --depth 1 files/scripts/shroudly-raptor/upstream
+
+      - name: Set up Node.js for upstream Shroudly
+        if: ${{ steps.one_time_apps.outputs.include == 'true' || github.event_name == 'pull_request' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: files/scripts/shroudly-raptor/upstream/package-lock.json
+
+      - name: Install and verify upstream Shroudly
+        if: ${{ steps.one_time_apps.outputs.include == 'true' || github.event_name == 'pull_request' }}
+        working-directory: files/scripts/shroudly-raptor/upstream
+        run: |
+          npm ci
+          npm run test:core
+          npm run verify
+          npm run build:core:advanced
+          npx electron-builder --linux dir --publish never
+          test -x dist/linux-unpacked/shroudly
+          test -x dist/linux-unpacked/resources/app.asar.unpacked/electron/tools/core/linux-x64/shroudly-core
+          test -x dist/linux-unpacked/resources/app.asar.unpacked/electron/tools/core/linux-x64/shroudly-core-adv
+
+      - name: Stage original Shroudly desktop app
+        if: ${{ steps.one_time_apps.outputs.include == 'true' }}
+        working-directory: files/scripts/shroudly-raptor/upstream
+        run: |
+          install -d ../..//../../staging/shroudly-app
+          cp -a dist/linux-unpacked/. ../../../../staging/shroudly-app/
+          install -Dm644 LICENSE ../../../../staging/shroudly-app/LICENSE
+          install -Dm644 scripts/linux/me.codeshare.shroudly.policy ../../../../staging/shroudly-app/me.codeshare.shroudly.policy
+          install -Dm644 public/icon.png ../../../../staging/shroudly-app/shroudly.png
+
       - name: Check signing secret
         if: github.event_name != 'pull_request'
         env:
@@ -209,7 +244,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -a raptor-one-time-apps-consumed -m "One-time Raptor Music image integration consumed"
+          git tag -a raptor-one-time-apps-consumed -m "One-time Raptor Music and Shroudly image integration consumed"
           git push origin refs/tags/raptor-one-time-apps-consumed
 
   # Runs only when the build fails. GitHub's raw job logs are awkward to get at,
