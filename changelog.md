@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [v2.8.0] - 2026-11-05 (Raptor Music Expansion, Hardware Recovery & CI Reliability)
+
 ### Updates
 
 - **Raptor Music in-library search:** added a live, case-insensitive search across track title, artist, and album. Search results retain their real track IDs, so adding a filtered result to a playlist or queue and playing it no longer uses the filtered row number as an index into the unfiltered database.
@@ -363,6 +365,7 @@
   percentage via `nvidia-smi` when available. Shows "No fan sensors
   detected" when none exist. Cortex only reads; it never writes fan speed,
   curves or PWM, so the removal of manual fan control above still stands.
+
 
 ## [v2.7.0] - 2026-10-01 (Major Feature Expansion — Cortex Unification, App Picker Overhaul, Battery, Tasks)
 
