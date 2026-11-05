@@ -112,21 +112,14 @@ for attempt in $(seq 1 $MAX_ATTEMPTS); do
     out="$(mktemp)"
     timeout "${LAYER_TIMEOUT}" rpm-ostree update 2>&1 | tee "$out"
     rc=${PIPESTATUS[0]}
-    # A previous or parallel operation (an interrupted update, the background updater) can
-    # still hold an rpm-ostree transaction: rpm-ostree refuses with "Transaction in progress".
-    # Wait for it to finish; after ~90 s treat it as stale and cancel it. (The old code
-    # "cleared a stale lock" by deleting /run/lock/rpm-ostree.lock, a file rpm-ostree does
-    # not use, so it never worked.)
+    # rpm-ostree owns its transaction lock. Never delete lock files or cancel a
+    # transaction that may belong to PackageKit, Discover, the automatic checker,
+    # or another legitimate updater. Wait and retry; if it stays busy, fail with
+    # an explicit message rather than interrupting another process.
     if [ "$rc" -ne 0 ] && grep -qiE 'transaction.*in progress' "$out"; then
         rm -f "$out"
         busy=$((busy + 1))
-        if [ "$busy" -ge 3 ]; then
-            echo "Another operation has held rpm-ostree for about $((busy * 30)) s -- cancelling the stale transaction..."
-            rpm-ostree cancel 2>&1 || true
-            busy=0
-        else
-            echo "Another update operation is already in progress -- waiting for it to finish..."
-        fi
+        echo "Another rpm-ostree operation is active (waited $((busy * 30)) s). Leaving it untouched; retrying..."
         sleep 30
         continue
     fi
@@ -285,10 +278,8 @@ registry_cross_check() {
 verdict=0  # 1 once *any* check attempt completed cleanly
 for try in $(seq 1 "${MAX_ATTEMPTS}"); do
     echo "── Metadata refresh attempt ${try}/${MAX_ATTEMPTS} ──"
-    # Clear any stale transaction lock left by a previous killed attempt so
-    # rpm-ostree doesn't refuse to start ("Another transaction is in progress").
-    rm -f /run/lock/rpm-ostree.lock 2>/dev/null || true
-
+    # rpm-ostree owns its transaction lock. Do not remove lock files: a busy
+    # response means another operation is active, and the safe response is retry.
     # Stream the check output live to the GUI (tee) while keeping a copy for
     # the verdict check; PIPESTATUS[0] is timeout/rpm-ostree's real exit code.
     out="$(mktemp)"
@@ -930,18 +921,31 @@ class RaptorUpdateWindow(Adw.ApplicationWindow):
         self.flatpak_spinner.stop()
         self.check_btn.set_sensitive(True)
 
-        # System row
+        ostree_failed = (not ostree_has and any(
+            marker in (ostree_msg or "").lower()
+            for marker in ("could not", "timed out", "error:", "not found", "failed")
+        ))
+        fp_failed = (not fp_has and any(
+            marker in (fp_msg or "").lower()
+            for marker in ("could not", "timed out", "error:", "failed")
+        ))
+
+        # System row: a failed refresh is not the same as "up to date".
         if ostree_has:
             self._set_row_status(self.status_row, self.status_icon,
                                  ostree_msg, "software-update-available-symbolic", "accent")
+        elif ostree_failed:
+            self._set_row_status(self.status_row, self.status_icon,
+                                 ostree_msg, "dialog-warning-symbolic", "warning")
         else:
             self._set_row_status(self.status_row, self.status_icon,
                                  ostree_msg, "emblem-ok-symbolic", "success")
 
         # Flatpak row
         if fp_msg:
-            fp_icon = "software-update-available-symbolic" if fp_has else "emblem-ok-symbolic"
-            fp_css  = "accent" if fp_has else "success"
+            fp_icon = ("software-update-available-symbolic" if fp_has else
+                       "dialog-warning-symbolic" if fp_failed else "emblem-ok-symbolic")
+            fp_css  = "accent" if fp_has else "warning" if fp_failed else "success"
             self._set_row_status(self.flatpak_row, self.flatpak_icon,
                                  fp_msg, fp_icon, fp_css)
         else:
@@ -953,6 +957,9 @@ class RaptorUpdateWindow(Adw.ApplicationWindow):
             self.banner_icon.set_from_icon_name("software-update-available-symbolic")
             self.update_btn.set_label(
                 "Update & Reboot" if ostree_has else "Update Flatpaks")
+        elif ostree_failed or fp_failed:
+            self.subtitle.set_text("Could not complete the update check.")
+            self.banner_icon.set_from_icon_name("dialog-warning-symbolic")
         else:
             self.subtitle.set_text("Everything is up to date.")
             self.banner_icon.set_from_icon_name("emblem-ok-symbolic")
@@ -1044,6 +1051,7 @@ class RaptorUpdateWindow(Adw.ApplicationWindow):
 
     def _run_update(self):
         # ── Step 1: Flatpak (no reboot, run first) ────────────────────────────
+        fp_rc = 0
         if self._flatpak_has_update:
             GLib.idle_add(self._append_log, "── Updating Flatpak apps ──\n")
             GLib.idle_add(self._set_row_status,
@@ -1073,7 +1081,10 @@ class RaptorUpdateWindow(Adw.ApplicationWindow):
 
         # ── Step 2: rpm-ostree (reboot needed) ───────────────────────────────
         if not self._ostree_has_update:
-            GLib.idle_add(self._on_flatpak_only_success)
+            if fp_rc == 0:
+                GLib.idle_add(self._on_flatpak_only_success)
+            else:
+                GLib.idle_add(self._on_flatpak_only_error, fp_rc)
             return
 
         GLib.idle_add(self._append_log, "── Applying system update ──\n")
@@ -1101,11 +1112,23 @@ class RaptorUpdateWindow(Adw.ApplicationWindow):
 
     def _on_flatpak_only_success(self):
         self._update_running = False
+        self._flatpak_has_update = False
         self.update_spinner.stop()
-        self._append_log("\n✓ All Flatpak apps are now up to date.\n")
+        self._append_log("\n✓ Flatpak update completed.\n")
         self._set_status("Flatpak apps updated. No reboot required.",
                          "emblem-ok-symbolic", "success")
         self.subtitle.set_text("Apps updated successfully.")
+        self.update_btn.set_sensitive(False)
+        self.check_btn.set_sensitive(True)
+
+    def _on_flatpak_only_error(self, rc):
+        self._update_running = False
+        self.update_spinner.stop()
+        self._append_log(f"\n✗ Flatpak update failed (exit {rc}).\n")
+        self._set_status("Flatpak update failed. Check the console and retry.",
+                         "dialog-warning-symbolic", "warning")
+        self.subtitle.set_text("Flatpak update did not complete.")
+        self.update_btn.set_sensitive(self._flatpak_has_update)
         self.check_btn.set_sensitive(True)
 
     def _on_update_success(self):
