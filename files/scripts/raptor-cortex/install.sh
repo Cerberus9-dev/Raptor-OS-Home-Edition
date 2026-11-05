@@ -316,6 +316,14 @@ case "$ACTION" in
             echo "Unable to activate power profile '$PPD_PROFILE'; check supported profiles and power-profiles-daemon" >&2
             exit 1
         fi
+        ACTUAL_PROFILE="$(timeout 5s powerprofilesctl get 2>/dev/null)" || {
+            echo "Could not verify the active Power Profiles selection" >&2
+            exit 1
+        }
+        if [ "$ACTUAL_PROFILE" != "$PPD_PROFILE" ]; then
+            echo "Power Profiles mismatch: requested $PPD_PROFILE, active $ACTUAL_PROFILE" >&2
+            exit 1
+        fi
 
         case "$MODE" in
             power_saving)
