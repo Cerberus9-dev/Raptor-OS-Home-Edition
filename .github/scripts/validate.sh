@@ -130,5 +130,7 @@ assert_contains files/system_files/99-raptor-wireplumber-alsa.conf 'api.alsa.per
 assert_contains files/system_files/raptor-chat-choice.sh 'Equibop'
 assert_contains files/system_files/raptor-chat-choice.sh 'GoofCord'
 assert_contains files/system_files/raptor-browser-choice.sh 'Zen Browser'
-assert_contains files/system_files/raptor-browser-choice.sh 'Helium'
+assert_contains files/system_files/raptor-browser-choice.sh 'Floorp'
+assert_contains files/system_files/raptor-browser-choice.sh 'Waterfox'
+assert_not_contains files/system_files/raptor-browser-choice.sh 'Helium'
 echo "All v2.9.0 release contracts passed."
