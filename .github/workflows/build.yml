@@ -121,22 +121,6 @@ jobs:
           echo "include=false" >> "$GITHUB_OUTPUT"
           echo "One-time applications are disabled for this run."
 
-      - name: Fetch pinned upstream Shroudly source once
-        if: ${{ steps.one_time_apps.outputs.include == 'true' }}
-        run: git submodule update --init --recursive files/scripts/shroudly-raptor/upstream
-
-      - name: Verify pinned upstream Shroudly source
-        if: ${{ steps.one_time_apps.outputs.include == 'true' }}
-        run: |
-          set -euo pipefail
-          UPSTREAM=files/scripts/shroudly-raptor/upstream
-          test -f "$UPSTREAM/package.json"
-          test -f "$UPSTREAM/electron/main.js"
-          test -f "$UPSTREAM/core/src/engine.c"
-          test -f "$UPSTREAM/LICENSE"
-          git -C "$UPSTREAM" rev-parse --short HEAD
-          echo "Upstream Shroudly source and MIT license are present."
-
       - name: Check signing secret
         if: github.event_name != 'pull_request'
         env:
