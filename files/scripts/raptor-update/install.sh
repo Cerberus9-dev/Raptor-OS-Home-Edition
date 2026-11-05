@@ -549,6 +549,11 @@ def check_for_updates(emit=None):
     try:
         helper = run_privileged(CHECK_HELPER, action_id=CHECK_ACTION)
     except RuntimeError as exc:
+        # A missing auth agent must not hide an update that is already cached
+        # or staged locally; report the local deployment state first.
+        local_has, local_msg = _local_update_signal()
+        if local_has:
+            return True, local_msg
         return False, f"Could not start update check ({exc})."
 
     deadline = time.monotonic() + CHECK_TIMEOUT
