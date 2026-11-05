@@ -109,7 +109,7 @@ _apply_nvme_power() {
     esac
     for f in /sys/class/nvme/nvme*/power/control; do
         [ -w "$f" ] || continue
-        printf '%s\\n' "$state" > "$f" 2>/dev/null || true
+        printf '%s\n' "$state" > "$f" 2>/dev/null || true
     done
 }
 _apply_usb_autosuspend() {
