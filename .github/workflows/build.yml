@@ -26,7 +26,7 @@ on:
   workflow_dispatch:
     inputs:
       include_one_time_apps:
-        description: 'Include Raptor Music and Shroudly in this single image build'
+        description: 'Maintainer recovery fallback; release marker enables the first successful v2.9.0 main image build'
         required: false
         type: boolean
         default: false
