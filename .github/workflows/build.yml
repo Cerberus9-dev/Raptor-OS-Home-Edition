@@ -76,7 +76,7 @@ jobs:
     name: Build & Push Image
     runs-on: ubuntu-latest
     concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+      group: ${{ github.workflow }}-${{ github.ref }}
       cancel-in-progress: ${{ github.event_name == 'push' || github.event_name == 'pull_request' }}
     permissions:
       contents: write
@@ -258,6 +258,32 @@ jobs:
           pr_event_number: ${{ github.event.number }}
           cosign_private_key: ${{ secrets.SIGNING_SECRET }}
 
+      - name: Verify both apps inside the published image
+        if: ${{ steps.one_time_apps.outputs.include == 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_ACTOR: ${{ github.actor }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          IMAGE_REF="ghcr.io/${REPOSITORY,,}:latest"
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GH_ACTOR" --password-stdin
+          docker pull "$IMAGE_REF"
+          docker run --rm --entrypoint /bin/bash "$IMAGE_REF" -lc '
+            set -euo pipefail
+            test -x /usr/bin/raptor-music
+            test -s /usr/share/applications/raptor-music.desktop
+            test -s /usr/share/icons/hicolor/scalable/apps/raptor-music.svg
+            test -x /usr/bin/shroudly
+            test -s /usr/share/applications/shroudly.desktop
+            test -s /opt/Shroudly/resources/app.asar
+            test -x /opt/Shroudly/resources/app.asar.unpacked/electron/tools/core/linux-x64/shroudly-core
+            test -x /opt/Shroudly/resources/app.asar.unpacked/electron/tools/core/linux-x64/shroudly-core-adv
+            test -s /usr/share/polkit-1/actions/me.codeshare.shroudly.policy
+            test -s /usr/share/icons/hicolor/256x256/apps/shroudly.png
+          '
+          echo "Published image contains both complete app payloads."
+
       # Consume the one-time switch ONLY after BlueBuild has successfully built
       # and pushed the image. A failed image build must not burn the one-time run.
       - name: Permanently consume the one-time integration
@@ -283,7 +309,7 @@ jobs:
               exit 0
             fi
             if [[ "$RECOVERY_RUN" == "true" ]]; then
-              echo "Recovery image contains the repaired app payload; moving the internal consumed marker to $IMAGE_COMMIT."
+              echo "Recovery image has passed app verification; moving the internal consumed marker to $IMAGE_COMMIT."
               gh api --method PATCH "repos/$REPOSITORY/git/refs/tags/raptor-one-time-apps-consumed" \
                 -F sha="$IMAGE_COMMIT" \
                 -F force=true >/dev/null
@@ -291,17 +317,17 @@ jobs:
               echo "::error::The one-time integration tag already exists but points to $existing_sha, not $IMAGE_COMMIT. Use the explicit maintainer recovery dispatch to repair the payload."
               exit 1
             fi
-          fi
-
-          if ! gh api --method POST "repos/$REPOSITORY/git/refs" \
-            -f ref="$ref" \
-            -f sha="$IMAGE_COMMIT"; then
-            # A concurrent retry may have created the tag after our first
-            # lookup. Accept that only when it points to this exact commit.
-            existing_sha="$(gh api "repos/$REPOSITORY/git/ref/tags/raptor-one-time-apps-consumed" --jq .object.sha 2>/dev/null || true)"
-            if [[ "$existing_sha" != "$IMAGE_COMMIT" ]]; then
-              echo "::error::Could not create the one-time integration tag; existing target is '${existing_sha:-missing}'."
-              exit 1
+          else
+            if ! gh api --method POST "repos/$REPOSITORY/git/refs" \
+              -f ref="$ref" \
+              -f sha="$IMAGE_COMMIT"; then
+              # A concurrent retry may have created the tag after our first
+              # lookup. Accept that only when it points to this exact commit.
+              existing_sha="$(gh api "repos/$REPOSITORY/git/ref/tags/raptor-one-time-apps-consumed" --jq .object.sha 2>/dev/null || true)"
+              if [[ "$existing_sha" != "$IMAGE_COMMIT" ]]; then
+                echo "::error::Could not create the one-time integration tag; existing target is '${existing_sha:-missing}'."
+                exit 1
+              fi
             fi
           fi
 
