@@ -1,6 +1,6 @@
 # Raptor OS
 **Current stable version: v2.8.0**  
-**Next release: v2.9.0 (Major Update) — in preparation**
+**Next release: v3.0.0 (Major Release) — in preparation**
 
 A custom Bazzite-based Linux distribution built for gaming — automatic GPU optimisation, low-latency audio, a green accent theme with Windows-style window management, and a zero-terminal firstboot experience.
 
@@ -32,7 +32,7 @@ Hardware baseline follows [Bazzite's published gaming requirements](https://docs
 
 ## Installation
 
-**Download Raptor OS only from the official [Internet Archive release page](https://archive.org/details/raptor-os_202605).** The page is the public distribution point for the ISO and its matching SHA-256 checksum. End users do not need GitHub Actions access, repository permissions, or CI artifacts. When v2.9.0 (Major Update) is published, its ISO and checksum will be added to that same Archive.org item. The installer leaves disk selection and partitioning interactive; it does not automatically erase a drive.
+**Download Raptor OS only from the official [Internet Archive release page](https://archive.org/details/raptor-os_202605).** The page is the public distribution point for the ISO and its matching SHA-256 checksum. End users do not need GitHub Actions access, repository permissions, or CI artifacts. When v3.0.0 (Major Release) is published, its ISO and checksum will be added to that same Archive.org item. The installer leaves disk selection and partitioning interactive; it does not automatically erase a drive.
 
 After downloading the ISO, flash it to a USB drive:
 
@@ -76,7 +76,7 @@ Three dialogs appear on the first login, in sequence:
 | **Media** | mpv (lightweight playback) |
 | **System** | htop, KDE Partition Manager, Plasma System Monitor, Gwenview, KCalc, Fastfetch, p7zip |
 | **Raptor Apps** | Raptor Cortex, Raptor Wallpaper, Raptor Update Manager — grouped under their own **Raptor OS** category in the app menu |
-| **One-time integrations** | Raptor Music and the transitional Shroudly monitor prototype are staged only in the first successful v2.9.0 image; the original Shroudly Linux app is not yet integrated and is not claimed as complete |
+| **One-time integrations** | Raptor Music and the transitional Shroudly monitor prototype are staged only in the first successful v3.0.0 image; the original Shroudly Linux app is not yet integrated and is not claimed as complete |
 | **Overlays** | MangoHud (green palette, Shift+F12), Gamemode |
 
 ---
@@ -128,7 +128,7 @@ Gallery-style wallpaper picker — click any thumbnail to apply it, including fo
 
 ## Raptor Music
 
-Native Rust/Slint local music player. Recursively scans folders into a SQLite library, extracts available tags and durations, supports local playlists and queue loading, and plays local audio through a `cpal` backend with pause/resume, previous/next queue controls, and automatic track advance. The scanner recognizes AAC, AIFF, ALAC, CAF, FLAC, M4A, MP3, MP4, Ogg, Opus, and WAV extensions supported by its Symphonia build. The library database is stored under `$XDG_DATA_HOME/raptor-music/` (or `~/.local/share/raptor-music/`). **Image inclusion is limited to the first successful v2.9.0 release image build**; the workflow permanently skips it on subsequent builds. This is a local-player prototype, not yet the completed independent multi-service music platform described in the project roadmap.
+Native Rust/Slint local music player. Recursively scans folders into a SQLite library, extracts available tags and durations, supports local playlists and queue loading, and plays local audio through a `cpal` backend with pause/resume, previous/next queue controls, and automatic track advance. The scanner recognizes AAC, AIFF, ALAC, CAF, FLAC, M4A, MP3, MP4, Ogg, Opus, and WAV extensions supported by its Symphonia build. The library database is stored under `$XDG_DATA_HOME/raptor-music/` (or `~/.local/share/raptor-music/`). **Image inclusion is limited to the first successful v3.0.0 release image build**; the workflow permanently skips it on subsequent builds. This is a local-player prototype, not yet the completed independent multi-service music platform described in the project roadmap.
 
 ## Discord alternatives
 
@@ -138,7 +138,7 @@ The first-boot chooser offers the official Discord client, Vesktop, Equibop, and
 
 ## Raptor Shroudly
 
-**Experimental prototype — not a completed Shroudly port.** The current Rust app is a transitional monitor; it does not provide the original upstream desktop UI, proxy routing, or packet-processing engine. The original Shroudly source is pinned as a submodule and preserved with MIT attribution to **umutxyp / Codeshare Technology Ltd**, but it has not yet been wired into the image. Image inclusion is limited to the first successful v2.9.0 release image build; the workflow permanently skips it on subsequent builds. Do not configure applications to use this prototype as a proxy.
+**Experimental prototype — not a completed Shroudly port.** The current Rust app is a transitional monitor; it does not provide the original upstream desktop UI, proxy routing, or packet-processing engine. The original Shroudly source is pinned as a submodule and preserved with MIT attribution to **umutxyp / Codeshare Technology Ltd**, but it has not yet been wired into the image. Image inclusion is limited to the first successful v3.0.0 release image build; the workflow permanently skips it on subsequent builds. Do not configure applications to use this prototype as a proxy.
 
 
 ---
