@@ -93,20 +93,33 @@ jobs:
         id: one_time_apps
         env:
           EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
           INCLUDE_ONE_TIME_APPS: ${{ inputs.include_one_time_apps }}
         run: |
           set -euo pipefail
-          if [[ "$EVENT_NAME" != "workflow_dispatch" || "$INCLUDE_ONE_TIME_APPS" != "true" ]]; then
-            echo "include=false" >> "$GITHUB_OUTPUT"
-            echo "One-time applications are disabled for this run."
-            exit 0
-          fi
           if git ls-remote --exit-code origin refs/tags/raptor-one-time-apps-consumed >/dev/null 2>&1; then
             echo "include=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::The one-time Raptor Music/Shroudly integration has already been consumed."
+            echo "The one-time Raptor Music/Shroudly integration has already been consumed."
             exit 0
           fi
-          echo "include=true" >> "$GITHUB_OUTPUT"
+
+          # The v2.9.0 release marker opts the first successful main-branch
+          # image build into the one-time payload. End users never run Actions.
+          if [[ "$EVENT_NAME" == "push" && "$REF_NAME" == "main" && -f ".github/one-time-apps-v2.9.0" ]]; then
+            echo "include=true" >> "$GITHUB_OUTPUT"
+            echo "Including the one-time app payload in the v2.9.0 release image."
+            exit 0
+          fi
+
+          # Retain a maintainer-only manual fallback for recovery if needed.
+          if [[ "$EVENT_NAME" == "workflow_dispatch" && "$INCLUDE_ONE_TIME_APPS" == "true" ]]; then
+            echo "include=true" >> "$GITHUB_OUTPUT"
+            echo "One-time app payload explicitly enabled by maintainer."
+            exit 0
+          fi
+
+          echo "include=false" >> "$GITHUB_OUTPUT"
+          echo "One-time applications are disabled for this run."
 
       - name: Fetch pinned upstream Shroudly source once
         if: ${{ steps.one_time_apps.outputs.include == 'true' }}
