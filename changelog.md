@@ -46,15 +46,13 @@
 
 #### Added
 
-- **Raptor Music and Raptor Shroudly are now installed and in the app menu.**
-  Both Rust apps lived in the repo as source only. CI now builds them and
-  stages the binaries into `files/staging/`, and two install scripts add them
-  to `/usr/bin` with `.desktop` entries in the **Raptor OS** category
-  (`Categories=X-RaptorOS;…`). Raptor Music needed its missing Slint UI file
-  (`raptor-music/crates/raptor-desktop/ui/main.slint`) and a `slint-build`
-  build script restored from the original working copy; without them the
-  desktop crate could not compile. If a local build does not stage a binary,
-  the install scripts warn and skip instead of failing the image.
+- **Raptor Music and the Shroudly prototype are packaged separately.**
+  CI builds the Rust applications and stages their binaries in
+  `files/staging/`. Raptor Music is installed as a usable local music-player
+  app with a Raptor OS desktop entry. Shroudly's desktop entry currently opens
+  only a disabled prototype that reports its status; it is not a working proxy
+  and does not open a listener or forward traffic. If a local build does not
+  stage a binary, the install scripts warn and skip instead of failing the image.
 - **Hardware recovery after suspend** (`files/scripts/raptor-hardware-fixes.sh`):
   one resume hook plus one 1-minute timer, no new apps or menu entries. On
   every resume it re-binds the touchpad's I2C/PS/2 driver, binds the kernel's
