@@ -4,6 +4,8 @@
 
 ### [0.2.18] (upcoming)
 
+- **Hardware recovery installer syntax:** repaired the Bluetooth watchdog's truncated `healthy()` function and removed its displaced closing lines, which caused the script validator to fail before the Rust and image build stages.
+
 - **Raptor Music playlist integrity:** playlist creation and renaming now reject blank names at the library API (not only in the desktop UI), and a transactional reorder method moves entries without losing their IDs or changing other tracks' relative order. Added regression tests for both cases.
 
 - **Shroudly false-success listener removed:** the app no longer opens a listener that acknowledged CONNECT without an upstream tunnel. Proxy launch now returns an explicit unsupported error, and documentation/installer comments state that the prototype is disabled.
