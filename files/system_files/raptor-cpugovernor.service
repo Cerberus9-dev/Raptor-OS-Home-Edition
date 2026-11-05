@@ -1,9 +1,8 @@
 [Unit]
 Description=Raptor OS CPU Governor
-# Run after the GPU profile service which also sets the CPU governor as part
-# of its profile logic (gpu-detect.sh). This service exists for boot ordering
-# only — it does NOT call gpu-detect.sh again (that would be redundant and add
-# ~0.5 s to boot for no benefit).
+# Run after GPU profile detection for deterministic boot ordering. GPU profile
+# changes no longer write CPU governors; this service applies the boot fallback,
+# and Raptor Cortex applies the user's persisted mode after the desktop starts.
 #
 # PartOf= was removed: it incorrectly coupled this service's lifecycle to
 # raptor-gpu-profile.service, causing confusing stop/restart behaviour.
