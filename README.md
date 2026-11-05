@@ -138,7 +138,7 @@ The first-boot chooser offers the official Discord client, Vesktop, Equibop, and
 
 ## Raptor Shroudly
 
-**Original upstream Shroudly Linux application.** v3.0.0 builds the pinned upstream Electron desktop app and both Linux engine binaries from source, preserves the upstream MIT license, and installs the original desktop entry and polkit action. The integration is staged only in the first successful v3.0.0 image build; later image builds skip the one-time payload. Attribution: **umutxyp / Codeshare Technology Ltd**. The upstream app remains separately maintained; Raptor's integration does not claim ownership of its source.
+**Local application monitor only.** Raptor Shroudly's current Rust prototype reports supported running applications; it is not a proxy and does not alter network routing. The upstream Shroudly source remains pinned and credited to **umutxyp / Codeshare Technology Ltd**, but its network-filter circumvention engine is not built or installed. The safe local monitor is staged only in the first successful v3.0.0 image build.
 
 
 ---
