@@ -305,6 +305,18 @@ case "$ACTION" in
         }
 
         case "$MODE" in
+            power_saving) PPD_PROFILE="power-saver" ;;
+            balanced)     PPD_PROFILE="balanced" ;;
+            performance)  PPD_PROFILE="performance" ;;
+        esac
+        # Fail before touching device/kernel settings if the requested profile
+        # is not exposed by this machine's power-profiles-daemon backend.
+        if ! timeout 10s powerprofilesctl set "$PPD_PROFILE"; then
+            echo "Unable to activate power profile '$PPD_PROFILE'; check supported profiles and power-profiles-daemon" >&2
+            exit 1
+        fi
+
+        case "$MODE" in
             power_saving)
                 # Leave all Powerdevil idle, suspend, lid and button settings
                 # untouched; the desktop power manager owns those actions.
@@ -354,7 +366,6 @@ case "$ACTION" in
                 # leaving power-saving. PowerDevil already dims on battery per the
                 # user's own Plasma power settings.
 
-                powerprofilesctl set power-saver 2>/dev/null || { echo "Failed to select PPD power-saver profile" >&2; exit 1; }
                 ;;
 
             balanced)
@@ -383,7 +394,6 @@ case "$ACTION" in
                 echo N > /sys/module/snd_hda_intel/parameters/power_save_controller 2>/dev/null || true
                 _apply_net_runtime_pm on
 
-                powerprofilesctl set balanced 2>/dev/null || { echo "Failed to select PPD balanced profile" >&2; exit 1; }
                 ;;
 
             performance)
@@ -416,7 +426,6 @@ case "$ACTION" in
 
                 # Avoid cache drops and memory compaction on mode switches:
                 # both can cause avoidable I/O or CPU spikes during game launch.
-                powerprofilesctl set performance 2>/dev/null || { echo "Failed to select PPD performance profile" >&2; exit 1; }
                 ;;
         esac
         ;;
@@ -428,7 +437,6 @@ case "$ACTION" in
         # services: those actions can create I/O spikes or disrupt peripherals.
         touch "$GAME_MODE_MARKER"
         : > "$GAME_MODE_PROCS_FILE"
-        _reclaim_user_slice 134217728
         for proc in "${BACKGROUND_PROCS[@]}"; do
             if { [ ! -f /etc/raptor/cortex-suspend.conf ] || grep -Fxq "$proc" /etc/raptor/cortex-suspend.conf; } &&
                pgrep -x "$proc" >/dev/null 2>&1; then
