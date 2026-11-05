@@ -39,6 +39,7 @@ export component MainWindow inherits Window {
     callback create_playlist_clicked();
     callback add_to_playlist_clicked();
     callback load_playlist_clicked();
+    callback remove_queue_clicked();
     callback add_to_queue_clicked();
     callback play_clicked();
     callback previous_clicked();
@@ -152,6 +153,10 @@ export component MainWindow inherits Window {
                         border-radius: 4px;
                         horizontal-stretch: 1;
                         TextInput {
+                            x: 6px;
+                            y: 0px;
+                            width: parent.width - 12px;
+                            height: parent.height;
                             text <=> root.new_playlist_name;
                             color: #e6edf6;
                             font-size: 12px;
@@ -228,6 +233,7 @@ export component MainWindow inherits Window {
                         }
                     }
                 }
+                Button { text: "Remove Selected"; clicked => { root.remove_queue_clicked(); } }
             }
         }
 

@@ -93,7 +93,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    let db_for_playlist_select = Arc::clone(&db);
     let ui_handle_playlist_select = ui.as_weak();
     ui.on_playlist_selected(move |pidx| {
         if let Some(ui) = ui_handle_playlist_select.upgrade() {
@@ -147,6 +146,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     let db_for_playlist_load = Arc::clone(&db);
+    let player_for_playlist_load = Arc::clone(&player);
+    let session_for_playlist_load = Arc::clone(&active_session_token);
+    let entry_for_playlist_load = Arc::clone(&active_playing_queue_entry_id);
     let ui_handle_playlist_load = ui.as_weak();
     ui.on_load_playlist_clicked(move || {
         let ui = match ui_handle_playlist_load.upgrade() {
@@ -158,6 +160,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             ui.set_player_state_label("Select a playlist".into());
             return;
         }
+        if let Some(token) = session_for_playlist_load.lock().unwrap().take() {
+            player_for_playlist_load.stop(token);
+        }
+        *entry_for_playlist_load.lock().unwrap() = None;
         let db_lock = db_for_playlist_load.lock().unwrap();
         let playlists = db_lock.get_playlists().unwrap_or_default();
         let playlist = match playlists.get(playlist_index as usize) {
@@ -222,6 +228,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         if previous >= 0 {
             ui.set_selected_queue_index(previous);
             ui.invoke_play_clicked();
+        }
+    });
+
+    let db_for_remove_queue = Arc::clone(&db);
+    let player_for_remove_queue = Arc::clone(&player);
+    let session_for_remove_queue = Arc::clone(&active_session_token);
+    let entry_for_remove_queue = Arc::clone(&active_playing_queue_entry_id);
+    let ui_handle_remove_queue = ui.as_weak();
+    ui.on_remove_queue_clicked(move || {
+        let ui = match ui_handle_remove_queue.upgrade() {
+            Some(ui) => ui,
+            None => return,
+        };
+        let selected = ui.get_selected_queue_index();
+        if selected < 0 {
+            return;
+        }
+        let mut queue = db_for_remove_queue.lock().unwrap().get_queue().unwrap_or_default();
+        if (selected as usize) >= queue.len() {
+            return;
+        }
+        let removed = queue.remove(selected as usize);
+        for (position, entry) in queue.iter_mut().enumerate() {
+            entry.position = position as i32;
+        }
+        if *entry_for_remove_queue.lock().unwrap() == Some(removed.queue_entry_id) {
+            if let Some(token) = session_for_remove_queue.lock().unwrap().take() {
+                player_for_remove_queue.stop(token);
+            }
+            *entry_for_remove_queue.lock().unwrap() = None;
+            ui.set_playing_queue_index(-1);
+        }
+        if db_for_remove_queue.lock().unwrap().save_queue(&queue).is_ok() {
+            refresh_queue_list(&ui, &db_for_remove_queue);
+            ui.set_selected_queue_index(-1);
         }
     });
 
