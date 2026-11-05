@@ -2,7 +2,7 @@
 set -e
 
 # =============================================================================
-# Raptor Cortex v4.1 — Unified Memory & Performance Management
+# Raptor Cortex v4.2 — Unified Memory & Performance Management
 # • RAM optimization with page cache management, compaction, zram recompress
 # • Background service trimming/restoring for gaming
 # • Seamless performance mode switching (no login required)
