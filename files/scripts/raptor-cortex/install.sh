@@ -2526,49 +2526,61 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         threading.Thread(target=save_cortex_config, args=(self._cortex_patterns,), daemon=True).start()
 
     def _on_mode_switch(self, row, mode_key):
-        # Update UI immediately so it feels responsive
-        self._current_mode = mode_key
-        self._refresh_mode_buttons()
-        self._update_mode_banner()
-        # Persist the selection so next app launch reads the right mode
-        persist_mode(mode_key)
-        # Apply the kernel tuning in a background thread
+        # Do not display or persist a profile until the system confirms it.
+        if getattr(self, "_mode_change_pending", False):
+            return
+        if mode_key == self._current_mode:
+            return
+        self._mode_change_pending = True
+        for key, (mode_row, _icon, _check) in self._mode_btns.items():
+            mode_row.set_sensitive(False)
         threading.Thread(target=self._apply_mode, args=(mode_key,), daemon=True).start()
 
     def _apply_mode(self, mode_key):
-        ok = True
+        result = subprocess.run(
+            ["sudo", HELPER, "set-mode", mode_key],
+            capture_output=True, text=True, timeout=30
+        )
+        applied = result.returncode == 0
+        detail = (result.stderr or result.stdout or "").strip()
 
-        result = subprocess.run(["sudo", HELPER, "set-mode", mode_key],
-                                capture_output=True, text=True)
-        if result.returncode != 0:
-            ok = False
-
-        if mode_key == "performance":
-            # Game Mode suspends its configured background workload only.
-            # It does not flush caches, compact memory, or rewrite OOM scores.
-            subprocess.run(["sudo", HELPER, "trim-background"],
-                           capture_output=True)
-        else:
-            # Restore anything Game Mode paused when leaving Performance.
-            subprocess.run(["sudo", HELPER, "restore-background"],
-                           capture_output=True)
+        background_ok = True
+        if applied and mode_key == "performance":
+            # Pause only the optional process set selected in Cortex.
+            game = subprocess.run(
+                ["sudo", HELPER, "trim-background"],
+                capture_output=True, text=True, timeout=30
+            )
+            background_ok = game.returncode == 0
+            if not background_ok:
+                detail = (game.stderr or game.stdout or "Game Mode setup failed").strip()
+        elif applied:
+            restore = subprocess.run(
+                ["sudo", HELPER, "restore-background"],
+                capture_output=True, text=True, timeout=30
+            )
+            background_ok = restore.returncode == 0
+            if not background_ok:
+                detail = (restore.stderr or restore.stdout or "Background restore failed").strip()
 
         gpu_note = ""
-        if (self._settings.get("gpu_follows_mode", True)
-                and os.path.exists("/usr/lib/raptor/gpu-detect.sh")):
-            gpu_profile = MODE_TO_GPU_PROFILE.get(mode_key)
-            if gpu_profile and get_gpu_profile() != gpu_profile:
-                gpu_ok, _gmsg = set_gpu_profile(gpu_profile)
-                gpu_note = " + GPU profile" if gpu_ok else " (GPU profile not changed)"
-                GLib.idle_add(self._refresh_gpu_profile)
+        if applied and self._settings.get("gpu_follows_mode", True):
+            if os.path.exists("/usr/lib/raptor/gpu-detect.sh"):
+                gpu_profile = MODE_TO_GPU_PROFILE.get(mode_key)
+                if gpu_profile and get_gpu_profile() != gpu_profile:
+                    gpu_ok, _gmsg = set_gpu_profile(gpu_profile)
+                    gpu_note = " + GPU profile" if gpu_ok else " (GPU profile not changed)"
+                    GLib.idle_add(self._refresh_gpu_profile)
 
         label = PERFORMANCE_MODES[mode_key][0]
-        if ok:
-            msg = f"Mode set to {label}{gpu_note}"
+        if not applied:
+            msg = f"{label} was not applied; previous mode remains active. {detail[:180]}"
+        elif not background_ok:
+            msg = f"{label} power profile applied, but Game Mode/background handling failed: {detail[:180]}"
         else:
-            msg = f"{label} could not be fully applied; check power-profiles-daemon and the system journal"
+            msg = f"Mode set to {label}{gpu_note}"
 
-        GLib.idle_add(self._on_mode_applied, msg)
+        GLib.idle_add(self._on_mode_applied, mode_key, applied, msg)
 
     def _refresh_gpu_profile(self):
         """Tick the row matching the active profile on disk."""
@@ -2611,9 +2623,17 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         self._toast_ok(f"GPU profile set to {title}")
         return False
 
-    def _on_mode_applied(self, message):
+    def _on_mode_applied(self, mode_key, applied, message):
+        self._mode_change_pending = False
+        if applied:
+            self._current_mode = mode_key
+            persist_mode(mode_key)
+            self._update_mode_banner()
+        self._refresh_mode_buttons()
+        for key, (mode_row, _icon, _check) in self._mode_btns.items():
+            mode_row.set_sensitive(key != self._current_mode)
         toast = Adw.Toast.new(message)
-        toast.set_timeout(3)
+        toast.set_timeout(5 if not applied else 3)
         self._toast_overlay.add_toast(toast)
         self._refresh_stats()
         return False
