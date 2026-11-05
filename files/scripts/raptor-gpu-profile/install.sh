@@ -92,7 +92,8 @@ PROFILE="auto"
 [ -f /etc/raptor-force-balanced ]    && PROFILE="balanced"
 echo "Active profile: $PROFILE"
 
-# Read driver-advertised Intel bounds; never guess fixed clock frequencies.
+# Hardware-specific GPU power controls. Always restore the driver's advertised
+# defaults when leaving Power Saving; never guess clock or wattage values.
 _set_intel_gpu_power_mode() {
     local mode="$1" card rpmin rpmax
     for card in /sys/class/drm/card*/; do
@@ -101,57 +102,34 @@ _set_intel_gpu_power_mode() {
         rpmin=$(cat "${card}gt_RPn_freq_mhz" 2>/dev/null || true)
         rpmax=$(cat "${card}gt_RP0_freq_mhz" 2>/dev/null || true)
         [[ "$rpmin" =~ ^[0-9]+$ && "$rpmax" =~ ^[0-9]+$ ]] || continue
-        echo "$rpmax" > "${card}gt_max_freq_mhz" 2>/dev/null || true
-        echo "$rpmin" > "${card}gt_min_freq_mhz" 2>/dev/null || true
         if [ "$mode" = "powersave" ]; then
+            echo "$rpmax" > "${card}gt_max_freq_mhz" 2>/dev/null || true
+            echo "$rpmin" > "${card}gt_min_freq_mhz" 2>/dev/null || true
             echo "$rpmin" > "${card}gt_max_freq_mhz" 2>/dev/null || true
+        else
+            echo "$rpmax" > "${card}gt_max_freq_mhz" 2>/dev/null || true
+            echo "$rpmin" > "${card}gt_min_freq_mhz" 2>/dev/null || true
         fi
     done
 }
 
-# AMD profile indexes vary by driver/GPU. Resolve names from the driver's
-# advertised profile table instead of assuming that index 1 or 2 is universal.
+_restore_nvidia_power_limit() {
+    command -v nvidia-smi >/dev/null 2>&1 || return 0
+    local default_limit
+    default_limit=$(nvidia-smi --query-gpu=power.default_limit --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d ' ')
+    if [[ "$default_limit" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+        nvidia-smi -pl "${default_limit%.*}" >/dev/null 2>&1 || true
+    fi
+}
+
 _set_amd_gpu_power_mode() {
-    local dpm="$1" profile="$2" f id
+    local dpm="$1" profile="$2" f
     for f in /sys/class/drm/card*/device/power_dpm_force_performance_level; do
-        [ -w "$f" ] && printf '%s\n' "$dpm" > "$f" 2>/dev/null || true
+        [ -w "$f" ] && echo "$dpm" > "$f" 2>/dev/null || true
     done
     for f in /sys/class/drm/card*/device/pp_power_profile_mode; do
-        [ -w "$f" ] || continue
-        id=$(awk -v wanted="$profile" '
-            NR > 1 {
-                name=$2
-                sub(/\*$/, "", name)
-                if (name == wanted) { print $1; exit }
-            }
-        ' "$f" 2>/dev/null)
-        [[ "$id" =~ ^[0-9]+$ ]] && printf '%s\n' "$id" > "$f" 2>/dev/null || true
+        [ -w "$f" ] && echo "$profile" > "$f" 2>/dev/null || true
     done
-}
-
-# Restore each NVIDIA GPU's own firmware default, not a guessed wattage.
-_restore_nvidia_power_limits() {
-    command -v nvidia-smi >/dev/null 2>&1 || return 0
-    local index limit
-    while IFS=',' read -r index limit; do
-        index="${index//[[:space:]]/}"
-        limit="${limit//[[:space:]]/}"
-        [[ "$index" =~ ^[0-9]+$ && "$limit" =~ ^[0-9]+([.][0-9]+)?$ ]] || continue
-        nvidia-smi -i "$index" -pl "${limit%.*}" >/dev/null 2>&1 || true
-    done < <(nvidia-smi --query-gpu=index,power.default_limit --format=csv,noheader,nounits 2>/dev/null)
-}
-
-_set_nvidia_power_saving() {
-    command -v nvidia-smi >/dev/null 2>&1 || return 0
-    local index limit target
-    nvidia-smi -pm 0 >/dev/null 2>&1 || true
-    while IFS=',' read -r index limit; do
-        index="${index//[[:space:]]/}"
-        limit="${limit//[[:space:]]/}"
-        [[ "$index" =~ ^[0-9]+$ && "$limit" =~ ^[0-9]+([.][0-9]+)?$ ]] || continue
-        target=$(awk -v value="$limit" 'BEGIN { printf "%d", value * 0.8 }')
-        [ "$target" -gt 0 ] && nvidia-smi -i "$index" -pl "$target" >/dev/null 2>&1 || true
-    done < <(nvidia-smi --query-gpu=index,power.default_limit --format=csv,noheader,nounits 2>/dev/null)
 }
 
 # ── Common env vars ───────────────────────────────────────────────────────────
@@ -171,6 +149,7 @@ RADV_PERFTEST=gpl"
 
 # ── Profile → env file ────────────────────────────────────────────────────────
 case "$PROFILE" in
+
   extreme)
     cat << ENVEOF > /etc/environment.d/raptor-gpu.conf
 # ── Raptor OS: EXTREME PERFORMANCE profile ───────────────────────────────────
@@ -182,16 +161,17 @@ __GL_SHADER_DISK_CACHE_SKIP_CLEANUP=1
 __GL_THREADED_OPTIMIZATIONS=1
 AMDGPU_HIGH_POWER=1
 PROTON_ENABLE_NVAPI=1
+# DXVK_ASYNC=1  ← set per-game, not globally (causes shader flicker)
 DXVK_FRAME_RATE=0
 VKD3D_CONFIG=dxr11,dxr
 VKD3D_FEATURE_LEVEL=12_2
 $COMMON_VARS
 ENVEOF
-    [ "$GPU_VENDOR" = "amd" ] && _set_amd_gpu_power_mode high 3D_FULL_SCREEN
-    [ "$GPU_VENDOR" = "intel" ] && _set_intel_gpu_power_mode performance
+    if [ "$GPU_VENDOR" = "amd" ]; then _set_amd_gpu_power_mode high 1; fi
+    if [ "$GPU_VENDOR" = "intel" ]; then _set_intel_gpu_power_mode performance; fi
     if [ "$GPU_VENDOR" = "nvidia" ]; then
-        _restore_nvidia_power_limits
-        nvidia-smi -pm 1 >/dev/null 2>&1 || true
+        _restore_nvidia_power_limit
+        nvidia-smi -pm 1 > /dev/null 2>&1 || true
     fi
     ;;
 
@@ -205,15 +185,16 @@ __GL_SHADER_DISK_CACHE=1
 __GL_SHADER_DISK_CACHE_SKIP_CLEANUP=1
 __GL_THREADED_OPTIMIZATIONS=1
 PROTON_ENABLE_NVAPI=1
+# DXVK_ASYNC=1  ← set per-game, not globally (causes shader flicker)
 VKD3D_CONFIG=dxr11
 VKD3D_FEATURE_LEVEL=12_1
 $COMMON_VARS
 ENVEOF
-    [ "$GPU_VENDOR" = "amd" ] && _set_amd_gpu_power_mode high 3D_FULL_SCREEN
-    [ "$GPU_VENDOR" = "intel" ] && _set_intel_gpu_power_mode performance
+    if [ "$GPU_VENDOR" = "amd" ]; then _set_amd_gpu_power_mode high 1; fi
+    if [ "$GPU_VENDOR" = "intel" ]; then _set_intel_gpu_power_mode performance; fi
     if [ "$GPU_VENDOR" = "nvidia" ]; then
-        _restore_nvidia_power_limits
-        nvidia-smi -pm 1 >/dev/null 2>&1 || true
+        _restore_nvidia_power_limit
+        nvidia-smi -pm 1 > /dev/null 2>&1 || true
     fi
     ;;
 
@@ -226,32 +207,48 @@ __GL_SHADER_DISK_CACHE=1
 PROTON_ENABLE_NVAPI=1
 $COMMON_VARS
 ENVEOF
-    [ "$GPU_VENDOR" = "amd" ] && _set_amd_gpu_power_mode auto BOOTUP_DEFAULT
-    [ "$GPU_VENDOR" = "intel" ] && _set_intel_gpu_power_mode balanced
+    if [ "$GPU_VENDOR" = "amd" ]; then _set_amd_gpu_power_mode auto 0; fi
+    if [ "$GPU_VENDOR" = "intel" ]; then _set_intel_gpu_power_mode balanced; fi
     if [ "$GPU_VENDOR" = "nvidia" ]; then
-        _restore_nvidia_power_limits
-        nvidia-smi -pm 0 >/dev/null 2>&1 || true
+        _restore_nvidia_power_limit
+        nvidia-smi -pm 0 > /dev/null 2>&1 || true
     fi
     ;;
 
   powersave)
     cat << ENVEOF > /etc/environment.d/raptor-gpu.conf
 # ── Raptor OS: POWER SAVING profile ──────────────────────────────────────────
+# Shader cache stays ENABLED. It used to be disabled to save disk writes, but
+# recompiling shaders on every launch costs far more CPU/GPU energy than the
+# occasional cache write saves.
 MESA_SHADER_CACHE_DISABLE=false
+# Disable threaded optimizations: fewer background threads = lower idle power.
 __GL_THREADED_OPTIMIZATIONS=0
 $COMMON_VARS
 ENVEOF
-    [ "$GPU_VENDOR" = "amd" ] && _set_amd_gpu_power_mode low POWER_SAVING
     if [ "$GPU_VENDOR" = "amd" ]; then
+        # Use the driver's low-power DPM and Power Saving workload profile.
+        # Avoid manual overdrive clock caps that can remain after profile changes.
+        _set_amd_gpu_power_mode low 2
         for f in /sys/kernel/debug/dri/*/amdgpu_gfxoff; do
-            [ -w "$f" ] && echo 1 > "$f" 2>/dev/null || true
+            echo 1 > "$f" 2>/dev/null || true
         done
     fi
     if [ "$GPU_VENDOR" = "intel" ]; then
         _set_intel_gpu_power_mode powersave
+        # Preserve the existing Intel Panel Self Refresh power-saving feature.
         echo 1 > /sys/module/i915/parameters/enable_psr 2>/dev/null || true
     fi
-    [ "$GPU_VENDOR" = "nvidia" ] && _set_nvidia_power_saving
+    if [ "$GPU_VENDOR" = "nvidia" ]; then
+        # Let the GPU power down at idle and apply a conservative 80% TDP cap.
+        # Other profiles restore the firmware default power limit.
+        nvidia-smi -pm 0 > /dev/null 2>&1 || true
+        MAX_PL=$(nvidia-smi --query-gpu=power.default_limit --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d ' ')
+        if [[ "$MAX_PL" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+            TARGET=$(awk -v limit="$MAX_PL" 'BEGIN { printf "%d", limit * 0.8 }')
+            [ "$TARGET" -gt 0 ] && nvidia-smi -pl "$TARGET" > /dev/null 2>&1 || true
+        fi
+    fi
     ;;
 
   auto|*)
@@ -262,6 +259,7 @@ __GL_SHADER_DISK_CACHE=1
 __GL_SHADER_DISK_CACHE_SKIP_CLEANUP=1
 __GL_THREADED_OPTIMIZATIONS=1
 PROTON_ENABLE_NVAPI=1
+# DXVK_ASYNC=1  ← set per-game, not globally (causes shader flicker)
 VKD3D_CONFIG=dxr11
 $COMMON_VARS
 ENVEOF
@@ -279,6 +277,7 @@ AMD_VULKAN_ICD=RADV
 MESA_SHADER_CACHE_DISABLE=false
 MESA_SHADER_CACHE_MAX_SIZE=2G
 __GL_SHADER_DISK_CACHE=1
+# DXVK_ASYNC=1  ← set per-game, not globally (causes shader flicker)
 $COMMON_VARS
 ENVEOF
     elif [ "$GPU_VENDOR" = "intel" ]; then
@@ -295,11 +294,12 @@ MESA_SHADER_CACHE_DISABLE=false
 $COMMON_VARS
 ENVEOF
     fi
-    [ "$GPU_VENDOR" = "amd" ] && _set_amd_gpu_power_mode auto BOOTUP_DEFAULT
-    [ "$GPU_VENDOR" = "intel" ] && _set_intel_gpu_power_mode balanced
+    # Auto restores firmware/driver defaults after a manually selected profile.
+    if [ "$GPU_VENDOR" = "amd" ]; then _set_amd_gpu_power_mode auto 0; fi
+    if [ "$GPU_VENDOR" = "intel" ]; then _set_intel_gpu_power_mode balanced; fi
     if [ "$GPU_VENDOR" = "nvidia" ]; then
-        _restore_nvidia_power_limits
-        nvidia-smi -pm 0 >/dev/null 2>&1 || true
+        _restore_nvidia_power_limit
+        nvidia-smi -pm 0 > /dev/null 2>&1 || true
     fi
     ;;
 esac
@@ -444,6 +444,10 @@ for raptor_f in $RAPTOR_EXPECTED_PAYLOAD; do
 done
 if [ -n "$raptor_missing" ]; then
     echo "GPU_PROFILE_PAYLOAD_MISSING:$raptor_missing" >&2
+    exit 1
+fi
+if ! bash -n /usr/lib/raptor/gpu-detect.sh; then
+    echo "GPU_PROFILE_SHELL_SYNTAX_ERROR:/usr/lib/raptor/gpu-detect.sh" >&2
     exit 1
 fi
 echo "GPU_PROFILE_READY payload=$(echo $RAPTOR_EXPECTED_PAYLOAD | wc -w | tr -d ' ') files verified"
