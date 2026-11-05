@@ -64,7 +64,7 @@ GAME_MODE_MARKER="/run/raptor-game-mode-active"
 #
 # Package managers, communications, user applications, audio, and device
 # services are deliberately excluded from Game Mode suspension.
-BACKGROUND_PROCS=
+BACKGROUND_PROCS=(
     # Indexing and thumbnail work only. Keep communications, audio, package
     # management, printers, storage maintenance, and user applications running.
     "tracker-miner" "tracker-store" "tracker3"
@@ -171,64 +171,9 @@ _apply_sata_link_power() {
     done
 }
 
-_apply_epp() {
-    # energy_performance_preference: power | balance_power | balance_performance | performance
-    # This is the biggest single battery saver on Intel HWP and AMD P-state systems.
-    # Sets a hardware-level hint that goes directly to the processor's internal
-    # P-state controller, separate from the software governor.
-    local EPP="$1"
-    for cpu_pol in /sys/devices/system/cpu/cpufreq/policy*; do
-        local f="$cpu_pol/energy_performance_preference"
-        if [ -f "$f" ]; then
-            echo "$EPP" > "$f" 2>/dev/null || true
-        fi
-    done
-    # Intel energy_perf_bias: 0=performance, 15=power (legacy interface)
-    if [ -f /sys/devices/system/cpu/cpu0/power/energy_perf_bias ]; then
-        case "$EPP" in
-            power)               BIAS=15 ;;
-            balance_power)       BIAS=10 ;;
-            balance_performance) BIAS=6  ;;
-            performance)         BIAS=0  ;;
-            *)                   BIAS=6  ;;
-        esac
-        for f in /sys/devices/system/cpu/cpu*/power/energy_perf_bias; do
-            echo "$BIAS" > "$f" 2>/dev/null || true
-        done
-    fi
-}
-
-_apply_cpu_max_freq_pct() {
-    # Cap scaling_max_freq to a percentage of cpuinfo_max_freq.
-    # Pass 100 to restore to physical maximum.
-    local PCT="$1"
-    for pol in /sys/devices/system/cpu/cpufreq/policy*; do
-        MAX=$(cat "$pol/cpuinfo_max_freq" 2>/dev/null || echo 0)
-        if [ "$MAX" -gt 0 ]; then
-            if [ "$PCT" -eq 100 ]; then
-                echo "$MAX" > "$pol/scaling_max_freq" 2>/dev/null || true
-            else
-                TARGET=$(( MAX * PCT / 100 ))
-                echo "$TARGET" > "$pol/scaling_max_freq" 2>/dev/null || true
-            fi
-        fi
-    done
-}
-
-_apply_platform_profile() {
-    # low-power | balanced | performance
-    # Firmware-level power coordination: fan curves, VRM limits, thermal targets.
-    # More effective than software tuning alone on supported laptops.
-    local PROF="$1"
-    if [ -f /sys/firmware/acpi/platform_profile ]; then
-        # Map our names to platform_profile values
-        case "$PROF" in
-            power_saving) echo "low-power"    > /sys/firmware/acpi/platform_profile 2>/dev/null || true ;;
-            balanced)     echo "balanced"     > /sys/firmware/acpi/platform_profile 2>/dev/null || true ;;
-            performance)  echo "performance"  > /sys/firmware/acpi/platform_profile 2>/dev/null || true ;;
-        esac
-    fi
-}
+# CPU governor, boost, EPP, frequency caps and firmware platform profile
+# are exclusively managed by power-profiles-daemon. Do not write those sysfs
+# controls from Cortex; KDE Powerdevil must remain free to change them.
 
 _apply_net_runtime_pm() {
     # Enable runtime power management for network devices.
@@ -742,32 +687,17 @@ systemctl --global enable raptor-unfreeze.timer 2>/dev/null || true
 # ── Gamemode hooks ────────────────────────────────────────────────────────────
 cat << 'EOF' > /usr/lib/raptor/gamemode-start
 #!/bin/bash
-# GameMode only pauses optional indexers and applies its bounded latency
-# constraint. Avoid compaction, zram recompression and OOM-score changes on
-# every game launch; those add spikes and can make a 4 GB system less stable.
+# Single source of truth: Cortex pauses only configured optional indexers and
+# applies its bounded AC-only wake-latency constraint. No duplicate STOP loop.
+# Avoid compaction, zram recompression and OOM-score changes on every launch.
 sudo /usr/lib/raptor/cortex-helper trim-background 2>/dev/null || true
-CONFIG=/etc/raptor/cortex-suspend.conf
-[ -f "$CONFIG" ] || exit 0
-while IFS= read -r pattern; do
-    [ -z "$pattern" ] && continue
-    case "$pattern" in "#"*) continue ;; esac
-    /usr/lib/raptor/safe-signal STOP "$pattern"
-done < "$CONFIG"
 EOF
 chmod +x /usr/lib/raptor/gamemode-start
 
 cat << 'EOF' > /usr/lib/raptor/gamemode-end
 #!/bin/bash
-# Resume both configured process lists when present. Missing optional config
-# files must never skip the privileged restoration of the default services.
-for CONFIG in /etc/raptor/cortex-suspend.conf /etc/raptor/cortex-suspend.conf.default; do
-    [ -f "$CONFIG" ] || continue
-    while IFS= read -r pattern; do
-        [ -z "$pattern" ] && continue
-        case "$pattern" in "#"*) continue ;; esac
-        /usr/lib/raptor/safe-signal CONT "$pattern"
-    done < "$CONFIG"
-done
+# Restore exactly the process set that Cortex paused. The helper owns both
+# lists and the Game Mode marker, avoiding duplicate or drifting resume logic.
 sudo /usr/lib/raptor/cortex-helper restore-background 2>/dev/null || true
 EOF
 chmod +x /usr/lib/raptor/gamemode-end
