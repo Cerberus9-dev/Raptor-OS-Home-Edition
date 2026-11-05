@@ -150,7 +150,7 @@ jobs:
           df -h
 
       - name: Cache Raptor Music workspace
-        if: ${{ steps.one_time_apps.outputs.include == 'true' }}
+        if: ${{ steps.one_time_apps.outputs.include == 'true' || github.event_name == 'pull_request' }}
         uses: actions/cache@v4
         with:
           path: files/scripts/raptor-music/target
@@ -158,7 +158,7 @@ jobs:
           restore-keys: raptor-music-target-${{ runner.os }}-
 
       - name: Build Raptor Music
-        if: ${{ steps.one_time_apps.outputs.include == 'true' }}
+        if: ${{ steps.one_time_apps.outputs.include == 'true' || github.event_name == 'pull_request' }}
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
@@ -179,10 +179,14 @@ jobs:
             libudev-dev \
             libdbus-1-dev
           cargo build --release --workspace --manifest-path files/scripts/raptor-music/Cargo.toml
-          install -Dm755 files/scripts/raptor-music/target/release/raptor-desktop files/staging/raptor-music
+          if [[ "${{ steps.one_time_apps.outputs.include }}" == "true" ]]; then
+            install -Dm755 files/scripts/raptor-music/target/release/raptor-desktop files/staging/raptor-music
+          else
+            echo "PR validation only: built Raptor Music without staging it into the image."
+          fi
 
       - name: Test Raptor Music workspace
-        if: ${{ steps.one_time_apps.outputs.include == 'true' }}
+        if: ${{ steps.one_time_apps.outputs.include == 'true' || github.event_name == 'pull_request' }}
         run: cargo test --workspace --manifest-path files/scripts/raptor-music/Cargo.toml
 
       - name: Mark one-time app payload for this image only
