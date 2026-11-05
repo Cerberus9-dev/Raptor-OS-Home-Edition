@@ -20,10 +20,10 @@ This is the consolidation release for more than two months of sustained Raptor O
 
 ### One-time app integration
 
-- Raptor Music and Shroudly are opt-in for one manually dispatched image build. The workflow defaults the one-time app input to false; normal pushes, pull requests, and scheduled rebuilds do not fetch the Shroudly submodule, compile either app, run their tests, or stage their binaries.
-- A permanent Git tag, `raptor-one-time-apps-consumed`, locks the integration after the first successful opted-in image build. A second manual dispatch cannot rebuild or reinstall these apps.
-- The installers require the one-time staging marker. Without it, they remove any stale staged app binaries and skip installation. Generated binaries are no longer tracked in the source tree.
-- To include them in the intended build, manually dispatch **Build Raptor OS** once with `include_one_time_apps=true`. The successful build creates the permanent lock tag automatically.
+- A release marker opts the first successful v2.9.0 main-branch image build into the one-time Raptor Music and Shroudly payload; normal pull-request builds, unrelated pushes, and scheduled rebuilds skip it.
+- A permanent Git tag, `raptor-one-time-apps-consumed`, locks the integration only after that image has been successfully built and pushed. Later builds cannot rebuild or reinstall these apps.
+- The installers require the one-time staging marker. Without it, they remove stale staged app binaries and skip installation. Generated binaries are no longer tracked in the source tree.
+- A maintainer-only manual dispatch remains as a recovery fallback; end users never need to run GitHub Actions. The one-time integration is not consumed by a failed image build.
 
 ### Performance, audio, gaming, and update reliability
 
