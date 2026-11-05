@@ -300,6 +300,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 ui.set_current_track_title(title.into());
                                 ui.set_current_track_artist(artist.into());
                                 ui.set_playing_queue_index(qpos);
+                                ui.set_selected_queue_index(qpos);
                                 ui.set_player_state_label("Playing".into());
                             }
                         });
