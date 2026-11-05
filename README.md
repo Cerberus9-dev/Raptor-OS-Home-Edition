@@ -9,13 +9,16 @@ A custom Bazzite-based Linux distribution built for gaming — automatic GPU opt
 
 ## System Requirements
 
-| | Minimum | Recommended |
+| Component | Minimum to install and use | Recommended |
 |---|---|---|
-| **CPU** | 64-bit x86_64, 2 GHz+ quad-core | Recent AMD or Intel processor suited for Linux gaming |
-| **RAM** | 8 GB | 16 GB or more for larger games and multitasking |
-| **Storage** | ~20 GB (bare-basics default image — no optional apps chosen), SSD required | 50 GB+ if you add creative/dev tools from the optional picker; more for a real Steam library |
-| **GPU** | Any GPU supporting Vulkan 1.3+ | AMD or Intel Arc (best-supported); NVIDIA works, with some documented caveats |
-| **Boot** | UEFI required, disk must be GPT | — |
+| **CPU / architecture** | 64-bit x86_64 (AMD64/Intel 64); 4 cores, around 2 GHz | Recent 6-core AMD Ryzen or Intel Core processor |
+| **Memory** | 8 GB RAM for the supported baseline | 16 GB+ for gaming, browsers and multitasking |
+| **Graphics** | GPU with a working Linux driver and **Vulkan 1.3+** for the intended gaming experience | Modern AMD Radeon; Intel Arc is supported; NVIDIA requires the matching Raptor/NVIDIA image and has additional gaming caveats |
+| **Storage** | 50 GB free on an internal SSD; GPT partitioning | 120 GB+ SSD, plus separate space for games and optional apps |
+| **Firmware** | UEFI; legacy BIOS/CSM is unsupported | UEFI with Secure Boot configured if desired |
+| **Network** | Internet access for installation, updates and optional app downloads | Stable broadband |
+
+**Low-memory / Chromebook-class hardware:** Raptor is x86_64 only; ARM Chromebooks are not supported. Some x86_64 Chromebooks may boot if they provide compatible UEFI firmware, graphics/Vulkan support, storage and Wi-Fi, but device compatibility is not guaranteed. The 4 GB RAM configuration is an **optimization target under development, not a supported minimum**; expect reduced multitasking and game compatibility until it has been tested on real 4 GB devices. Vulkan 1.3 support is a capability requirement, not a promise that a particular game will run well.
 
 ---
 
@@ -91,11 +94,11 @@ Three dialogs appear on the first login, in sequence:
 
 ## Raptor Cortex — Performance & Memory Manager
 
-GTK4/Adwaita app with three modes (Power Saving / Balanced / Performance), using ZRAM-aware `vm.swappiness` values (100/100/80), CPU governor, Energy Performance Preference, CPU frequency limits, ACPI platform profile, PCIe ASPM, NVMe power, and audio-device stability safeguards. Mode changes reset the managed settings before applying the selected profile.
+GTK4/Adwaita app with Power Saving / Balanced / Performance modes. **power-profiles-daemon is the sole owner of CPU governor, boost, EPP, frequency and firmware power policy**, keeping KDE Powerdevil's battery slider functional. Cortex applies separate device-level tuning (such as PCIe/NVMe where supported) and reports failures instead of silently claiming success.
 
 - **Live stats** — RAM, swap, ZRAM, CPU boost, CPU/GPU temperature (colour-coded), CPU frequency, and time since the last optimization run
-- **Optimize Memory Now** — requests bounded application-memory reclaim only when available RAM is genuinely low; it does not flush useful file/game caches
-- **Quick Actions** — Pre-Game Boost (Performance mode + optional indexer pause), Restore Desktop, Clear Shader Cache
+- **Optimize Memory Now** — performs bounded, pressure-aware reclaim; it does not indiscriminately flush useful file/game caches
+- **Quick Actions** — One-Click Boost (Performance profile, supported GPU profile, optional indexer pause and pressure-aware memory reclaim), Restore Desktop, Clear Shader Cache
 - **Persistent Settings** — apply saved mode on every boot, auto-switch to Performance for games launched from the Game Library, auto-restore the previous mode when they exit
 - **Scheduled Cleanup** — optional, disabled-by-default pressure-aware memory reclaim on a configurable timer (5–120 min)
 - **Game Mode** — pauses only optional file indexers and thumbnail work; audio, networking, Bluetooth, package management, storage maintenance, and user applications remain available. Suspended work is restored when Game Mode ends
@@ -126,7 +129,7 @@ Native Rust/Slint music player. Recursively scans folders into a SQLite library,
 ## Performance
 
 ### GPU
-- **Auto GPU detection** at boot — AMD, NVIDIA, Intel, hybrid; sets Vulkan ICD, env vars, shader cache, CPU governor per profile
+- **Auto GPU detection** at boot — AMD, NVIDIA, Intel and hybrid configurations; selects supported GPU environment and driver settings. CPU power policy is handled separately by power-profiles-daemon
 - **`RADV_PERFTEST=gpl`** — cuts in-game shader compile stalls 30–60% on RDNA2+
 - **Mesa GL threading** system-wide via `/etc/drirc.d/` — ~10–20% throughput on CPU-bound OpenGL games
 - **`WINE_FULLSCREEN_FSR` and `DXVK_ASYNC` not set globally** — both caused flickering in OpenGL games (Project Zomboid). Set per-game in Steam launch options instead
@@ -145,17 +148,16 @@ Native Rust/Slint music player. Recursively scans folders into a SQLite library,
 - **Archive MIME defaults bound to Ark** — double-clicking a .zip/.tar/.7z/.rar opens it in Ark immediately
 
 ### CPU & Power
-- **Energy Performance Preference** — the single biggest battery saver on modern CPUs (Intel HWP, AMD P-state); cuts package power 20–40% in Power Saving mode vs governor alone
-- **CPU max frequency cap** (65% in Power Saving), **ACPI platform profile** coordination (fan curves, VRM limits at the firmware level on supported laptops)
-- **`kernel.sched_wakeup_granularity_ns=1000000`** — 1 ms vs kernel default 3 ms, reduces input/frame latency
-- **irqbalance** — suspended during game sessions to prevent IRQ reassignment causing frame-time spikes, restarted on exit
+- **power-profiles-daemon** owns CPU governor, boost, EPP, frequency limits and supported firmware platform profiles. KDE Powerdevil and Raptor Cortex use this shared interface, so the desktop battery slider remains authoritative
+- **Cortex device tuning** is limited to independent controls such as PCIe/NVMe power settings; unsupported hardware is left unchanged
+- **Game Mode** avoids repeatedly rewriting CPU policy or performing disruptive memory operations at game launch
 
-### Memory — idle ~2.5–3 GB
-- **Akonadi, tracker-miner-fs, plasma-browser-integration masked** by default — none are needed on a gaming system, together save 300–650 MB
-- **Baloo: filename-only indexing** — full-text content indexing disabled, 1 thread max
-- **ZRAM** — zstd compression, `min(RAM/2, 8 GB)`, priority 100, `discard` enabled
-- **`vm.page-cluster=0`**, **`vm.watermark_boost_factor=0`**, **`vm.min_free_kbytes=131072`** — avoids unnecessary decompression, reclaim bursts, and allocation stalls
-- **Optimize Memory Now** in Cortex — real app-memory reclaim, not just cache drops
+### Memory & Low-RAM Tuning
+- **ZRAM** — LZ4 compression, sized to `min(RAM/2, 8 GB)`, priority 100, `discard` enabled; LZ4 favors lower CPU overhead on older low-power processors
+- **Baloo** — filename-only indexing with full-text content indexing disabled and a reduced worker count
+- **Cortex One-Click Boost** — applies the Performance power profile, pauses configured optional indexers, and requests bounded memory reclaim only under pressure
+- **No blanket cache flushes, routine OOM-score changes or forced compaction** as a supposed memory booster
+- **4 GB support remains an unverified optimization target**. Actual idle footprint, browser workload, game performance and sustained memory pressure must be benchmarked on physical low-memory hardware before claiming a 4 GB smooth-use guarantee
 
 ### Audio
 - **PipeWire 512-sample quantum** (~10.7 ms) with matching low-latency config for **both** the native graph and the `pipewire-pulse` compatibility layer that Electron/Chromium apps (Discord, Spotify) actually route through — both configured with real-time scheduling
