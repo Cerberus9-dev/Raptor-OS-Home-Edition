@@ -610,9 +610,7 @@ chmod +x /usr/lib/raptor/safe-signal
 
 cat << 'EOF' > /usr/lib/raptor/unfreeze
 #!/bin/bash
-# Resume processes that Raptor froze and that must not stay frozen.
-#  - session-critical processes and single-instance apps are resumed ALWAYS
-#  - everything else Raptor may freeze is resumed whenever no game is running
+# Resume critical apps immediately, then recover old Raptor freezes once per boot.
 PROTECTED=(kded kwalletd kactivitymanagerd kglobalaccel kwin plasma ksmserver
            krunner kscreen gvfs dbus xdg- pipewire wireplumber pulseaudio
            polkit Xwayland firefox chrome chromium brave vivaldi opera msedge
@@ -622,20 +620,48 @@ KNOWN=(baloo tracker akonadi kdeconnectd zeitgeist tumblerd updatedb mlocate
        snapd evolution gnome-software packagekitd drkonqi obexd pcscd
        cups-browsed colord plasma-geolocation kio_thumbnail)
 [ -f /etc/raptor/cortex-suspend.conf ] && while IFS= read -r l; do
-    [[ -z "$l" || "$l" == \#* ]] || KNOWN+=("$l"); done < /etc/raptor/cortex-suspend.conf
+    [[ -z "$l" || "$l" == \\#* ]] || KNOWN+=("$l")
+done < /etc/raptor/cortex-suspend.conf
+
 gaming=0
+# Do not undo an active Cortex or standalone gaming-trimmer session.
+[ -e /run/raptor-game-mode-active ] && gaming=1
+[ -e /run/raptor-gaming-trim-active ] && gaming=1
 [ -e /run/raptor-cpu-dma-latency-held ] && gaming=1
-if command -v gamemoded >/dev/null 2>&1 && gamemoded -s 2>/dev/null | grep -qi "is active"; then gaming=1; fi
-match() { local c="$1" p; shift; for p in "$@"; do [[ "$c" == "${p:0:15}"* ]] && return 0; done; return 1; }
+if command -v gamemoded >/dev/null 2>&1 && gamemoded -s 2>/dev/null | grep -qi "is active"; then
+    gaming=1
+fi
+
+match() {
+    local c="$1" p
+    shift
+    for p in "$@"; do [[ "$c" == "${p:0:15}"* ]] && return 0; done
+    return 1
+}
+
 need_root=0
+LEGACY_STAMP="/run/raptor-unfreeze-legacy-recovered"
+legacy_recovery=0
+# Previous releases froze a broader list. Recover those processes once, after
+# any active game ends; current Game Mode uses its own exact per-session list.
+if [[ "$gaming" -eq 0 && ! -e "$LEGACY_STAMP" ]]; then
+    legacy_recovery=1
+fi
+
 while read -r pid stat comm uid; do
     [[ "$stat" == T* ]] || continue
     if match "$comm" "${PROTECTED[@]}"; then
         kill -CONT "$pid" 2>/dev/null || true
-    elif [[ "$gaming" -eq 0 ]] && match "$comm" "${KNOWN[@]}"; then
-        if [[ "$uid" == "$(id -u)" ]]; then kill -CONT "$pid" 2>/dev/null || true; else need_root=1; fi
+    elif [[ "$legacy_recovery" -eq 1 ]] && match "$comm" "${KNOWN[@]}"; then
+        if [[ "$uid" == "$(id -u)" ]]; then
+            kill -CONT "$pid" 2>/dev/null || true
+        else
+            need_root=1
+        fi
     fi
 done < <(ps -eo pid=,stat=,comm=,uid=)
+
+[[ "$legacy_recovery" -eq 1 ]] && touch "$LEGACY_STAMP"
 [[ "$need_root" -eq 1 ]] && sudo -n /usr/lib/raptor/cortex-helper restore-background >/dev/null 2>&1
 exit 0
 EOF
@@ -655,8 +681,8 @@ Description=Raptor: periodically resume frozen apps and services
 
 [Timer]
 OnStartupSec=20
-OnUnitActiveSec=45
-AccuracySec=5s
+OnUnitActiveSec=2min
+AccuracySec=15s
 
 [Install]
 WantedBy=timers.target
