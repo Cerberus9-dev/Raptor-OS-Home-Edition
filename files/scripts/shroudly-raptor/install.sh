@@ -30,13 +30,13 @@ cat << 'EOF' > /usr/share/applications/shroudly-raptor.desktop
 Version=1.0
 Type=Application
 Name=Raptor Shroudly
-GenericName=Proxy / DPI Bypass
-Comment=Shroudly Raptor local proxy (127.0.0.1:10808)
+GenericName=Experimental Proxy Prototype
+Comment=Incomplete prototype; does not forward network traffic
 Exec=/usr/bin/shroudly-raptor
 Icon=shroudly-raptor
 Terminal=true
 Categories=X-RaptorOS;Network;Utility;
-Keywords=proxy;dpi;bypass;shroudly;raptor;network;
+Keywords=proxy;shroudly;raptor;experimental;prototype;
 StartupNotify=false
 X-KDE-SubstituteUID=false
 EOF
