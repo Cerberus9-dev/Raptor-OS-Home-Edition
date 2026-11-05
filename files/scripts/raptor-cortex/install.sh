@@ -340,7 +340,7 @@ case "$ACTION" in
                 echo never > /sys/kernel/mm/transparent_hugepage/enabled 2>/dev/null || true
 
                 _apply_pcie_aspm       powersave
-                _apply_nvme_power      min_power
+                _apply_nvme_power      auto
                 _apply_usb_autosuspend 1
                 _apply_runtime_pm      auto
                 _apply_sata_link_power min_power
@@ -423,7 +423,7 @@ case "$ACTION" in
                 echo defer+madvise > /sys/kernel/mm/transparent_hugepage/defrag  2>/dev/null || true
 
                 _apply_pcie_aspm       performance
-                _apply_nvme_power      max_performance
+                _apply_nvme_power      on
                 _apply_usb_autosuspend 0
                 _apply_runtime_pm      on
                 _apply_sata_link_power max_performance
