@@ -294,6 +294,14 @@ MESA_SHADER_CACHE_DISABLE=false
 $COMMON_VARS
 ENVEOF
     fi
+    # Auto restores firmware/driver defaults after a manually selected profile.
+    if [ "$GPU_VENDOR" = "amd" ]; then _set_amd_gpu_power_mode auto 0; fi
+    if [ "$GPU_VENDOR" = "intel" ]; then _set_intel_gpu_power_mode balanced; fi
+    if [ "$GPU_VENDOR" = "nvidia" ]; then
+        _restore_nvidia_power_limit
+        nvidia-smi -pm 0 > /dev/null 2>&1 || true
+        nvidia-smi --auto-boost-default=1 > /dev/null 2>&1 || true
+    fi
     ;;
 esac
 
