@@ -207,9 +207,10 @@ user_pref("network.http.http3.enable", true);
 user_pref("network.prefetch-next", false);
 user_pref("network.dns.disablePrefetch", true);
 user_pref("network.predictor.enabled", false);
-// DNS-over-HTTPS via Cloudflare (mode 2 = preferred, falls back to system)
-user_pref("network.trr.mode", 2);
-user_pref("network.trr.uri", "https://cloudflare-dns.com/dns-query");
+// Respect the operating system's active per-network DNS resolver.
+// This preserves captive-portal and managed-network DNS behavior; Raptor's
+// system resolver already has a network-aware fallback policy.
+user_pref("network.trr.mode", 5);
 
 // ── Telemetry & bloat OFF ─────────────────────────────────────────────────────
 user_pref("toolkit.telemetry.enabled", false);
