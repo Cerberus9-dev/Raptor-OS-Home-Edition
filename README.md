@@ -60,7 +60,7 @@ systemctl reboot
 
 Three dialogs appear on the first login, in sequence:
 
-1. **Browser choice** — no browser ships in the image; Raptor keeps the default *minimal*. Choose Firefox, Brave, Zen Browser, Helium, Chromium, Chrome, or Edge (each a one-time Flathub download, Firefox pre-selected). Shows a network check, download progress bar, and retry prompt on failure. "Skip — No Browser" installs nothing and forces no default.
+1. **Browser choice** — no browser ships in the image; Raptor keeps the default *minimal*. Choose Firefox, Brave, Zen Browser, Floorp, Waterfox, Chromium, Chrome, or Edge (each a one-time Flathub download, Firefox pre-selected). Shows a network check, download progress bar, and retry prompt on failure. "Skip — No Browser" installs nothing and forces no default.
 2. **Chat client choice** — choose official Discord, Vesktop (Vencord), Equibop (Equicord), or GoofCord. None is pre-installed. "Skip — Install Neither" is always available.
 3. **App picker** — 90+ optional apps across 20 categories, including the GOverlay MangoHud config GUI, game-streaming stack (Moonlight + Sunshine), extra emulators, JetBrains IDEs, and VS Code. Nothing is pre-ticked. Everything here is also installable later from Discover or `flatpak install flathub <id>`. "Skip — Install Nothing" is always available.
 
