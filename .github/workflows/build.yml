@@ -67,8 +67,20 @@ jobs:
           chmod +x .github/scripts/validate.sh
           .github/scripts/validate.sh
 
+      - name: Cache Raptor Music workspace
+        uses: actions/cache@v4
+        with:
+          path: files/scripts/raptor-music/target
+          key: raptor-music-target-${{ runner.os }}-${{ hashFiles('files/scripts/raptor-music/Cargo.toml', 'files/scripts/raptor-music/crates/**/Cargo.toml') }}
+          restore-keys: raptor-music-target-${{ runner.os }}-
+
       - name: Build Raptor Music
         run: |
+          if [ -x files/scripts/raptor-music/target/release/raptor-desktop ]; then
+            echo "Reusing cached Raptor Music binary."
+            install -Dm755 files/scripts/raptor-music/target/release/raptor-desktop files/staging/raptor-music
+            exit 0
+          fi
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             pkg-config \
@@ -97,13 +109,22 @@ jobs:
 
       - name: Stage Rust apps for image build
         run: |
-          # BlueBuild cleans untracked files before its own checkout, and the
-          # image files module only copies files/staging into the image. Keep a
-          # stable copy in files/staging so the install scripts always see the
-          # binaries, even if the prebuilt paths above are cleaned.
           mkdir -p files/staging
           cp files/scripts/raptor-music/target/release/raptor-desktop files/staging/raptor-music
           cp files/scripts/shroudly-raptor/target/release/shroudly-raptor files/staging/shroudly-raptor
+
+      - name: Sync staged Rust apps to repo
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -f files/staging/raptor-music files/staging/shroudly-raptor
+          if git diff --staged --quiet; then
+            echo "Staged binaries unchanged; nothing to commit."
+          else
+            git commit -m "ci: update staged Rust app binaries"
+            git push || echo "Push skipped; branch is protected or read-only for this run."
+          fi
 
       - name: Upload Rust apps
         uses: actions/upload-artifact@v4
