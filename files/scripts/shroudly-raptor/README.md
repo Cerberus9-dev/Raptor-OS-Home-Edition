@@ -1,47 +1,49 @@
 # Shroudly Raptor
 
-Raptor's Shroudly integration is being rebuilt in stages around the upstream
-Shroudly project by **umutxyp**, a Codeshare Technology Ltd product.
+Raptor's Shroudly integration is based on the complete upstream **Shroudly**
+project by **umutxyp**, a **Codeshare Technology Ltd** product.
 
-Upstream project: https://github.com/umutxyp/Shroudly
+- Upstream: https://github.com/umutxyp/Shroudly
+- Pinned source: [upstream/](upstream/)
+- Upstream revision: `8c1ddbf4abfb3fafa73dca652830415d1b0aea7f`
+- License: MIT; see [UPSTREAM-LICENSE](UPSTREAM-LICENSE) and the upstream
+  repository's own `LICENSE`.
 
-## Current implementation status
+The upstream repository is included as a Git submodule rather than copied into
+a partial reimplementation. This retains its original directory structure,
+source files, build scripts, tests, Linux integration, and platform-specific
+code while keeping the upstream revision traceable. GitHub Actions checks out
+submodules recursively and verifies the key upstream source and license files.
 
-The current Raptor binary is an early local-monitoring build. It can detect
-selected running Linux game clients and display an honest status summary. It
-does **not** currently provide the upstream desktop UI, proxy engine, DNS
-forwarding, VPN routing, or packet-processing modes. No traffic is redirected,
-and no proxy listener is opened. The application must not be treated as a
-working network proxy.
+## Integration status
 
-The dashboard intentionally reports only information it can observe. It does
-not display simulated running states, fake port numbers, or placeholder app
-counts.
+The complete upstream source is now pinned in this repository. The current
+Raptor OS image build still contains the earlier Rust monitoring prototype;
+that prototype is transitional and is not the final Shroudly Raptor
+implementation. The original upstream desktop application and Linux engine
+have not yet been wired into the Raptor image build.
 
-## Raptor integration work
+Do not describe the transitional Rust binary as a complete Shroudly port.
+Raptor-specific work will be applied as a clearly documented patch layer over
+the upstream project, rather than replacing its architecture or discarding
+its original files.
 
-The intended integration preserves upstream attribution and compatible
-non-circumvention application functionality while adding Raptor-specific
-reliability, local application monitoring, and GameMode integration. The
-network-circumvention engine and packet-filter evasion functionality are not
-part of this Raptor integration.
+## Raptor improvement goals
 
-Planned work is staged and must be marked implemented only after it is built
-and tested:
+- Preserve the original Shroudly desktop UI, settings, engine architecture,
+  Linux desktop integration, and upstream behavior.
+- Improve KDE Plasma integration and compatibility with other supported
+  Linux desktops.
+- Improve startup, shutdown, diagnostics, logging, and error recovery.
+- Reduce unnecessary background resource use without removing useful
+  functionality.
+- Make application state and capability reporting accurate.
+- Keep Raptor-specific changes isolated and documented so upstream updates
+  can be reviewed and merged deliberately.
 
-- Desktop interface and settings adapted for Raptor.
-- Real application lifecycle and local process monitoring.
-- Raptor GameMode integration for local performance profiles.
-- Diagnostics, logs, error reporting, and safe shutdown.
-- Honest capability reporting for each supported platform.
+## Attribution
 
-## Upstream license and attribution
-
-The original Shroudly project is maintained by **umutxyp** and is a
-**Codeshare Technology Ltd** product. The upstream repository is licensed
-under the MIT License. Its copyright and license notice are preserved in
-[UPSTREAM-LICENSE](UPSTREAM-LICENSE).
-
-This repository's Raptor-specific code is an independent integration. It is
-not an official upstream release and is not endorsed by Codeshare Technology
-Ltd.
+Shroudly is maintained by **umutxyp** and is a product of
+**Codeshare Technology Ltd**. The upstream MIT license and copyright notice
+are preserved. Raptor OS is an independent downstream integration, not an
+official upstream release and not endorsed by Codeshare Technology Ltd.
