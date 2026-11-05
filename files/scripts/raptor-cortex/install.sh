@@ -62,12 +62,9 @@ GAME_MODE_MARKER="/run/raptor-game-mode-active"
 # stays SIGSTOP'd for the rest of the session (until reboot). Previously the two
 # lists drifted and 7 processes were left frozen permanently.
 #
-# Package-transaction tools (dpkg, apt-get, unattended-upgrade) are deliberately
-# ABSENT. SIGSTOPping dpkg mid-transaction holds the dpkg lock, and a lock left
-# held wedges every subsequent apt invocation until reboot. packagekitd is
-# handled by its own systemd stop below rather than SIGSTOP, which is safe
-# because PackageKit releases its transaction lock on SIGTERM.
-BACKGROUND_PROCS=(
+# Package managers, communications, user applications, audio, and device
+# services are deliberately excluded from Game Mode suspension.
+BACKGROUND_PROCS=
     # Indexing and thumbnail work only. Keep communications, audio, package
     # management, printers, storage maintenance, and user applications running.
     "tracker-miner" "tracker-store" "tracker3"
@@ -156,8 +153,11 @@ _apply_runtime_pm() {
         # rtw89, ath11k and others). The saving is a fraction of a watt.
         local cls
         cls=$(cat "${f%/power/control}/class" 2>/dev/null || echo 0)
+        # Keep network, wireless, and multimedia/audio controllers awake.
+        # Runtime-suspending PCI audio hardware can create wake-up pops or
+        # intermittent device loss on some laptop chipsets.
         case "$cls" in
-            0x02*|0x0d*) echo on > "$f" 2>/dev/null || true; continue ;;
+            0x02*|0x04*|0x0d*) echo on > "$f" 2>/dev/null || true; continue ;;
         esac
         echo "$P" > "$f" 2>/dev/null || true
     done
@@ -256,20 +256,11 @@ _apply_audio_powersave() {
     done
 }
 
-# ── cgroup v2 memory.reclaim — the actual "free RAM now" lever ────────────────
-# drop_caches only touches kernel-internal page/dentry/inode caches, which on
-# a freshly-booted system are often small (tens of MB). The vast majority of
-# "used" RAM on a gaming desktop is ANONYMOUS memory held by running apps —
-# Firefox tabs, Discord/Vesktop, Steam, etc. memory.reclaim (kernel 5.10+,
-# present on all Fedora/Bazzite kernels) asks the kernel to walk the LRU of
-# every process in a cgroup, write back dirty pages, drop clean pages, and
-# swap out cold anonymous pages to zram. This is what actually moves the
-# "Freed XXX MB" number in the Cortex UI.
-#
-# NEVER write to the root cgroup's memory.reclaim — that walks ALL processes
-# including system services and can reclaim pages a game is actively using.
-# Scoped to user.slice: covers Firefox/Vesktop/Steam/etc., not the kernel
-# or system daemons.
+# ── Pressure-aware cgroup v2 reclaim ─────────────────────────────────────────
+# The kernel already manages useful file/page caches; flushing them makes
+# games reload data from storage and can create stutter. Only ask user.slice
+# to reclaim a small amount when MemAvailable is genuinely low. Never touch
+# the root cgroup, which would include system services and unrelated tasks.
 _reclaim_user_slice() {
     # Reclaim only when the machine is genuinely under memory pressure.
     # One write at user.slice covers descendants; repeated nested writes can
@@ -402,7 +393,7 @@ case "$ACTION" in
                 # FIX: clear Powerdevil logout action BEFORE switching profile
                 _clear_powerdevil_session_action
 
-                echo 180  > /proc/sys/vm/swappiness                2>/dev/null || true
+                echo 100  > /proc/sys/vm/swappiness                2>/dev/null || true
                 echo 5    > /proc/sys/vm/dirty_ratio               2>/dev/null || true
                 echo 2    > /proc/sys/vm/dirty_background_ratio    2>/dev/null || true
                 # Conservative writeback intervals avoid large dirty-page buildup
@@ -425,8 +416,9 @@ case "$ACTION" in
                 # EPP still lets the CPU hit high P-states under burst load.
                 _apply_epp power
 
-                # Cap max frequency to 65% of physical max — prevents high-freq
-                # bursts under light loads. Restore with _apply_cpu_max_freq_pct 100
+                # Cap max frequency to 80% of physical max while on battery.
+                # This retains more burst responsiveness than the former 65% cap.
+                # Restore with _apply_cpu_max_freq_pct 100
                 _apply_cpu_max_freq_pct 80
 
                 # Firmware-level power profile: coordinates fan curves, VRM limits,
@@ -445,15 +437,9 @@ case "$ACTION" in
                 # wake-up clicks, delayed audio, and device transition glitches.
                 _apply_audio_powersave 0
 
-                # HDA audio powersave controller: separate from power_save flag.
-                # Allows the HD-audio controller itself (not just the codec) to
-                # power down — saves ~0.5-1 W on systems with HDA audio hardware.
-                echo Y > /sys/module/snd_hda_intel/parameters/power_save_controller                     2>/dev/null || true
-
-                # HDA audio powersave controller: separate from power_save flag.
-                # Allows the HD-audio controller itself (not just the codec) to
-                # power down — saves ~0.5-1 W on systems with HDA audio hardware.
-                echo Y > /sys/module/snd_hda_intel/parameters/power_save_controller                     2>/dev/null || true
+                # Keep the HDA controller awake as well; audio reliability takes
+                # priority over the small idle-power saving in this profile.
+                echo N > /sys/module/snd_hda_intel/parameters/power_save_controller 2>/dev/null || true
 
                 # Network device runtime PM: powers down NIC hardware between packets.
                 # Does NOT disconnect WiFi — the driver keeps the association alive;
@@ -480,7 +466,9 @@ case "$ACTION" in
             balanced)
                 # swappiness=30: lean toward keeping anonymous memory in RAM
                 # while still allowing some swapping for memory pressure relief.
-                echo 30   > /proc/sys/vm/swappiness                2>/dev/null || true
+                # ZRAM is fast compressed RAM; allow it to absorb cold pages
+                # before the system approaches OOM on low-memory machines.
+                echo 100  > /proc/sys/vm/swappiness                2>/dev/null || true
                 echo 20   > /proc/sys/vm/dirty_ratio               2>/dev/null || true
                 echo 8    > /proc/sys/vm/dirty_background_ratio    2>/dev/null || true
                 echo 1500 > /proc/sys/vm/dirty_writeback_centisecs 2>/dev/null || true
@@ -507,10 +495,10 @@ case "$ACTION" in
                 _apply_usb_autosuspend 1
                 _apply_runtime_pm      auto
                 _apply_sata_link_power medium_power
-                _apply_audio_powersave 1
-
-                # Restore audio controller to on (balanced doesn't need it saving power)
-                echo N > /sys/module/snd_hda_intel/parameters/power_save_controller                     2>/dev/null || true
+                # Keep codec and controller awake in Balanced mode to avoid
+                # power-state transitions during quiet audio or device wake-up.
+                _apply_audio_powersave 0
+                echo N > /sys/module/snd_hda_intel/parameters/power_save_controller 2>/dev/null || true
                 _apply_net_runtime_pm on
 
                 powerprofilesctl set balanced 2>/dev/null || true
@@ -521,9 +509,10 @@ case "$ACTION" in
                 # dirty_ratio=25: buffer up to 25% of RAM as dirty pages before
                 # any synchronous write stall — games write saves/logs rarely so
                 # a large dirty window avoids I/O stalls during gameplay.
-                echo 5   > /proc/sys/vm/swappiness                 2>/dev/null || true
-                echo 25  > /proc/sys/vm/dirty_ratio                2>/dev/null || true
-                echo 10  > /proc/sys/vm/dirty_background_ratio     2>/dev/null || true
+                # Keep ZRAM available under pressure instead of forcing OOM.
+                echo 80  > /proc/sys/vm/swappiness                 2>/dev/null || true
+                echo 10  > /proc/sys/vm/dirty_ratio                2>/dev/null || true
+                echo 5   > /proc/sys/vm/dirty_background_ratio     2>/dev/null || true
                 echo 500 > /proc/sys/vm/dirty_writeback_centisecs  2>/dev/null || true
                 echo 500 > /proc/sys/vm/dirty_expire_centisecs     2>/dev/null || true
                 echo 0   > /proc/sys/vm/laptop_mode                2>/dev/null || true
@@ -1717,7 +1706,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         self._mode_btns = {}
         self._toast_overlay = None
         self._build_ui()
-        GLib.timeout_add_seconds(2, self._refresh_stats)
+        GLib.timeout_add_seconds(5, self._refresh_stats)
         # First reading happens after the window is on screen (on a worker thread).
         GLib.idle_add(lambda: (self._refresh_stats(), False)[1])
 
@@ -1947,9 +1936,9 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
             "Quick Optimize covers the common case. Advanced options are available below if you want finer control.")
         content.append(opts_group)
 
-        # Quick Optimize — one click, auto-tuned to current performance profile
+        # Quick Optimize — pressure-aware and deliberately non-disruptive
         quick_row = Adw.ActionRow(title="Quick Optimize")
-        quick_row.set_subtitle("One-click memory optimization tuned to your current performance profile")
+        quick_row.set_subtitle("Small, pressure-aware memory reclaim only; no cache flushes or service shutdowns")
         quick_row.set_activatable(True)
         quick_icon = Gtk.Image.new_from_icon_name("system-run-symbolic")
         quick_icon.set_pixel_size(18)
@@ -1969,7 +1958,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         advanced_expander.add_row(self.opt_compact)
         self.opt_zram    = self._switch_row("zram recompress",                   "Recompress up to 128 idle pages when supported; no disk writeback", False)
         advanced_expander.add_row(self.opt_zram)
-        self.opt_swap    = self._switch_row("Swap pressure flush",               "Push cold pages to ZRAM swap (aggressive — use before gaming)",
+        self.opt_swap    = self._switch_row("Extra pressure reclaim",               "Request a larger reclaim only when available RAM is low",
                                              False)
         advanced_expander.add_row(self.opt_swap)
         self.opt_oom     = self._switch_row("Adjust OOM scores",                 "Optional process-priority policy; disabled by default", False)
@@ -2018,7 +2007,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
 
         boost_row = Adw.ActionRow(title="Pre-Game Boost")
         boost_row.set_subtitle(
-            "Switch to Performance mode, drop caches, reclaim ~1.5 GB from browser/Discord")
+            "Switch to Performance mode and pause optional indexers; reclaim memory only if RAM pressure is high")
         boost_row.set_activatable(True)
         boost_row.connect("activated", self._on_pregame_boost)
         boost_icon = Gtk.Image.new_from_icon_name("media-playback-start-symbolic")
