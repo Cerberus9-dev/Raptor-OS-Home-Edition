@@ -15,7 +15,7 @@ A custom Bazzite-based Linux distribution built for gaming — automatic GPU opt
 | **Memory** | 8 GB RAM | 16 GB+ for gaming, browsers and multitasking |
 | **Graphics API** | Working Linux graphics driver with **Vulkan 1.3+** | Modern discrete or integrated GPU with current Mesa / vendor driver |
 | **AMD GPU** | Radeon GCN/RDNA GPU supported by the in-kernel `amdgpu` driver and RADV | Radeon RX 5000-series / RDNA or newer |
-| **Intel GPU** | Vulkan 1.3-capable Intel graphics; Arc supported with caveats | Intel Arc or newer supported integrated graphics |
+| **Intel GPU** | Intel graphics only when the installed Mesa ANV driver exposes Vulkan 1.3; Arc is supported with caveats | Intel Arc discrete graphics; verify integrated GPUs individually with Vulkan capability detection |
 | **NVIDIA GPU** | Requires a matching NVIDIA driver image; support depends on GPU generation | Turing (GTX 16 / RTX) or newer with the appropriate driver image |
 | **Storage** | 50 GB free on an internal SSD; GPT partitioning | 120 GB+ SSD, plus separate space for games and optional apps |
 | **Firmware** | UEFI; legacy BIOS/CSM is unsupported | UEFI with Secure Boot configured if desired |
