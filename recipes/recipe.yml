@@ -190,6 +190,10 @@ modules:
   - type: systemd
     system:
       enabled:
+        # KDE Powerdevil's battery slider talks to this D-Bus service. Make
+        # the provider explicitly enabled instead of relying on a transient
+        # Wants= relationship from the initial-profile unit.
+        - power-profiles-daemon.service
         - raptor-ensure-services.service
         - raptor-gpu-profile.service
         - raptor-powerprofile.service
