@@ -323,11 +323,14 @@ cat << 'TRIMMER' > /usr/bin/raptor-trim-background.sh
 #!/bin/bash
 set -euo pipefail
 MARKER="/run/raptor-gaming-trim-active"
+PROCS_FILE="/run/raptor-gaming-trim-procs"
+BALOO_MARKER="/run/raptor-gaming-trim-baloo-active"
 if [ -f "$MARKER" ]; then
     echo "Raptor Game Mode background trim is already active."
     exit 0
 fi
 touch "$MARKER"
+: > "$PROCS_FILE"
 echo "=== Raptor Background Trimmer ==="
 
 # Pause optional indexing/thumbnail work only. Never flush page caches,
@@ -341,9 +344,12 @@ BACKGROUND_PROCS=(
 for proc in "${BACKGROUND_PROCS[@]}"; do
     if pgrep -x "$proc" >/dev/null 2>&1; then
         /usr/lib/raptor/safe-signal STOP "$proc" || true
+        printf '%s\n' "$proc" >> "$PROCS_FILE"
     fi
 done
-balooctl6 suspend 2>/dev/null || balooctl suspend 2>/dev/null || true
+if balooctl6 suspend 2>/dev/null || balooctl suspend 2>/dev/null; then
+    touch "$BALOO_MARKER"
+fi
 echo "=== Optional indexers paused. Run raptor-restore-background.sh after gaming. ==="
 TRIMMER
 chmod +x /usr/bin/raptor-trim-background.sh
@@ -352,17 +358,22 @@ cat << 'RESTORE' > /usr/bin/raptor-restore-background.sh
 #!/bin/bash
 set -euo pipefail
 MARKER="/run/raptor-gaming-trim-active"
+PROCS_FILE="/run/raptor-gaming-trim-procs"
+BALOO_MARKER="/run/raptor-gaming-trim-baloo-active"
 if [ ! -f "$MARKER" ]; then
     echo "No Raptor Game Mode background trim is active."
     exit 0
 fi
 echo "=== Raptor: Restoring background indexers ==="
-for proc in tracker-miner tracker-store tracker3 baloo_file baloo_file_extractor \
-            kio_thumbnail zeitgeist tumblerd updatedb mlocate; do
-    /usr/lib/raptor/safe-signal CONT "$proc" || true
-done
-balooctl6 resume 2>/dev/null || balooctl resume 2>/dev/null || true
-rm -f "$MARKER"
+if [ -f "$PROCS_FILE" ]; then
+    while IFS= read -r proc; do
+        [ -n "$proc" ] && /usr/lib/raptor/safe-signal CONT "$proc" || true
+    done < "$PROCS_FILE"
+fi
+if [ -f "$BALOO_MARKER" ]; then
+    balooctl6 resume 2>/dev/null || balooctl resume 2>/dev/null || true
+fi
+rm -f "$MARKER" "$PROCS_FILE" "$BALOO_MARKER"
 echo "=== Optional indexers restored; system services and user apps were left untouched. ==="
 RESTORE
 chmod +x /usr/bin/raptor-restore-background.sh
