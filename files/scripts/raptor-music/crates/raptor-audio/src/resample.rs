@@ -75,7 +75,13 @@ impl LinearResampler {
     /// Linear interpolation needs two input frames. The final input frame is
     /// emitted only if it is exactly on the output sampling grid; otherwise
     /// extrapolating beyond the final frame would invent audio data.
-    pub fn flush(&mut self, _output: &mut Vec<f32>) {
+    pub fn flush(&mut self, output: &mut Vec<f32>) {
+        if self.has_previous {
+            let final_input_position = self.input_frames_seen.saturating_sub(1) as f64;
+            if (self.next_output_position - final_input_position).abs() <= 1e-9 {
+                output.extend_from_slice(&self.previous_frame);
+            }
+        }
         self.next_output_position = 0.0;
         self.input_frames_seen = 0;
         self.has_previous = false;
@@ -93,7 +99,8 @@ mod tests {
         let mut out = Vec::new();
         r.process(&[0.0, 1.0], &mut out).unwrap();
         r.process(&[2.0, 3.0], &mut out).unwrap();
-        assert_eq!(out, vec![0.0, 1.0, 2.0]);
+        r.flush(&mut out);
+        assert_eq!(out, vec![0.0, 1.0, 2.0, 3.0]);
     }
 
     #[test]
@@ -101,11 +108,13 @@ mod tests {
         let mut r = LinearResampler::new(1, 2, 4).unwrap();
         let mut out = Vec::new();
         r.process(&[0.0, 1.0, 2.0], &mut out).unwrap();
-        assert_eq!(out.len(), 4);
+        r.flush(&mut out);
+        assert_eq!(out.len(), 5);
         assert_eq!(out[0], 0.0);
         assert!((out[1] - 0.5).abs() < 1e-6);
         assert_eq!(out[2], 1.0);
         assert!((out[3] - 1.5).abs() < 1e-6);
+        assert_eq!(out[4], 2.0);
         assert!(out.iter().all(|sample| *sample >= 0.0));
     }
 
@@ -114,7 +123,8 @@ mod tests {
         let mut r = LinearResampler::new(1, 4, 2).unwrap();
         let mut out = Vec::new();
         r.process(&[0.0, 1.0, 2.0, 3.0, 4.0], &mut out).unwrap();
-        assert_eq!(out, vec![0.0, 2.0]);
+        r.flush(&mut out);
+        assert_eq!(out, vec![0.0, 2.0, 4.0]);
     }
 
     #[test]
