@@ -96,6 +96,7 @@ jobs:
             bash -lc '
               set -euo pipefail
               dnf install -y lorax xorriso isomd5sum
+              ksvalidator -v F44 raptor-ks.cfg
               mkksiso --ks raptor-ks.cfg "$ISO_NAME" output/raptor-os-home-edition.iso
               xorriso -indev output/raptor-os-home-edition.iso -toc
             '
