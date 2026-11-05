@@ -152,8 +152,9 @@ setup_firefox_optimizations() {
     mkdir -p "$PROFILE_DIR"
     cat << 'FFJS' > "$PROFILE_DIR/user.js"
 // ── Raptor OS: Firefox Rendering, Privacy & Memory Hardening ─────────────────
-// Memory defaults are managed via /etc/firefox/policies/policies.json.
-// This file handles GPU compositing, rendering quality, and privacy.
+// These profile-local defaults also work with the Firefox Flatpak, which
+// cannot read the host's /etc/firefox/policies.json through its sandbox.
+// Users can override these defaults in about:config or their user.js.
 
 // ── GPU / WebRender ────────────────────────────────────────────────────────�[...]
 user_pref("layers.acceleration.enabled", true);
@@ -177,11 +178,17 @@ user_pref("javascript.options.mem.gc_incremental_slice_ms", 10);
 user_pref("javascript.options.mem.high_water_mark", 48);
 user_pref("javascript.options.mem.gc_high_frequency_time_limit_ms", 500);
 
+// ── Low-memory process and cache defaults ────────────────────────────────────
+user_pref("browser.cache.memory.capacity", 65536);
+user_pref("dom.ipc.processCount", 4);
+user_pref("dom.ipc.processCount.webIsolated", 2);
+user_pref("browser.tabs.unloadOnLowMemory", true);
+user_pref("media.memory_cache_max_size", 32768);
+
 // ── Disk cache (use disk, not memory, for media/page content) ─────────────────
 user_pref("browser.cache.disk.enable", true);
 user_pref("browser.cache.disk.capacity", 524288);
 user_pref("browser.cache.memory.enable", true);
-// browser.cache.memory.capacity set in policies.json (64 MB)
 
 // ── Network ───────────────────────────────────────────────────────────[...]
 // HTTP/2 + QUIC (HTTP/3) — pipelining was removed in Firefox 83, do not set it
@@ -231,7 +238,9 @@ FFJS
 
 for profdir in /home/*/.mozilla/firefox/*.default* \
                /home/*/.mozilla/firefox/*.default-release \
-               /root/.mozilla/firefox/*.default*; do
+               /root/.mozilla/firefox/*.default* \
+               /home/*/.var/app/org.mozilla.firefox/.mozilla/firefox/*.default* \
+               /home/*/.var/app/org.mozilla.firefox/.mozilla/firefox/*.default-release; do
     if [ -d "$profdir" ]; then
         setup_firefox_optimizations "$profdir"
         echo "Firefox optimizations applied: $profdir"
@@ -240,6 +249,8 @@ done
 
 mkdir -p /etc/skel/.mozilla/firefox/raptor-default
 setup_firefox_optimizations "/etc/skel/.mozilla/firefox/raptor-default"
+mkdir -p /etc/skel/.var/app/org.mozilla.firefox/.mozilla/firefox/raptor-default
+setup_firefox_optimizations "/etc/skel/.var/app/org.mozilla.firefox/.mozilla/firefox/raptor-default"
 
 # ── Brave optimization ───────────────────────────────────────────────────────��[...]
 setup_brave_optimizations() {
