@@ -324,14 +324,43 @@ setup_brave_optimizations "/etc/skel/.var/app/com.brave.Browser/config/BraveSoft
 # (/usr/local is reset on OSTree layer deployments)
 cat << 'BRAVELAUNCHER' > /usr/bin/brave-optimized
 #!/bin/bash
+set -euo pipefail
+
 FLAGS_FILE="$HOME/.config/BraveSoftware/Brave-Browser/Default/raptor-brave-flags.conf"
 FLATPAK_FLAGS_FILE="$HOME/.var/app/com.brave.Browser/config/BraveSoftware/Brave-Browser/Default/raptor-brave-flags.conf"
 if [ -f "$FLATPAK_FLAGS_FILE" ]; then
     FLAGS_FILE="$FLATPAK_FLAGS_FILE"
 fi
-EXTRA_FLAGS=""
+
+# Keep each configured Chromium flag as one array element. Avoid unquoted
+# command substitution: it breaks on spaces and makes shell syntax fragile.
+EXTRA_FLAGS=()
 if [ -f "$FLAGS_FILE" ]; then
-    EXTRA_FLAGS=$(grep -v '^#' "$FLAGS_FILE" | grep -v '^
+    while IFS= read -r flag || [ -n "$flag" ]; do
+        [[ -z "$flag" || "${flag:0:1}" == "#" ]] && continue
+        EXTRA_FLAGS+=("$flag")
+    done < "$FLAGS_FILE"
+fi
+
+# Scale worker caps to installed RAM without weakening Chromium site isolation.
+TOTAL_KB=$(awk '/^MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null || echo 0)
+if [[ "$TOTAL_KB" =~ ^[0-9]+$ ]] && [ "$TOTAL_KB" -le 8388608 ]; then
+    EXTRA_FLAGS+=(--num-raster-threads=2)
+else
+    EXTRA_FLAGS+=(--num-raster-threads=4)
+fi
+
+if command -v brave-browser >/dev/null 2>&1; then
+    exec brave-browser "${EXTRA_FLAGS[@]}" "$@"
+elif command -v brave >/dev/null 2>&1; then
+    exec brave "${EXTRA_FLAGS[@]}" "$@"
+elif command -v flatpak >/dev/null 2>&1 && flatpak info com.brave.Browser >/dev/null 2>&1; then
+    exec flatpak run com.brave.Browser "${EXTRA_FLAGS[@]}" "$@"
+else
+    echo "Brave is not installed. Install the native or Flatpak Brave package first." >&2
+    exit 127
+fi
+BRAVELAUNCHER
 chmod +x /usr/bin/brave-optimized
 
 # ── Background process trimmer ─────────────────────────────────────────────────
