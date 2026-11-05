@@ -263,10 +263,14 @@ export component MainWindow inherits Window {
                         value <=> root.playback_position_secs;
                         enabled: root.duration_secs > 0;
                         horizontal-stretch: 1;
-                        changed(value) => {
-                            root.is_seeking = true;
-                            root.seek_clicked(value);
+                        changed(value) => { root.is_seeking = true; }
+                    }
+                    Button {
+                        text: "Seek";
+                        enabled: root.duration_secs > 0;
+                        clicked => {
                             root.is_seeking = false;
+                            root.seek_clicked(root.playback_position_secs);
                         }
                     }
                 }

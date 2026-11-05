@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- **Raptor Music Slint compatibility:** replaced the Slider `released` callback (not available in the project's Slint 1.5 dependency) with its supported `changed` callback and an explicit Seek action, preventing a UI compile failure.
+
 - **Slint 1.5 compatibility:** use the standard Slider's supported `changed` callback for seek requests; Slint 1.5 does not expose the newer `released` callback.
 
 - **Cortex hardware telemetry:** expanded CPU temperature detection across common thermal-zone and hwmon drivers, selects labelled CPU package sensors instead of blindly reporting thermal_zone0, reads GPU edge/core labels from AMD/Intel hwmon, and handles multi-GPU NVIDIA temperature output without a parse failure.
