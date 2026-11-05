@@ -4,6 +4,8 @@
 
 ### [0.2.18] (upcoming)
 
+- **Raptor Music queue index consistency:** removing a queue row before the currently playing entry now shifts the active-row index to match the reindexed queue; removing the active entry also resets the visible player state to Idle.
+
 - **Raptor Music seek slider preview:** the 100 ms playback poll no longer overwrites the slider's in-progress value while the user is dragging. The selected position remains visible until Seek is pressed; the existing post-seek grace period then holds it while the decoder restarts.
 
 - **Hardware recovery installer restoration:** restored the last intact installer structure and applied a passive Bluetooth controller health check. This puts the LED helper, suspend/resume hook, timer, and Bluetooth module configuration back in the actual installer instead of inside the generated Bluetooth helper.

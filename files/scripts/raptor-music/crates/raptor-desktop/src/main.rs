@@ -251,6 +251,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         if (selected as usize) >= queue.len() {
             return;
         }
+        let playing_index = ui.get_playing_queue_index();
         let removed = queue.remove(selected as usize);
         for (position, entry) in queue.iter_mut().enumerate() {
             entry.position = position as i32;
@@ -261,6 +262,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             *entry_for_remove_queue.lock().unwrap() = None;
             ui.set_playing_queue_index(-1);
+            ui.set_player_state_label("Idle".into());
+        } else if playing_index > selected {
+            ui.set_playing_queue_index(playing_index - 1);
         }
         if db_for_remove_queue.lock().unwrap().save_queue(&queue).is_ok() {
             refresh_queue_list(&ui, &db_for_remove_queue);
