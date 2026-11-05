@@ -11,12 +11,12 @@ A custom Bazzite-based Linux distribution built for gaming — automatic GPU opt
 
 | Component | Minimum to install and use | Recommended |
 |---|---|---|
-| **CPU / architecture** | x86-64 (AMD64/Intel 64); quad-core at approximately 2 GHz or better | Recent 6-core AMD Ryzen or Intel Core processor |
+| **CPU / architecture** | x86-64 (AMD64/Intel 64); 4 cores, roughly 2 GHz class. Examples: Intel Core i5-8250U (4C/8T) or AMD Ryzen 3 2200G (4C/4T) | 6-core Ryzen 5 3600 / Intel Core i5-10400 class or newer |
 | **Memory** | 8 GB RAM | 16 GB+ for gaming, browsers and multitasking |
 | **Graphics API** | Working Linux graphics driver with **Vulkan 1.3+** | Modern discrete or integrated GPU with current Mesa / vendor driver |
-| **AMD GPU** | Radeon GCN/RDNA GPU supported by the in-kernel `amdgpu` driver and RADV | Radeon RX 5000-series / RDNA or newer |
-| **Intel GPU** | Intel graphics only when the installed Mesa ANV driver exposes Vulkan 1.3; Arc is supported with caveats | Intel Arc discrete graphics; verify integrated GPUs individually with Vulkan capability detection |
-| **NVIDIA GPU** | Requires a matching NVIDIA driver image; support depends on GPU generation | Turing (GTX 16 / RTX) or newer with the appropriate driver image |
+| **AMD GPU** | Radeon RX 460/560 (Polaris), Vega or newer with `amdgpu` + RADV; older GCN 1/2 needs a recent kernel/driver | Radeon RX 5000-series / RDNA or newer |
+| **Intel GPU** | Intel HD Graphics 520, UHD 620/630 or newer when Mesa ANV exposes Vulkan 1.3 | Intel Iris Xe or Arc |
+| **NVIDIA GPU** | Pascal-class such as GTX 1060 or newer, with the matching legacy/modern NVIDIA image; Kepler and older are unsupported | Turing (GTX 16 / RTX 20) or newer with the appropriate driver image |
 | **Storage** | 50 GB free on an internal SSD; GPT partitioning | 120 GB+ SSD, plus separate space for games and optional apps |
 | **Firmware** | UEFI; legacy BIOS/CSM is unsupported | UEFI with Secure Boot configured if desired |
 | **Network** | Internet access for installation, updates and optional app downloads | Stable broadband |
@@ -25,7 +25,7 @@ A custom Bazzite-based Linux distribution built for gaming — automatic GPU opt
 
 **Low-memory / Chromebook-class hardware:** Raptor is x86-64 only; ARM Chromebooks are unsupported. The upstream Bazzite gaming baseline is a quad-core 2 GHz CPU and 8 GB RAM, so many entry-level Chromebook processors and 4 GB devices fall below the supported baseline. The 4 GB configuration is an **optimization target under development, not a supported minimum**. Compatible x86-64 Chromebooks still need UEFI, a supported Wi-Fi device and Vulkan 1.3 graphics; compatibility is model-specific and not guaranteed. Vulkan API support alone does not guarantee useful game performance.
 
-Hardware baseline follows [Bazzite's published gaming requirements](https://docs.bazzite.gg/Gaming/Hardware_compatibility_for_gaming/) and [GPU support notes](https://docs.bazzite.gg/General/FAQ/); AMD Vulkan support is documented in the [Mesa RADV guide](https://docs.mesa3d.org/drivers/radv.html).
+Hardware baseline follows [Bazzite's published gaming requirements](https://docs.bazzite.gg/Gaming/Hardware_compatibility_for_gaming/) and [GPU support notes](https://docs.bazzite.gg/General/FAQ/). GPU examples are API-floor examples, not game-performance guarantees: see Intel's [Vulkan support matrix](https://www.intel.com/content/www/us/en/support/articles/000005524/graphics.html), AMD's [Vulkan 1.3 compatibility notes](https://www.amd.com/en/resources/support-articles/release-notes/RN-RAD-WIN-22-1-2-VULKAN-1-3.html), the [Mesa RADV hardware/API matrix](https://docs.mesa3d.org/drivers/radv.html), and NVIDIA's [Vulkan driver support](https://developer.nvidia.com/vulkan-driver).
 
 ---
 
