@@ -7,6 +7,7 @@ use raptor_core::models::{Track, PlaybackSource, PlayerState, PlayerEvent};
 use std::sync::{Arc, Mutex};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
 use uuid::Uuid;
 
 #[tokio::main]
@@ -23,6 +24,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let manual_stopped = Arc::new(AtomicBool::new(false));
     let active_session_token: Arc<Mutex<Option<Uuid>>> = Arc::new(Mutex::new(None));
     let active_playing_queue_entry_id: Arc<Mutex<Option<Uuid>>> = Arc::new(Mutex::new(None));
+    let last_seek_at: Arc<Mutex<Option<Instant>>> = Arc::new(Mutex::new(None));
 
     {
         let db_lock = db.lock().unwrap();
@@ -362,7 +364,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let player_for_seek = Arc::clone(&player);
     let session_for_seek = Arc::clone(&active_session_token);
+    let last_seek_at_for_handler = Arc::clone(&last_seek_at);
     ui.on_seek_clicked(move |position| {
+        *last_seek_at_for_handler.lock().unwrap() = Some(Instant::now());
         if let Some(token) = *session_for_seek.lock().unwrap() {
             player_for_seek.seek(position as f64, token);
         }
@@ -392,6 +396,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let manual_stopped_for_poll = Arc::clone(&manual_stopped);
     let session_token_for_poll = Arc::clone(&active_session_token);
     let active_entry_for_poll = Arc::clone(&active_playing_queue_entry_id);
+    let last_seek_at_for_poll = Arc::clone(&last_seek_at);
     let player_for_adv = Arc::clone(&player);
 
     std::thread::spawn(move || {
@@ -501,7 +506,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let pos = player_for_poll.get_position_secs();
             let duration = player_for_poll.get_duration_secs().unwrap_or(0);
-            if pos != last_persisted_position {
+            let seeking = last_seek_at_for_poll.lock().unwrap()
+                .as_ref()
+                .map(|last| last.elapsed() < Duration::from_millis(500))
+                .unwrap_or(false);
+            if !seeking && pos != last_persisted_position {
                 if let Ok(db_l) = db_for_poll.lock() {
                     let _ = db_l.set_state_value("position_secs", &pos.to_string());
                 }
@@ -511,12 +520,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let _ = slint::invoke_from_event_loop(move || {
                 if let Some(ui) = ui_weak_tick.upgrade() {
                     ui.set_duration_secs(duration as f32);
-                    if !ui.get_is_seeking() {
+                    ui.set_is_seeking(seeking);
+                    let display_pos = if seeking {
+                        ui.get_playback_position_secs().max(0.0) as u64
+                    } else {
                         ui.set_playback_position_secs(pos as f32);
-                    }
+                        pos
+                    };
                     ui.set_progress_label(format!(
                         "{}:{:02} / {}:{:02}",
-                        pos / 60, pos % 60, duration / 60, duration % 60
+                        display_pos / 60, display_pos % 60, duration / 60, duration % 60
                     ).into());
                 }
             });
