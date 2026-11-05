@@ -44,4 +44,4 @@ official upstream release and not endorsed by Codeshare Technology Ltd.
 
 ## Image integration lifecycle
 
-The local monitoring prototype is staged only for the first successful v3.0.0 main-branch image build. Pull requests, unrelated pushes, and scheduled rebuilds skip it. The permanent lock tag `raptor-one-time-apps-consumed` is created only after a successful image build and push. The upstream network-filter circumvention engine is not built or installed.
+Shroudly is not installed or staged in v3.0.0. The current local-monitor prototype is incomplete and is not presented as a working proxy or as the original Shroudly application. The upstream network-filter circumvention engine is not built, fetched, or installed.
