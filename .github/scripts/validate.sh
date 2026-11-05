@@ -133,4 +133,18 @@ assert_contains files/system_files/raptor-browser-choice.sh 'Zen Browser'
 assert_contains files/system_files/raptor-browser-choice.sh 'Floorp'
 assert_contains files/system_files/raptor-browser-choice.sh 'Waterfox'
 assert_not_contains files/system_files/raptor-browser-choice.sh 'Helium'
+
+echo "=== Checking original Shroudly v3.0.0 integration ==="
+assert_contains .github/workflows/build.yml 'npm ci'
+assert_contains .github/workflows/build.yml 'npm run test:core'
+assert_contains .github/workflows/build.yml 'node scripts/build-core-advanced.js --target linux-x64'
+assert_contains .github/workflows/build.yml 'npx electron-builder --linux dir --publish never'
+assert_contains .github/workflows/build.yml 'shroudly-core-adv'
+assert_contains recipes/recipe.yml 'mesa-libgbm'
+assert_contains files/scripts/shroudly-raptor/install.sh '/opt/Shroudly'
+assert_contains files/scripts/shroudly-raptor/install.sh 'me.codeshare.shroudly.policy'
+assert_contains files/scripts/shroudly-raptor/install.sh 'original upstream UI and Linux engines installed'
+assert_contains README.md 'original upstream Shroudly Linux desktop application'
+assert_not_contains files/scripts/shroudly-raptor/install.sh 'Terminal=true'
+assert_not_contains .github/workflows/build.yml 'cargo build --release --workspace --manifest-path files/scripts/shroudly-raptor/Cargo.toml'
 echo "All v3.0.0 release contracts passed."
