@@ -7,8 +7,8 @@ set -euo pipefail
 # files module copies that directory to /tmp/raptor-staging. Local builds that
 # did not stage a binary are skipped with a warning instead of failing.
 
-# One-time payload gate: only a manually dispatched build with the explicit
-# include_one_time_apps input may install this application into the image.
+# One-time payload gate: only the staged payload from the first successful
+# v2.9.0 release image build (or a maintainer recovery dispatch) may install.
 if [[ ! -f "/tmp/raptor-staging/.include-one-time-apps" ]]; then
     rm -f "/tmp/raptor-staging/shroudly-raptor"
     echo "SHROUDLY_RAPTOR_SKIP: one-time app integration was not requested; staged binary removed."
