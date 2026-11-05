@@ -263,9 +263,17 @@ jobs:
             exit 1
           fi
 
-          gh api --method POST "repos/$REPOSITORY/git/refs" \
+          if ! gh api --method POST "repos/$REPOSITORY/git/refs" \
             -f ref="$ref" \
-            -f sha="$IMAGE_COMMIT"
+            -f sha="$IMAGE_COMMIT"; then
+            # A concurrent retry may have created the tag after our first
+            # lookup. Accept that only when it points to this exact commit.
+            existing_sha="$(gh api "repos/$REPOSITORY/git/ref/tags/raptor-one-time-apps-consumed" --jq .object.sha 2>/dev/null || true)"
+            if [[ "$existing_sha" != "$IMAGE_COMMIT" ]]; then
+              echo "::error::Could not create the one-time integration tag; existing target is '${existing_sha:-missing}'."
+              exit 1
+            fi
+          fi
 
           verified_sha="$(gh api "repos/$REPOSITORY/git/ref/tags/raptor-one-time-apps-consumed" --jq .object.sha)"
           if [[ "$verified_sha" != "$IMAGE_COMMIT" ]]; then
