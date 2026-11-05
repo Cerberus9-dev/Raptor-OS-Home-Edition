@@ -10,7 +10,8 @@ set -euo pipefail
 # One-time payload gate: only a manually dispatched build with the explicit
 # include_one_time_apps input may install this application into the image.
 if [[ ! -f "/tmp/raptor-staging/.include-one-time-apps" ]]; then
-    echo "RAPTOR_MUSIC_SKIP: one-time app integration was not requested for this build."
+    rm -f "/tmp/raptor-staging/raptor-music"
+    echo "RAPTOR_MUSIC_SKIP: one-time app integration was not requested; staged binary removed."
     exit 0
 fi
 
