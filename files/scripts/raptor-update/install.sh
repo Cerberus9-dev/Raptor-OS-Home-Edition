@@ -567,9 +567,8 @@ def check_for_updates(emit=None):
         finally:
             lines.put(None)
 
-    # A reader thread avoids mixing select() with TextIOWrapper buffering.
-    # select()+readline() can falsely time out when Python already buffered
-    # later lines while the underlying file descriptor has no new bytes.
+    # A reader thread owns TextIOWrapper reads and forwards complete lines
+    # through a queue. Timeout enforcement is independent of buffered text I/O.
     threading.Thread(target=_read_helper_output, daemon=True).start()
     while True:
         remaining = deadline - time.monotonic()
