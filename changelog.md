@@ -4,6 +4,8 @@
 
 ### [0.2.18] (upcoming)
 
+- **Raptor Music seek slider preview:** the 100 ms playback poll no longer overwrites the slider's in-progress value while the user is dragging. The selected position remains visible until Seek is pressed; the existing post-seek grace period then holds it while the decoder restarts.
+
 - **Hardware recovery installer restoration:** restored the last intact installer structure and applied a passive Bluetooth controller health check. This puts the LED helper, suspend/resume hook, timer, and Bluetooth module configuration back in the actual installer instead of inside the generated Bluetooth helper.
 
 - **Raptor Music playlist integrity:** playlist creation and renaming now reject blank names at the library API (not only in the desktop UI), and a transactional reorder method moves entries without losing their IDs or changing other tracks' relative order. Added regression tests for both cases.

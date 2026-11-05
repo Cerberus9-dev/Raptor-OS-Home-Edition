@@ -520,8 +520,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let _ = slint::invoke_from_event_loop(move || {
                 if let Some(ui) = ui_weak_tick.upgrade() {
                     ui.set_duration_secs(duration as f32);
-                    ui.set_is_seeking(seeking);
-                    let display_pos = if seeking {
+                    // The slider owns the preview value while the user is dragging.
+                    // Keep it until Seek is pressed; the backend's short seek window
+                    // then protects the requested position while the decoder restarts.
+                    let slider_editing = ui.get_is_seeking();
+                    let display_pos = if seeking || slider_editing {
                         ui.get_playback_position_secs().max(0.0) as u64
                     } else {
                         ui.set_playback_position_secs(pos as f32);
