@@ -4,7 +4,7 @@
 #
 # Features:
 #  - No browser ships in the image — the default stays minimal. Eight popular
-#    browsers (Firefox, Brave, Chromium, Chrome, Edge) are all offered here
+#    browsers (Firefox, Brave, Zen, Floorp, Waterfox, Chromium, Chrome, Edge) are all offered here
 #    as on-demand Flathub downloads.
 #  - Network connectivity check before even showing the dialog, and an offline
 #    first boot deliberately leaves the stamp unwritten so the choice is offered
@@ -210,7 +210,7 @@ CHOICE=$(
         --column="Browser" \
         --column="Notes" \
         "${ZENITY_ARGS[@]}" \
-        --width=560 --height=330 \
+        --width=620 --height=440 \
         --ok-label="Install & Use" \
         --cancel-label="Skip — No Browser" \
         2>/dev/null
