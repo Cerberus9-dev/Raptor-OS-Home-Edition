@@ -846,21 +846,16 @@ chmod +x /usr/lib/raptor/gamemode-start
 
 cat << 'EOF' > /usr/lib/raptor/gamemode-end
 #!/bin/bash
-CONFIG=/etc/raptor/cortex-suspend.conf
-[ -f "$CONFIG" ] || exit 0
-while IFS= read -r pattern; do
-    [ -z "$pattern" ] && continue
-    case "$pattern" in "#"*) continue ;; esac
-    /usr/lib/raptor/safe-signal CONT "$pattern"
-done < "$CONFIG"
-# Also restore any processes from the default cortex config
-CONFIG2=/etc/raptor/cortex-suspend.conf.default
-[ -f "$CONFIG2" ] || exit 0
-while IFS= read -r pattern; do
-    [ -z "$pattern" ] && continue
-    case "$pattern" in "#"*) continue ;; esac
-    /usr/lib/raptor/safe-signal CONT "$pattern"
-done < "$CONFIG2"
+# Resume both configured process lists when present. Missing optional config
+# files must never skip the privileged restoration of the default services.
+for CONFIG in /etc/raptor/cortex-suspend.conf /etc/raptor/cortex-suspend.conf.default; do
+    [ -f "$CONFIG" ] || continue
+    while IFS= read -r pattern; do
+        [ -z "$pattern" ] && continue
+        case "$pattern" in "#"*) continue ;; esac
+        /usr/lib/raptor/safe-signal CONT "$pattern"
+    done < "$CONFIG"
+done
 sudo /usr/lib/raptor/cortex-helper restore-background 2>/dev/null || true
 EOF
 chmod +x /usr/lib/raptor/gamemode-end
