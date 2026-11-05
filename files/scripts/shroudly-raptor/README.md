@@ -12,7 +12,7 @@ project by **umutxyp**, a **Codeshare Technology Ltd** product.
 The upstream repository is included as a Git submodule rather than copied into
 a partial reimplementation. This retains its original directory structure,
 source files, build scripts, tests, Linux integration, and platform-specific
-code while keeping the upstream revision traceable. GitHub Actions fetches the pinned submodule and verifies the key upstream source and license files only during the explicitly requested one-time image build.
+code while keeping the upstream revision traceable. GitHub Actions fetches the pinned submodule and verifies key upstream source and license files only during the first successful v2.9.0 release image build. The original application is not yet integrated into the image.
 
 ## Integration status
 
