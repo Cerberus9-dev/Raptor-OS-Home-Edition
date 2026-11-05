@@ -52,6 +52,8 @@
 
 ### Fixed
 
+- **Cortex GPU temperature selection:** AMD `junction` readings are hotspot temperatures, not the conventional edge/core value. They were incorrectly ranked alongside `edge`, so a junction sensor could win alphabetically. Cortex now prefers edge/core, then generic GPU readings, and uses hotspot/junction only when no better sensor exists.
+
 - **Raptor Music playback controls and persistence:** the main play control now
   pauses and resumes the active session instead of restarting the selected
   track. The library database now lives under the user's XDG data directory
