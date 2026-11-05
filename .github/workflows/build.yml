@@ -98,6 +98,9 @@ jobs:
           cargo build --release --workspace --manifest-path files/scripts/raptor-music/Cargo.toml
           install -Dm755 files/scripts/raptor-music/target/release/raptor-desktop files/staging/raptor-music
 
+      - name: Test Raptor Music workspace
+        run: cargo test --workspace --manifest-path files/scripts/raptor-music/Cargo.toml
+
       - name: Build Shroudly Raptor
         run: |
           cargo build --release --workspace --manifest-path files/scripts/shroudly-raptor/Cargo.toml

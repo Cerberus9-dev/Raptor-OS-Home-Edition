@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- **Raptor Music CI tests:** the image workflow now runs the complete workspace test suite after compiling the release binaries, so database, resampler, and player regression tests are exercised instead of merely being compiled.
+
 - **Image signature policy:** added BlueBuild's signing module so the signed OCI image has the verification policy required by signed-image rebases and the ISO installer.
 
 - **Raptor Music queue editing:** added removal of the selected queue entry, reindexed the remaining queue, and stop the active entry when it is removed or a playlist replaces the queue.
