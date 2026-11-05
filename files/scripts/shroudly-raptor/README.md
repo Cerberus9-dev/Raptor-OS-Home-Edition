@@ -12,8 +12,7 @@ project by **umutxyp**, a **Codeshare Technology Ltd** product.
 The upstream repository is included as a Git submodule rather than copied into
 a partial reimplementation. This retains its original directory structure,
 source files, build scripts, tests, Linux integration, and platform-specific
-code while keeping the upstream revision traceable. GitHub Actions checks out
-submodules recursively and verifies the key upstream source and license files.
+code while keeping the upstream revision traceable. GitHub Actions fetches the pinned submodule and verifies the key upstream source and license files only during the explicitly requested one-time image build.
 
 ## Integration status
 
@@ -47,3 +46,7 @@ Shroudly is maintained by **umutxyp** and is a product of
 **Codeshare Technology Ltd**. The upstream MIT license and copyright notice
 are preserved. Raptor OS is an independent downstream integration, not an
 official upstream release and not endorsed by Codeshare Technology Ltd.
+
+## Image integration lifecycle
+
+Shroudly is included only in the single image build explicitly dispatched with `include_one_time_apps=true`. Normal pushes, pull requests, and scheduled image rebuilds do not fetch the upstream submodule, compile, or stage the application. The successful one-time build creates the repository lock tag `raptor-one-time-apps-consumed`; subsequent opt-in attempts are blocked. Its installer also refuses to install without the one-time staging marker.
