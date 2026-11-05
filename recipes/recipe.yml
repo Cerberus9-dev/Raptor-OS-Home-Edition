@@ -163,10 +163,7 @@ modules:
   # ── Kernel boot arguments ─────────────────────────────────────────────────────
   - type: kargs
     kargs:
-      - split_lock_detect=off
       - transparent_hugepage=madvise
-      - nowatchdog
-      - nmi_watchdog=0
 
   # ── Custom build scripts ──────────────────────────────────────────────────────
   - type: script
