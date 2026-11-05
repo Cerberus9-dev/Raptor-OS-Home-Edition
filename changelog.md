@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- **Raptor Music in-library search:** added a live, case-insensitive search across track title, artist, and album. Search results retain their real track IDs, so adding a filtered result to a playlist or queue and playing it no longer uses the filtered row number as an index into the unfiltered database.
+
 - **Raptor Music folder scanning no longer follows directory-link cycles forever.** Recursive scans now track canonical directory paths, preventing a folder symlink back to a parent (or another already visited directory) from causing unbounded recursion and repeated imports.
 
 - **Raptor Music fresh-database initialization:** schema migration 2 passed two `CREATE INDEX` statements to rusqlite's single-statement `execute()` API, which can reject the second statement and prevent the library from opening on a fresh install. The migration now uses `execute_batch()` inside the existing transaction, with a regression test asserting schema version 2 and both indexes.
