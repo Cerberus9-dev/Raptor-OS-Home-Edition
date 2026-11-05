@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- **Raptor Music folder scanning no longer follows directory-link cycles forever.** Recursive scans now track canonical directory paths, preventing a folder symlink back to a parent (or another already visited directory) from causing unbounded recursion and repeated imports.
+
 - **Raptor Music fresh-database initialization:** schema migration 2 passed two `CREATE INDEX` statements to rusqlite's single-statement `execute()` API, which can reject the second statement and prevent the library from opening on a fresh install. The migration now uses `execute_batch()` inside the existing transaction, with a regression test asserting schema version 2 and both indexes.
 
 - **Pull requests now validate image-workflow edits.** The push trigger watched `.github/workflows/build.yml`, but the pull-request path filter did not, so changes to the main image workflow could merge without running its PR build. Added the workflow file to the PR path filter.
