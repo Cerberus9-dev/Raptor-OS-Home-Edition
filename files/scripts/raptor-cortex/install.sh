@@ -2115,6 +2115,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         else:
             # Failure paths may have reverted PPD to Balanced. Query the daemon
             # off the GTK thread; the callback updates the visible mode safely.
+            self._profile_sync_busy = True
             threading.Thread(
                 target=self._sync_external_power_mode, daemon=True
             ).start()
