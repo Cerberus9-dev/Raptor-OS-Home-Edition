@@ -5,6 +5,7 @@ use raptor_audio::decoder::AudioDecoder;
 use raptor_library::{LibraryDatabase, QueueEntry};
 use raptor_core::models::{Track, PlaybackSource, PlayerState, PlayerEvent};
 use std::sync::{Arc, Mutex};
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
@@ -608,34 +609,60 @@ fn music_data_dir() -> Result<PathBuf, Box<dyn std::error::Error>> {
 }
 
 fn walk_dir_and_import(dir: &std::path::Path, db: &mut LibraryDatabase) {
-    if let Ok(entries) = std::fs::read_dir(dir) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_dir() {
-                walk_dir_and_import(&path, db);
-            } else if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
-                let ext_lower = ext.to_lowercase();
-                if matches!(
-                    ext_lower.as_str(),
-                    "aac" | "aif" | "aiff" | "alac" | "caf" | "flac" | "m4a" |
-                    "mp3" | "mp4" | "ogg" | "opus" | "wav"
-                ) {
-                    let metadata = match AudioDecoder::extract_metadata(&path) {
-                        Ok(m) => m,
-                        Err(_) => continue,
-                    };
-                    let stable_id = LibraryDatabase::generate_stable_track_id(&path, "local");
-                    let track = Track {
-                        id: stable_id,
-                        title: metadata.title,
-                        artist: metadata.artist,
-                        album: metadata.album,
-                        duration_secs: metadata.duration_secs,
-                        source: PlaybackSource::LocalFile { path: path.clone() },
-                    };
-                    let _ = db.upsert_track(&track);
-                }
-            }
+    let mut visited_directories = HashSet::new();
+    walk_dir_and_import_inner(dir, db, &mut visited_directories);
+}
+
+fn walk_dir_and_import_inner(
+    dir: &std::path::Path,
+    db: &mut LibraryDatabase,
+    visited_directories: &mut HashSet<PathBuf>,
+) {
+    // Directory symlinks are followed by Path::is_dir(). Track canonical
+    // locations so a Music folder containing a link to one of its parents
+    // cannot recurse forever or import the same directory repeatedly.
+    let canonical_dir = std::fs::canonicalize(dir).unwrap_or_else(|_| dir.to_path_buf());
+    if !visited_directories.insert(canonical_dir) {
+        return;
+    }
+
+    let entries = match std::fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(_) => return,
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            walk_dir_and_import_inner(&path, db, visited_directories);
+            continue;
         }
+
+        let Some(ext) = path.extension().and_then(|e| e.to_str()) else {
+            continue;
+        };
+        let ext_lower = ext.to_ascii_lowercase();
+        if !matches!(
+            ext_lower.as_str(),
+            "aac" | "aif" | "aiff" | "alac" | "caf" | "flac" | "m4a" |
+            "mp3" | "mp4" | "ogg" | "opus" | "wav"
+        ) {
+            continue;
+        }
+
+        let metadata = match AudioDecoder::extract_metadata(&path) {
+            Ok(metadata) => metadata,
+            Err(_) => continue,
+        };
+        let stable_id = LibraryDatabase::generate_stable_track_id(&path, "local");
+        let track = Track {
+            id: stable_id,
+            title: metadata.title,
+            artist: metadata.artist,
+            album: metadata.album,
+            duration_secs: metadata.duration_secs,
+            source: PlaybackSource::LocalFile { path: path.clone() },
+        };
+        let _ = db.upsert_track(&track);
     }
 }
