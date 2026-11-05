@@ -2113,12 +2113,11 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
             self._current_mode = "performance"
             persist_mode("performance")
         else:
-            # Failure paths may have reverted PPD to Balanced. Reflect the
-            # actual daemon state immediately instead of leaving a stale mode.
-            active_mode = read_power_profile_mode()
-            if active_mode:
-                self._current_mode = active_mode
-                persist_mode(active_mode)
+            # Failure paths may have reverted PPD to Balanced. Query the daemon
+            # off the GTK thread; the callback updates the visible mode safely.
+            threading.Thread(
+                target=self._sync_external_power_mode, daemon=True
+            ).start()
         self._refresh_mode_buttons()
         self._update_mode_banner()
         self._refresh_stats()
