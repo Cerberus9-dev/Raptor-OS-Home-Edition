@@ -4,6 +4,8 @@
 
 ### [0.2.18] (upcoming)
 
+- **Raptor Music playlist integrity:** playlist creation and renaming now reject blank names at the library API (not only in the desktop UI), and a transactional reorder method moves entries without losing their IDs or changing other tracks' relative order. Added regression tests for both cases.
+
 - **Shroudly false-success listener removed:** the app no longer opens a listener that acknowledged CONNECT without an upstream tunnel. Proxy launch now returns an explicit unsupported error, and documentation/installer comments state that the prototype is disabled.
 
 - **Bluetooth recovery watchdog:** health checks now query the controller state without starting a discovery scan, avoiding unsolicited device discovery and leaving the user's scan state untouched.

@@ -13,6 +13,8 @@ pub enum LibraryError {
     Uuid(#[from] uuid::Error),
     #[error("Migration error: {0}")]
     Migration(String),
+    #[error("Validation error: {0}")]
+    Validation(String),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -305,10 +307,14 @@ impl LibraryDatabase {
     }
 
     pub fn create_playlist(&self, name: &str, description: Option<&str>) -> Result<Uuid, LibraryError> {
+        let name = name.trim();
+        if name.is_empty() {
+            return Err(LibraryError::Validation("Playlist name cannot be empty".into()));
+        }
         let id = Uuid::new_v4();
         self.conn.execute(
             "INSERT INTO playlists (id, name, description) VALUES (?1, ?2, ?3)",
-            params![id.to_string(), name.trim(), description],
+            params![id.to_string(), name, description],
         )?;
         Ok(id)
     }
@@ -329,9 +335,13 @@ impl LibraryDatabase {
     }
 
     pub fn rename_playlist(&self, playlist_id: Uuid, name: &str) -> Result<(), LibraryError> {
+        let name = name.trim();
+        if name.is_empty() {
+            return Err(LibraryError::Validation("Playlist name cannot be empty".into()));
+        }
         self.conn.execute(
             "UPDATE playlists SET name = ?1 WHERE id = ?2",
-            params![name.trim(), playlist_id.to_string()],
+            params![name, playlist_id.to_string()],
         )?;
         Ok(())
     }
@@ -370,6 +380,47 @@ impl LibraryDatabase {
         Ok(ordered_ids.into_iter().filter_map(|id| {
             tracks.iter().find(|track| track.id == id).cloned()
         }).collect())
+    }
+
+    /// Move a playlist entry to a new zero-based position without changing
+    /// its track identity or disturbing the relative order of other entries.
+    pub fn move_track_in_playlist(
+        &self,
+        playlist_id: Uuid,
+        from_position: i32,
+        to_position: i32,
+    ) -> Result<(), LibraryError> {
+        if from_position < 0 || to_position < 0 {
+            return Err(LibraryError::Validation("Playlist positions cannot be negative".into()));
+        }
+
+        let tx = self.conn.unchecked_transaction()?;
+        let mut stmt = tx.prepare(
+            "SELECT id FROM playlist_tracks WHERE playlist_id = ?1 ORDER BY position ASC, id ASC"
+        )?;
+        let rows = stmt.query_map([playlist_id.to_string()], |row| row.get::<_, i64>(0))?;
+        let mut entry_ids = Vec::new();
+        for row in rows {
+            entry_ids.push(row?);
+        }
+        drop(stmt);
+
+        let from = from_position as usize;
+        let to = to_position as usize;
+        if from >= entry_ids.len() || to >= entry_ids.len() {
+            return Err(LibraryError::Validation("Playlist position is out of range".into()));
+        }
+
+        let moved = entry_ids.remove(from);
+        entry_ids.insert(to, moved);
+        for (position, entry_id) in entry_ids.iter().enumerate() {
+            tx.execute(
+                "UPDATE playlist_tracks SET position = ?1 WHERE id = ?2",
+                params![position as i32, entry_id],
+            )?;
+        }
+        tx.commit()?;
+        Ok(())
     }
 
     pub fn remove_track_from_playlist(&self, playlist_id: Uuid, position: i32) -> Result<(), LibraryError> {

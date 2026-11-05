@@ -162,6 +162,19 @@ fn version_one_queue_migrates_without_losing_track_relationship() {
 
 
 #[test]
+fn playlist_names_must_not_be_empty() {
+    let path = db_path("playlist_validation");
+    {
+        let db = LibraryDatabase::new(&path).unwrap();
+        assert!(db.create_playlist("   ", None).is_err());
+        let playlist_id = db.create_playlist("Valid", None).unwrap();
+        assert!(db.rename_playlist(playlist_id, "  ").is_err());
+        assert_eq!(db.get_playlists().unwrap()[0].name, "Valid");
+    }
+    cleanup(&path);
+}
+
+#[test]
 fn playlists_create_order_remove_rename_and_persist() {
     let path = db_path("playlists");
     let first_id = Uuid::new_v4();
@@ -185,6 +198,11 @@ fn playlists_create_order_remove_rename_and_persist() {
 
         let tracks = db.get_playlist_tracks(playlist_id).unwrap();
         assert_eq!(tracks.iter().map(|t| t.id).collect::<Vec<_>>(), vec![second_id, first_id]);
+
+        db.move_track_in_playlist(playlist_id, 1, 0).unwrap();
+        let reordered = db.get_playlist_tracks(playlist_id).unwrap();
+        assert_eq!(reordered.iter().map(|t| t.id).collect::<Vec<_>>(), vec![first_id, second_id]);
+        db.move_track_in_playlist(playlist_id, 0, 1).unwrap();
 
         db.remove_track_from_playlist(playlist_id, 0).unwrap();
         let tracks = db.get_playlist_tracks(playlist_id).unwrap();
