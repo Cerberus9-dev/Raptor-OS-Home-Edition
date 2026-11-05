@@ -35,7 +35,7 @@ jobs:
     name: Build & Push Image
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
       packages: write
       id-token: write
 
@@ -105,25 +105,6 @@ jobs:
         run: |
           cargo build --release --workspace --manifest-path files/scripts/shroudly-raptor/Cargo.toml
           install -Dm755 files/scripts/shroudly-raptor/target/release/shroudly-raptor files/staging/shroudly-raptor
-
-      - name: Stage Rust apps for image build
-        run: |
-          mkdir -p files/staging
-          cp files/scripts/raptor-music/target/release/raptor-desktop files/staging/raptor-music
-          cp files/scripts/shroudly-raptor/target/release/shroudly-raptor files/staging/shroudly-raptor
-
-      - name: Sync staged Rust apps to repo
-        run: |
-          set -e
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -f files/staging/raptor-music files/staging/shroudly-raptor
-          if git diff --staged --quiet; then
-            echo "Staged binaries unchanged; nothing to commit."
-          else
-            git commit -m "ci: update staged Rust app binaries"
-            git push || echo "Push skipped; branch is protected or read-only for this run."
-          fi
 
       - name: Upload Rust apps
         uses: actions/upload-artifact@v4
