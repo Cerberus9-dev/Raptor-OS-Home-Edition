@@ -2,18 +2,32 @@
 
 ## [Unreleased]
 
-### v2.8.1 (planned)
+### v2.9.0 (Major Update — planned)
+
+This is the consolidation release for more than two months of sustained Raptor OS overhaul work. The scope includes substantial changes across performance and memory management, gaming and GPU behavior, audio, Cortex, update reliability, hardware recovery, browser and chat-client choice, build validation, and the installation/distribution path. The intent is to ship the work as one coherent major update rather than scatter it across a long sequence of small version bumps.
+
+### Choice, compatibility, and distribution improvements
+
+- Expanded the first-boot chat-client chooser beyond official Discord and Vesktop to include Equibop (Equicord) and GoofCord. All are optional downloads; none is silently preinstalled, and skipping remains supported.
+- Documented Meowcord accurately as a separate self-hosted, federated Discord-like service in very early alpha, not a desktop client that can be installed from the first-boot Flatpak chooser.
+- Browser choice now documents the full optional catalogue: Firefox, Brave, Zen Browser, Helium, Chromium, Chrome, and Edge. The image remains browser-minimal by default.
+- The Internet Archive item is the sole public ISO distribution destination. End users are directed to the Archive.org page and its matching checksum; instructions to run GitHub Actions or retrieve short-lived CI artifacts have been removed from the user-facing installation guide.
+- Repaired the generated Brave launcher that previously emitted malformed shell syntax. Its optional flags are now parsed as an argument array, and the adaptive raster-thread setting remains conservative on low-memory systems.
+- GPU power-profile transitions now use hardware-reported Intel frequency bounds, return AMD DPM to driver-managed modes without leaving manual overdrive caps behind, and restore NVIDIA firmware-default power limits outside Power Saving. Unsupported device controls remain best-effort rather than blocking the desktop.
+- USB audio uses a 512-frame, three-period buffer for USB ALSA devices (about 32 ms of period queue at 48 kHz), while retaining resampling quality 10 and existing PipeWire scheduling behavior.
+- Kernel watchdog diagnostics and split-lock mitigation remain enabled; the small theoretical performance gain from disabling them did not justify losing diagnostics or weakening the mitigation.
+
 
 ### One-time app integration
 
-- Raptor Music and Shroudly are opt-in for one manually dispatched image build. The workflow defaults the one-time app input to false; normal pushes, pull requests, and scheduled rebuilds do not fetch the Shroudly submodule, compile either app, run their tests, or stage their binaries.
-- A permanent Git tag, `raptor-one-time-apps-consumed`, locks the integration after the first successful opted-in image build. A second manual dispatch cannot rebuild or reinstall these apps.
-- The installers require the one-time staging marker. Without it, they remove any stale staged app binaries and skip installation. Generated binaries are no longer tracked in the source tree.
-- To include them in the intended build, manually dispatch **Build Raptor OS** once with `include_one_time_apps=true`. The successful build creates the permanent lock tag automatically.
+- A release marker opts the first successful v2.9.0 main-branch image build into the one-time Raptor Music and Shroudly payload; normal pull-request builds, unrelated pushes, and scheduled rebuilds skip it.
+- A permanent Git tag, `raptor-one-time-apps-consumed`, locks the integration only after that image has been successfully built and pushed. Later builds cannot rebuild or reinstall these apps.
+- The installers require the one-time staging marker. Without it, they remove stale staged app binaries and skip installation. Generated binaries are no longer tracked in the source tree.
+- A maintainer-only manual dispatch remains as a recovery fallback; end users never need to run GitHub Actions. The one-time integration is not consumed by a failed image build.
 
 ### Performance, audio, gaming, and update reliability
 
-- Cortex now confirms the requested Power Profiles profile before applying device-level tuning; a failed request no longer leaves the UI showing a mode that was not applied. Cortex polls the active PPD profile so its mode indicator follows changes made through KDE Powerdevil's battery slider, and the saved mode follows external changes for the next login. The boot readiness unit now queries PPD without resetting the saved profile to Balanced.
+- Cortex now confirms the requested Power Profiles profile before applying device-level tuning; a failed request no longer leaves the UI showing a mode that was not applied. Cortex polls the active PPD profile so its mode indicator follows changes made through KDE Powerdevil's battery slider, and the saved mode follows external changes for the next login.
 - One-Click Boost now performs one pressure-aware memory-reclaim request (rather than reclaiming twice), then pauses the configured optional indexers. It rolls back to Balanced and restores any partial Game Mode state if a stage fails. The ordinary Optimize Memory action also reports helper failures instead of recording them as successful runs.
 - GameMode's start/end hooks now live in the active `/etc/gamemode.ini`, not an unreferenced drop-in. Cortex's process-pause helper is idempotent, so the UI button and GameMode cannot overwrite the same session's restore list and leave indexers frozen.
 - PipeWire and WirePlumber restart limits now use valid systemd `[Unit]` directives. Audio RT memory locking is capped at 16 MiB, normal scheduling priority matches PipeWire's request, while USB audio retains quality 10 to preserve fidelity.
