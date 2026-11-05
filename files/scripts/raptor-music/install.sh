@@ -7,6 +7,13 @@ set -euo pipefail
 # recipe's files module. Local builds that did not stage a binary are skipped
 # with a warning instead of failing the whole image build.
 
+# One-time payload gate: only a manually dispatched build with the explicit
+# include_one_time_apps input may install this application into the image.
+if [[ ! -f "/tmp/raptor-staging/.include-one-time-apps" ]]; then
+    echo "RAPTOR_MUSIC_SKIP: one-time app integration was not requested for this build."
+    exit 0
+fi
+
 STAGE_DIR="/tmp/raptor-staging"
 SRC_BIN="${STAGE_DIR}/raptor-music"
 BIN_DEST="/usr/bin/raptor-music"
