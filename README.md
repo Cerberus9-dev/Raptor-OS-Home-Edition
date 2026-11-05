@@ -186,7 +186,7 @@ Raptor OS uses KDE Plasma's **KWin** window manager on a **Wayland** session (th
 
 ## Built With
 - [BlueBuild](https://blue-build.org) — custom OCI image build system
-- [Bazzite](https://bazzite.gg) — base image (Fedora 42, KDE Plasma 6, Wayland)
+- [Bazzite](https://bazzite.gg) — base image pinned to `stable-44` (Fedora 44), with KDE Plasma 6 on Wayland. The pin is intentional: the moving `stable` tag advanced to Fedora 45, which currently breaks this repository's image-build `rpm-ostree` steps; the Fedora 45 migration remains outstanding.
 
 ## Changelog
 See [changelog.md](changelog.md) for full version history.
