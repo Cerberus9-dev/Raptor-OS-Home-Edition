@@ -76,7 +76,7 @@ Three dialogs appear on the first login, in sequence:
 | **Media** | mpv (lightweight playback) |
 | **System** | htop, KDE Partition Manager, Plasma System Monitor, Gwenview, KCalc, Fastfetch, p7zip |
 | **Raptor Apps** | Raptor Cortex, Raptor Wallpaper, Raptor Update Manager — grouped under their own **Raptor OS** category in the app menu |
-| **One-time integrations** | Raptor Music and the original upstream Shroudly Linux desktop application are staged only in the first successful v3.0.0 image; later image builds skip both one-time payloads |
+| **One-time integrations** | Raptor Music and the local Shroudly monitor prototype are staged only in the first successful v3.0.0 image; later image builds skip both one-time payloads |
 | **Overlays** | MangoHud (green palette, Shift+F12), Gamemode |
 
 ---
