@@ -87,16 +87,33 @@ check_network() {
     curl -sf --connect-timeout 5 https://ghcr.io/ >/dev/null 2>&1
 }
 
+declare -A WIFI_POWER_STATE=()
+
 keep_wifi_awake() {
-    # A Wi-Fi radio in power-save mode stalls long downloads, which shows up as
-    # "read: connection timed out ... unexpected end of file" on the big image
-    # layer. Turn it off for the duration of the update (best effort).
+    # Temporarily disable Wi-Fi power save for the large image transfer, but
+    # remember each interface's prior setting so updates never leave the
+    # laptop in a different battery state afterward.
     command -v iw >/dev/null 2>&1 || return 0
-    local d
+    local d state
     for d in $(iw dev 2>/dev/null | awk '$1=="Interface"{print $2}'); do
-        iw dev "$d" set power_save off 2>/dev/null || true
+        state="$(iw dev "$d" get power_save 2>/dev/null | awk '{print $NF}')"
+        case "$state" in
+            on|off)
+                WIFI_POWER_STATE["$d"]="$state"
+                iw dev "$d" set power_save off 2>/dev/null || true
+                ;;
+        esac
     done
 }
+
+restore_wifi_power_save() {
+    command -v iw >/dev/null 2>&1 || return 0
+    local d
+    for d in "${!WIFI_POWER_STATE[@]}"; do
+        iw dev "$d" set power_save "${WIFI_POWER_STATE[$d]}" 2>/dev/null || true
+    done
+}
+trap restore_wifi_power_save EXIT
 
 busy=0
 for attempt in $(seq 1 $MAX_ATTEMPTS); do
