@@ -22,6 +22,13 @@ pub struct QueueEntry {
     pub position: i32,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Playlist {
+    pub id: Uuid,
+    pub name: String,
+    pub description: Option<String>,
+}
+
 pub struct LibraryDatabase {
     pub conn: Connection,
 }
@@ -295,6 +302,88 @@ impl LibraryDatabase {
             });
         }
         Ok(tracks)
+    }
+
+    pub fn create_playlist(&self, name: &str, description: Option<&str>) -> Result<Uuid, LibraryError> {
+        let id = Uuid::new_v4();
+        self.conn.execute(
+            "INSERT INTO playlists (id, name, description) VALUES (?1, ?2, ?3)",
+            params![id.to_string(), name.trim(), description],
+        )?;
+        Ok(id)
+    }
+
+    pub fn get_playlists(&self) -> Result<Vec<Playlist>, LibraryError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, name, description FROM playlists ORDER BY created_at ASC, name COLLATE NOCASE ASC"
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, Option<String>>(2)?))
+        })?;
+        let mut playlists = Vec::new();
+        for row in rows {
+            let (id, name, description) = row?;
+            playlists.push(Playlist { id: Uuid::parse_str(&id)?, name, description });
+        }
+        Ok(playlists)
+    }
+
+    pub fn rename_playlist(&self, playlist_id: Uuid, name: &str) -> Result<(), LibraryError> {
+        self.conn.execute(
+            "UPDATE playlists SET name = ?1 WHERE id = ?2",
+            params![name.trim(), playlist_id.to_string()],
+        )?;
+        Ok(())
+    }
+
+    pub fn delete_playlist(&self, playlist_id: Uuid) -> Result<(), LibraryError> {
+        self.conn.execute("DELETE FROM playlists WHERE id = ?1", [playlist_id.to_string()])?;
+        Ok(())
+    }
+
+    pub fn add_track_to_playlist(&self, playlist_id: Uuid, track_id: Uuid) -> Result<(), LibraryError> {
+        let tx = self.conn.unchecked_transaction()?;
+        let position: i32 = tx.query_row(
+            "SELECT COALESCE(MAX(position) + 1, 0) FROM playlist_tracks WHERE playlist_id = ?1",
+            [playlist_id.to_string()],
+            |row| row.get(0),
+        )?;
+        tx.execute(
+            "INSERT INTO playlist_tracks (playlist_id, track_id, position) VALUES (?1, ?2, ?3)",
+            params![playlist_id.to_string(), track_id.to_string(), position],
+        )?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    pub fn get_playlist_tracks(&self, playlist_id: Uuid) -> Result<Vec<Track>, LibraryError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT track_id FROM playlist_tracks WHERE playlist_id = ?1 ORDER BY position ASC, id ASC"
+        )?;
+        let rows = stmt.query_map([playlist_id.to_string()], |row| row.get::<_, String>(0))?;
+        let mut ordered_ids = Vec::new();
+        for row in rows {
+            ordered_ids.push(Uuid::parse_str(&row?)?);
+        }
+
+        let tracks = self.get_all_tracks()?;
+        Ok(ordered_ids.into_iter().filter_map(|id| {
+            tracks.iter().find(|track| track.id == id).cloned()
+        }).collect())
+    }
+
+    pub fn remove_track_from_playlist(&self, playlist_id: Uuid, position: i32) -> Result<(), LibraryError> {
+        let tx = self.conn.unchecked_transaction()?;
+        tx.execute(
+            "DELETE FROM playlist_tracks WHERE playlist_id = ?1 AND position = ?2",
+            params![playlist_id.to_string(), position],
+        )?;
+        tx.execute(
+            "UPDATE playlist_tracks SET position = position - 1 WHERE playlist_id = ?1 AND position > ?2",
+            params![playlist_id.to_string(), position],
+        )?;
+        tx.commit()?;
+        Ok(())
     }
 
     pub fn save_queue(&self, entries: &[QueueEntry]) -> Result<(), LibraryError> {

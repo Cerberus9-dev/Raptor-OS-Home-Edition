@@ -159,3 +159,46 @@ fn version_one_queue_migrates_without_losing_track_relationship() {
     }
     cleanup(&path);
 }
+
+
+#[test]
+fn playlists_create_order_remove_rename_and_persist() {
+    let path = db_path("playlists");
+    let first_id = Uuid::new_v4();
+    let second_id = Uuid::new_v4();
+    let playlist_id;
+    {
+        let db = LibraryDatabase::new(&path).unwrap();
+        let first_path = path.with_file_name("playlist-first.flac");
+        let second_path = path.with_file_name("playlist-second.flac");
+        db.upsert_track(&local_track(first_id, &first_path, "First")).unwrap();
+        db.upsert_track(&local_track(second_id, &second_path, "Second")).unwrap();
+
+        playlist_id = db.create_playlist("Favorites", Some("Saved tracks")).unwrap();
+        db.add_track_to_playlist(playlist_id, second_id).unwrap();
+        db.add_track_to_playlist(playlist_id, first_id).unwrap();
+
+        let playlists = db.get_playlists().unwrap();
+        assert_eq!(playlists.len(), 1);
+        assert_eq!(playlists[0].name, "Favorites");
+        assert_eq!(playlists[0].description.as_deref(), Some("Saved tracks"));
+
+        let tracks = db.get_playlist_tracks(playlist_id).unwrap();
+        assert_eq!(tracks.iter().map(|t| t.id).collect::<Vec<_>>(), vec![second_id, first_id]);
+
+        db.remove_track_from_playlist(playlist_id, 0).unwrap();
+        let tracks = db.get_playlist_tracks(playlist_id).unwrap();
+        assert_eq!(tracks.iter().map(|t| t.id).collect::<Vec<_>>(), vec![first_id]);
+        db.rename_playlist(playlist_id, "Pinned").unwrap();
+    }
+    {
+        let db = LibraryDatabase::new(&path).unwrap();
+        let playlists = db.get_playlists().unwrap();
+        assert_eq!(playlists.len(), 1);
+        assert_eq!(playlists[0].name, "Pinned");
+        assert_eq!(db.get_playlist_tracks(playlist_id).unwrap()[0].id, first_id);
+        db.delete_playlist(playlist_id).unwrap();
+        assert!(db.get_playlists().unwrap().is_empty());
+    }
+    cleanup(&path);
+}

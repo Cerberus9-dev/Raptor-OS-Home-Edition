@@ -18,6 +18,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ui = MainWindow::new()?;
     refresh_track_list(&ui, &db);
     refresh_queue_list(&ui, &db);
+    refresh_playlist_list(&ui, &db);
 
     let manual_stopped = Arc::new(AtomicBool::new(false));
     let active_session_token: Arc<Mutex<Option<Uuid>>> = Arc::new(Mutex::new(None));
@@ -89,6 +90,92 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ui.on_queue_selected(move |qidx| {
         if let Some(ui) = ui_handle_qselect.upgrade() {
             ui.set_selected_queue_index(qidx);
+        }
+    });
+
+    let db_for_playlist_select = Arc::clone(&db);
+    let ui_handle_playlist_select = ui.as_weak();
+    ui.on_playlist_selected(move |pidx| {
+        if let Some(ui) = ui_handle_playlist_select.upgrade() {
+            ui.set_selected_playlist_index(pidx);
+        }
+    });
+
+    let db_for_playlist_create = Arc::clone(&db);
+    let ui_handle_playlist_create = ui.as_weak();
+    ui.on_create_playlist_clicked(move || {
+        let ui = match ui_handle_playlist_create.upgrade() {
+            Some(ui) => ui,
+            None => return,
+        };
+        let name = ui.get_new_playlist_name().to_string();
+        if name.trim().is_empty() {
+            ui.set_player_state_label("Enter a playlist name".into());
+            return;
+        }
+        if db_for_playlist_create.lock().unwrap().create_playlist(name.trim(), None).is_ok() {
+            ui.set_new_playlist_name("".into());
+            refresh_playlist_list(&ui, &db_for_playlist_create);
+            ui.set_player_state_label("Playlist created".into());
+        }
+    });
+
+    let db_for_playlist_add = Arc::clone(&db);
+    let ui_handle_playlist_add = ui.as_weak();
+    ui.on_add_to_playlist_clicked(move || {
+        let ui = match ui_handle_playlist_add.upgrade() {
+            Some(ui) => ui,
+            None => return,
+        };
+        let track_index = ui.get_selected_track_index();
+        let playlist_index = ui.get_selected_playlist_index();
+        let db_lock = db_for_playlist_add.lock().unwrap();
+        let tracks = db_lock.get_all_tracks().unwrap_or_default();
+        let playlists = db_lock.get_playlists().unwrap_or_default();
+        if track_index < 0 || playlist_index < 0 {
+            ui.set_player_state_label("Select a track and playlist".into());
+            return;
+        }
+        if let (Some(track), Some(playlist)) = (
+            tracks.get(track_index as usize),
+            playlists.get(playlist_index as usize),
+        ) {
+            if db_lock.add_track_to_playlist(playlist.id, track.id).is_ok() {
+                ui.set_player_state_label("Added to playlist".into());
+            }
+        }
+    });
+
+    let db_for_playlist_load = Arc::clone(&db);
+    let ui_handle_playlist_load = ui.as_weak();
+    ui.on_load_playlist_clicked(move || {
+        let ui = match ui_handle_playlist_load.upgrade() {
+            Some(ui) => ui,
+            None => return,
+        };
+        let playlist_index = ui.get_selected_playlist_index();
+        if playlist_index < 0 {
+            ui.set_player_state_label("Select a playlist".into());
+            return;
+        }
+        let db_lock = db_for_playlist_load.lock().unwrap();
+        let playlists = db_lock.get_playlists().unwrap_or_default();
+        let playlist = match playlists.get(playlist_index as usize) {
+            Some(playlist) => playlist,
+            None => return,
+        };
+        let tracks = db_lock.get_playlist_tracks(playlist.id).unwrap_or_default();
+        let queue = tracks.into_iter().enumerate().map(|(position, track)| QueueEntry {
+            queue_entry_id: Uuid::new_v4(),
+            track_id: track.id,
+            position: position as i32,
+        }).collect::<Vec<_>>();
+        if db_lock.save_queue(&queue).is_ok() {
+            drop(db_lock);
+            refresh_queue_list(&ui, &db_for_playlist_load);
+            ui.set_selected_queue_index(-1);
+            ui.set_playing_queue_index(-1);
+            ui.set_player_state_label("Playlist loaded into queue".into());
         }
     });
 
@@ -402,6 +489,16 @@ fn refresh_track_list(ui: &MainWindow, db: &Arc<Mutex<LibraryDatabase>>) {
         });
     }
     ui.set_track_list(slint::ModelRc::new(slint::VecModel::from(slint_tracks)));
+}
+
+fn refresh_playlist_list(ui: &MainWindow, db: &Arc<Mutex<LibraryDatabase>>) {
+    let db_lock = db.lock().unwrap();
+    let playlists = db_lock.get_playlists().unwrap_or_default();
+    let rows = playlists.into_iter().map(|playlist| PlaylistData {
+        id: playlist.id.to_string().into(),
+        name: playlist.name.into(),
+    }).collect::<Vec<_>>();
+    ui.set_playlist_list(slint::ModelRc::new(slint::VecModel::from(rows)));
 }
 
 fn refresh_queue_list(ui: &MainWindow, db: &Arc<Mutex<LibraryDatabase>>) {

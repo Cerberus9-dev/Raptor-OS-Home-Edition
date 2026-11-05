@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- **Raptor Music local playlists:** added SQLite-backed playlist creation, renaming/deletion, ordered track membership, removal/reordering support at the library layer, and desktop controls to create playlists, add the selected library track, and load a playlist into the playback queue.
+
 - **BlueBuild Flatpak configuration and icon theme:** migrated the default Flatpak module from the legacy v1 `system:` shape to the current v2 `configurations:` schema, retaining the system-scoped Pupgui install. Removed the Papirus icon-theme package so the image no longer installs the icon theme the project explicitly avoids.
 
 - **Raptor Music queue controls:** added previous/next controls that select and start the adjacent queue entry, while the main play control pauses/resumes the current entry rather than restarting it. The home-page feature description now reflects the XDG database location and scanner formats.

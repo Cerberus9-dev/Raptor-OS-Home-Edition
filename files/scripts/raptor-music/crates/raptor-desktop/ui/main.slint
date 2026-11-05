@@ -8,6 +8,11 @@ export struct TrackData {
     duration: string,
 }
 
+export struct PlaylistData {
+    id: string,
+    name: string,
+}
+
 export component MainWindow inherits Window {
     title: "Raptor Music";
     width: 900px;
@@ -16,6 +21,9 @@ export component MainWindow inherits Window {
 
     in-out property <[TrackData]> track_list: [];
     in-out property <[TrackData]> queue_list: [];
+    in-out property <[PlaylistData]> playlist_list: [];
+    in-out property <string> new_playlist_name: "";
+    in-out property <int> selected_playlist_index: -1;
     in-out property <int> selected_track_index: -1;
     in-out property <int> selected_queue_index: -1;
     in-out property <int> playing_queue_index: -1;
@@ -27,6 +35,10 @@ export component MainWindow inherits Window {
     callback scan_directory_clicked();
     callback track_selected(int);
     callback queue_selected(int);
+    callback playlist_selected(int);
+    callback create_playlist_clicked();
+    callback add_to_playlist_clicked();
+    callback load_playlist_clicked();
     callback add_to_queue_clicked();
     callback play_clicked();
     callback previous_clicked();
@@ -130,6 +142,46 @@ export component MainWindow inherits Window {
                 horizontal-stretch: 2;
                 vertical-stretch: 1;
                 spacing: 6px;
+
+                Text { text: "Playlists"; font-weight: 700; color: #c7d2e0; font-size: 15px; }
+                HorizontalLayout {
+                    height: 32px;
+                    spacing: 6px;
+                    Rectangle {
+                        background: #202a38;
+                        border-radius: 4px;
+                        horizontal-stretch: 1;
+                        TextInput {
+                            text <=> root.new_playlist_name;
+                            color: #e6edf6;
+                            font-size: 12px;
+                            vertical-alignment: center;
+                        }
+                    }
+                    Button { text: "Create"; clicked => { root.create_playlist_clicked(); } }
+                }
+                ListView {
+                    height: 104px;
+                    for p[index] in root.playlist_list : Rectangle {
+                        height: 32px;
+                        border-radius: 4px;
+                        background: index == root.selected_playlist_index ? #24405f : transparent;
+                        Text {
+                            text: p.name;
+                            color: #e6edf6;
+                            vertical-alignment: center;
+                            x: 8px;
+                            width: parent.width - 16px;
+                            overflow: elide;
+                        }
+                        TouchArea { clicked => { root.playlist_selected(index); } }
+                    }
+                }
+                HorizontalLayout {
+                    spacing: 6px;
+                    Button { text: "Add Track"; clicked => { root.add_to_playlist_clicked(); } }
+                    Button { text: "Load Queue"; clicked => { root.load_playlist_clicked(); } }
+                }
 
                 Text { text: "Playback Queue"; font-weight: 700; color: #c7d2e0; font-size: 15px; }
 
