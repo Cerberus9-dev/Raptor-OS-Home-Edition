@@ -82,8 +82,8 @@ modules:
         destination: /etc/systemd/system.conf.d/10-raptor-nofile.conf
       - source: ../files/system_files/raptor-nofile.conf
         destination: /etc/systemd/user.conf.d/10-raptor-nofile.conf
-      # ── Prebuilt one-time Rust apps ────────────────────────────────────
-      # CI builds Raptor Music and the Shroudly local monitor from files/scripts/ and
+      # ── Prebuilt one-time application payload ─────────────────────────
+      # CI builds Raptor Music from files/scripts/ and
       # drops the binaries in files/staging/. The install scripts then place
       # them in /usr/bin and add the Raptor OS menu entries. If the directory
       # is empty (local build without staging), the scripts warn and skip.
@@ -182,7 +182,6 @@ modules:
       - raptor-gaming-devices/install.sh
       - raptor-hardware-fixes/install.sh
       - raptor-music/install.sh
-      - shroudly-raptor/install.sh
 
   # ── Systemd units ───────────────────────────────────────────────────────────
   - type: systemd
