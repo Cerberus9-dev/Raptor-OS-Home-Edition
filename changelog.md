@@ -21,6 +21,8 @@
 - ModemManager remains available for WWAN-equipped laptops; Firefox uses the active system DNS resolver instead of forcing Cloudflare DoH, preserving network-provided DNS behavior.
 - Update Manager output streaming now uses a queue-backed reader instead of mixing `select()` with buffered text reads, preventing false timeouts. Flatpak update checks cover system and user installations separately; system refs update as root, user refs update as the logged-in account. Wi-Fi power-save state is restored after system updates.
 - Update Manager build-time checks now parse its generated Python GUI and polkit XML and syntax-check all generated shell helpers.
+- The ISO workflow no longer depends on the archived `build-container-installer` project. It verifies the signed Raptor image with the repository's Cosign public key, pins the verified digest, and builds a Fedora 44 Kinoite installer with Image Builder; disk selection remains interactive.
+- Game Mode now includes the KDE crash reporter in its reversible optional-process pause list; it is resumed when the game session ends.
 - README hardware requirements now state the Bazzite quad-core ~2 GHz / 8 GB baseline, Vulkan 1.3 capability, clearer AMD/Intel/NVIDIA driver-generation caveats, and the fact that 4 GB is still an unvalidated optimization target rather than a supported minimum.
 
 - Cortex now confirms the requested Power Profiles profile before applying device-level tuning; a failed request no longer leaves the UI showing a mode that was not applied. Cortex polls the active PPD profile so its mode indicator follows changes made through KDE Powerdevil's battery slider, and the saved mode follows external changes for the next login.
