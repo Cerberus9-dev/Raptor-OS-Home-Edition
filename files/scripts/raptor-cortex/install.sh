@@ -808,9 +808,28 @@ PERFORMANCE_MODES = {
 }
 
 
+def read_power_profile_mode():
+    """Return the active PPD profile as a Cortex mode, or None if unavailable."""
+    try:
+        result = subprocess.run(
+            ["powerprofilesctl", "get"], capture_output=True, text=True, timeout=3
+        )
+        if result.returncode != 0:
+            return None
+        return {
+            "power-saver": "power_saving",
+            "balanced": "balanced",
+            "performance": "performance",
+        }.get(result.stdout.strip())
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+
+
 def detect_system_mode() -> str:
-    """Read the persisted Cortex mode from ~/.config/raptor-cortex-mode.
-    Falls back to 'balanced' if not set."""
+    """Prefer the live desktop power profile; fall back to saved Cortex state."""
+    active = read_power_profile_mode()
+    if active in PERFORMANCE_MODES:
+        return active
     try:
         with open(MODE_STATE_FILE) as f:
             mode = f.read().strip()
@@ -2648,6 +2667,14 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         before the window was even shown, so one slow sensor meant Cortex never opened and
         printed nothing. Now nothing here can block the UI, and a slow sensor delays only
         its own label."""
+        # KDE Powerdevil can change the active profile independently of
+        # Cortex. Poll PPD off the UI thread so the Cortex banner/buttons follow
+        # the battery slider instead of showing a stale cached mode.
+        if (not getattr(self, "_mode_change_pending", False)
+                and not getattr(self, "_profile_sync_busy", False)):
+            self._profile_sync_busy = True
+            threading.Thread(target=self._sync_external_power_mode, daemon=True).start()
+
         readers = {
             "mem": (mem_used_mb, (0, 0)),
             "swap": (get_swap_usage, (0, 0)),
@@ -2674,6 +2701,21 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
 
             threading.Thread(target=work, daemon=True).start()
         return True
+
+    def _sync_external_power_mode(self):
+        mode = read_power_profile_mode()
+        GLib.idle_add(self._apply_external_power_mode, mode)
+
+    def _apply_external_power_mode(self, mode):
+        self._profile_sync_busy = False
+        if (mode in PERFORMANCE_MODES
+                and not getattr(self, "_mode_change_pending", False)
+                and mode != self._current_mode):
+            self._current_mode = mode
+            persist_mode(mode)
+            self._refresh_mode_buttons()
+            self._update_mode_banner()
+        return False
 
     def _apply_stats(self, d):
         busy = self.__dict__.setdefault("_stats_busy", set())
