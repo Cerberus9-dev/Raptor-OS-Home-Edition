@@ -1,0 +1,161 @@
+use raptor_core::models::{PlaybackSource, Track};
+use raptor_library::{LibraryDatabase, QueueEntry};
+use rusqlite::Connection;
+use std::path::{Path, PathBuf};
+use uuid::Uuid;
+
+fn db_path(label: &str) -> PathBuf {
+    std::env::temp_dir().join(format!("raptor_{}_{}.db", label, Uuid::new_v4()))
+}
+
+fn local_track(id: Uuid, path: &Path, title: &str) -> Track {
+    Track {
+        id,
+        title: title.to_string(),
+        artist: "Test Artist".to_string(),
+        album: Some("Test Album".to_string()),
+        duration_secs: Some(123),
+        source: PlaybackSource::LocalFile { path: path.to_path_buf() },
+    }
+}
+
+fn cleanup(path: &Path) {
+    let _ = std::fs::remove_file(path);
+    let _ = std::fs::remove_file(path.with_extension("db-wal"));
+    let _ = std::fs::remove_file(path.with_extension("db-shm"));
+}
+
+#[test]
+fn repeated_local_upsert_updates_one_row() {
+    let path = db_path("local_upsert");
+    {
+        let db = LibraryDatabase::new(&path).unwrap();
+        let media = path.with_file_name("same-track.flac");
+        let id = LibraryDatabase::generate_stable_track_id(&media, "local");
+        db.upsert_track(&local_track(id, &media, "Original")).unwrap();
+        db.upsert_track(&local_track(id, &media, "Updated")).unwrap();
+
+        let tracks = db.get_all_tracks().unwrap();
+        assert_eq!(tracks.len(), 1);
+        assert_eq!(tracks[0].title, "Updated");
+    }
+    cleanup(&path);
+}
+
+#[test]
+fn remote_upsert_uses_provider_identity() {
+    let path = db_path("remote_upsert");
+    {
+        let db = LibraryDatabase::new(&path).unwrap();
+        let make_track = |id, title: &str| Track {
+            id,
+            title: title.to_string(),
+            artist: "Remote Artist".to_string(),
+            album: None,
+            duration_secs: Some(200),
+            source: PlaybackSource::RemoteStream {
+                provider_id: "provider-a".to_string(),
+                provider_track_id: "track-42".to_string(),
+            },
+        };
+        db.upsert_track(&make_track(Uuid::new_v4(), "First")).unwrap();
+        db.upsert_track(&make_track(Uuid::new_v4(), "Second")).unwrap();
+        let tracks = db.get_all_tracks().unwrap();
+        assert_eq!(tracks.len(), 1);
+        assert_eq!(tracks[0].title, "Second");
+    }
+    cleanup(&path);
+}
+
+#[test]
+fn queue_and_playback_state_survive_reopen() {
+    let path = db_path("reopen");
+    let track_id = Uuid::new_v4();
+    let queue_id = Uuid::new_v4();
+    {
+        let db = LibraryDatabase::new(&path).unwrap();
+        let media = path.with_file_name("persisted-track.mp3");
+        db.upsert_track(&local_track(track_id, &media, "Persisted")).unwrap();
+        db.save_queue(&[QueueEntry {
+            queue_entry_id: queue_id,
+            track_id,
+            position: 7,
+        }]).unwrap();
+        db.set_state_value("current_track_id", &track_id.to_string()).unwrap();
+        db.set_state_value("position_secs", "37").unwrap();
+    }
+    {
+        let db = LibraryDatabase::new(&path).unwrap();
+        let queue = db.get_queue().unwrap();
+        assert_eq!(queue.len(), 1);
+        assert_eq!(queue[0].queue_entry_id, queue_id);
+        assert_eq!(queue[0].track_id, track_id);
+        assert_eq!(queue[0].position, 7);
+        assert_eq!(db.get_state_value("current_track_id").unwrap().as_deref(), Some(track_id.to_string().as_str()));
+        assert_eq!(db.get_state_value("position_secs").unwrap().as_deref(), Some("37"));
+    }
+    cleanup(&path);
+}
+
+#[test]
+fn deleting_track_cascades_to_queue() {
+    let path = db_path("cascade");
+    {
+        let db = LibraryDatabase::new(&path).unwrap();
+        let media = path.with_file_name("cascade-track.wav");
+        let id = Uuid::new_v4();
+        db.upsert_track(&local_track(id, &media, "Cascade")).unwrap();
+        db.save_queue(&[QueueEntry {
+            queue_entry_id: Uuid::new_v4(),
+            track_id: id,
+            position: 0,
+        }]).unwrap();
+
+        db.conn.execute("DELETE FROM tracks WHERE id = ?1", [id.to_string()]).unwrap();
+        assert!(db.get_queue().unwrap().is_empty());
+    }
+    cleanup(&path);
+}
+
+#[test]
+fn version_one_queue_migrates_without_losing_track_relationship() {
+    let path = db_path("migration_v1");
+    let track_id = Uuid::new_v4();
+    {
+        let conn = Connection::open(&path).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY NOT NULL, applied_at DATETIME DEFAULT CURRENT_TIMESTAMP);
+             INSERT INTO schema_migrations (version) VALUES (1);
+             CREATE TABLE tracks (
+                 id TEXT PRIMARY KEY NOT NULL, title TEXT NOT NULL, artist TEXT NOT NULL,
+                 album TEXT, duration_secs INTEGER, source_type TEXT NOT NULL,
+                 source_uri TEXT, provider_id TEXT, provider_track_id TEXT,
+                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+             );
+             CREATE TABLE persistent_queue (
+                 track_id TEXT NOT NULL, position INTEGER NOT NULL DEFAULT 0
+             );"
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO tracks (id, title, artist, source_type, source_uri) VALUES (?1, 'Legacy', 'Artist', 'local', '/legacy.flac')",
+            [track_id.to_string()],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO persistent_queue (track_id, position) VALUES (?1, 4)",
+            [track_id.to_string()],
+        ).unwrap();
+    }
+    {
+        let db = LibraryDatabase::new(&path).unwrap();
+        let queue = db.get_queue().unwrap();
+        assert_eq!(queue.len(), 1);
+        assert_eq!(queue[0].track_id, track_id);
+        assert_eq!(queue[0].position, 4);
+        assert_ne!(queue[0].queue_entry_id, Uuid::nil());
+        let version: i32 = db.conn.query_row(
+            "SELECT MAX(version) FROM schema_migrations", [], |row| row.get(0)
+        ).unwrap();
+        assert_eq!(version, 2);
+    }
+    cleanup(&path);
+}
