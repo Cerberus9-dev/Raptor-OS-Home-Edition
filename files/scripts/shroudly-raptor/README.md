@@ -3,7 +3,6 @@
 Raptor's Shroudly integration is based on the complete upstream **Shroudly**
 project by **umutxyp**, a **Codeshare Technology Ltd** product.
 
-- Upstream: https://github.com/umutxyp/Shroudly
 - Pinned source: [upstream/](upstream/)
 - Upstream revision: `8c1ddbf4abfb3fafa73dca652830415d1b0aea7f`
 - License: MIT; see [UPSTREAM-LICENSE](UPSTREAM-LICENSE) and the upstream
@@ -16,11 +15,7 @@ code while keeping the upstream revision traceable. GitHub Actions fetches the p
 
 ## Integration status
 
-The complete upstream source is now pinned in this repository. The current
-Raptor OS image build still contains the earlier Rust monitoring prototype;
-that prototype is transitional and is not the final Shroudly Raptor
-implementation. The original upstream desktop application and Linux engine
-have not yet been wired into the Raptor image build.
+The Raptor OS image includes only the local Rust monitoring prototype. It does not include a proxy, packet-processing engine, or network-filter circumvention features. The prototype is transitional and is not the complete upstream Shroudly application.
 
 Do not describe the transitional Rust binary as a complete Shroudly port.
 Raptor-specific work will be applied as a clearly documented patch layer over
