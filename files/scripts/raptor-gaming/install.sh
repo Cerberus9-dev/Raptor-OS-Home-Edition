@@ -1,5 +1,5 @@
 #!/bin/bash
-set -oue pipefail
+set -euo pipefail
 
 # ═════════════════════════════════════════════════════════════════[...]
 # Raptor OS — Gaming & System Optimization  v2.6
@@ -37,8 +37,8 @@ cat << 'EOF' > /etc/skel/.steam/steam/steam_dev.cfg
 @fDownloadRateImprovementToAddAnotherConnection 1.0
 # Larger disk write buffer
 @cMaxFileSystemWriteBufferSizeBytes 4194304
-# Disable Steam overlay shader pre-caching (reduces background CPU)
-@bEnableShaderPreCaching 0
+# Keep Steam shader pre-caching enabled to reduce first-run shader stutter
+@bEnableShaderPreCaching 1
 EOF
 
 # ── ulimits ───────────────────────────────────────────────────────────��[...]
@@ -63,10 +63,13 @@ EOF
 # ── I/O Scheduler tuning ───────────────────────────────────────────────────────
 cat << 'EOF' > /usr/lib/udev/rules.d/60-raptor-iosched.rules
 # Raptor OS I/O scheduler rules
-ACTION=="add|change", KERNEL=="nvme[0-9]*", ATTR{queue/scheduler}="mq-deadline"
+# NVMe generally performs best with the blk-mq "none" scheduler; avoid
+# imposing a deep software queue that can increase latency.
+ACTION=="add|change", KERNEL=="nvme[0-9]*", ATTR{queue/scheduler}="none"
+ACTION=="add|change", KERNEL=="nvme[0-9]*", ATTR{queue/nr_requests}="256"
+# SATA SSD: mq-deadline; rotational HDD: BFQ for fair interactive I/O.
 ACTION=="add|change", KERNEL=="sd[a-z]", ATTR{queue/rotational}=="0", ATTR{queue/scheduler}="mq-deadline"
 ACTION=="add|change", KERNEL=="sd[a-z]", ATTR{queue/rotational}=="1", ATTR{queue/scheduler}="bfq"
-ACTION=="add|change", KERNEL=="nvme[0-9]*", ATTR{queue/nr_requests}="2048"
 ACTION=="add|change", KERNEL=="sd[a-z]", ATTR{queue/rotational}=="1", ATTR{queue/read_ahead_kb}="2048"
 ACTION=="add|change", KERNEL=="sd[a-z]", ATTR{queue/rotational}=="0", ATTR{queue/read_ahead_kb}="256"
 EOF
@@ -318,104 +321,49 @@ chmod +x /usr/bin/brave-optimized
 # ── Background process trimmer ─────────────────────────────────────────────────
 cat << 'TRIMMER' > /usr/bin/raptor-trim-background.sh
 #!/bin/bash
+set -euo pipefail
+MARKER="/run/raptor-gaming-trim-active"
+if [ -f "$MARKER" ]; then
+    echo "Raptor Game Mode background trim is already active."
+    exit 0
+fi
+touch "$MARKER"
 echo "=== Raptor Background Trimmer ==="
-sync
-# 3 = drop page caches + dentries + inodes (1 = page only, 2 = dentry/inode only)
-echo 3 > /proc/sys/vm/drop_caches
-echo "✔ Dropped page/dentry/inode caches"
-echo 1 > /proc/sys/vm/compact_memory 2>/dev/null || true
-echo "✔ Compacted memory"
 
-# ─── Indexers & system daemons ───────────────────────────────────────────────
+# Pause optional indexing/thumbnail work only. Never flush page caches,
+# compact memory, freeze package managers, stop storage maintenance, or
+# suspend communication/audio/user applications.
 BACKGROUND_PROCS=(
-    "tracker-miner" "tracker-store" "tracker3"
-    "baloo_file" "baloo_file_extractor" "akonadi"
-    "kdeconnectd" "zeitgeist"
-    "tumblerd" "packagekitd" "apt-get" "dpkg"
-    "updatedb" "mlocate" "snapd" "unattended-upgrade"
-    "evolution" "gnome-software"
+    tracker-miner tracker-store tracker3
+    baloo_file baloo_file_extractor kio_thumbnail
+    zeitgeist tumblerd updatedb mlocate
 )
 for proc in "${BACKGROUND_PROCS[@]}"; do
-    /usr/lib/raptor/safe-signal STOP "$proc"
+    if pgrep -x "$proc" >/dev/null 2>&1; then
+        /usr/lib/raptor/safe-signal STOP "$proc" || true
+    fi
 done
-echo "✔ Paused background indexers"
-
-for proc in baloo tracker zeitgeist; do
-    for pid in $(pgrep -x "$proc" 2>/dev/null); do
-        ionice -c 3 -p "$pid" 2>/dev/null || true
-        renice +15 -p "$pid" 2>/dev/null || true
-    done
-done
-echo "✔ IO-niced & re-niced indexers"
-
-# ─── Memory-heavy user apps (best-effort) ────────────────────────────────────
-# These are suspended by name pattern. They restart gracefully on resume.
-# Deliberately empty. Freezing browsers/chat/Steam made them look like they
-# "fail to open": relaunching a single-instance app hands off to the frozen
-# copy. Memory is reclaimed by cgroup limits (cortex-helper) instead.
-USER_BACKGROUND_APPS=()
-for proc in "${USER_BACKGROUND_APPS[@]}"; do
-    /usr/lib/raptor/safe-signal STOP "$proc"
-done
-echo "✔ Paused memory-heavy user apps"
-
-if systemctl is-active snapd &>/dev/null; then
-    systemctl stop snapd.service 2>/dev/null || true
-    echo "✔ Stopped snapd"
-fi
-
-# kbuildsycoca6 --invalidate removed: deletes the sycoca cache so the final
-# image ships with no cache, causing blank launcher categories on first login.
-# Cache is rebuilt at session start by the raptor-sycoca-rebuild.service autostart.
 balooctl6 suspend 2>/dev/null || balooctl suspend 2>/dev/null || true
-echo "✔ Suspended Baloo indexer"
-
-systemctl stop fstrim.service 2>/dev/null || true
-echo 6000 > /proc/sys/vm/dirty_writeback_centisecs
-echo "interactive" > /sys/kernel/debug/sched/tunable 2>/dev/null || true
-
-echo ""
-echo "=== Background trim complete. Start your game now. ==="
-echo "Run 'raptor-restore-background.sh' after gaming to resume services."
+echo "=== Optional indexers paused. Run raptor-restore-background.sh after gaming. ==="
 TRIMMER
 chmod +x /usr/bin/raptor-trim-background.sh
 
 cat << 'RESTORE' > /usr/bin/raptor-restore-background.sh
 #!/bin/bash
-echo "=== Raptor: Restoring background services ==="
-# ─── Indexers & system daemons ───────────────────────────────────────────────
+set -euo pipefail
+MARKER="/run/raptor-gaming-trim-active"
+if [ ! -f "$MARKER" ]; then
+    echo "No Raptor Game Mode background trim is active."
+    exit 0
+fi
+echo "=== Raptor: Restoring background indexers ==="
 for proc in tracker-miner tracker-store tracker3 baloo_file baloo_file_extractor \
-            akonadi kded kdeconnectd gvfs zeitgeist tumblerd \
-            packagekitd apt-get dpkg updatedb mlocate \
-            evolution gnome-software; do
-    pkill -CONT "$proc" 2>/dev/null || true
+            kio_thumbnail zeitgeist tumblerd updatedb mlocate; do
+    /usr/lib/raptor/safe-signal CONT "$proc" || true
 done
-echo "✔ Resumed background indexers & daemons"
-
-# ─── User apps ───────────────────────────────────────────────────────────────
-for proc in firefox vesktop discord steam steamwebhelper \
-            chromium chrome brave vivaldi edge opera \
-            thunderbird evolution element signal slack \
-            spotify telegram whatsie caprine; do
-    pkill -CONT "$proc" 2>/dev/null || true
-done
-echo "✔ Resumed memory-heavy user apps"
-
-# ─── IO priority reset ───────────────────────────────────────────────────────
-for proc in baloo tracker zeitgeist; do
-    for pid in $(pgrep -x "$proc" 2>/dev/null); do
-        ionice -c 0 -p "$pid" 2>/dev/null || true
-        renice 0 -p "$pid" 2>/dev/null || true
-    done
-done
-echo "✔ Reset IO priority & niceness"
-
 balooctl6 resume 2>/dev/null || balooctl resume 2>/dev/null || true
-echo "✔ Resumed Baloo"
-systemctl start snapd.service 2>/dev/null || true
-systemctl start fstrim.service 2>/dev/null || true
-echo 500 > /proc/sys/vm/dirty_writeback_centisecs
-echo "=== Background services restored ==="
+rm -f "$MARKER"
+echo "=== Optional indexers restored; system services and user apps were left untouched. ==="
 RESTORE
 chmod +x /usr/bin/raptor-restore-background.sh
 
@@ -453,156 +401,39 @@ if command -v flatpak &>/dev/null; then
     echo "Vesktop: system-level Flatpak overrides applied (Wayland-native)"
 fi
 
-# ── Baseline sysctl: sane memory defaults shipped in the image ────────────────
-# These are overridden at runtime by raptor-cortex (per-mode tuning).
-# Goal: reduce kernel's eagerness to keep stale pages, keep swap minimal.
+# ── Baseline sysctl: low-memory-safe defaults ─────────────────────────────────
+# Raptor Cortex applies per-mode overrides after login. Keep boot-time values
+# compatible with compressed ZRAM and avoid reserving excessive RAM.
 cat << 'SYSCTL' > /etc/sysctl.d/90-raptor-memory.conf
 # Raptor OS: baseline memory tuning
-# These values are conservative defaults; raptor-cortex applies profile-specific
-# overrides at runtime (e.g., swappiness=180 in performance mode).
-
-# Prefer keeping processes in RAM over evicting to swap
-vm.swappiness = 10
-
-# VFS inode/dentry cache: default=100 (aggressively reclaims caches).
-# 50 = hold caches 2× longer — benefits games that reload the same assets.
-vm.vfs_cache_pressure = 50
-
-# Dirty page writeback: flush at 10% RAM dirty, background flush at 3%.
+# ZRAM is the primary swap device; allow the kernel to use it under pressure.
+vm.swappiness = 100
+# Keep normal VFS cache reclaim behaviour instead of retaining extra cache on
+# 4 GB systems where every reserved MiB matters.
+vm.vfs_cache_pressure = 100
 vm.dirty_ratio = 10
 vm.dirty_background_ratio = 3
-
-# Writeback interval: 15 s (batches I/O, reduces storage wake-ups).
 vm.dirty_writeback_centisecs = 1500
 vm.dirty_expire_centisecs = 3000
-
-# OOM killer: be more decisive (kills one process rather than thrashing).
 vm.oom_kill_allocating_task = 0
 vm.panic_on_oom = 0
-
-# Prevent address space exhaustion from many small anonymous mappings.
 vm.max_map_count = 2147483642
-
-# Keep a larger pool of free pages on hand so allocations under memory
-# pressure (a game requesting a large texture buffer, etc.) don't stall
-# waiting for synchronous reclaim. 128 MB is generous for 8GB+ systems;
-# the kernel default (usually ~4-16 MB on desktop) is too thin for
-# bursty allocation patterns common in games.
-vm.min_free_kbytes = 131072
-
-# ZRAM page-cluster: read 1 page at a time from swap (default=3 reads 8 pages).
-# Each ZRAM page must be decompressed individually — reading 8 when only 1
-# is needed wastes CPU time. Setting to 0 means single-page reads.
+# 32 MiB reserve is more proportionate for 4 GB-class systems than 128 MiB.
+vm.min_free_kbytes = 32768
+# Read one compressed page at a time from ZRAM to avoid wasted decompression.
 vm.page-cluster = 0
-
-# Proactive memory compaction: reduce fragmentation continuously in the
-# background rather than in a large stall-inducing burst. 20 = moderate.
-vm.compaction_proactiveness = 20
-
-# Disable watermark boost — the default (250%) causes sudden large reclaim
-# bursts that show up as gaming stutters. 0 = reclaim gradually instead.
-vm.watermark_boost_factor = 0
-
-# Group related processes for scheduling (games + their threads vs background).
-# Improves responsiveness of the foreground game vs background daemons.
 kernel.sched_autogroup_enabled = 1
 SYSCTL
 
-# ── Systemd user drop-ins: cap RAM on the heaviest background services ─────────
-# These sit in the user service manager cgroup and prevent baloo / akonadi
-# from quietly consuming hundreds of MB while a game is running.
-# Users who need more headroom for mail/search can raise these in their own
-# ~/.config/systemd/user/ overrides.
-
-mkdir -p /etc/systemd/user
-
-for svc_dir in \
-    "baloo_file.service.d" \
-    "akonadiserver.service.d" \
-    "kdeconnectd.service.d" \
-    "evolution-data-server.service.d" \
-    "tracker-miner-fs-3.service.d" \
-    "kactivitymanagerd.service.d" \
-    "kwalletd6.service.d"
-do
-    mkdir -p "/etc/systemd/user/${svc_dir}"
-done
-
+# ── Soft memory pressure guard for the file indexer ──────────────────────────
+# Use MemoryHigh only: it asks systemd to reclaim/throttle this optional indexer
+# under pressure without imposing a hard MemoryMax that could kill it mid-index.
+mkdir -p /etc/systemd/user/baloo_file.service.d
 cat << 'DROP' > /etc/systemd/user/baloo_file.service.d/raptor-memcap.conf
-# Raptor OS: hard cap on Baloo file indexer
-# Default: unbounded. During peak indexing it can exceed 400 MB.
 [Service]
-MemoryHigh=64M
-MemoryMax=128M
+MemoryHigh=192M
 DROP
-
-cat << 'DROP' > /etc/systemd/user/akonadiserver.service.d/raptor-memcap.conf
-# Raptor OS: hard cap on Akonadi PIM server
-# Most Raptor users don't use KDE PIM; cap prevents runaway growth.
-[Service]
-MemoryHigh=128M
-MemoryMax=256M
-DROP
-
-cat << 'DROP' > /etc/systemd/user/kdeconnectd.service.d/raptor-memcap.conf
-[Service]
-MemoryHigh=48M
-MemoryMax=96M
-DROP
-
-cat << 'DROP' > /etc/systemd/user/evolution-data-server.service.d/raptor-memcap.conf
-[Service]
-MemoryHigh=64M
-MemoryMax=128M
-DROP
-
-cat << 'DROP' > /etc/systemd/user/tracker-miner-fs-3.service.d/raptor-memcap.conf
-# tracker-miner-fs-3 (GNOME file tracker) — may not exist on KDE but harmless if so.
-[Service]
-MemoryHigh=48M
-MemoryMax=96M
-DROP
-
-cat << 'DROP' > /etc/systemd/user/kactivitymanagerd.service.d/raptor-memcap.conf
-# Activity tracking daemon — most users never use KDE Activities, but it
-# runs by default and its SQLite usage-tracking DB grows over time.
-[Service]
-MemoryHigh=48M
-MemoryMax=96M
-DROP
-
-cat << 'DROP' > /etc/systemd/user/kwalletd6.service.d/raptor-memcap.conf
-# KWallet password manager daemon — cap to 48 MB; rarely needs more.
-[Service]
-MemoryHigh=48M
-MemoryMax=96M
-DROP
-
-echo "Memory caps installed for background services."
-
-# ── Mask services that waste RAM on a gaming desktop ─────────────────────────
-#
-# Akonadi: KDE PIM database server — runs on every login by default even with
-# no PIM apps (KMail, KOrganizer, Kontact) installed. Starts an SQLite server
-# + multiple agents, using 200-500 MB of RAM. Gaming users do not need this.
-# Re-enable with: systemctl --user unmask akonadiserver.service
-mkdir -p /etc/systemd/user
-ln -sf /dev/null /etc/systemd/user/akonadiserver.service
-ln -sf /dev/null /etc/systemd/user/akonadi.service           2>/dev/null || true
-
-# tracker-miner-fs-3: GNOME file indexer — completely redundant alongside
-# KDE Baloo which already indexes the same files. Two indexers fighting over
-# the same directories wastes ~60-100 MB RAM and CPU disk I/O.
-# Re-enable with: systemctl --user unmask tracker-miner-fs-3.service
-ln -sf /dev/null /etc/systemd/user/tracker-miner-fs-3.service
-ln -sf /dev/null /etc/systemd/user/tracker-store-3.service    2>/dev/null || true
-
-# plasma-browser-integration: adds ~80 MB for browser tab title syncing.
-# Most users do not need browser-to-plasma integration; disable by default.
-# Re-enable with: systemctl --user unmask plasma-browser-integration.service
-ln -sf /dev/null /etc/systemd/user/plasma-browser-integration.service 2>/dev/null || true
-
-echo "Heavy background services masked (Akonadi, tracker-miner-fs, browser-integration)."
+echo "Soft memory pressure guard installed for Baloo; no user-facing service is masked."
 
 # ── PowerDevil: KDE power management profiles ─────────────────────────────────
 # Written to /etc/skel so every new user gets sensible battery/AC defaults.
@@ -825,21 +656,13 @@ MANGOCFG
 # ── Gamemode: full configuration ──────────────────────────────────────────────
 cat << 'GAMEMODE' > /etc/gamemode.ini
 [general]
-# Poll for dead game processes every 5 seconds
 reaper_freq=5
-# Switch to performance CPU governor when game starts
-desired_governor=performance
-# iGPU uses powersave when dGPU is in use
-igpu_desiredgov=powersave
-# Detect GPU automatically
-gpu_device=auto
-# Restore to powersave/schedutil when game exits
-defaultgov=powersave
-# Grant soft real-time priority to game threads if supported
-softrealtime=auto
-# Renice the game process — lower value = higher priority (valid range -20 to 19)
-renice=10
-# Stop the screensaver / display blanking while a game is running
+# Raptor Cortex owns CPU governor and platform-profile changes. Leave
+# desiredgov/defaultgov unset so GameMode cannot override the user's mode.
+softrealtime=off
+# Keep the game's normal scheduler priority; avoid lowering it with renice=10.
+renice=0
+ioprio=0
 inhibit_screensaver=1
 
 [filter]
@@ -847,30 +670,20 @@ whitelist=
 blacklist=
 
 [gpu]
-# Enable GPU optimisations — user accepts responsibility for any side effects
+# Standard driver power profiles only; no clock offsets or overclocking.
 apply_gpu_optimisations=accept-responsibility
-gpu_device=0
-# AMD: force high performance power level for the duration of the game session
 amd_performance_level=high
-# NVIDIA: persistence mode (prevents GPU going to sleep between frames)
 nv_powermizer_mode=1
 
 [cpu]
-# Do not park or pin cores — let the scheduler handle affinity freely
+# Let the kernel scheduler manage affinity and heterogeneous cores.
 park_cores=no
 pin_cores=no
 
 [supervisor]
-# Allow common Linux game clients to register as GameMode supervisors.
-# This is not a forced network/proxy mode: games still need native GameMode
-# integration or must be launched through gamemoderun (see installed docs).
-supervisor_whitelist=steam,heroic,lutris,bottles,gamescope,prismlauncher,modrinth-app,ATLauncher,gdlauncher,minecraft-launcher,itch,minigalaxy,r2modman,sober
-
-[script]
-# Custom scripts run when gamemode activates / deactivates.
-# raptor-cortex background trim runs via the Cortex UI — not duplicated here.
-start=
-end=
+# Empty whitelist means any GameMode-compatible supervisor may request it.
+# Games without native integration can use gamemoderun %command%.
+supervisor_whitelist=
 GAMEMODE
 
 # ── GameMode compatibility notes ─────────────────────────────────────────────
@@ -994,49 +807,36 @@ cp /etc/xdg/fastfetch/config.jsonc /etc/skel/.config/fastfetch/config.jsonc
 
 # ── Network gaming sysctl ─────────────────────────────────────────────────────
 cat << 'NETSYSCTL' > /etc/sysctl.d/91-raptor-network.conf
-# Raptor OS: network gaming optimisation
-net.core.rmem_max                  = 134217728
-net.core.wmem_max                  = 134217728
+# Raptor OS: moderate networking defaults for games and everyday traffic.
+# Avoid oversized socket queues and busy-poll spinning on low-memory CPUs.
+net.core.rmem_max                  = 16777216
+net.core.wmem_max                  = 16777216
 net.core.rmem_default              = 262144
 net.core.wmem_default              = 262144
-net.ipv4.tcp_rmem                  = 4096 262144 134217728
-net.ipv4.tcp_wmem                  = 4096 262144 134217728
+net.ipv4.tcp_rmem                  = 4096 262144 16777216
+net.ipv4.tcp_wmem                  = 4096 262144 16777216
 net.ipv4.udp_rmem_min              = 8192
 net.ipv4.udp_wmem_min              = 8192
-net.core.default_qdisc             = cake
+net.core.default_qdisc             = fq_codel
 net.ipv4.tcp_congestion_control    = bbr
 net.ipv4.tcp_fastopen              = 3
 net.ipv4.tcp_tw_reuse              = 1
 net.ipv4.tcp_fin_timeout           = 15
-net.ipv4.tcp_max_tw_buckets        = 1440000
 net.ipv4.tcp_slow_start_after_idle = 0
-net.ipv4.tcp_no_metrics_save       = 1
-net.core.netdev_max_backlog        = 50000
-net.core.netdev_budget             = 600
-net.core.netdev_budget_usecs       = 8000
-net.core.somaxconn                 = 65535
-net.ipv4.neigh.default.gc_thresh1  = 4096
-net.ipv4.neigh.default.gc_thresh2  = 8192
-net.ipv4.neigh.default.gc_thresh3  = 16384
+net.core.netdev_max_backlog        = 4096
+net.core.netdev_budget             = 300
+net.core.netdev_budget_usecs       = 3000
+net.core.somaxconn                 = 4096
 net.ipv4.ip_local_port_range       = 1024 65535
-
-# Socket busy-polling: spin up to 50 µs before sleeping when waiting for
-# incoming data. Eliminates the wakeup round-trip for low-latency UDP game
-# traffic (position updates, voice). Only applies to sockets that opt in.
-net.core.busy_read                 = 50
-net.core.busy_poll                 = 50
-
-# Maximum open file descriptors — large open-world games and heavily modded
-# titles can exhaust the default 1 M limit on big mod lists.
 fs.file-max                        = 2097152
 NETSYSCTL
 
-# ── BBR / CAKE module preload ─────────────────────────────────────────────────
+# ── BBR / FQ-CoDel module preload ─────────────────────────────────────────────
 mkdir -p /etc/modules-load.d
 cat << 'MODULES' > /etc/modules-load.d/raptor-network.conf
-# Raptor OS: load BBR + CAKE at initramfs so sysctl can reference them
+# Raptor OS: load BBR and fair-queueing CoDel before applying network sysctls
 tcp_bbr
-sch_cake
+sch_fq_codel
 MODULES
 
 # ── DNS-over-TLS ─────────────────────────────────────────────────────────��[...]
