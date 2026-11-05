@@ -21,7 +21,7 @@ This is the consolidation release for more than two months of sustained Raptor O
 
 ### One-time app integration
 
-- A release marker opts the first successful v3.0.0 main-branch image build into the one-time Raptor Music and local Shroudly monitor payload; normal pull-request builds, unrelated pushes, and scheduled rebuilds skip it.
+- A release marker opts the first successful v3.0.0 main-branch image build into the one-time Raptor Music payload; normal pull-request builds, unrelated pushes, and scheduled rebuilds skip it.
 - A permanent Git tag, `raptor-one-time-apps-consumed`, locks the integration only after that image has been successfully built and pushed. Later builds cannot rebuild or reinstall these apps.
 - The installers require the one-time staging marker. Without it, they remove stale staged app binaries and skip installation. Generated binaries are no longer tracked in the source tree.
 - A maintainer-only manual dispatch remains as a recovery fallback; end users never need to run GitHub Actions. The one-time integration is not consumed by a failed image build.
@@ -54,8 +54,7 @@ This is the consolidation release for more than two months of sustained Raptor O
 ### Shroudly Raptor
 
 - Kept the complete upstream Shroudly repository pinned as a submodule with MIT attribution to umutxyp / Codeshare Technology Ltd, preserving the source for audit and licensing clarity.
-- Raptor OS v3.0.0 stages only the local Rust application-monitor prototype once. It does not build or install the upstream network-filter circumvention engine, change system proxy settings, or create a recurring boot service.
-- The local monitor is explicitly documented as a monitor, not a working proxy or complete upstream Shroudly port.
+- The incomplete Rust application-monitor prototype is not installed or advertised as a finished Shroudly port in v3.0.0. The upstream network-filter circumvention engine is not built, fetched, or installed.
 
 ### November 4–5 work consolidated into v3.0.0 — Raptor Music Expansion, Hardware Recovery & CI Reliability
 
