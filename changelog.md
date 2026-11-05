@@ -53,7 +53,7 @@ This is the consolidation release for more than two months of sustained Raptor O
 ### Shroudly Raptor
 
 - Added the complete upstream Shroudly repository as a pinned Git submodule, preserving its original source tree and making the upstream revision auditable. Preserved upstream MIT licensing and attribution to umutxyp / Codeshare Technology Ltd.
-- Updated the workflow to fetch the pinned upstream submodule only during the one-time manually dispatched build, then verify the upstream desktop entrypoint, Linux engine source, and license before compiling.
+- Updated the workflow to fetch the pinned upstream submodule only during the first successful v2.9.0 release build, then verify the upstream desktop entrypoint, Linux engine source, and license. The original Linux application is still not wired into the image.
 - Updated the Shroudly Raptor README to distinguish the newly vendored upstream source from the still-transitional Rust prototype. The original Linux application is not yet wired into the Raptor image; this remains an explicit v2.9.0 release blocker, not a completed feature.
 
 ## [v2.8.0] - 2026-11-05 (Raptor Music Expansion, Hardware Recovery & CI Reliability)
