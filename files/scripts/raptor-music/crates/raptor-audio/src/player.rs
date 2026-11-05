@@ -96,7 +96,7 @@ impl AudioPlayer {
         let mut active_session_token: Option<Uuid> = None;
 
         while let Ok(cmd) = rx.recv() {
-            let (mut active_source, mut active_track_id, mut active_queue_entry_id, session_token) = match cmd {
+            let (mut active_source, mut active_track_id, mut active_queue_entry_id, mut session_token) = match cmd {
                 PlayerCommand::Play { source, track_id, queue_entry_id, session_token } => {
                     active_session_token = Some(session_token);
                     (source, track_id, queue_entry_id, session_token)
@@ -399,7 +399,8 @@ impl AudioPlayer {
                             active_track_id = track_id;
                             active_queue_entry_id = queue_entry_id;
                             active_session_token = Some(new_token);
-                            break 'play_session;
+                            session_token = new_token;
+                            continue 'play_session;
                         }
                         Err(TryRecvError::Empty) => {}
                         Err(TryRecvError::Disconnected) => {
@@ -488,7 +489,8 @@ impl AudioPlayer {
                                                 active_track_id = track_id;
                                                 active_queue_entry_id = queue_entry_id;
                                                 active_session_token = Some(new_token);
-                                                break 'play_session;
+                                                session_token = new_token;
+                                                continue 'play_session;
                                             }
                                         }
                                     }
@@ -541,7 +543,8 @@ impl AudioPlayer {
                                                         active_track_id = track_id;
                                                         active_queue_entry_id = queue_entry_id;
                                                         active_session_token = Some(new_token);
-                                                        break 'play_session;
+                                                        session_token = new_token;
+                                                        continue 'play_session;
                                                     }
                                                     _ => {}
                                                 }
@@ -603,7 +606,8 @@ impl AudioPlayer {
                                     active_track_id = track_id;
                                     active_queue_entry_id = queue_entry_id;
                                     active_session_token = Some(new_token);
-                                    break 'play_session;
+                                    session_token = new_token;
+                                    continue 'play_session;
                                 }
                                 PlayerCommand::Pause { session_token: cmd_token } => {
                                     if cmd_token == session_token {

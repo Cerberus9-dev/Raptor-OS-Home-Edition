@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- **Raptor Music track switching:** corrected the audio worker's in-session Play handling so next/previous and selecting another queued track actually restart the decoder with the new track and session token instead of dropping the command.
+
 - **Raptor Music CI tests:** the image workflow now runs the complete workspace test suite after compiling the release binaries, so database, resampler, and player regression tests are exercised instead of merely being compiled.
 
 - **Image signature policy:** added BlueBuild's signing module so the signed OCI image has the verification policy required by signed-image rebases and the ISO installer.
