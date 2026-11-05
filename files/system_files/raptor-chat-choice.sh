@@ -136,13 +136,15 @@ CHOICE=$(
     zenity \
         --list \
         --title="Chat Client" \
-        --text="<b>Choose a Discord client</b>\n\nBoth connect to Discord — the difference is in what each is optimised for:\n<b>Discord</b> (official) has more reliable Rich Presence support, since game and app integrations are usually built and tested against it first.\n<b>Vesktop</b> is built around Vencord, so plugins, themes, and other customisation work out of the box with no extra setup.\n" \
+        --text="<b>Choose a Discord client</b>\n\nPick the client that suits your setup. Discord is the official option; Vesktop, Equibop and GoofCord offer different customisation choices. Meowcord is a separate, self-hosted federated project rather than a desktop client.\n" \
         --radiolist \
         --column="" \
         --column="Client" \
         --column="Notes" \
-        TRUE  "Discord" "Official client · Best Rich Presence support (~150 MB)" \
-        FALSE "Vesktop" "Vencord built in · Best for plugins/themes/customisation (~100 MB)" \
+        TRUE  "Discord" "Official client · broad compatibility (~150 MB)" \
+        FALSE "Vesktop" "Vencord built in · plugins and themes (~100 MB)" \
+        FALSE "Equibop" "Equicord built in · Linux-focused features (~166 MB)" \
+        FALSE "GoofCord" "Privacy-focused · plugins/themes and Wayland screen share (~120 MiB)" \
         --width=560 --height=340 \
         --ok-label="Confirm" \
         --cancel-label="Skip — Install Neither" \
@@ -169,6 +171,24 @@ case "${CHOICE:-}" in
             finish
         else
             err "Vesktop was not installed — choice deferred to next login."
+        fi
+        ;;
+
+    Equibop)
+        log "User selected Equibop."
+        if install_with_retry "org.equicord.equibop" "Equibop" "~166 MB"; then
+            finish
+        else
+            err "Equibop was not installed — choice deferred to next login."
+        fi
+        ;;
+
+    GoofCord)
+        log "User selected GoofCord."
+        if install_with_retry "io.github.milkshiift.GoofCord" "GoofCord" "~120 MiB"; then
+            finish
+        else
+            err "GoofCord was not installed — choice deferred to next login."
         fi
         ;;
 
