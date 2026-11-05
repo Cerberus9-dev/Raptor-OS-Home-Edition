@@ -238,9 +238,14 @@ ENVEOF
         _set_intel_gpu_power_mode powersave
     fi
     if [ "$GPU_VENDOR" = "nvidia" ]; then
-        # Restore the card's firmware default when leaving Power Saving.
-        _restore_nvidia_power_limit
+        # Let the GPU power down at idle and apply a conservative 80% TDP cap.
+        # Other profiles restore the firmware default power limit.
         nvidia-smi -pm 0 > /dev/null 2>&1 || true
+        MAX_PL=$(nvidia-smi --query-gpu=power.max_limit --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d ' ')
+        if [[ "$MAX_PL" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+            TARGET=$(awk -v limit="$MAX_PL" 'BEGIN { printf "%d", limit * 0.8 }')
+            [ "$TARGET" -gt 0 ] && nvidia-smi -pl "$TARGET" > /dev/null 2>&1 || true
+        fi
     fi
     fi
     ;;
