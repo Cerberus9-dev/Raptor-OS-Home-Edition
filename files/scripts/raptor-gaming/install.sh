@@ -549,12 +549,9 @@ SystemMaxUse=200M
 JOURNALD
 
 # ── Mask ModemManager ────────────────────────────────────────────────────────[...]
-# ModemManager probes for cellular/WWAN hardware on every boot and stays
-# resident. Desktop and laptop gaming systems essentially never have a modem.
-# Masking (symlink to /dev/null) fully prevents it from starting; users with
-# a WWAN card can re-enable with: sudo systemctl unmask ModemManager.service
-mkdir -p /etc/systemd/system
-ln -sf /dev/null /etc/systemd/system/ModemManager.service
+# Do not mask ModemManager. Its idle footprint is small, while disabling it
+# breaks WWAN/LTE/5G modems and mobile broadband on supported laptops.
+# systemd and the distro's device activation policy decide when it is needed.
 
 # ── Game launch option hints ───────────────────────────────────────────────────
 cat << 'EOF' > /etc/raptor/unturned-launch-options.txt
