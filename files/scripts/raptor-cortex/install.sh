@@ -66,8 +66,9 @@ GAME_MODE_PROCS_FILE="/run/raptor-game-mode-procs"
 # Package managers, communications, user applications, audio, and device
 # services are deliberately excluded from Game Mode suspension.
 BACKGROUND_PROCS=(
-    # Indexing and thumbnail work only. Keep communications, audio, package
-    # management, printers, storage maintenance, and user applications running.
+    # Indexing, thumbnail generation, and the KDE crash reporter only.
+    # Keep communications, audio, package management, printers, storage
+    # maintenance, and user applications running.
     "tracker-miner" "tracker-store" "tracker3"
     "baloo_file" "baloo_file_extractor" "kio_thumbnail"
     "zeitgeist" "tumblerd" "updatedb" "mlocate" "drkonqi"
@@ -570,9 +571,10 @@ EOF
 # ── Cortex suspend config ─────────────────────────────────────────────────────
 mkdir -p /etc/raptor
 cat << 'EOF' > /etc/raptor/cortex-suspend.conf
-# Raptor Cortex — optional indexing/thumbnail work to pause during gaming.
+# Raptor Cortex — optional background work to pause during gaming.
+# This includes indexers, thumbnail generation and KDE crash reporting.
 # Audio, networking, Bluetooth, package management, storage maintenance,
-# communications, and user applications are intentionally excluded.
+# communications, and user applications remain available.
 baloo_file
 baloo_file_extractor
 tracker-miner
@@ -763,9 +765,9 @@ def run_cortex_helper(*args, timeout=30):
         return subprocess.CompletedProcess(command, 124, "", str(exc))
 
 ALL_SERVICES = [
-    # Only optional indexing and thumbnail work is paused automatically.
-    # User-facing apps, audio, networking, Bluetooth, package tools, and
-    # device-management services remain available during games.
+    # Only optional indexers, thumbnail generation, and the crash reporter
+    # are paused automatically. User-facing apps, audio, networking, Bluetooth,
+    # package tools, and device-management services remain available.
     ("Baloo file indexer",       "baloo_file"),
     ("Baloo extractor",          "baloo_file_extractor"),
     ("Tracker miner",            "tracker-miner"),
