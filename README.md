@@ -160,9 +160,10 @@ Native Rust/Slint music player. Recursively scans folders into a SQLite library,
 - **4 GB support remains an unverified optimization target**. Actual idle footprint, browser workload, game performance and sustained memory pressure must be benchmarked on physical low-memory hardware before claiming a 4 GB smooth-use guarantee
 
 ### Audio
-- **PipeWire 512-sample quantum** (~10.7 ms) with matching low-latency config for **both** the native graph and the `pipewire-pulse` compatibility layer that Electron/Chromium apps (Discord, Spotify) actually route through — both configured with real-time scheduling
-- **`api.alsa.headroom=0`** for outputs — eliminates a 170 ms buffer mismatch that caused crackling
-- **Auto-suspend disabled** on all audio devices; PipeWire/WirePlumber/pipewire-pulse all auto-restart on crash with burst-limited retry
+- **PipeWire 512-sample default quantum** (~10.7 ms) for both the native graph and the `pipewire-pulse` compatibility layer used by Electron/Chromium apps; real-time scheduling is enabled with bounded RT runtime
+- **ALSA buffering is device-aware** — built-in outputs use a 512-sample period; USB audio uses a more conservative 1024-sample period and avoids USB autosuspend; resampling quality is kept at 6 to avoid unnecessary CPU load on low-power systems
+- **Audio devices suspend after 60 seconds idle** rather than being held awake indefinitely; Bluetooth profile switching prefers high-quality A2DP when a headset supports it
+- **PipeWire, pipewire-pulse and WirePlumber restart on failure**, with systemd start limits to prevent crash loops
 
 ### Network
 - **BBR congestion control + CAKE qdisc**, **128 MB TCP buffers**, **socket busy-polling**, **TCP fast-open**
