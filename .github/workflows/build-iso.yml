@@ -1,48 +1,51 @@
 name: Build and Release Raptor OS ISO
 
 on:
-  push:
-    branches: [ main, feature/* ]
-  pull_request:
-    branches: [ main ]
   workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
 
 jobs:
   build-iso:
+    name: Build Raptor OS Home Edition ISO
     runs-on: ubuntu-latest
+    timeout-minutes: 180
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Free Up Runner Disk Space
+      - name: Free runner disk space
         run: |
-          echo "=== Free disk space before cleanup ==="
+          echo "Disk space before cleanup:"
           df -h
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/pipx
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /opt/pipx
           docker system prune -af --volumes
-          echo "=== Free disk space after cleanup ==="
+          echo "Disk space after cleanup:"
           df -h
 
-      - name: Install Build Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y osbuild lorax squashfs-tools genisoimage
+      - name: Build installer ISO
+        id: build
+        uses: jasonn3/build-container-installer@v1.4.0
+        with:
+          arch: x86_64
+          image_name: raptor-os
+          image_repo: ghcr.io/cerberus9-dev
+          image_tag: latest
+          image_signed: "true"
+          version: "44"
+          variant: kinoite
+          iso_name: build/raptor-os-home-${{ github.run_number }}.iso
 
-      - name: Run ISO Build
-        run: |
-          # If using a direct osbuild command:
-          osbuild --store ./build/store --output-directory ./output raptor-manifest.json || \
-          cargo build --release
-
-      - name: Upload ISO Artifact
+      - name: Upload ISO and checksum
         uses: actions/upload-artifact@v4
         with:
-          name: raptor-os-home-iso
+          name: raptor-os-home-iso-${{ github.run_number }}
           path: |
-            output/*.iso
-            build/*.iso
+            ${{ steps.build.outputs.iso_path }}/${{ steps.build.outputs.iso_name }}
+            ${{ steps.build.outputs.iso_path }}/${{ steps.build.outputs.iso_name }}-CHECKSUM
+          if-no-files-found: error
           retention-days: 7
+          compression-level: 0
