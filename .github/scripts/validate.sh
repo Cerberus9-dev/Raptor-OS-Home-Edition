@@ -113,6 +113,10 @@ assert_contains files/scripts/raptor-update/install.sh "timeout=3 * 60 * 60"
 assert_contains files/scripts/raptor-update/install.sh "timeout=900"
 assert_contains files/scripts/raptor-update/install.sh 'rpm-ostree upgrade 2>&1 | tee "$out"'
 assert_contains files/scripts/raptor-update/install.sh "_stop_process_group(helper)"
+assert_contains .github/workflows/build.yml "steps.one_time_apps.outputs.include == 'true' || github.event_name == 'pull_request'"
+assert_contains .github/workflows/build.yml 'cargo build --release --workspace --manifest-path files/scripts/raptor-music/Cargo.toml'
+assert_contains .github/workflows/build.yml 'cargo test --workspace --manifest-path files/scripts/raptor-music/Cargo.toml'
+assert_contains .github/workflows/build.yml 'PR validation only: built Raptor Music without staging it into the image.'
 assert_not_contains files/scripts/raptor-update/install.sh "for line in user_proc.stdout"
 assert_not_contains files/scripts/raptor-update/install.sh "for line in fp_proc.stdout"
 
