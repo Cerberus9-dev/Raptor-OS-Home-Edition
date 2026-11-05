@@ -168,6 +168,10 @@ jobs:
           cargo build --release --workspace --manifest-path files/scripts/shroudly-raptor/Cargo.toml
           install -Dm755 files/scripts/shroudly-raptor/target/release/shroudly-raptor files/staging/shroudly-raptor
 
+      - name: Mark one-time app payload for this image only
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.include_one_time_apps }}
+        run: install -Dm644 /dev/null files/staging/.include-one-time-apps
+
       - name: Build and push image
         uses: blue-build/github-action@v1
         with:
