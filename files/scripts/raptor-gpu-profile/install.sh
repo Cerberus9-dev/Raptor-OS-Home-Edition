@@ -92,8 +92,8 @@ PROFILE="auto"
 [ -f /etc/raptor-force-balanced ]    && PROFILE="balanced"
 echo "Active profile: $PROFILE"
 
-# Restore hardware limits when leaving Power Saving. Read advertised Intel
-# bounds and NVIDIA's firmware default instead of guessing fixed clock values.
+# Hardware-specific GPU power controls. Always restore the driver's advertised
+# defaults when leaving Power Saving; never guess clock or wattage values.
 _set_intel_gpu_power_mode() {
     local mode="$1" card rpmin rpmax
     for card in /sys/class/drm/card*/; do
@@ -103,6 +103,7 @@ _set_intel_gpu_power_mode() {
         rpmax=$(cat "${card}gt_RP0_freq_mhz" 2>/dev/null || true)
         [[ "$rpmin" =~ ^[0-9]+$ && "$rpmax" =~ ^[0-9]+$ ]] || continue
         if [ "$mode" = "powersave" ]; then
+            echo "$rpmax" > "${card}gt_max_freq_mhz" 2>/dev/null || true
             echo "$rpmin" > "${card}gt_min_freq_mhz" 2>/dev/null || true
             echo "$rpmin" > "${card}gt_max_freq_mhz" 2>/dev/null || true
         else
@@ -117,7 +118,7 @@ _restore_nvidia_power_limit() {
     local default_limit
     default_limit=$(nvidia-smi --query-gpu=power.default_limit --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d ' ')
     if [[ "$default_limit" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
-        nvidia-smi -pl "$default_limit" >/dev/null 2>&1 || true
+        nvidia-smi -pl "${default_limit%.*}" >/dev/null 2>&1 || true
     fi
 }
 
@@ -171,7 +172,6 @@ ENVEOF
     if [ "$GPU_VENDOR" = "nvidia" ]; then
         _restore_nvidia_power_limit
         nvidia-smi -pm 1 > /dev/null 2>&1 || true
-        nvidia-smi --auto-boost-default=0 > /dev/null 2>&1 || true
     fi
     ;;
 
@@ -195,7 +195,6 @@ ENVEOF
     if [ "$GPU_VENDOR" = "nvidia" ]; then
         _restore_nvidia_power_limit
         nvidia-smi -pm 1 > /dev/null 2>&1 || true
-        nvidia-smi --auto-boost-default=1 > /dev/null 2>&1 || true
     fi
     ;;
 
@@ -213,7 +212,6 @@ ENVEOF
     if [ "$GPU_VENDOR" = "nvidia" ]; then
         _restore_nvidia_power_limit
         nvidia-smi -pm 0 > /dev/null 2>&1 || true
-        nvidia-smi --auto-boost-default=1 > /dev/null 2>&1 || true
     fi
     ;;
 
@@ -229,8 +227,8 @@ __GL_THREADED_OPTIMIZATIONS=0
 $COMMON_VARS
 ENVEOF
     if [ "$GPU_VENDOR" = "amd" ]; then
-        # Use the driver's low-power DPM and power-saving workload profile.
-        # Avoid manual overdrive caps, which can remain after profile changes.
+        # Use the driver's low-power DPM and Power Saving workload profile.
+        # Avoid manual overdrive clock caps that can remain after profile changes.
         _set_amd_gpu_power_mode low 2
         for f in /sys/kernel/debug/dri/*/amdgpu_gfxoff; do
             echo 1 > "$f" 2>/dev/null || true
@@ -240,14 +238,10 @@ ENVEOF
         _set_intel_gpu_power_mode powersave
     fi
     if [ "$GPU_VENDOR" = "nvidia" ]; then
-        # Disable NVIDIA persistence mode: GPU fully powers down when idle
+        # Restore the card's firmware default when leaving Power Saving.
+        _restore_nvidia_power_limit
         nvidia-smi -pm 0 > /dev/null 2>&1 || true
-        # Reduce power limit to 80% of TDP if supported
-        MAX_PL=$(nvidia-smi --query-gpu=power.max_limit             --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d ' ')
-        if [ -n "$MAX_PL" ] && [ "$MAX_PL" -gt 0 ] 2>/dev/null; then
-            TARGET=$(( MAX_PL * 80 / 100 ))
-            nvidia-smi -pl "$TARGET" > /dev/null 2>&1 || true
-        fi
+    fi
     fi
     ;;
 
@@ -300,7 +294,6 @@ ENVEOF
     if [ "$GPU_VENDOR" = "nvidia" ]; then
         _restore_nvidia_power_limit
         nvidia-smi -pm 0 > /dev/null 2>&1 || true
-        nvidia-smi --auto-boost-default=1 > /dev/null 2>&1 || true
     fi
     ;;
 esac
