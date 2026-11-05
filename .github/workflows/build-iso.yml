@@ -1,0 +1,70 @@
+name: Build Raptor OS Home Edition ISO
+
+# Manual build for Raptor OS Home Edition install media. Home Edition is a
+# bootc/Bazzite image, so its ISO is produced with bootc-image-builder from the
+# published GHCR image. The regular build.yml workflow must run first.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Image tag to build into an ISO"
+        required: true
+        default: "latest"
+        type: string
+
+permissions:
+  contents: read
+  packages: read
+  id-token: write
+
+concurrency:
+  group: raptor-os-iso-${{ github.ref || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  IMAGE_NAME: raptor-os
+  IMAGE_REGISTRY: ghcr.io/cerberus9-dev
+  DEFAULT_TAG: ${{ inputs.tag }}
+  BIB_IMAGE: quay.io/centos-bootc/bootc-image-builder:latest
+
+jobs:
+  build-iso:
+    name: Build Raptor OS ISO
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Normalize image reference
+        run: |
+          echo "IMAGE_REGISTRY=${IMAGE_REGISTRY,,}" >> "$GITHUB_ENV"
+          echo "IMAGE_NAME=${IMAGE_NAME,,}" >> "$GITHUB_ENV"
+          echo "USER_UID=$(id -u)" >> "$GITHUB_ENV"
+          echo "USER_GID=$(id -g)" >> "$GITHUB_ENV"
+
+      - name: Maximize build space
+        uses: ublue-os/remove-unwanted-software@695eb75bc387dbcd9685a8e72d23439d8686cba6
+        with:
+          remove-codeql: true
+
+      - name: Build ISO with bootc-image-builder
+        id: build
+        uses: osbuild/bootc-image-builder-action@8661cd3832544ad68c12dcde8681b13ab0f56a8d # main
+        with:
+          builder-image: ${{ env.BIB_IMAGE }}
+          config-file: ./disk_config/iso-kde.toml
+          image: ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.DEFAULT_TAG }}
+          chown: ${{ env.USER_UID }}:${{ env.USER_GID }}
+          types: anaconda-iso
+          additional-args: --use-librepo=True
+
+      - name: Upload ISO artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Raptor-OS-Home-ISO-${{ env.DEFAULT_TAG }}
+          path: ${{ steps.build.outputs.output-directory }}
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
