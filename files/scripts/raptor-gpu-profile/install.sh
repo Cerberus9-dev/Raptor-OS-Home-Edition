@@ -1,5 +1,5 @@
 #!/bin/bash
-set -oue pipefail
+set -euo pipefail
 
 # =============================================================================
 # Raptor OS — GPU Profile Detection & Configuration  v3.0
@@ -17,7 +17,8 @@ mkdir -p /etc/environment.d \
          /usr/lib/systemd/system \
          /etc/polkit-1/rules.d \
          /etc/sudoers.d \
-         /etc/raptor \
+         /etc/raptor
+
 cat << 'ENVEOF' > /etc/environment.d/raptor-gpu.conf
 # Raptor OS: GPU profile — applied at boot by raptor-gpu-profile.service.
 # This file is the safe fallback written at image build time.
@@ -34,19 +35,13 @@ PROTON_NO_ESYNC=0
 PROTON_NO_FSYNC=0
 ENVEOF
 
-# ── Gaming sysctl (static — safe to write at build time) ─────────────────────
+# ── Gaming sysctl: only retain broadly compatible limits ─────────────────────
+# Memory policy belongs to raptor-gaming.conf / Raptor Cortex. Avoid hard-coded
+# scheduler granularity and disabling split-lock mitigation on every CPU.
 cat << 'SYSCTL' > /etc/sysctl.d/raptor-gaming.conf
-# ── Raptor OS Gaming sysctl ──────────────────────────────────────────────────
 kernel.sched_autogroup_enabled=1
-kernel.sched_min_granularity_ns=500000
-kernel.sched_wakeup_granularity_ns=1000000
-kernel.sched_migration_cost_ns=250000
 fs.inotify.max_user_watches=524288
 fs.inotify.max_user_instances=256
-vm.swappiness=10
-vm.dirty_ratio=15
-vm.dirty_background_ratio=5
-kernel.split_lock_mitigate=0
 SYSCTL
 
 # ── Runtime detection + apply script ─────────────────────────────────────────
@@ -294,21 +289,8 @@ ENVEOF
     ;;
 esac
 
-# ── CPU governor: match GPU profile ──────────────────────────────────────────
-set_cpu_governor() {
-    local GOV="$1"
-    for f in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
-        echo "$GOV" > "$f" 2>/dev/null || true
-    done
-    echo "CPU governor → $GOV"
-}
-
-case "$PROFILE" in
-    extreme|performance) set_cpu_governor "performance" ;;
-    balanced)            set_cpu_governor "schedutil"   ;;
-    powersave)           set_cpu_governor "powersave"   ;;
-    auto|*)              set_cpu_governor "schedutil"   ;;
-esac
+# CPU governor is managed exclusively by Raptor Cortex and the CPU governor
+# service. GPU profile changes must not overwrite the user's CPU mode.
 
 # ── Apply env vars to any already-running user sessions ──────────────────────
 ENVFILE=/etc/environment.d/raptor-gpu.conf
@@ -357,13 +339,8 @@ chmod +x /usr/lib/raptor/gpu-detect.sh
 mkdir -p /etc/drirc.d
 cat << 'DRIRC' > /etc/drirc.d/99-raptor-mesa.conf
 <driconf>
-   <!-- Apply optimisations to all applications -->
-   <application name="Default" executable="*">
-      <option name="mesa_glthread" value="true" />
-      <option name="throttle_cpu_to_gpu" value="false" />
-   </application>
-
-   <!-- Wine/Proton: always benefit from glthread -->
+   <!-- Wine/Proton: opt in to threaded GL where supported. Keep native
+        applications on driver defaults for maximum compatibility. -->
    <application name="Wine" executable="wine">
       <option name="mesa_glthread" value="true" />
    </application>
@@ -371,11 +348,6 @@ cat << 'DRIRC' > /etc/drirc.d/99-raptor-mesa.conf
       <option name="mesa_glthread" value="true" />
    </application>
 
-   <!-- Steam runtime: safe to enable -->
-   <application name="Steam" executable="steam">
-      <option name="mesa_glthread" value="true" />
-      <option name="throttle_cpu_to_gpu" value="false" />
-   </application>
 </driconf>
 DRIRC
 
