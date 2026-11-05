@@ -50,6 +50,11 @@
   Packet mode now reports itself as unimplemented and performs no nftables
   changes until an isolated, app-owned table and scoped cleanup are implemented.
 
+- **GameMode could skip restoration when an optional suspend config was
+  missing.** Its end hook exited before calling the privileged restore helper
+  if either config file was absent. It now processes whichever files exist and
+  always runs the default restoration helper.
+
 - **Background-process resume no longer matches arbitrary command lines.**
   Cortex's manual Resume action and GameMode's end hook used
   `pkill -CONT -f`, which matches full command lines and could resume
