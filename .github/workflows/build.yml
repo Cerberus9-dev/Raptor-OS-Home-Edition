@@ -137,16 +137,6 @@ jobs:
           git -C "$UPSTREAM" rev-parse --short HEAD
           echo "Upstream Shroudly source and MIT license are present."
 
-      - name: Free disk space
-        run: |
-          sudo rm -rf \
-            /usr/share/dotnet \
-            /usr/local/lib/android \
-            /opt/ghc \
-            /usr/local/share/boost \
-            "$AGENT_TOOLSDIRECTORY"
-          df -h
-
       - name: Check signing secret
         if: github.event_name != 'pull_request'
         env:
@@ -164,6 +154,16 @@ jobs:
         run: |
           chmod +x .github/scripts/validate.sh
           .github/scripts/validate.sh
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf \
+            /usr/share/dotnet \
+            /usr/local/lib/android \
+            /opt/ghc \
+            /usr/local/share/boost \
+            "$AGENT_TOOLSDIRECTORY"
+          df -h
 
       - name: Cache Raptor Music workspace
         if: ${{ steps.one_time_apps.outputs.include == 'true' }}
