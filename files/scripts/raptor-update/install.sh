@@ -1340,4 +1340,23 @@ if [ -n "$raptor_missing" ]; then
     echo "UPDATE_MANAGER_PAYLOAD_MISSING:$raptor_missing" >&2
     exit 1
 fi
+# Syntax-check every generated helper and the GUI; verify the polkit XML too.
+for raptor_shell in \
+    /usr/bin/raptor-update-launcher \
+    /usr/lib/raptor/update-helper \
+    /usr/lib/raptor/check-helper \
+    /usr/lib/raptor/flatpak-update-helper \
+    /usr/lib/raptor/reboot-helper; do
+    if ! bash -n "$raptor_shell"; then
+        echo "UPDATE_MANAGER_SHELL_SYNTAX_ERROR:$raptor_shell" >&2
+        exit 1
+    fi
+done
+python3 - <<'PY'
+import ast
+import xml.etree.ElementTree as ET
+with open("/usr/bin/raptor-update", encoding="utf-8") as source:
+    ast.parse(source.read(), filename="/usr/bin/raptor-update")
+ET.parse("/usr/share/polkit-1/actions/io.github.cerberus9dev.raptorupdate.policy")
+PY
 echo "UPDATE_MANAGER_READY payload=$(echo $RAPTOR_EXPECTED_PAYLOAD | wc -w | tr -d ' ') files verified"
