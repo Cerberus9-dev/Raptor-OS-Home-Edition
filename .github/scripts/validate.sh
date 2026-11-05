@@ -144,14 +144,9 @@ assert_contains files/system_files/raptor-browser-choice.sh 'Floorp'
 assert_contains files/system_files/raptor-browser-choice.sh 'Waterfox'
 assert_not_contains files/system_files/raptor-browser-choice.sh 'Helium'
 
-echo "=== Checking Shroudly local-monitor-only integration ==="
-assert_contains .github/workflows/build.yml 'cargo build --release --workspace --manifest-path files/scripts/shroudly-raptor/Cargo.toml'
-assert_not_contains .github/workflows/build.yml 'Fetch pinned upstream Shroudly source once'
-assert_not_contains .github/workflows/build.yml 'Verify pinned upstream Shroudly source'
-assert_contains files/scripts/shroudly-raptor/install.sh 'Local Application Monitor'
-assert_contains files/scripts/shroudly-raptor/install.sh 'network routing is not enabled'
-assert_contains files/scripts/shroudly-raptor/install.sh 'v3.0.0 release image build'
-assert_not_contains .github/workflows/build.yml 'npm ci'
-assert_not_contains .github/workflows/build.yml 'build-core-advanced.js'
-assert_not_contains files/scripts/shroudly-raptor/install.sh '/opt/Shroudly'
+echo "=== Checking Shroudly exclusion from v3.0.0 ==="
+assert_not_contains recipes/recipe.yml 'shroudly-raptor/install.sh'
+assert_not_contains .github/workflows/build.yml 'Build Shroudly Raptor'
+assert_contains README.md 'Not included in v3.0.0'
+assert_contains changelog.md 'not built, fetched, or installed'
 echo "All v3.0.0 release contracts passed."
