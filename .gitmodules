@@ -1,0 +1,3 @@
+[submodule "files/scripts/shroudly-raptor/upstream"]
+	path = files/scripts/shroudly-raptor/upstream
+	url = https://github.com/umutxyp/Shroudly.git
