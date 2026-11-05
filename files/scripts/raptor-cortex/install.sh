@@ -393,8 +393,8 @@ case "$ACTION" in
                 # ZRAM is fast compressed RAM; allow it to absorb cold pages
                 # before the system approaches OOM on low-memory machines.
                 echo 100  > /proc/sys/vm/swappiness                2>/dev/null || true
-                echo 20   > /proc/sys/vm/dirty_ratio               2>/dev/null || true
-                echo 8    > /proc/sys/vm/dirty_background_ratio    2>/dev/null || true
+                echo 10   > /proc/sys/vm/dirty_ratio               2>/dev/null || true
+                echo 5    > /proc/sys/vm/dirty_background_ratio    2>/dev/null || true
                 echo 1500 > /proc/sys/vm/dirty_writeback_centisecs 2>/dev/null || true
                 echo 1500 > /proc/sys/vm/dirty_expire_centisecs    2>/dev/null || true
                 echo 0    > /proc/sys/vm/laptop_mode               2>/dev/null || true
@@ -465,7 +465,11 @@ case "$ACTION" in
                 /usr/lib/raptor/safe-signal STOP "$proc"
             fi
         done
-        balooctl6 suspend 2>/dev/null || balooctl suspend 2>/dev/null || true
+        if [ -f /etc/raptor/cortex-suspend.conf ] && grep -Fxq "baloo_file" /etc/raptor/cortex-suspend.conf; then
+            if balooctl6 suspend 2>/dev/null || balooctl suspend 2>/dev/null; then
+                touch /run/raptor-game-mode-baloo-active
+            fi
+        fi
         # Only hold the CPU wake-latency constraint on AC; release on restore.
         rm -f /run/raptor-cpu-dma-latency-held
         if _on_ac && [ -w /dev/cpu_dma_latency ]; then
@@ -492,7 +496,10 @@ case "$ACTION" in
         for proc in "${BACKGROUND_PROCS[@]}"; do
             /usr/lib/raptor/safe-signal CONT "$proc"
         done
-        balooctl6 resume 2>/dev/null || balooctl resume 2>/dev/null || true
+        if [ -f /run/raptor-game-mode-baloo-active ]; then
+            balooctl6 resume 2>/dev/null || balooctl resume 2>/dev/null || true
+            rm -f /run/raptor-game-mode-baloo-active
+        fi
         # Release the AC-only CPU wake-latency constraint.
         rm -f /run/raptor-cpu-dma-latency-held "$GAME_MODE_MARKER"
         ;;
