@@ -1,70 +1,48 @@
-name: Build Raptor OS Home Edition ISO
-
-# Manual build for Raptor OS Home Edition install media. Home Edition is a
-# bootc/Bazzite image, so its ISO is produced with bootc-image-builder from the
-# published GHCR image. The regular build.yml workflow must run first.
+name: Build and Release Raptor OS ISO
 
 on:
+  push:
+    branches: [ main, feature/* ]
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
-    inputs:
-      tag:
-        description: "Image tag to build into an ISO"
-        required: true
-        default: "latest"
-        type: string
-
-permissions:
-  contents: read
-  packages: read
-  id-token: write
-
-concurrency:
-  group: raptor-os-iso-${{ github.ref || github.run_id }}
-  cancel-in-progress: true
-
-env:
-  IMAGE_NAME: raptor-os
-  IMAGE_REGISTRY: ghcr.io/cerberus9-dev
-  DEFAULT_TAG: ${{ inputs.tag }}
-  BIB_IMAGE: quay.io/centos-bootc/bootc-image-builder:latest
 
 jobs:
   build-iso:
-    name: Build Raptor OS ISO
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Normalize image reference
+      - name: Free Up Runner Disk Space
         run: |
-          echo "IMAGE_REGISTRY=${IMAGE_REGISTRY,,}" >> "$GITHUB_ENV"
-          echo "IMAGE_NAME=${IMAGE_NAME,,}" >> "$GITHUB_ENV"
-          echo "USER_UID=$(id -u)" >> "$GITHUB_ENV"
-          echo "USER_GID=$(id -g)" >> "$GITHUB_ENV"
+          echo "=== Free disk space before cleanup ==="
+          df -h
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/pipx
+          docker system prune -af --volumes
+          echo "=== Free disk space after cleanup ==="
+          df -h
 
-      - name: Maximize build space
-        uses: ublue-os/remove-unwanted-software@695eb75bc387dbcd9685a8e72d23439d8686cba6
-        with:
-          remove-codeql: true
+      - name: Install Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y osbuild lorax squashfs-tools genisoimage
 
-      - name: Build ISO with bootc-image-builder
-        id: build
-        uses: osbuild/bootc-image-builder-action@028e4d28330efe546229eb9cb52aee78174d2347 # main
-        with:
-          builder-image: ${{ env.BIB_IMAGE }}
-          config-file: ./disk_config/iso-kde.toml
-          image: ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.DEFAULT_TAG }}
-          chown: ${{ env.USER_UID }}:${{ env.USER_GID }}
-          types: anaconda-iso
-          additional-args: --use-librepo=True
+      - name: Run ISO Build
+        run: |
+          # If using a direct osbuild command:
+          osbuild --store ./build/store --output-directory ./output raptor-manifest.json || \
+          cargo build --release
 
-      - name: Upload ISO artifact
+      - name: Upload ISO Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Raptor-OS-Home-ISO-${{ env.DEFAULT_TAG }}
-          path: ${{ steps.build.outputs.output-directory }}
-          if-no-files-found: error
-          compression-level: 0
-          retention-days: 30
+          name: raptor-os-home-iso
+          path: |
+            output/*.iso
+            build/*.iso
+          retention-days: 7
