@@ -76,7 +76,7 @@ Three dialogs appear on the first login, in sequence:
 | **Media** | mpv (lightweight playback) |
 | **System** | htop, KDE Partition Manager, Plasma System Monitor, Gwenview, KCalc, Fastfetch, p7zip |
 | **Raptor Apps** | Raptor Cortex, Raptor Wallpaper, Raptor Update Manager — grouped under their own **Raptor OS** category in the app menu |
-| **One-time integration** | Raptor Music is staged only in the first successful v3.0.0 image; later image builds skip the one-time payload |
+| **One-time integration** | Raptor Music and the original Shroudly desktop app are staged only in the first successful v3.0.0 image; later image builds skip both one-time payloads |
 | **Overlays** | MangoHud (green palette, Shift+F12), Gamemode |
 
 ---
@@ -144,7 +144,7 @@ The first-boot chooser offers the official Discord client, Vesktop, Equibop, and
 
 ## Raptor Shroudly
 
-**Not included in v3.0.0.** The current Rust prototype is an incomplete local application monitor, not the original Shroudly desktop application. It is not packaged in this release. The original creator, **umutxyp / Codeshare Technology Ltd**, remains credited; network-filter circumvention functionality is not part of Raptor OS.
+**Original upstream application included once in v3.0.0.** The first successful v3.0.0 main-branch image build packages the pinned Shroudly Linux desktop app, its normal and Advanced-mode engines, desktop entry, icon, and polkit action. It does not enable autostart or change proxy settings during installation; users launch it and choose when to activate protection. The transitional Rust monitor prototype is not packaged. Upstream MIT attribution: **umutxyp / Codeshare Technology Ltd**.
 
 
 ---
