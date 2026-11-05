@@ -13,6 +13,9 @@ This is the consolidation release for more than two months of sustained Raptor O
 - Browser choice now documents the full optional catalogue: Firefox, Brave, Zen Browser, Helium, Chromium, Chrome, and Edge. The image remains browser-minimal by default.
 - The Internet Archive item is the sole public ISO distribution destination. End users are directed to the Archive.org page and its matching checksum; instructions to run GitHub Actions or retrieve short-lived CI artifacts have been removed from the user-facing installation guide.
 - Repaired the generated Brave launcher that previously emitted malformed shell syntax. Its optional flags are now parsed as an argument array, and the adaptive raster-thread setting remains conservative on low-memory systems.
+- GPU power-profile transitions now use hardware-reported Intel frequency bounds, return AMD DPM to driver-managed modes without leaving manual overdrive caps behind, and restore NVIDIA firmware-default power limits outside Power Saving. Unsupported device controls remain best-effort rather than blocking the desktop.
+- USB audio uses a 512-frame, three-period buffer for USB ALSA devices (about 32 ms of period queue at 48 kHz), while retaining resampling quality 10 and existing PipeWire scheduling behavior.
+- Kernel watchdog diagnostics and split-lock mitigation remain enabled; the small theoretical performance gain from disabling them did not justify losing diagnostics or weakening the mitigation.
 
 
 ### One-time app integration
