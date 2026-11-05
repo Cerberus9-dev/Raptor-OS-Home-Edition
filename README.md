@@ -128,7 +128,7 @@ Gallery-style wallpaper picker — click any thumbnail to apply it, including fo
 
 ## Raptor Music
 
-Native Rust/Slint local music player. Recursively scans folders into a SQLite library, extracts available tags and durations, supports local playlists and queue loading, and plays local audio through a `cpal` backend with pause/resume, previous/next queue controls, and automatic track advance. The scanner recognizes AAC, AIFF, ALAC, CAF, FLAC, M4A, MP3, MP4, Ogg, Opus, and WAV extensions supported by its Symphonia build. The library database is stored under `$XDG_DATA_HOME/raptor-music/` (or `~/.local/share/raptor-music/`). **Image inclusion is opt-in for the single manually dispatched build** using `include_one_time_apps=true`; normal future builds skip it. This is a local-player prototype, not yet the completed independent multi-service music platform described in the project roadmap.
+Native Rust/Slint local music player. Recursively scans folders into a SQLite library, extracts available tags and durations, supports local playlists and queue loading, and plays local audio through a `cpal` backend with pause/resume, previous/next queue controls, and automatic track advance. The scanner recognizes AAC, AIFF, ALAC, CAF, FLAC, M4A, MP3, MP4, Ogg, Opus, and WAV extensions supported by its Symphonia build. The library database is stored under `$XDG_DATA_HOME/raptor-music/` (or `~/.local/share/raptor-music/`). **Image inclusion is limited to the first successful v2.9.0 release image build**; the workflow permanently skips it on subsequent builds. This is a local-player prototype, not yet the completed independent multi-service music platform described in the project roadmap.
 
 ## Discord alternatives
 
@@ -138,7 +138,7 @@ The first-boot chooser offers the official Discord client, Vesktop, Equibop, and
 
 ## Raptor Shroudly
 
-**Experimental prototype — not a completed Shroudly port.** The current Rust app is a transitional monitor; it does not provide the original upstream desktop UI, proxy routing, or packet-processing engine. The original Shroudly source is pinned as a submodule and preserved with MIT attribution to **umutxyp / Codeshare Technology Ltd**, but it has not yet been wired into the image. Image inclusion is opt-in for the single manually dispatched build using `include_one_time_apps=true`; normal future builds skip it. Do not configure applications to use this prototype as a proxy.
+**Experimental prototype — not a completed Shroudly port.** The current Rust app is a transitional monitor; it does not provide the original upstream desktop UI, proxy routing, or packet-processing engine. The original Shroudly source is pinned as a submodule and preserved with MIT attribution to **umutxyp / Codeshare Technology Ltd**, but it has not yet been wired into the image. Image inclusion is limited to the first successful v2.9.0 release image build; the workflow permanently skips it on subsequent builds. Do not configure applications to use this prototype as a proxy.
 
 
 ---
