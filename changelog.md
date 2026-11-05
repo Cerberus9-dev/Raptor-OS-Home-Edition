@@ -22,8 +22,8 @@ This is the consolidation release for more than two months of sustained Raptor O
 ### One-time app integration
 
 - A release marker opts the first successful v3.0.0 main-branch image build into the one-time Raptor Music payload; normal pull-request builds, unrelated pushes, and scheduled rebuilds skip it.
-- A permanent Git tag, `raptor-one-time-apps-consumed`, locks the integration only after that image has been successfully built and pushed. Later builds cannot rebuild or reinstall these apps.
-- The installers require the one-time staging marker. Without it, they remove stale staged app binaries and skip installation. Generated binaries are no longer tracked in the source tree.
+- A permanent Git tag, `raptor-one-time-apps-consumed`, locks the integration only after that image has been successfully built and pushed. Later builds cannot rebuild or reinstall this app.
+- The Raptor Music installer requires the one-time staging marker. Without it, they remove stale staged app binaries and skip installation. Generated binaries are no longer tracked in the source tree.
 - A maintainer-only manual dispatch remains as a recovery fallback; end users never need to run GitHub Actions. The one-time integration is not consumed by a failed image build.
 
 ### Performance, audio, gaming, and update reliability
@@ -392,13 +392,7 @@ This is the consolidation release for more than two months of sustained Raptor O
 
 ### Added
 
-- **Raptor Music and the Shroudly prototype are packaged separately.**
-  CI builds the Rust applications and stages their binaries in
-  `files/staging/`. Raptor Music is installed as a usable local music-player
-  app with a Raptor OS desktop entry. Shroudly's desktop entry currently opens
-  only a disabled prototype that reports its status; it is not a working proxy
-  and does not open a listener or forward traffic. If a local build does not
-  stage a binary, the install scripts warn and skip instead of failing the image.
+- **Raptor Music is the only one-time app packaged in v3.0.0.** CI builds its Rust workspace and stages the binary in `files/staging/`; the installer creates its desktop entry and verifies the payload. The incomplete Shroudly prototype is not installed, and the upstream network-filter circumvention application is not built or included.
 - **Hardware recovery after suspend** (`files/scripts/raptor-hardware-fixes.sh`):
   one resume hook plus one 1-minute timer, no new apps or menu entries. On
   every resume it re-binds the touchpad's I2C/PS/2 driver, binds the kernel's
@@ -581,8 +575,8 @@ This is the consolidation release for more than two months of sustained Raptor O
   rpm-ostree `--check` exit 77 ("nothing new") as the clean success it
   is; (2) the GUI streams the helper's output *live* into a built-in
   Console that is visible from launch (not hidden until an update
-  starts), reading via a `select()` loop with a `CHECK_TIMEOUT=500`
-  wall-clock ceiling so a stalled pipe can never freeze the check again;
+  starts), reading through a queue-backed reader with a `CHECK_TIMEOUT=660`
+  wall-clock ceiling and process-group cleanup so a stalled pipe cannot freeze the check;
   (3) if the refresh *does* fail, the manager falls back to local
   rpm-ostree state first — a staged-but-not-booted deployment or a
   populated `cached-update` is still reported as an available update
@@ -1797,8 +1791,7 @@ This is the consolidation release for more than two months of sustained Raptor O
   and `getattr` guard in countdown to prevent silent `AttributeError` deaths
 - **Update Manager** ANSI escape codes were printed raw into the log view — now
   stripped before display for clean readable output
-- **Update Manager** switched from `ujust update` to `rpm-ostree update` — `ujust`
-  is not available in all environments and would silently fail with "not found"
+- **Update Manager** uses the canonical `rpm-ostree upgrade` operation instead of relying on `ujust update`, which is not available in all environments and can silently fail with "not found"
 
 ### Added
 - mpv media player
