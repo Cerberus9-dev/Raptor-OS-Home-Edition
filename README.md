@@ -2,7 +2,7 @@
 **Current stable version: v2.8.0**  
 **Next release: v3.0.0 (Major Release) — in preparation**
 
-A custom Bazzite-based Linux distribution built for gaming — automatic GPU optimisation, low-latency audio, a green accent theme with Windows-style window management, and a zero-terminal firstboot experience.
+A custom Bazzite-based Linux distribution built for gaming — automatic GPU optimisation, low-latency audio, a green accent theme with familiar desktop window management, and a zero-terminal firstboot experience.
 
 > **Heavy W.I.P — Feedback appreciated!** This is **not** a live OS. It needs its own drive, replaces your current OS, or runs alongside it as a dual boot. Minimum 40–50 GB free for dual boot. Can be tested in a VM first.
 
@@ -194,14 +194,15 @@ The first-boot chooser offers the official Discord client, Vesktop, Equibop, and
 
 ---
 
-## Window Management (KWin on Wayland)
-Raptor OS uses KDE Plasma's **KWin** window manager on a **Wayland** session (the documented Bazzite base). The Windows-style description refers to familiar desktop behavior and layout; it does **not** mean Microsoft Windows, and this configuration is not an X11 window manager or an Xlib/XCB-based implementation.
+## Window Management (KWin, Wayland and X11 application compatibility)
+Raptor OS uses KDE Plasma's **KWin** compositor on the Bazzite **Wayland** desktop. **X11 applications are supported through XWayland**; this is X11 compatibility, not Microsoft Windows and not a separate Xorg desktop session. The window decorations and controls provide a familiar desktop workflow without claiming that Raptor OS is Windows.
 
+- **X11 application compatibility** — XWayland runs legacy X11 applications inside the Wayland session
 - **Window decorations** — Raptor OS Aurorae decoration with Minimize, Maximize, and Close buttons on the right, plus the App Menu button on the left
 - **Titlebar double-click** — maximizes the window
-- **Focus behavior** — click-to-focus, matching a familiar desktop workflow
-- **Window snapping** — KWin provides screen-edge tiling/snapping; exact behavior depends on the active Plasma/KWin configuration
-- **Panel/taskbar** — KDE Plasma's stock panel theme; the Raptor green accent and window decoration are configured separately
+- **Focus behavior** — click-to-focus
+- **Window snapping and tiling** — KWin provides screen-edge snapping/tiling; exact behavior follows the active Plasma/KWin configuration
+- **Panel/taskbar** — KDE Plasma's stock panel, with the Raptor green accent and window decoration configured separately
 
 ---
 
