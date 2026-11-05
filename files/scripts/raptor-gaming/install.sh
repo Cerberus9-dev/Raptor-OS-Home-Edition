@@ -691,13 +691,13 @@ mkdir -p /usr/share/doc/raptor-gaming
 cat << 'GAMEDOC' > /usr/share/doc/raptor-gaming/README.md
 # Raptor OS GameMode compatibility
 
-Raptor OS configures GameMode for common Linux game clients, including Steam,
-Heroic, Lutris, Bottles, Gamescope, Prism Launcher, Modrinth App, ATLauncher,
-GDLauncher, Minecraft Launcher, itch, Minigalaxy, r2modman, and Sober.
+Raptor OS does not restrict GameMode supervisors by launcher name. Any
+GameMode-compatible launcher or supervisor may request GameMode; this avoids
+blocking newer or less common clients.
 
-The supervisor allow-list permits these launchers to register as GameMode
-supervisors when they use GameMode's supervisor API. It does not force every
-launcher or game to request GameMode automatically.
+This does not force every launcher or game to request GameMode automatically.
+Clients need native GameMode integration, or a custom launch command using
+the standard gamemoderun wrapper.
 
 For a game or client without native GameMode integration, use the standard
 GameMode wrapper in that client's launch-command / launch-options field:
