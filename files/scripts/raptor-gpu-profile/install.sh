@@ -92,6 +92,68 @@ PROFILE="auto"
 [ -f /etc/raptor-force-balanced ]    && PROFILE="balanced"
 echo "Active profile: $PROFILE"
 
+# Read driver-advertised Intel bounds; never guess fixed clock frequencies.
+_set_intel_gpu_power_mode() {
+    local mode="$1" card rpmin rpmax
+    for card in /sys/class/drm/card*/; do
+        [ -d "$card" ] || continue
+        [ -w "${card}gt_min_freq_mhz" ] && [ -w "${card}gt_max_freq_mhz" ] || continue
+        rpmin=$(cat "${card}gt_RPn_freq_mhz" 2>/dev/null || true)
+        rpmax=$(cat "${card}gt_RP0_freq_mhz" 2>/dev/null || true)
+        [[ "$rpmin" =~ ^[0-9]+$ && "$rpmax" =~ ^[0-9]+$ ]] || continue
+        echo "$rpmax" > "${card}gt_max_freq_mhz" 2>/dev/null || true
+        echo "$rpmin" > "${card}gt_min_freq_mhz" 2>/dev/null || true
+        if [ "$mode" = "powersave" ]; then
+            echo "$rpmin" > "${card}gt_max_freq_mhz" 2>/dev/null || true
+        fi
+    done
+}
+
+# AMD profile indexes vary by driver/GPU. Resolve names from the driver's
+# advertised profile table instead of assuming that index 1 or 2 is universal.
+_set_amd_gpu_power_mode() {
+    local dpm="$1" profile="$2" f id
+    for f in /sys/class/drm/card*/device/power_dpm_force_performance_level; do
+        [ -w "$f" ] && printf '%s\n' "$dpm" > "$f" 2>/dev/null || true
+    done
+    for f in /sys/class/drm/card*/device/pp_power_profile_mode; do
+        [ -w "$f" ] || continue
+        id=$(awk -v wanted="$profile" '
+            NR > 1 {
+                name=$2
+                sub(/\*$/, "", name)
+                if (name == wanted) { print $1; exit }
+            }
+        ' "$f" 2>/dev/null)
+        [[ "$id" =~ ^[0-9]+$ ]] && printf '%s\n' "$id" > "$f" 2>/dev/null || true
+    done
+}
+
+# Restore each NVIDIA GPU's own firmware default, not a guessed wattage.
+_restore_nvidia_power_limits() {
+    command -v nvidia-smi >/dev/null 2>&1 || return 0
+    local index limit
+    while IFS=',' read -r index limit; do
+        index="${index//[[:space:]]/}"
+        limit="${limit//[[:space:]]/}"
+        [[ "$index" =~ ^[0-9]+$ && "$limit" =~ ^[0-9]+([.][0-9]+)?$ ]] || continue
+        nvidia-smi -i "$index" -pl "${limit%.*}" >/dev/null 2>&1 || true
+    done < <(nvidia-smi --query-gpu=index,power.default_limit --format=csv,noheader,nounits 2>/dev/null)
+}
+
+_set_nvidia_power_saving() {
+    command -v nvidia-smi >/dev/null 2>&1 || return 0
+    local index limit target
+    nvidia-smi -pm 0 >/dev/null 2>&1 || true
+    while IFS=',' read -r index limit; do
+        index="${index//[[:space:]]/}"
+        limit="${limit//[[:space:]]/}"
+        [[ "$index" =~ ^[0-9]+$ && "$limit" =~ ^[0-9]+([.][0-9]+)?$ ]] || continue
+        target=$(awk -v value="$limit" 'BEGIN { printf "%d", value * 0.8 }')
+        [ "$target" -gt 0 ] && nvidia-smi -i "$index" -pl "$target" >/dev/null 2>&1 || true
+    done < <(nvidia-smi --query-gpu=index,power.default_limit --format=csv,noheader,nounits 2>/dev/null)
+}
+
 # ── Common env vars ───────────────────────────────────────────────────────────
 # RADV_PERFTEST=gpl: Vulkan Graphics Pipeline Library — pre-compiles shader
 # variant stubs as a library rather than full monolithic programs. Cuts
@@ -109,7 +171,6 @@ RADV_PERFTEST=gpl"
 
 # ── Profile → env file ────────────────────────────────────────────────────────
 case "$PROFILE" in
-
   extreme)
     cat << ENVEOF > /etc/environment.d/raptor-gpu.conf
 # ── Raptor OS: EXTREME PERFORMANCE profile ───────────────────────────────────
@@ -121,23 +182,16 @@ __GL_SHADER_DISK_CACHE_SKIP_CLEANUP=1
 __GL_THREADED_OPTIMIZATIONS=1
 AMDGPU_HIGH_POWER=1
 PROTON_ENABLE_NVAPI=1
-# DXVK_ASYNC=1  ← set per-game, not globally (causes shader flicker)
 DXVK_FRAME_RATE=0
 VKD3D_CONFIG=dxr11,dxr
 VKD3D_FEATURE_LEVEL=12_2
 $COMMON_VARS
 ENVEOF
-    if [ "$GPU_VENDOR" = "amd" ]; then
-        for f in /sys/class/drm/card*/device/power_dpm_force_performance_level; do
-            echo "high" > "$f" 2>/dev/null || true
-        done
-        for f in /sys/class/drm/card*/device/pp_power_profile_mode; do
-            echo 1 > "$f" 2>/dev/null || true
-        done
-    fi
+    [ "$GPU_VENDOR" = "amd" ] && _set_amd_gpu_power_mode high 3D_FULL_SCREEN
+    [ "$GPU_VENDOR" = "intel" ] && _set_intel_gpu_power_mode performance
     if [ "$GPU_VENDOR" = "nvidia" ]; then
-        nvidia-smi -pm 1 > /dev/null 2>&1 || true
-        nvidia-smi --auto-boost-default=0 > /dev/null 2>&1 || true
+        _restore_nvidia_power_limits
+        nvidia-smi -pm 1 >/dev/null 2>&1 || true
     fi
     ;;
 
@@ -151,18 +205,15 @@ __GL_SHADER_DISK_CACHE=1
 __GL_SHADER_DISK_CACHE_SKIP_CLEANUP=1
 __GL_THREADED_OPTIMIZATIONS=1
 PROTON_ENABLE_NVAPI=1
-# DXVK_ASYNC=1  ← set per-game, not globally (causes shader flicker)
 VKD3D_CONFIG=dxr11
 VKD3D_FEATURE_LEVEL=12_1
 $COMMON_VARS
 ENVEOF
-    if [ "$GPU_VENDOR" = "amd" ]; then
-        for f in /sys/class/drm/card*/device/power_dpm_force_performance_level; do
-            echo "high" > "$f" 2>/dev/null || true
-        done
-    fi
+    [ "$GPU_VENDOR" = "amd" ] && _set_amd_gpu_power_mode high 3D_FULL_SCREEN
+    [ "$GPU_VENDOR" = "intel" ] && _set_intel_gpu_power_mode performance
     if [ "$GPU_VENDOR" = "nvidia" ]; then
-        nvidia-smi -pm 1 > /dev/null 2>&1 || true
+        _restore_nvidia_power_limits
+        nvidia-smi -pm 1 >/dev/null 2>&1 || true
     fi
     ;;
 
@@ -175,72 +226,32 @@ __GL_SHADER_DISK_CACHE=1
 PROTON_ENABLE_NVAPI=1
 $COMMON_VARS
 ENVEOF
-    if [ "$GPU_VENDOR" = "amd" ]; then
-        for f in /sys/class/drm/card*/device/power_dpm_force_performance_level; do
-            echo "auto" > "$f" 2>/dev/null || true
-        done
+    [ "$GPU_VENDOR" = "amd" ] && _set_amd_gpu_power_mode auto BOOTUP_DEFAULT
+    [ "$GPU_VENDOR" = "intel" ] && _set_intel_gpu_power_mode balanced
+    if [ "$GPU_VENDOR" = "nvidia" ]; then
+        _restore_nvidia_power_limits
+        nvidia-smi -pm 0 >/dev/null 2>&1 || true
     fi
     ;;
 
   powersave)
     cat << ENVEOF > /etc/environment.d/raptor-gpu.conf
 # ── Raptor OS: POWER SAVING profile ──────────────────────────────────────────
-# Shader cache stays ENABLED. It used to be disabled to save disk writes, but
-# recompiling shaders on every launch costs far more CPU/GPU energy than the
-# occasional cache write saves.
 MESA_SHADER_CACHE_DISABLE=false
-# Disable threaded optimizations: fewer background threads = lower idle power.
 __GL_THREADED_OPTIMIZATIONS=0
 $COMMON_VARS
 ENVEOF
+    [ "$GPU_VENDOR" = "amd" ] && _set_amd_gpu_power_mode low POWER_SAVING
     if [ "$GPU_VENDOR" = "amd" ]; then
-        # Force GPU to low power DPM level
-        for f in /sys/class/drm/card*/device/power_dpm_force_performance_level; do
-            echo "low" > "$f" 2>/dev/null || true
-        done
-        # Set GPU power profile to video (profile 1) — lower clocks, optimised
-        # for sequential workloads rather than bursty gaming patterns
-        for f in /sys/class/drm/card*/device/pp_power_profile_mode; do
-            echo 1 > "$f" 2>/dev/null || true
-        done
-        # Enable GFXOFF: allows the GPU shader engine to fully power off at idle.
-        # On RDNA2+ this saves 0.5-2 W during desktop use.
         for f in /sys/kernel/debug/dri/*/amdgpu_gfxoff; do
-            echo 1 > "$f" 2>/dev/null || true
+            [ -w "$f" ] && echo 1 > "$f" 2>/dev/null || true
         done
-        # Hard cap GPU clocks to the lowest available level via OD
-        for card in /sys/class/drm/card*/device; do
-            if [ -f "$card/pp_od_clk_voltage" ]; then
-                echo "manual" > "$card/power_dpm_force_performance_level" 2>/dev/null || true
-                echo "s 0 $(awk 'NR==2{print $2}' "$card/pp_dpm_sclk" 2>/dev/null)"                     > "$card/pp_od_clk_voltage" 2>/dev/null || true
-                echo "c" > "$card/pp_od_clk_voltage" 2>/dev/null || true
-            fi
-        done 2>/dev/null || true
     fi
     if [ "$GPU_VENDOR" = "intel" ]; then
-        # Intel GPU: enable frequency scaling to minimum
-        for f in /sys/class/drm/card*/gt_min_freq_mhz; do
-            MIN=$(cat "${f%min_freq_mhz}min_freq_mhz" 2>/dev/null || echo 100)
-            echo "$MIN" > "$f" 2>/dev/null || true
-        done
-        for f in /sys/class/drm/card*/gt_max_freq_mhz; do
-            MIN=$(cat "${f%max_freq_mhz}min_freq_mhz" 2>/dev/null || echo 100)
-            echo "$MIN" > "$f" 2>/dev/null || true
-        done
-        # Intel Panel Self-Refresh: allows display controller to stop driving
-        # the panel backplane between frame updates. Saves 0.5-1.5 W on eDP.
+        _set_intel_gpu_power_mode powersave
         echo 1 > /sys/module/i915/parameters/enable_psr 2>/dev/null || true
     fi
-    if [ "$GPU_VENDOR" = "nvidia" ]; then
-        # Disable NVIDIA persistence mode: GPU fully powers down when idle
-        nvidia-smi -pm 0 > /dev/null 2>&1 || true
-        # Reduce power limit to 80% of TDP if supported
-        MAX_PL=$(nvidia-smi --query-gpu=power.max_limit             --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d ' ')
-        if [ -n "$MAX_PL" ] && [ "$MAX_PL" -gt 0 ] 2>/dev/null; then
-            TARGET=$(( MAX_PL * 80 / 100 ))
-            nvidia-smi -pl "$TARGET" > /dev/null 2>&1 || true
-        fi
-    fi
+    [ "$GPU_VENDOR" = "nvidia" ] && _set_nvidia_power_saving
     ;;
 
   auto|*)
@@ -251,7 +262,6 @@ __GL_SHADER_DISK_CACHE=1
 __GL_SHADER_DISK_CACHE_SKIP_CLEANUP=1
 __GL_THREADED_OPTIMIZATIONS=1
 PROTON_ENABLE_NVAPI=1
-# DXVK_ASYNC=1  ← set per-game, not globally (causes shader flicker)
 VKD3D_CONFIG=dxr11
 $COMMON_VARS
 ENVEOF
@@ -269,7 +279,6 @@ AMD_VULKAN_ICD=RADV
 MESA_SHADER_CACHE_DISABLE=false
 MESA_SHADER_CACHE_MAX_SIZE=2G
 __GL_SHADER_DISK_CACHE=1
-# DXVK_ASYNC=1  ← set per-game, not globally (causes shader flicker)
 $COMMON_VARS
 ENVEOF
     elif [ "$GPU_VENDOR" = "intel" ]; then
@@ -285,6 +294,12 @@ ENVEOF
 MESA_SHADER_CACHE_DISABLE=false
 $COMMON_VARS
 ENVEOF
+    fi
+    [ "$GPU_VENDOR" = "amd" ] && _set_amd_gpu_power_mode auto BOOTUP_DEFAULT
+    [ "$GPU_VENDOR" = "intel" ] && _set_intel_gpu_power_mode balanced
+    if [ "$GPU_VENDOR" = "nvidia" ]; then
+        _restore_nvidia_power_limits
+        nvidia-smi -pm 0 >/dev/null 2>&1 || true
     fi
     ;;
 esac
