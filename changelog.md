@@ -20,7 +20,7 @@ This is the consolidation release for more than two months of sustained Raptor O
 
 ### One-time app integration
 
-- A release marker opts the first successful v2.9.0 main-branch image build into the one-time Raptor Music and Shroudly payload; normal pull-request builds, unrelated pushes, and scheduled rebuilds skip it.
+- A release marker opts the first successful v2.9.0 main-branch image build into the one-time Raptor Music and transitional Shroudly prototype payload; normal pull-request builds, unrelated pushes, and scheduled rebuilds skip it.
 - A permanent Git tag, `raptor-one-time-apps-consumed`, locks the integration only after that image has been successfully built and pushed. Later builds cannot rebuild or reinstall these apps.
 - The installers require the one-time staging marker. Without it, they remove stale staged app binaries and skip installation. Generated binaries are no longer tracked in the source tree.
 - A maintainer-only manual dispatch remains as a recovery fallback; end users never need to run GitHub Actions. The one-time integration is not consumed by a failed image build.
@@ -39,13 +39,6 @@ This is the consolidation release for more than two months of sustained Raptor O
 - Game Mode now includes the KDE crash reporter in its reversible optional-process pause list; it is resumed when the game session ends.
 - README hardware requirements now state the Bazzite quad-core ~2 GHz / 8 GB baseline, Vulkan 1.3 capability, clearer AMD/Intel/NVIDIA driver-generation caveats, and the fact that 4 GB is still an unvalidated optimization target rather than a supported minimum.
 
-- Cortex now confirms the requested Power Profiles profile before applying device-level tuning; a failed request no longer leaves the UI showing a mode that was not applied. Cortex polls the active PPD profile so its mode indicator follows changes made through KDE Powerdevil's battery slider, and the saved mode follows external changes for the next login.
-- One-Click Boost now performs one pressure-aware memory-reclaim request (rather than reclaiming twice), then pauses the configured optional indexers. It rolls back to Balanced and restores any partial Game Mode state if a stage fails. The ordinary Optimize Memory action also reports helper failures instead of recording them as successful runs.
-- GameMode's start/end hooks now live in the active `/etc/gamemode.ini`, not an unreferenced drop-in. Cortex's process-pause helper is idempotent, so the UI button and GameMode cannot overwrite the same session's restore list and leave indexers frozen.
-- PipeWire and WirePlumber restart limits now use valid systemd `[Unit]` directives. Audio RT memory locking is capped at 16 MiB, the normal scheduling priority matches PipeWire's request, and USB audio resampling uses quality 6 to reduce CPU overhead on low-power devices.
-- Firefox's low-memory profile defaults now also seed Flatpak Firefox profiles. Brave's optimized launcher scales raster-worker count to installed RAM without reducing Chromium's site-isolation process model. Generated browser and gaming helper scripts are syntax-checked during image construction.
-- README hardware requirements now state the Bazzite quad-core ~2 GHz / 8 GB baseline, Vulkan 1.3 capability, clearer AMD/Intel/NVIDIA driver-generation caveats, and the fact that 4 GB is still an unvalidated optimization target rather than a supported minimum.
-
 - Cortex memory cleanup is now pressure-aware: it checks available RAM, caps normal reclaim at 256 MiB, and preserves useful page/file caches instead of forcing cache drops or repeatedly reclaiming nested cgroups. Compaction, zRAM recompression, OOM-score changes, and deeper reclaim are no longer part of Quick Optimize or Pre-Game Boost by default.
 - Game Mode now separates performance-profile changes from memory cleanup. It pauses only optional indexers and thumbnail work selected in Cortex, tracks its active state, and restores only the work it paused. Package managers, Snap, fstrim, irqbalance, communications, audio, and user applications are left running.
 - Cortex now has a sequential One-Click Boost: select the Power Profiles Performance mode, apply the selected GPU profile when supported, pause only the configured optional indexers, and request bounded memory reclaim only when RAM is genuinely low. It does not flush useful caches, compact memory, rewrite OOM scores, or recompress live ZRAM pages. Restore Desktop reverses Game Mode and returns to Balanced.
@@ -61,7 +54,7 @@ This is the consolidation release for more than two months of sustained Raptor O
 
 - Added the complete upstream Shroudly repository as a pinned Git submodule, preserving its original source tree and making the upstream revision auditable. Preserved upstream MIT licensing and attribution to umutxyp / Codeshare Technology Ltd.
 - Updated the workflow to fetch the pinned upstream submodule only during the one-time manually dispatched build, then verify the upstream desktop entrypoint, Linux engine source, and license before compiling.
-- Updated the Shroudly Raptor README to distinguish the newly vendored upstream source from the still-transitional Rust prototype. The original Linux application is not yet wired into the Raptor image; that integration remains outstanding.
+- Updated the Shroudly Raptor README to distinguish the newly vendored upstream source from the still-transitional Rust prototype. The original Linux application is not yet wired into the Raptor image; this remains an explicit v2.9.0 release blocker, not a completed feature.
 
 ## [v2.8.0] - 2026-11-05 (Raptor Music Expansion, Hardware Recovery & CI Reliability)
 
