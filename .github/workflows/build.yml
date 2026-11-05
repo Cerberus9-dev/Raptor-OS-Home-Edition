@@ -150,11 +150,11 @@ jobs:
         if: ${{ steps.one_time_apps.outputs.include == 'true' }}
         working-directory: files/scripts/shroudly-raptor/upstream
         run: |
-          install -d ../..//../../staging/shroudly-app
-          cp -a dist/linux-unpacked/. ../../../../staging/shroudly-app/
-          install -Dm644 LICENSE ../../../../staging/shroudly-app/LICENSE
-          install -Dm644 scripts/linux/me.codeshare.shroudly.policy ../../../../staging/shroudly-app/me.codeshare.shroudly.policy
-          install -Dm644 public/icon.png ../../../../staging/shroudly-app/shroudly.png
+          install -d ../../../staging/shroudly-app
+          cp -a dist/linux-unpacked/. ../../../staging/shroudly-app/
+          install -Dm644 LICENSE ../../../staging/shroudly-app/LICENSE
+          install -Dm644 scripts/linux/me.codeshare.shroudly.policy ../../../staging/shroudly-app/me.codeshare.shroudly.policy
+          install -Dm644 public/icon.png ../../../staging/shroudly-app/shroudly.png
 
       - name: Check signing secret
         if: github.event_name != 'pull_request'
