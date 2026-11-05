@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+### v2.8.1 (planned)
+
 ### One-time app integration
 
 - Raptor Music and Shroudly are opt-in for one manually dispatched image build. The workflow defaults the one-time app input to false; normal pushes, pull requests, and scheduled rebuilds do not fetch the Shroudly submodule, compile either app, run their tests, or stage their binaries.
@@ -9,7 +11,21 @@
 - The installers require the one-time staging marker. Without it, they remove any stale staged app binaries and skip installation. Generated binaries are no longer tracked in the source tree.
 - To include them in the intended build, manually dispatch **Build Raptor OS** once with `include_one_time_apps=true`. The successful build creates the permanent lock tag automatically.
 
-### Performance, audio, and gaming
+### Performance, audio, gaming, and update reliability
+
+- GPU profile transitions now restore Intel and NVIDIA driver-advertised limits when leaving Power Saving, and AMD returns to driver-managed DPM without leaving manual overdrive clock caps behind.
+- USB audio buffering is reduced from a 64 ms period queue to approximately 32 ms while retaining the high-quality resampling setting (quality 10) and USB-specific headroom.
+- Kernel watchdog diagnostics and split-lock mitigation remain enabled; their marginal overhead is not worth removing recovery diagnostics or weakening a kernel mitigation.
+
+- Cortex now confirms the requested Power Profiles profile before applying device-level tuning; a failed request no longer leaves the UI showing a mode that was not applied. Cortex polls the active PPD profile so its mode indicator follows changes made through KDE Powerdevil's battery slider, and the saved mode follows external changes for the next login.
+- One-Click Boost now performs one pressure-aware memory-reclaim request (rather than reclaiming twice), then pauses the configured optional indexers. It rolls back to Balanced and restores any partial Game Mode state if a stage fails. The ordinary Optimize Memory action also reports helper failures instead of recording them as successful runs.
+- GameMode's start/end hooks now live in the active `/etc/gamemode.ini`, not an unreferenced drop-in. Cortex's process-pause helper is idempotent, so the UI button and GameMode cannot overwrite the same session's restore list and leave indexers frozen.
+- PipeWire and WirePlumber restart limits now use valid systemd `[Unit]` directives. Audio RT memory locking is capped at 16 MiB, normal scheduling priority matches PipeWire's request, while USB audio retains quality 10 to preserve fidelity.
+- Firefox's low-memory profile defaults now also seed Flatpak Firefox profiles. Brave's optimized launcher scales raster-worker count to installed RAM without reducing Chromium's site-isolation process model. Generated browser and gaming helper scripts are syntax-checked during image construction.
+- ModemManager remains available for WWAN-equipped laptops; Firefox uses the active system DNS resolver instead of forcing Cloudflare DoH, preserving network-provided DNS behavior.
+- Update Manager output streaming now uses a queue-backed reader instead of mixing `select()` with buffered text reads, preventing false timeouts. Flatpak update checks cover system and user installations separately; system refs update as root, user refs update as the logged-in account. Wi-Fi power-save state is restored after system updates.
+- Update Manager build-time checks now parse its generated Python GUI and polkit XML and syntax-check all generated shell helpers.
+- README hardware requirements now state the Bazzite quad-core ~2 GHz / 8 GB baseline, Vulkan 1.3 capability, clearer AMD/Intel/NVIDIA driver-generation caveats, and the fact that 4 GB is still an unvalidated optimization target rather than a supported minimum.
 
 - Cortex now confirms the requested Power Profiles profile before applying device-level tuning; a failed request no longer leaves the UI showing a mode that was not applied. Cortex polls the active PPD profile so its mode indicator follows changes made through KDE Powerdevil's battery slider, and the saved mode follows external changes for the next login.
 - One-Click Boost now performs one pressure-aware memory-reclaim request (rather than reclaiming twice), then pauses the configured optional indexers. It rolls back to Balanced and restores any partial Game Mode state if a stage fails. The ordinary Optimize Memory action also reports helper failures instead of recording them as successful runs.
