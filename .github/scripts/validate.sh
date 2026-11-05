@@ -105,6 +105,13 @@ assert_contains files/scripts/raptor-update/install.sh "from queue import Queue,
 assert_contains files/scripts/raptor-update/install.sh 'flatpak", "update", "--user'
 assert_contains files/scripts/raptor-update/install.sh "trap restore_wifi_power_save EXIT"
 assert_contains files/scripts/raptor-update/install.sh "UPDATE_MANAGER_SHELL_SYNTAX_ERROR"
+assert_contains files/scripts/raptor-update/install.sh "def stream_process"
+assert_contains files/scripts/raptor-update/install.sh "start_new_session=True"
+assert_contains files/scripts/raptor-update/install.sh "os.killpg"
+assert_contains files/scripts/raptor-update/install.sh "timeout=3 * 60 * 60"
+assert_contains files/scripts/raptor-update/install.sh "timeout=900"
+assert_not_contains files/scripts/raptor-update/install.sh "for line in user_proc.stdout"
+assert_not_contains files/scripts/raptor-update/install.sh "for line in fp_proc.stdout"
 
 echo "=== Checking ISO and requirements documentation ==="
 assert_not_contains .github/workflows/build-iso.yml "jasonn3/build-container-installer"
