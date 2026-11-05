@@ -2936,8 +2936,13 @@ EOF
 # the build if not.
 RAPTOR_EXPECTED_PAYLOAD="
 /usr/bin/raptor-cortex
+/usr/bin/raptor-cortex-launcher
 /usr/lib/raptor/cortex-helper
 /usr/lib/raptor/cortex-apply-boot-mode
+/usr/lib/raptor/safe-signal
+/usr/lib/raptor/unfreeze
+/usr/lib/raptor/gamemode-start
+/usr/lib/raptor/gamemode-end
 /usr/share/applications/raptor-cortex.desktop
 "
 raptor_missing=""
@@ -2946,6 +2951,30 @@ for raptor_f in $RAPTOR_EXPECTED_PAYLOAD; do
 done
 if [ -n "$raptor_missing" ]; then
     echo "CORTEX_PAYLOAD_MISSING:$raptor_missing" >&2
+    exit 1
+fi
+# Validate generated programs, not merely their existence. This catches
+# malformed heredocs before they can ship in an otherwise successful image.
+for raptor_shell in \
+    /usr/bin/raptor-cortex-launcher \
+    /usr/lib/raptor/cortex-helper \
+    /usr/lib/raptor/cortex-apply-boot-mode \
+    /usr/lib/raptor/safe-signal \
+    /usr/lib/raptor/unfreeze \
+    /usr/lib/raptor/gamemode-start \
+    /usr/lib/raptor/gamemode-end; do
+    if ! bash -n "$raptor_shell"; then
+        echo "CORTEX_SHELL_SYNTAX_ERROR:$raptor_shell" >&2
+        exit 1
+    fi
+done
+if ! python3 - <<'PY'
+import ast
+with open("/usr/bin/raptor-cortex", encoding="utf-8") as source:
+    ast.parse(source.read(), filename="/usr/bin/raptor-cortex")
+PY
+then
+    echo "CORTEX_PYTHON_SYNTAX_ERROR:/usr/bin/raptor-cortex" >&2
     exit 1
 fi
 echo "CORTEX_READY payload=$(echo $RAPTOR_EXPECTED_PAYLOAD | wc -w | tr -d ' ') files verified"
