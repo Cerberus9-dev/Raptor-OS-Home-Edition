@@ -374,6 +374,10 @@ case "$ACTION" in
     # ── Per-mode kernel tuning ─────────────────────────────────────────────
     set-mode)
         MODE="${2:-balanced}"
+        case "$MODE" in
+            power_saving|balanced|performance) ;;
+            *) echo "Invalid Cortex mode: $MODE" >&2; exit 2 ;;
+        esac
 
         # CPU policy is deliberately owned by power-profiles-daemon (PPD).
         # KDE Powerdevil's battery slider and Cortex both talk to that same
@@ -437,7 +441,7 @@ case "$ACTION" in
                 # leaving power-saving. PowerDevil already dims on battery per the
                 # user's own Plasma power settings.
 
-                powerprofilesctl set power-saver 2>/dev/null || true
+                powerprofilesctl set power-saver 2>/dev/null || { echo "Failed to select PPD power-saver profile" >&2; exit 1; }
                 ;;
 
             balanced)
@@ -466,7 +470,7 @@ case "$ACTION" in
                 echo N > /sys/module/snd_hda_intel/parameters/power_save_controller 2>/dev/null || true
                 _apply_net_runtime_pm on
 
-                powerprofilesctl set balanced 2>/dev/null || true
+                powerprofilesctl set balanced 2>/dev/null || { echo "Failed to select PPD balanced profile" >&2; exit 1; }
                 ;;
 
             performance)
@@ -499,7 +503,7 @@ case "$ACTION" in
 
                 # Avoid cache drops and memory compaction on mode switches:
                 # both can cause avoidable I/O or CPU spikes during game launch.
-                powerprofilesctl set performance 2>/dev/null || true
+                powerprofilesctl set performance 2>/dev/null || { echo "Failed to select PPD performance profile" >&2; exit 1; }
                 ;;
         esac
         ;;
@@ -738,7 +742,9 @@ systemctl --global enable raptor-unfreeze.timer 2>/dev/null || true
 # ── Gamemode hooks ────────────────────────────────────────────────────────────
 cat << 'EOF' > /usr/lib/raptor/gamemode-start
 #!/bin/bash
-sudo /usr/lib/raptor/cortex-helper 1 1 1 1 0 0 0 1 2>/dev/null || true
+# GameMode only pauses optional indexers and applies its bounded latency
+# constraint. Avoid compaction, zram recompression and OOM-score changes on
+# every game launch; those add spikes and can make a 4 GB system less stable.
 sudo /usr/lib/raptor/cortex-helper trim-background 2>/dev/null || true
 CONFIG=/etc/raptor/cortex-suspend.conf
 [ -f "$CONFIG" ] || exit 0
