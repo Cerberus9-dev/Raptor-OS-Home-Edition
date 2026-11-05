@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- **CI no longer pushes generated application binaries to `main`.** The build already stages both Rust executables in `files/staging/` for the BlueBuild `files` module; the later copy step duplicated that work, and the GitHub Actions job committed and pushed those generated binaries, unnecessarily mutating the source branch and triggering another workflow run. Removed the duplicate staging/push steps and reduced the job's contents permission to read-only.
+
+
 
 - **Raptor Music queue index consistency:** removing a queue row before the currently playing entry now shifts the active-row index to match the reindexed queue; removing the active entry also resets the visible player state to Idle.
 
