@@ -236,6 +236,8 @@ ENVEOF
     fi
     if [ "$GPU_VENDOR" = "intel" ]; then
         _set_intel_gpu_power_mode powersave
+        # Preserve the existing Intel Panel Self Refresh power-saving feature.
+        echo 1 > /sys/module/i915/parameters/enable_psr 2>/dev/null || true
     fi
     if [ "$GPU_VENDOR" = "nvidia" ]; then
         # Let the GPU power down at idle and apply a conservative 80% TDP cap.
