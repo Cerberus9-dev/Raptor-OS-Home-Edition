@@ -25,6 +25,7 @@ export component MainWindow inherits Window {
     in-out property <string> new_playlist_name: "";
     in-out property <int> selected_playlist_index: -1;
     in-out property <int> selected_track_index: -1;
+    in-out property <string> search_query: "";
     in-out property <int> selected_queue_index: -1;
     in-out property <int> playing_queue_index: -1;
     in-out property <string> current_track_title: "Not Playing";
@@ -37,6 +38,7 @@ export component MainWindow inherits Window {
 
     callback scan_directory_clicked();
     callback track_selected(int);
+    callback search_changed(string);
     callback queue_selected(int);
     callback playlist_selected(int);
     callback create_playlist_clicked();
@@ -84,6 +86,23 @@ export component MainWindow inherits Window {
                 spacing: 6px;
 
                 Text { text: "Library"; font-weight: 700; color: #c7d2e0; font-size: 15px; }
+
+                Rectangle {
+                    height: 34px;
+                    background: #202a38;
+                    border-radius: 4px;
+                    TextInput {
+                        x: 9px;
+                        y: 0px;
+                        width: parent.width - 18px;
+                        height: parent.height;
+                        text <=> root.search_query;
+                        color: #e6edf6;
+                        font-size: 13px;
+                        vertical-alignment: center;
+                        edited => { root.search_changed(self.text); }
+                    }
+                }
 
                 ListView {
                     vertical-stretch: 1;
