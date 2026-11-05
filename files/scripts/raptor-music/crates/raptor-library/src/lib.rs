@@ -148,7 +148,7 @@ impl LibraryDatabase {
                         FOREIGN KEY(track_id) REFERENCES tracks(id) ON DELETE CASCADE
                     );
                     INSERT INTO persistent_queue_new (queue_entry_id, track_id, position)
-                    SELECT lower(hex(randomblob(4)) || '-' || hex(randomblob(2)) || '-4' || substr(hex(randomblob(2)),2) || '-' || substr('89ab',abs(random()) % 4 + 1,1) || substr(hex(randomblob(2)),2) || '-' || hex(randomblob(6))), track_id, rowid FROM persistent_queue;
+                    SELECT lower(hex(randomblob(4)) || '-' || hex(randomblob(2)) || '-4' || substr(hex(randomblob(2)),2) || '-' || substr('89ab',abs(random()) % 4 + 1,1) || substr(hex(randomblob(2)),2) || '-' || hex(randomblob(6))), track_id, position FROM persistent_queue ORDER BY position ASC, rowid ASC;
                     DROP TABLE persistent_queue;
                     ALTER TABLE persistent_queue_new RENAME TO persistent_queue;
                     "#,
