@@ -13,7 +13,7 @@
 
 ### Performance, audio, gaming, and update reliability
 
-- Cortex now confirms the requested Power Profiles profile before applying device-level tuning; a failed request no longer leaves the UI showing a mode that was not applied. Cortex polls the active PPD profile so its mode indicator follows changes made through KDE Powerdevil's battery slider, and the saved mode follows external changes for the next login.
+- Cortex now confirms the requested Power Profiles profile before applying device-level tuning; a failed request no longer leaves the UI showing a mode that was not applied. Cortex polls the active PPD profile so its mode indicator follows changes made through KDE Powerdevil's battery slider, and the saved mode follows external changes for the next login. The boot readiness unit now queries PPD without resetting the saved profile to Balanced.
 - One-Click Boost now performs one pressure-aware memory-reclaim request (rather than reclaiming twice), then pauses the configured optional indexers. It rolls back to Balanced and restores any partial Game Mode state if a stage fails. The ordinary Optimize Memory action also reports helper failures instead of recording them as successful runs.
 - GameMode's start/end hooks now live in the active `/etc/gamemode.ini`, not an unreferenced drop-in. Cortex's process-pause helper is idempotent, so the UI button and GameMode cannot overwrite the same session's restore list and leave indexers frozen.
 - PipeWire and WirePlumber restart limits now use valid systemd `[Unit]` directives. Audio RT memory locking is capped at 16 MiB, normal scheduling priority matches PipeWire's request, while USB audio retains quality 10 to preserve fidelity.
