@@ -4,6 +4,8 @@
 
 ### [0.2.18] (upcoming)
 
+- **Shroudly false-success listener removed:** the app no longer opens a listener that acknowledged CONNECT without an upstream tunnel. Proxy launch now returns an explicit unsupported error, and documentation/installer comments state that the prototype is disabled.
+
 - **Bluetooth recovery watchdog:** health checks now query the controller state without starting a discovery scan, avoiding unsolicited device discovery and leaving the user's scan state untouched.
 
 - **Raptor Music Slint compatibility:** replaced the Slider `released` callback (not available in the project's Slint 1.5 dependency) with its supported `changed` callback and an explicit Seek action, preventing a UI compile failure.

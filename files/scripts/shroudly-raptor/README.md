@@ -1,27 +1,16 @@
-# Raptor Shroudly (v0.1.0)
+# Shroudly Raptor — experimental prototype
 
-**Status: incomplete prototype; not a functional proxy.**
+Shroudly is not currently a working proxy. The Rust executable prints a status
+message and exits. It does not open a local listener, forward traffic, launch
+applications through a proxy, or provide a desktop GUI.
 
-The current daemon binds to `127.0.0.1:10808` and prints a terminal status
-summary. Its request handler does not forward traffic: ordinary HTTP requests
-receive `501 Not Implemented`, and `CONNECT` is acknowledged without opening
-an upstream tunnel. The dashboard's active mode and monitored-app count are
-placeholder values. The current source contains no desktop GUI.
+The previous listener incorrectly acknowledged HTTP CONNECT requests without
+creating an upstream tunnel. That listener has been removed so clients cannot
+mistake a successful handshake for working network access. Application
+launch-through-proxy is disabled until a real, tested implementation exists.
 
-Advanced packet mode is deliberately disabled. The former cleanup path used
-`nft flush ruleset`, which could delete firewall rules belonging to the host,
-containers, VPNs, and unrelated applications. Do not add global firewall
-cleanup back; any future packet-mode implementation must use an isolated,
-Shroudly-owned nftables table and remove only that table.
+Advanced packet mode is deliberately disabled and makes no nftables changes.
+Do not configure applications to use Shroudly or rely on it for network access.
 
-The current prototype must not be configured as an application's proxy. A
-functional, documented proxy implementation and the desktop UI are still
-outstanding. It must support only ordinary, authorized network use and must
-not be presented as a way to evade managed-network restrictions.
-
-## Build and test
-
-```sh
-cargo build --workspace
-cargo test --workspace
-```
+A successful CI compile only validates the prototype's Rust code; it does not
+mean proxy functionality is implemented.

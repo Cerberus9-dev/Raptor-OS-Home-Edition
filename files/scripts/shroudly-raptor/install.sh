@@ -23,8 +23,8 @@ fi
 install -m 0755 "$SRC_BIN" "$BIN_DEST"
 
 # ── .desktop ──────────────────────────────────────────────────────────────────
-# Shroudly prints its dashboard and then listens on 127.0.0.1:10808, so it runs
-# in a terminal window. Closing the window stops the proxy.
+# Shroudly is an incomplete prototype. It prints a status message and exits;
+# it does not open a proxy port or forward network traffic.
 cat << 'EOF' > /usr/share/applications/shroudly-raptor.desktop
 [Desktop Entry]
 Version=1.0
