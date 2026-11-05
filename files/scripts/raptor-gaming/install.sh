@@ -337,7 +337,7 @@ fi
 EXTRA_FLAGS=()
 if [ -f "$FLAGS_FILE" ]; then
     while IFS= read -r flag || [ -n "$flag" ]; do
-        [[ -z "$flag" || "$flag" == \\#* ]] && continue
+        [[ -z "$flag" || "${flag:0:1}" == "#" ]] && continue
         EXTRA_FLAGS+=("$flag")
     done < "$FLAGS_FILE"
 fi
