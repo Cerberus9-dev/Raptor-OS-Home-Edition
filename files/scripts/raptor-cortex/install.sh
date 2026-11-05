@@ -100,11 +100,16 @@ _apply_pcie_aspm() {
 }
 
 _apply_nvme_power() {
-    # min_power | max_performance | auto
-    local S="$1"
-    for f in /sys/class/nvme/nvme*/power/control \
-              /sys/bus/pci/devices/*/nvme/nvme*/power/control; do
-        [ -f "$f" ] && echo "$S" > "$f" 2>/dev/null || true
+    # Linux runtime-PM power/control accepts only "auto" or "on".
+    # NVMe APST policy is a separate controller setting and is not changed here.
+    local state="$1" f
+    case "$state" in
+        auto|on) ;;
+        *) echo "Invalid NVMe runtime-PM mode: $state" >&2; return 2 ;;
+    esac
+    for f in /sys/class/nvme/nvme*/power/control; do
+        [ -w "$f" ] || continue
+        printf '%s\n' "$state" > "$f" 2>/dev/null || true
     done
 }
 
@@ -344,7 +349,7 @@ case "$ACTION" in
                 echo never > /sys/kernel/mm/transparent_hugepage/enabled 2>/dev/null || true
 
                 _apply_pcie_aspm       powersave
-                _apply_nvme_power      min_power
+                _apply_nvme_power      auto
                 _apply_usb_autosuspend 1
                 _apply_runtime_pm      auto
                 _apply_sata_link_power min_power
@@ -427,7 +432,7 @@ case "$ACTION" in
                 echo defer+madvise > /sys/kernel/mm/transparent_hugepage/defrag  2>/dev/null || true
 
                 _apply_pcie_aspm       performance
-                _apply_nvme_power      max_performance
+                _apply_nvme_power      on
                 _apply_usb_autosuspend 0
                 _apply_runtime_pm      on
                 _apply_sata_link_power max_performance
