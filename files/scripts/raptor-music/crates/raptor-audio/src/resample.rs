@@ -132,6 +132,7 @@ mod tests {
         let mut r = LinearResampler::new(2, 2, 4).unwrap();
         let mut out = Vec::new();
         r.process(&[0.0, 10.0, 1.0, 20.0], &mut out).unwrap();
+        r.flush(&mut out);
         assert_eq!(out.len(), 6);
         assert_eq!(out[0..2], [0.0, 10.0]);
         assert_eq!(out[2..4], [0.5, 15.0]);
