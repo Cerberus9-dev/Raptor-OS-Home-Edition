@@ -28,6 +28,13 @@
 
 ### Fixed
 
+- **Rapid main-branch pushes could run multiple full image builds concurrently.**
+  The build workflow previously cancelled superseded pull-request builds only.
+  It now cancels an in-progress push build when a newer push arrives on the
+  same branch, while scheduled and manually dispatched builds are left alone.
+  This prevents stale commits from consuming runner time alongside the newest
+  source revision; it does not mask an underlying compile or image-build error.
+
 - **The ISO workflow never built an ISO.** It called `osbuild` with a
   nonexistent `raptor-manifest.json`, then treated a successful `cargo build`
   as a fallback even though that produces no installer image. The workflow now
