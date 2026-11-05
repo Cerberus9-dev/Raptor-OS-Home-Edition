@@ -143,13 +143,13 @@ jobs:
           retention-days: 1
 
       - name: Download Rust apps
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: raptor-rust-apps
           path: /tmp/raptor-rust-apps
 
       - name: Download Shroudly Raptor
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: shroudly-raptor
           path: /tmp/shroudly-raptor
