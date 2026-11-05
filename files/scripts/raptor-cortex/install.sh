@@ -375,18 +375,16 @@ case "$ACTION" in
     set-mode)
         MODE="${2:-balanced}"
 
-        # ── Unconditional reset BEFORE applying the target mode ──────────────
-        # Guards against drift: if a previous mode switch partially failed to
-        # restore EPP / max frequency / platform profile (e.g. one sysfs write
-        # silently failed), the system could stay stuck throttled even after
-        # switching to Performance or Balanced. This block always runs first,
-        # bringing the CPU to a full-power known state, before the target
-        # mode's case below applies whatever throttling IT wants. This means
-        # every mode switch is a full reset + reapply, never an incremental
-        # patch on top of unknown prior state.
-        _apply_cpu_max_freq_pct 100
-        _apply_epp balance_performance
-        echo 1 > /sys/devices/system/cpu/cpufreq/boost 2>/dev/null || true
+        # CPU policy is deliberately owned by power-profiles-daemon (PPD).
+        # KDE Powerdevil's battery slider and Cortex both talk to that same
+        # service. Cortex must not write scaling_governor, EPP, boost, or
+        # scaling_max_freq directly: doing so races PPD and makes the tray
+        # profile appear stuck or immediately revert. The mode below selects
+        # the matching PPD profile; Cortex only tunes independent devices.
+        command -v powerprofilesctl >/dev/null 2>&1 || {
+            echo "powerprofilesctl is required; refusing to apply a partial power mode" >&2
+            exit 1
+        }
 
         case "$MODE" in
             power_saving)
@@ -403,29 +401,8 @@ case "$ACTION" in
                 # Avoid legacy laptop_mode write deferral on modern NVMe systems.
                 echo 0 > /proc/sys/vm/laptop_mode 2>/dev/null || true
 
-                # CPU: efficiency governor and boost disabled on battery
-                echo 0 > /sys/devices/system/cpu/cpufreq/boost      2>/dev/null || true
-                for gov in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
-                    echo powersave > "$gov" 2>/dev/null || true
-                done
-
-                # EPP = power: tells the HWP/AMD-pstate hardware controller to
-                # strongly prefer efficiency. This is the single biggest battery
-                # saver on Intel (12th gen+) and AMD (Ryzen 4000+) — can cut CPU
-                # power draw 20-40% vs governor alone. powersave governor without
-                # EPP still lets the CPU hit high P-states under burst load.
-                _apply_epp power
-
-                # Cap max frequency to 80% of physical max while on battery.
-                # This retains more burst responsiveness than the former 65% cap.
-                # Restore with _apply_cpu_max_freq_pct 100
-                _apply_cpu_max_freq_pct 80
-
-                # Firmware-level power profile: coordinates fan curves, VRM limits,
-                # and thermal targets at the ACPI/EC level. More effective than any
-                # single software setting on supported laptops (ThinkPad, ASUS, etc.)
-                _apply_platform_profile power_saving
-
+                # PPD owns CPU governor, boost, EPP, frequency limits, and
+                # firmware platform profile so KDE's battery slider stays live.
                 echo never > /sys/kernel/mm/transparent_hugepage/enabled 2>/dev/null || true
 
                 _apply_pcie_aspm       powersave
@@ -473,18 +450,8 @@ case "$ACTION" in
                 echo 1500 > /proc/sys/vm/dirty_expire_centisecs    2>/dev/null || true
                 echo 0    > /proc/sys/vm/laptop_mode               2>/dev/null || true
 
-                # Balanced mode keeps normal CPU boost available; schedutil
-                # still scales down at idle, avoiding the old turbo-off penalty.
-                echo 1 > /sys/devices/system/cpu/cpufreq/boost 2>/dev/null || true
-                for gov in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
-                    echo schedutil > "$gov" 2>/dev/null || true
-                done
-
-                # Restore EPP and max_freq if coming from power_saving
-                _apply_epp              balance_power
-                _apply_cpu_max_freq_pct 100
-                _apply_platform_profile balanced
-
+                # PPD owns CPU and firmware policy; Balanced remains its
+                # native profile rather than a second set of competing writes.
                 echo madvise       > /sys/kernel/mm/transparent_hugepage/enabled 2>/dev/null || true
                 echo defer+madvise > /sys/kernel/mm/transparent_hugepage/defrag  2>/dev/null || true
 
@@ -512,12 +479,7 @@ case "$ACTION" in
                 echo 500 > /proc/sys/vm/dirty_expire_centisecs     2>/dev/null || true
                 echo 0   > /proc/sys/vm/laptop_mode                2>/dev/null || true
 
-                # EPP = performance: full hardware P-state performance mode
-                _apply_epp              performance
-                # Restore max freq to physical maximum (in case power_saving capped it)
-                _apply_cpu_max_freq_pct 100
-                _apply_platform_profile performance
-
+                # PPD owns CPU and firmware policy, including boost and EPP.
                 # Restore audio controller and net PM to full power
                 echo N > /sys/module/snd_hda_intel/parameters/power_save_controller                     2>/dev/null || true
                 _apply_net_runtime_pm on
@@ -525,10 +487,6 @@ case "$ACTION" in
                 echo 500 > /proc/sys/vm/dirty_expire_centisecs     2>/dev/null || true
                 echo 0   > /proc/sys/vm/laptop_mode                2>/dev/null || true
 
-                echo 1 > /sys/devices/system/cpu/cpufreq/boost     2>/dev/null || true
-                for gov in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
-                    echo performance > "$gov" 2>/dev/null || true
-                done
                 echo madvise       > /sys/kernel/mm/transparent_hugepage/enabled 2>/dev/null || true
                 echo defer+madvise > /sys/kernel/mm/transparent_hugepage/defrag  2>/dev/null || true
 
@@ -873,19 +831,19 @@ ALL_SERVICES = [
 PERFORMANCE_MODES = {
     "power_saving": (
         "Power Saving",
-        "Reduces CPU governor, dirty writeback, PCIe ASPM on, NVMe min power. Battery slider works normally.",
+        "Selects PPD Power Saver; tunes PCIe ASPM and NVMe for efficiency. KDE battery slider remains authoritative.",
         "battery-low-symbolic",
         "#f5c211",
     ),
     "balanced": (
         "Balanced",
-        "Moderate tuning with schedutil governor, USB autosuspend, medium SATA power.",
+        "Selects PPD Balanced; applies moderate device power tuning without overriding CPU policy.",
         "media-playlist-shuffle-symbolic",
         "#3584e4",
     ),
     "performance": (
         "Performance",
-        "CPU boost on, performance governor, PCIe/NVMe max performance, background trimmed.",
+        "Selects PPD Performance; tunes PCIe/NVMe for throughput and enables optional game-mode trimming.",
         "starred-symbolic",
         "#2ec27e",
     ),
@@ -2592,7 +2550,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         if ok:
             msg = f"Mode set to {label}{gpu_note}"
         else:
-            msg = f"{label} applied (powerprofilesctl unavailable, kernel tuning still active)"
+            msg = f"{label} could not be fully applied; check power-profiles-daemon and the system journal"
 
         GLib.idle_add(self._on_mode_applied, msg)
 
