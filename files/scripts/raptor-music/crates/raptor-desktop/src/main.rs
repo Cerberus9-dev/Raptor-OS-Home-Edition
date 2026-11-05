@@ -360,6 +360,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
+    let player_for_seek = Arc::clone(&player);
+    let session_for_seek = Arc::clone(&active_session_token);
+    ui.on_seek_clicked(move |position| {
+        if let Some(token) = *session_for_seek.lock().unwrap() {
+            player_for_seek.seek(position as f64, token);
+        }
+    });
+
     let player_for_stop = Arc::clone(&player);
     let ui_handle_stop = ui.as_weak();
     let manual_stopped_for_stop = Arc::clone(&manual_stopped);
@@ -502,6 +510,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let ui_weak_tick = ui_handle_poll.clone();
             let _ = slint::invoke_from_event_loop(move || {
                 if let Some(ui) = ui_weak_tick.upgrade() {
+                    ui.set_duration_secs(duration as f32);
+                    if !ui.get_is_seeking() {
+                        ui.set_playback_position_secs(pos as f32);
+                    }
                     ui.set_progress_label(format!(
                         "{}:{:02} / {}:{:02}",
                         pos / 60, pos % 60, duration / 60, duration % 60

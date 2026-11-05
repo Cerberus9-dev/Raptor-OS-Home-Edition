@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- **Raptor Music seeking:** added a real playback seek command that restarts decoding at the requested timestamp, keeps paused playback paused, and exposes a duration-bounded Slint progress slider. The position display no longer uses a hard-coded unknown-duration placeholder.
+
 - **Raptor Music channel conversion and SPSC tests:** expanded common mono/stereo/quad/5.1/7.1 mapping paths and added tests for downmix/upmix layouts, malformed frames, complete-frame ring-buffer transfers, and capacity-limited writes.
 
 - **Raptor Music track switching:** corrected the audio worker's in-session Play handling so next/previous and selecting another queued track actually restart the decoder with the new track and session token instead of dropping the command.

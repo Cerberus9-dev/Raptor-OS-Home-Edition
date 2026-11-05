@@ -1,4 +1,4 @@
-import { Button, ListView } from "std-widgets.slint";
+import { Button, ListView, Slider } from "std-widgets.slint";
 
 export struct TrackData {
     id: string,
@@ -30,6 +30,9 @@ export component MainWindow inherits Window {
     in-out property <string> current_track_title: "Not Playing";
     in-out property <string> current_track_artist: "";
     in-out property <string> progress_label: "0:00 / 0:00";
+    in-out property <float> duration_secs: 0;
+    in-out property <float> playback_position_secs: 0;
+    in-out property <bool> is_seeking: false;
     in-out property <string> player_state_label: "Idle";
 
     callback scan_directory_clicked();
@@ -42,6 +45,7 @@ export component MainWindow inherits Window {
     callback remove_queue_clicked();
     callback add_to_queue_clicked();
     callback play_clicked();
+    callback seek_clicked(float);
     callback previous_clicked();
     callback next_clicked();
     callback stop_clicked();
@@ -253,6 +257,18 @@ export component MainWindow inherits Window {
                     Text { text: root.current_track_title; font-size: 16px; font-weight: 700; color: #ffffff; }
                     Text { text: root.current_track_artist; font-size: 13px; color: #cccccc; }
                     Text { text: root.progress_label; font-size: 12px; color: #5ab0ff; }
+                    Slider {
+                        minimum: 0;
+                        maximum: root.duration_secs;
+                        value <=> root.playback_position_secs;
+                        enabled: root.duration_secs > 0;
+                        horizontal-stretch: 1;
+                        changed(value) => { root.is_seeking = true; }
+                        released(value) => {
+                            root.is_seeking = false;
+                            root.seek_clicked(value);
+                        }
+                    }
                 }
 
                 Button { text: "Scan Folder"; clicked => { root.scan_directory_clicked(); } }

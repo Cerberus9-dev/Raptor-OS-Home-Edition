@@ -15,6 +15,7 @@ pub enum PlayerCommand {
     Play { source: PlaybackSource, track_id: Uuid, queue_entry_id: Uuid, session_token: Uuid },
     Pause { session_token: Uuid },
     Resume { session_token: Uuid },
+    Seek { position_secs: f64, session_token: Uuid },
     Stop { session_token: Uuid },
 }
 
@@ -60,6 +61,12 @@ impl AudioPlayer {
         let _ = self.command_tx.send(PlayerCommand::Resume { session_token });
     }
 
+    pub fn seek(&self, position_secs: f64, session_token: Uuid) {
+        if position_secs.is_finite() && position_secs >= 0.0 {
+            let _ = self.command_tx.send(PlayerCommand::Seek { position_secs, session_token });
+        }
+    }
+
     pub fn stop(&self, session_token: Uuid) {
         let _ = self.command_tx.send(PlayerCommand::Stop { session_token });
     }
@@ -94,12 +101,15 @@ impl AudioPlayer {
         let host = cpal::default_host();
         let is_paused_shared = Arc::new(AtomicBool::new(false));
         let mut active_session_token: Option<Uuid> = None;
+        let mut preserve_paused = false;
 
         while let Ok(cmd) = rx.recv() {
-            let (mut active_source, mut active_track_id, mut active_queue_entry_id, mut session_token) = match cmd {
+            let (mut active_source, mut active_track_id, mut active_queue_entry_id, mut session_token, mut start_offset_secs) = match cmd {
                 PlayerCommand::Play { source, track_id, queue_entry_id, session_token } => {
                     active_session_token = Some(session_token);
-                    (source, track_id, queue_entry_id, session_token)
+                    is_paused_shared.store(false, Ordering::Release);
+                    preserve_paused = false;
+                    (source, track_id, queue_entry_id, session_token, 0.0)
                 }
                 PlayerCommand::Stop { session_token } => {
                     if Some(session_token) == active_session_token {
@@ -126,12 +136,16 @@ impl AudioPlayer {
                     }
                     continue;
                 }
+                PlayerCommand::Seek { .. } => continue,
             };
 
             'play_session: loop {
-                *state.lock().unwrap() = PlayerState::Loading;
-                is_paused_shared.store(false, Ordering::Release);
-                *position_secs.lock().unwrap() = 0;
+                preserve_paused = is_paused_shared.load(Ordering::Acquire);
+                if !preserve_paused {
+                    *state.lock().unwrap() = PlayerState::Loading;
+                }
+                is_paused_shared.store(preserve_paused, Ordering::Release);
+                *position_secs.lock().unwrap() = start_offset_secs.max(0.0).floor() as u64;
                 *duration_secs.lock().unwrap() = None;
 
                 let device = match host.default_output_device() {
@@ -190,6 +204,8 @@ impl AudioPlayer {
                 let target_sample_rate = config.sample_rate().0;
                 let decoder_sample_rate = decoder.sample_rate();
                 let decoder_channels = decoder.channels();
+                let mut frames_to_skip =
+                    (start_offset_secs.max(0.0) * decoder_sample_rate as f64).round() as u64;
 
                 let mut resampler = match LinearResampler::new(decoder_channels, decoder_sample_rate, target_sample_rate) {
                     Ok(r) => r,
@@ -209,7 +225,9 @@ impl AudioPlayer {
                     let _ = err_tx_cb.send(err);
                 };
 
-                let consumed_fractional_accumulator = Arc::new(AtomicU64::new(0));
+                let consumed_base_frames =
+                    (start_offset_secs.max(0.0) * target_sample_rate as f64).round() as u64;
+                let consumed_fractional_accumulator = Arc::new(AtomicU64::new(consumed_base_frames));
                 let samples_written = Arc::new(AtomicUsize::new(0));
                 let samples_read = Arc::new(AtomicUsize::new(0));
 
@@ -348,12 +366,19 @@ impl AudioPlayer {
                     break 'play_session;
                 }
 
-                *state.lock().unwrap() = PlayerState::Playing;
+                if preserve_paused {
+                    *state.lock().unwrap() = PlayerState::Paused;
+                } else {
+                    *state.lock().unwrap() = PlayerState::Playing;
+                }
                 let _ = event_tx.send(PlayerEvent::SessionStarted {
                     session_token,
                     track_id: active_track_id,
                     queue_entry_id: active_queue_entry_id,
                 });
+                if preserve_paused {
+                    let _ = event_tx.send(PlayerEvent::Paused { session_token });
+                }
 
                 let mut eof_reached = false;
 
@@ -400,7 +425,18 @@ impl AudioPlayer {
                             active_queue_entry_id = queue_entry_id;
                             active_session_token = Some(new_token);
                             session_token = new_token;
+                            start_offset_secs = 0.0;
+                            preserve_paused = false;
+                            is_paused_shared.store(false, Ordering::Release);
                             continue 'play_session;
+                        }
+                        Ok(PlayerCommand::Seek { position_secs, session_token: cmd_token }) => {
+                            if cmd_token == session_token {
+                                drop(stream);
+                                start_offset_secs = position_secs;
+                                preserve_paused = is_paused_shared.load(Ordering::Acquire);
+                                continue 'play_session;
+                            }
                         }
                         Err(TryRecvError::Empty) => {}
                         Err(TryRecvError::Disconnected) => {
@@ -421,7 +457,17 @@ impl AudioPlayer {
 
                     if !eof_reached {
                         match decoder.next_packet_samples() {
-                            Ok(Some(decoded)) => {
+                            Ok(Some(mut decoded)) => {
+                                if frames_to_skip > 0 {
+                                    let available_frames = decoded.len() / decoder_channels;
+                                    let skipped_frames =
+                                        frames_to_skip.min(available_frames as u64) as usize;
+                                    frames_to_skip -= skipped_frames as u64;
+                                    if skipped_frames == available_frames {
+                                        continue;
+                                    }
+                                    decoded.drain(..skipped_frames * decoder_channels);
+                                }
                                 let raw_samples = &decoded;
 
                                 let mut resampled = Vec::new();
@@ -490,7 +536,18 @@ impl AudioPlayer {
                                                 active_queue_entry_id = queue_entry_id;
                                                 active_session_token = Some(new_token);
                                                 session_token = new_token;
+                                                start_offset_secs = 0.0;
+                                                preserve_paused = false;
+                                                is_paused_shared.store(false, Ordering::Release);
                                                 continue 'play_session;
+                                            }
+                                            PlayerCommand::Seek { position_secs, session_token: cmd_token } => {
+                                                if cmd_token == session_token {
+                                                    drop(stream);
+                                                    start_offset_secs = position_secs;
+                                                    preserve_paused = is_paused_shared.load(Ordering::Acquire);
+                                                    continue 'play_session;
+                                                }
                                             }
                                         }
                                     }
@@ -544,7 +601,18 @@ impl AudioPlayer {
                                                         active_queue_entry_id = queue_entry_id;
                                                         active_session_token = Some(new_token);
                                                         session_token = new_token;
+                                                        start_offset_secs = 0.0;
+                                                        preserve_paused = false;
+                                                        is_paused_shared.store(false, Ordering::Release);
                                                         continue 'play_session;
+                                                    }
+                                                    PlayerCommand::Seek { position_secs, session_token: cmd_token } => {
+                                                        if cmd_token == session_token {
+                                                            drop(stream);
+                                                            start_offset_secs = position_secs;
+                                                            preserve_paused = is_paused_shared.load(Ordering::Acquire);
+                                                            continue 'play_session;
+                                                        }
                                                     }
                                                     _ => {}
                                                 }
@@ -607,7 +675,18 @@ impl AudioPlayer {
                                     active_queue_entry_id = queue_entry_id;
                                     active_session_token = Some(new_token);
                                     session_token = new_token;
+                                    start_offset_secs = 0.0;
+                                    preserve_paused = false;
+                                    is_paused_shared.store(false, Ordering::Release);
                                     continue 'play_session;
+                                }
+                                PlayerCommand::Seek { position_secs, session_token: cmd_token } => {
+                                    if cmd_token == session_token {
+                                        drop(stream);
+                                        start_offset_secs = position_secs;
+                                        preserve_paused = is_paused_shared.load(Ordering::Acquire);
+                                        continue 'play_session;
+                                    }
                                 }
                                 PlayerCommand::Pause { session_token: cmd_token } => {
                                     if cmd_token == session_token {
