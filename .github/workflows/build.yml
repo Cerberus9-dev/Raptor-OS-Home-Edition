@@ -201,49 +201,11 @@ jobs:
         if: ${{ steps.one_time_apps.outputs.include == 'true' }}
         run: cargo test --workspace --manifest-path files/scripts/raptor-music/Cargo.toml
 
-      - name: Set up Node.js for upstream Shroudly
+      - name: Build Shroudly Raptor local monitor
         if: ${{ steps.one_time_apps.outputs.include == 'true' }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: files/scripts/shroudly-raptor/upstream/package-lock.json
-
-      - name: Build and test the original Shroudly Linux application
-        if: ${{ steps.one_time_apps.outputs.include == 'true' }}
-        working-directory: files/scripts/shroudly-raptor/upstream
         run: |
-          set -euo pipefail
-          npm ci
-          npm run test:core
-          npm run check:translations
-          npm run build
-          python3 -m venv "$RUNNER_TEMP/shroudly-zig"
-          "$RUNNER_TEMP/shroudly-zig/bin/pip" install --disable-pip-version-check ziglang==0.14.1
-          export PATH="$RUNNER_TEMP/shroudly-zig/bin:$PATH"
-          node scripts/build-core-advanced.js --target linux-x64
-          npx electron-builder --linux dir --publish never
-          APP=dist/linux-unpacked
-          CORE="$APP/resources/app.asar.unpacked/electron/tools/core/linux-x64"
-          test -x "$APP/shroudly"
-          test -x "$CORE/shroudly-core"
-          test -x "$CORE/shroudly-core-adv"
-          for binary in "$APP/shroudly" "$CORE/shroudly-core" "$CORE/shroudly-core-adv"; do
-            missing="$(ldd "$binary" | grep 'not found' || true)"
-            if [[ -n "$missing" ]]; then
-              echo "::error::Missing runtime libraries for $binary"
-              echo "$missing"
-              exit 1
-            fi
-          done
-          STAGE="$GITHUB_WORKSPACE/files/staging"
-          install -d "$STAGE/shroudly-app"
-          cp -a "$APP/." "$STAGE/shroudly-app/"
-          install -Dm644 public/icon.png "$STAGE/shroudly.png"
-          install -Dm644 LICENSE "$STAGE/shroudly-LICENSE"
-          install -Dm644 scripts/linux/me.codeshare.shroudly.policy "$STAGE/shroudly-polkit.policy"
-          echo "Original upstream Shroudly desktop app, Linux engine and Advanced engine staged."
-
+          cargo build --release --workspace --manifest-path files/scripts/shroudly-raptor/Cargo.toml
+          install -Dm755 files/scripts/shroudly-raptor/target/release/shroudly-raptor files/staging/shroudly-raptor
 
       - name: Mark one-time app payload for this image only
         if: ${{ steps.one_time_apps.outputs.include == 'true' }}
