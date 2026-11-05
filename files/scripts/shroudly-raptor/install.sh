@@ -23,20 +23,20 @@ fi
 install -m 0755 "$SRC_BIN" "$BIN_DEST"
 
 # ── .desktop ──────────────────────────────────────────────────────────────────
-# Shroudly is an incomplete prototype. It prints a status message and exits;
-# it does not open a proxy port or forward network traffic.
+# The current build provides local application monitoring only. It does not
+# provide upstream proxy routing or packet processing.
 cat << 'EOF' > /usr/share/applications/shroudly-raptor.desktop
 [Desktop Entry]
 Version=1.0
 Type=Application
 Name=Raptor Shroudly
-GenericName=Experimental Proxy Prototype
-Comment=Incomplete prototype; does not forward network traffic
+GenericName=Local Application Monitor
+Comment=Detects supported running apps; network routing is not enabled
 Exec=/usr/bin/shroudly-raptor
 Icon=shroudly-raptor
 Terminal=true
 Categories=X-RaptorOS;Network;Utility;
-Keywords=proxy;shroudly;raptor;experimental;prototype;
+Keywords=shroudly;raptor;games;applications;monitoring;
 StartupNotify=false
 X-KDE-SubstituteUID=false
 EOF
