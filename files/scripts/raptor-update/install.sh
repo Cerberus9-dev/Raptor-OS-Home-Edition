@@ -436,7 +436,7 @@ SUDOERS_FILE          = "/etc/sudoers.d/raptor-update"
 # bounds itself to 3 × 150 s attempts + back-off, so this always outlives it —
 # the outer bound is a safety net so a stuck network can never hang the GUI
 # forever, and the helper output is streamed live meanwhile.
-CHECK_TIMEOUT         = 500
+CHECK_TIMEOUT         = 660
 
 # Comprehensive ANSI/VT100 escape sequence stripper:
 #   CSI  ESC [ <params> <letter>
