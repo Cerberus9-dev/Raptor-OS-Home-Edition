@@ -11,6 +11,10 @@
 
 ### Performance, audio, gaming, and update reliability
 
+- GPU profile transitions now restore hardware limits instead of leaving Power Saving caps behind: Intel frequency limits return to the hardware-advertised range, NVIDIA power limits return to the firmware default, and AMD uses reversible driver DPM/workload profiles rather than persistent manual overdrive clock caps. Auto, Balanced, Performance, and Extreme now apply explicit restoration behavior.
+- USB audio buffering is reduced from 1024 × 3 to 512 × 3 frames (about 32 ms at 48 kHz), retaining additional USB scheduling headroom while removing the previous approximately 64 ms queue. Audio sample rate, resampling quality, and PipeWire's native 512-frame quantum are unchanged.
+- Kernel watchdog/lockup diagnostics and split-lock mitigation remain enabled. Their small potential overhead is preferable to losing diagnostics or disabling a kernel mitigation for an uncertain performance gain.
+
 - Cortex now confirms the requested Power Profiles profile before applying device-level tuning; a failed request no longer leaves the UI showing a mode that was not applied. Cortex polls the active PPD profile so its mode indicator follows changes made through KDE Powerdevil's battery slider, and the saved mode follows external changes for the next login.
 - One-Click Boost now performs one pressure-aware memory-reclaim request (rather than reclaiming twice), then pauses the configured optional indexers. It rolls back to Balanced and restores any partial Game Mode state if a stage fails. The ordinary Optimize Memory action also reports helper failures instead of recording them as successful runs.
 - GameMode's start/end hooks now live in the active `/etc/gamemode.ini`, not an unreferenced drop-in. Cortex's process-pause helper is idempotent, so the UI button and GameMode cannot overwrite the same session's restore list and leave indexers frozen.
