@@ -100,14 +100,18 @@ _apply_pcie_aspm() {
 }
 
 _apply_nvme_power() {
-    # min_power | max_performance | auto
-    local S="$1"
-    for f in /sys/class/nvme/nvme*/power/control \
-              /sys/bus/pci/devices/*/nvme/nvme*/power/control; do
-        [ -f "$f" ] && echo "$S" > "$f" 2>/dev/null || true
+    # Linux runtime-PM power/control accepts only "auto" or "on".
+    # NVMe APST policy is a separate controller setting and is not changed here.
+    local state="$1" f
+    case "$state" in
+        auto|on) ;;
+        *) echo "Invalid NVMe runtime-PM mode: $state" >&2; return 2 ;;
+    esac
+    for f in /sys/class/nvme/nvme*/power/control; do
+        [ -w "$f" ] || continue
+        printf '%s\\n' "$state" > "$f" 2>/dev/null || true
     done
 }
-
 _apply_usb_autosuspend() {
     # 1 = enable (power save), 0 = disable (performance)
     #
