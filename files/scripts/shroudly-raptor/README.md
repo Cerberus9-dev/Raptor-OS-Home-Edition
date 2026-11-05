@@ -49,4 +49,4 @@ official upstream release and not endorsed by Codeshare Technology Ltd.
 
 ## Image integration lifecycle
 
-Shroudly is included only in the single image build explicitly dispatched with `include_one_time_apps=true`. Normal pushes, pull requests, and scheduled image rebuilds do not fetch the upstream submodule, compile, or stage the application. The successful one-time build creates the repository lock tag `raptor-one-time-apps-consumed`; subsequent opt-in attempts are blocked. Its installer also refuses to install without the one-time staging marker.
+The transitional Shroudly monitor prototype is staged only for the first successful v2.9.0 image build on `main`, when the release marker is present. Pull requests, unrelated pushes, and scheduled rebuilds skip it. A maintainer-only manual dispatch remains as a recovery fallback. The lock tag `raptor-one-time-apps-consumed` is created only after the image is successfully built and pushed. Its installer refuses to install without the one-time staging marker. The original upstream Linux application is not yet integrated.
