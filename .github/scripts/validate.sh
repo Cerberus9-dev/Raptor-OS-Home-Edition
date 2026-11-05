@@ -92,6 +92,13 @@ assert_contains files/scripts/raptor-gaming/install.sh "flatpak run com.brave.Br
 assert_not_contains files/scripts/raptor-gaming/install.sh "ln -sf /dev/null /etc/systemd/system/ModemManager.service"
 assert_contains files/scripts/raptor-gaming/install.sh "cat << 'BRAVELAUNCHER'"
 assert_contains files/scripts/raptor-gaming/install.sh "cat << 'TRIMMER'"
+for marker in "cat << 'BRAVELAUNCHER'" "cat << 'TRIMMER'" 'echo "GAMING_READY'; do
+    count="$(grep -Fc -- "$marker" files/scripts/raptor-gaming/install.sh)"
+    if [[ "$count" -ne 1 ]]; then
+        echo "FAIL: expected exactly one '$marker' marker in raptor-gaming installer; found $count"
+        exit 1
+    fi
+done
 
 echo "=== Checking Update Manager contracts ==="
 assert_contains files/scripts/raptor-update/install.sh "from queue import Queue, Empty"
