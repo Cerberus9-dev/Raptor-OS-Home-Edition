@@ -168,6 +168,10 @@ assert_contains files/scripts/raptor-music/install.sh '/tmp/raptor-staging/inclu
 assert_contains files/scripts/raptor-music/install.sh 'RAPTOR_MUSIC_INSTALL_ERROR'
 assert_contains .github/workflows/build.yml 'git add -f -- files/staging'
 assert_contains .github/workflows/build.yml 'RECOVERY_RUN'
+assert_contains .github/workflows/build.yml 'Verify both apps inside the published image'
+assert_contains .github/workflows/build.yml 'docker run --rm --entrypoint /bin/bash'
+assert_contains .github/workflows/build.yml '/usr/bin/raptor-music'
+assert_contains .github/workflows/build.yml '/usr/bin/shroudly'
 assert_not_contains files/scripts/shroudly-raptor/install.sh 'Terminal=true'
 assert_not_contains files/scripts/shroudly-raptor/install.sh 'systemctl enable'
 echo "All v3.0.0 release contracts passed."
