@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-### v2.9.0 (Major Update — planned)
+### v3.0.0 (Major Release — planned)
 
 This is the consolidation release for more than two months of sustained Raptor OS overhaul work. The scope includes substantial changes across performance and memory management, gaming and GPU behavior, audio, Cortex, update reliability, hardware recovery, browser and chat-client choice, build validation, and the installation/distribution path. The intent is to ship the work as one coherent major update rather than scatter it across a long sequence of small version bumps.
 
@@ -20,7 +20,7 @@ This is the consolidation release for more than two months of sustained Raptor O
 
 ### One-time app integration
 
-- A release marker opts the first successful v2.9.0 main-branch image build into the one-time Raptor Music and transitional Shroudly prototype payload; normal pull-request builds, unrelated pushes, and scheduled rebuilds skip it.
+- A release marker opts the first successful v3.0.0 main-branch image build into the one-time Raptor Music and transitional Shroudly prototype payload; normal pull-request builds, unrelated pushes, and scheduled rebuilds skip it.
 - A permanent Git tag, `raptor-one-time-apps-consumed`, locks the integration only after that image has been successfully built and pushed. Later builds cannot rebuild or reinstall these apps.
 - The installers require the one-time staging marker. Without it, they remove stale staged app binaries and skip installation. Generated binaries are no longer tracked in the source tree.
 - A maintainer-only manual dispatch remains as a recovery fallback; end users never need to run GitHub Actions. The one-time integration is not consumed by a failed image build.
@@ -53,10 +53,10 @@ This is the consolidation release for more than two months of sustained Raptor O
 ### Shroudly Raptor
 
 - Added the complete upstream Shroudly repository as a pinned Git submodule, preserving its original source tree and making the upstream revision auditable. Preserved upstream MIT licensing and attribution to umutxyp / Codeshare Technology Ltd.
-- Updated the workflow to fetch the pinned upstream submodule only during the first successful v2.9.0 release build, then verify the upstream desktop entrypoint, Linux engine source, and license. The original Linux application is still not wired into the image.
-- Updated the Shroudly Raptor README to distinguish the newly vendored upstream source from the still-transitional Rust prototype. The original Linux application is not yet wired into the Raptor image; this remains an explicit v2.9.0 release blocker, not a completed feature.
+- Updated the workflow to fetch the pinned upstream submodule only during the first successful v3.0.0 release build, then verify the upstream desktop entrypoint, Linux engine source, and license. The original Linux application is still not wired into the image.
+- Updated the Shroudly Raptor README to distinguish the newly vendored upstream source from the still-transitional Rust prototype. The original Linux application is not yet wired into the Raptor image; this remains an explicit v3.0.0 release blocker, not a completed feature.
 
-## [v2.8.0] - 2026-11-05 (Raptor Music Expansion, Hardware Recovery & CI Reliability)
+### November 4–5 work consolidated into v3.0.0 — Raptor Music Expansion, Hardware Recovery & CI Reliability
 
 ### Updates
 
