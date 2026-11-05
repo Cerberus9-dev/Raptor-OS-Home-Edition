@@ -8,7 +8,7 @@ set -euo pipefail
 # did not stage a binary are skipped with a warning instead of failing.
 
 # One-time payload gate: only the staged payload from the first successful
-# v2.9.0 release image build (or a maintainer recovery dispatch) may install.
+# v3.0.0 release image build (or a maintainer recovery dispatch) may install.
 if [[ ! -f "/tmp/raptor-staging/.include-one-time-apps" ]]; then
     rm -f "/tmp/raptor-staging/shroudly-raptor"
     echo "SHROUDLY_RAPTOR_SKIP: one-time app integration was not requested; staged binary removed."
