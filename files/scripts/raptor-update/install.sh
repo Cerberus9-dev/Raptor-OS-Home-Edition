@@ -1080,6 +1080,7 @@ class RaptorUpdateWindow(Adw.ApplicationWindow):
                           self.flatpak_row, self.flatpak_icon,
                           "Updating…", "emblem-synchronizing-symbolic", "accent")
             try:
+                # System-scoped refs require elevation.
                 fp_proc = run_privileged(FLATPAK_UPDATE_HELPER)
                 for line in fp_proc.stdout:
                     clean = ANSI_ESCAPE.sub("", line)
@@ -1087,6 +1088,27 @@ class RaptorUpdateWindow(Adw.ApplicationWindow):
                         GLib.idle_add(self._append_log, clean)
                 fp_proc.stdout.close()
                 fp_rc = fp_proc.wait()
+
+                # User-scoped refs belong to the logged-in account. Running
+                # flatpak update as root cannot update them, so do this second
+                # pass without elevation in the desktop session.
+                GLib.idle_add(self._append_log, "\n── Updating user Flatpaks ──\n")
+                user_proc = subprocess.Popen(
+                    ["flatpak", "update", "--user", "--noninteractive", "--assumeyes"],
+                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                    text=True, bufsize=1,
+                )
+                for line in user_proc.stdout:
+                    clean = ANSI_ESCAPE.sub("", line)
+                    if clean:
+                        GLib.idle_add(self._append_log, clean)
+                user_proc.stdout.close()
+                user_rc = user_proc.wait(timeout=900)
+                if user_rc != 0:
+                    fp_rc = user_rc
+            except subprocess.TimeoutExpired:
+                fp_rc = 124
+                GLib.idle_add(self._append_log, "\nUser Flatpak update timed out.\n")
             except Exception as e:
                 fp_rc = -1
                 GLib.idle_add(self._append_log, f"\nFlatpak error: {e}\n")
