@@ -1,86 +1,74 @@
 #!/bin/bash
 set -euo pipefail
 
-# Shroudly Raptor: install the prebuilt proxy daemon shipped by CI.
-# Source lives in shroudly-raptor/ (Cargo.toml + src/) and is built by
-# .github/workflows/build.yml, then staged into files/staging/. The recipe's
-# files module copies that directory to /tmp/raptor-staging. Local builds that
-# did not stage a binary are skipped with a warning instead of failing.
-
-# One-time payload gate: only the staged payload from the first successful
-# v3.0.0 release image build (or a maintainer recovery dispatch) may install.
-if [[ ! -f "/tmp/raptor-staging/.include-one-time-apps" ]]; then
-    rm -f "/tmp/raptor-staging/shroudly-raptor"
-    echo "SHROUDLY_RAPTOR_SKIP: one-time app integration was not requested; staged binary removed."
-    exit 0
-fi
+# One-time upstream Shroudly integration for the v3.0.0 image only.
+# The original Electron desktop application and both Linux engines are built
+# from the pinned upstream submodule by CI and staged in files/staging/.
+# No recurring service or boot-time installation task is created.
 
 STAGE_DIR="/tmp/raptor-staging"
-SRC_BIN="${STAGE_DIR}/shroudly-raptor"
-BIN_DEST="/usr/bin/shroudly-raptor"
+APP_SRC="${STAGE_DIR}/shroudly-app"
+APP_DEST="/opt/Shroudly"
 
-mkdir -p /usr/bin /usr/share/applications /usr/share/icons/hicolor/scalable/apps
-
-if [[ ! -x "$SRC_BIN" ]]; then
-    echo "SHROUDLY_RAPTOR_SKIP: no prebuilt binary at ${SRC_BIN}." >&2
-    echo "Build it with: (cd shroudly-raptor && cargo build --release --workspace)" >&2
-    echo "Then copy target/release/shroudly-raptor to files/staging/shroudly-raptor." >&2
+if [[ ! -f "${STAGE_DIR}/.include-one-time-apps" ]]; then
+    rm -rf "${APP_SRC}" "${STAGE_DIR}/shroudly.png" \
+        "${STAGE_DIR}/shroudly-LICENSE" "${STAGE_DIR}/shroudly-polkit.policy"
+    echo "SHROUDLY_SKIP: one-time v3.0.0 payload not enabled."
     exit 0
 fi
 
-install -m 0755 "$SRC_BIN" "$BIN_DEST"
+if [[ ! -x "${APP_SRC}/shroudly" ]]; then
+    echo "SHROUDLY_FATAL: original upstream Shroudly app binary is missing." >&2
+    exit 1
+fi
+CORE_DIR="${APP_SRC}/resources/app.asar.unpacked/electron/tools/core/linux-x64"
+for binary in shroudly-core shroudly-core-adv; do
+    if [[ ! -x "${CORE_DIR}/${binary}" ]]; then
+        echo "SHROUDLY_FATAL: required upstream Linux engine is missing: ${binary}" >&2
+        exit 1
+    fi
+done
+for artifact in shroudly.png shroudly-LICENSE shroudly-polkit.policy; do
+    if [[ ! -s "${STAGE_DIR}/${artifact}" ]]; then
+        echo "SHROUDLY_FATAL: required upstream integration artifact is missing: ${artifact}" >&2
+        exit 1
+    fi
+done
 
-# ── .desktop ──────────────────────────────────────────────────────────────────
-# The current build provides local application monitoring only. It does not
-# provide upstream proxy routing or packet processing.
-cat << 'EOF' > /usr/share/applications/shroudly-raptor.desktop
+install -d -m 0755 "${APP_DEST}"
+cp -a "${APP_SRC}/." "${APP_DEST}/"
+chmod 0755 "${APP_DEST}/shroudly" "${CORE_DIR}/shroudly-core" "${CORE_DIR}/shroudly-core-adv"
+
+install -Dm0644 "${STAGE_DIR}/shroudly.png" \
+    /usr/share/icons/hicolor/256x256/apps/shroudly.png
+install -Dm0644 "${STAGE_DIR}/shroudly-LICENSE" \
+    /usr/share/licenses/shroudly/UPSTREAM-LICENSE
+install -Dm0644 "${STAGE_DIR}/shroudly-polkit.policy" \
+    /usr/share/polkit-1/actions/me.codeshare.shroudly.policy
+
+mkdir -p /usr/share/applications
+cat << 'EOF' > /usr/share/applications/shroudly.desktop
 [Desktop Entry]
 Version=1.0
 Type=Application
-Name=Raptor Shroudly
-GenericName=Local Application Monitor
-Comment=Detects supported running apps; network routing is not enabled
-Exec=/usr/bin/shroudly-raptor
-Icon=shroudly-raptor
-Terminal=true
-Categories=X-RaptorOS;Network;Utility;
-Keywords=shroudly;raptor;games;applications;monitoring;
-StartupNotify=false
-X-KDE-SubstituteUID=false
+Name=Shroudly
+GenericName=Network Privacy Application
+Comment=Upstream Shroudly desktop application
+Exec=/opt/Shroudly/shroudly %U
+Icon=shroudly
+Terminal=false
+Categories=Network;Utility;
+Keywords=shroudly;network;privacy;proxy;
+StartupNotify=true
+StartupWMClass=shroudly
 EOF
 
-# ── Icon ──────────────────────────────────────────────────────────────────────
-cat << 'SVGEOF' > /usr/share/icons/hicolor/scalable/apps/shroudly-raptor.svg
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <defs>
-    <radialGradient id="bg" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#0ea5e9"/>
-      <stop offset="100%" stop-color="#0c4a6e"/>
-    </radialGradient>
-  </defs>
-  <circle cx="32" cy="32" r="30" fill="url(#bg)"/>
-  <path d="M32 12 L48 19 V32 C48 42 41 49 32 53 C23 49 16 42 16 32 V19 Z"
-        fill="none" stroke="#e0f2fe" stroke-width="3" stroke-linejoin="round"/>
-  <path d="M25 32 L30 37 L40 26" fill="none" stroke="#bae6fd" stroke-width="3"
-        stroke-linecap="round" stroke-linejoin="round"/>
-</svg>
-SVGEOF
+gtk-update-icon-cache -f /usr/share/icons/hicolor/ 2>/dev/null || true
 
-gtk-update-icon-cache /usr/share/icons/hicolor 2>/dev/null || true
-
-# ── Self-check ────────────────────────────────────────────────────────────────
-RAPTOR_EXPECTED_PAYLOAD="
-$BIN_DEST
-/usr/share/applications/shroudly-raptor.desktop
-/usr/share/icons/hicolor/scalable/apps/shroudly-raptor.svg
-"
-raptor_missing=""
-for raptor_f in $RAPTOR_EXPECTED_PAYLOAD; do
-    [ -s "$raptor_f" ] || raptor_missing="$raptor_missing $raptor_f"
-done
-if [ -n "$raptor_missing" ]; then
-    echo "SHROUDLY_RAPTOR_PAYLOAD_MISSING:$raptor_missing" >&2
-    exit 1
-fi
-echo "SHROUDLY_RAPTOR_READY payload=$(echo $RAPTOR_EXPECTED_PAYLOAD | wc -w | tr -d ' ') files verified"
-echo "Shroudly Raptor installed successfully."
+# Fail the image build rather than ship a desktop entry with missing engines.
+test -x /opt/Shroudly/shroudly
+test -x /opt/Shroudly/resources/app.asar.unpacked/electron/tools/core/linux-x64/shroudly-core
+test -x /opt/Shroudly/resources/app.asar.unpacked/electron/tools/core/linux-x64/shroudly-core-adv
+test -s /usr/share/polkit-1/actions/me.codeshare.shroudly.policy
+test -s /usr/share/applications/shroudly.desktop
+echo "SHROUDLY_READY original upstream UI and Linux engines installed; no boot service added."
