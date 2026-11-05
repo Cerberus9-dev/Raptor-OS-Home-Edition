@@ -28,6 +28,13 @@
 
 ### Fixed
 
+- **Shroudly was presented as a working DPI-bypass proxy despite having no
+  upstream forwarding.** The daemon only acknowledged `CONNECT` and returned
+  `501` for ordinary requests; its dashboard values were placeholders. The
+  README and app metadata now disclose that it is an incomplete prototype,
+  not a usable proxy. Functional proxy forwarding and the original desktop UI
+  remain outstanding; no managed-network bypass behavior is being added.
+
 - **Shroudly advanced-mode cleanup could erase the entire host firewall.**
   Its cleanup path called `nft flush ruleset`, which removes rules owned by
   firewalld, containers, VPNs, and other applications—not just Shroudly.
