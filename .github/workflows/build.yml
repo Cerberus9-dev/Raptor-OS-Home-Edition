@@ -144,6 +144,9 @@ jobs:
             exit 1
           fi
 
+      - name: Lint all GitHub Actions workflows
+        uses: rhysd/actionlint@v1.7.7
+
       - name: Validate scripts
         run: |
           chmod +x .github/scripts/validate.sh
