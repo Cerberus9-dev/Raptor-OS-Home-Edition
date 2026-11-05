@@ -92,6 +92,46 @@ PROFILE="auto"
 [ -f /etc/raptor-force-balanced ]    && PROFILE="balanced"
 echo "Active profile: $PROFILE"
 
+# Hardware-specific GPU power controls. Always restore the driver's advertised
+# defaults when leaving Power Saving; never guess clock or wattage values.
+_set_intel_gpu_power_mode() {
+    local mode="$1" card rpmin rpmax
+    for card in /sys/class/drm/card*/; do
+        [ -d "$card" ] || continue
+        [ -w "${card}gt_min_freq_mhz" ] && [ -w "${card}gt_max_freq_mhz" ] || continue
+        rpmin=$(cat "${card}gt_RPn_freq_mhz" 2>/dev/null || true)
+        rpmax=$(cat "${card}gt_RP0_freq_mhz" 2>/dev/null || true)
+        [[ "$rpmin" =~ ^[0-9]+$ && "$rpmax" =~ ^[0-9]+$ ]] || continue
+        if [ "$mode" = "powersave" ]; then
+            echo "$rpmax" > "${card}gt_max_freq_mhz" 2>/dev/null || true
+            echo "$rpmin" > "${card}gt_min_freq_mhz" 2>/dev/null || true
+            echo "$rpmin" > "${card}gt_max_freq_mhz" 2>/dev/null || true
+        else
+            echo "$rpmax" > "${card}gt_max_freq_mhz" 2>/dev/null || true
+            echo "$rpmin" > "${card}gt_min_freq_mhz" 2>/dev/null || true
+        fi
+    done
+}
+
+_restore_nvidia_power_limit() {
+    command -v nvidia-smi >/dev/null 2>&1 || return 0
+    local default_limit
+    default_limit=$(nvidia-smi --query-gpu=power.default_limit --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d ' ')
+    if [[ "$default_limit" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+        nvidia-smi -pl "${default_limit%.*}" >/dev/null 2>&1 || true
+    fi
+}
+
+_set_amd_gpu_power_mode() {
+    local dpm="$1" profile="$2" f
+    for f in /sys/class/drm/card*/device/power_dpm_force_performance_level; do
+        [ -w "$f" ] && echo "$dpm" > "$f" 2>/dev/null || true
+    done
+    for f in /sys/class/drm/card*/device/pp_power_profile_mode; do
+        [ -w "$f" ] && echo "$profile" > "$f" 2>/dev/null || true
+    done
+}
+
 # ── Common env vars ───────────────────────────────────────────────────────────
 # RADV_PERFTEST=gpl: Vulkan Graphics Pipeline Library — pre-compiles shader
 # variant stubs as a library rather than full monolithic programs. Cuts
@@ -127,17 +167,11 @@ VKD3D_CONFIG=dxr11,dxr
 VKD3D_FEATURE_LEVEL=12_2
 $COMMON_VARS
 ENVEOF
-    if [ "$GPU_VENDOR" = "amd" ]; then
-        for f in /sys/class/drm/card*/device/power_dpm_force_performance_level; do
-            echo "high" > "$f" 2>/dev/null || true
-        done
-        for f in /sys/class/drm/card*/device/pp_power_profile_mode; do
-            echo 1 > "$f" 2>/dev/null || true
-        done
-    fi
+    if [ "$GPU_VENDOR" = "amd" ]; then _set_amd_gpu_power_mode high 1; fi
+    if [ "$GPU_VENDOR" = "intel" ]; then _set_intel_gpu_power_mode performance; fi
     if [ "$GPU_VENDOR" = "nvidia" ]; then
+        _restore_nvidia_power_limit
         nvidia-smi -pm 1 > /dev/null 2>&1 || true
-        nvidia-smi --auto-boost-default=0 > /dev/null 2>&1 || true
     fi
     ;;
 
@@ -156,12 +190,10 @@ VKD3D_CONFIG=dxr11
 VKD3D_FEATURE_LEVEL=12_1
 $COMMON_VARS
 ENVEOF
-    if [ "$GPU_VENDOR" = "amd" ]; then
-        for f in /sys/class/drm/card*/device/power_dpm_force_performance_level; do
-            echo "high" > "$f" 2>/dev/null || true
-        done
-    fi
+    if [ "$GPU_VENDOR" = "amd" ]; then _set_amd_gpu_power_mode high 1; fi
+    if [ "$GPU_VENDOR" = "intel" ]; then _set_intel_gpu_power_mode performance; fi
     if [ "$GPU_VENDOR" = "nvidia" ]; then
+        _restore_nvidia_power_limit
         nvidia-smi -pm 1 > /dev/null 2>&1 || true
     fi
     ;;
@@ -175,10 +207,11 @@ __GL_SHADER_DISK_CACHE=1
 PROTON_ENABLE_NVAPI=1
 $COMMON_VARS
 ENVEOF
-    if [ "$GPU_VENDOR" = "amd" ]; then
-        for f in /sys/class/drm/card*/device/power_dpm_force_performance_level; do
-            echo "auto" > "$f" 2>/dev/null || true
-        done
+    if [ "$GPU_VENDOR" = "amd" ]; then _set_amd_gpu_power_mode auto 0; fi
+    if [ "$GPU_VENDOR" = "intel" ]; then _set_intel_gpu_power_mode balanced; fi
+    if [ "$GPU_VENDOR" = "nvidia" ]; then
+        _restore_nvidia_power_limit
+        nvidia-smi -pm 0 > /dev/null 2>&1 || true
     fi
     ;;
 
@@ -194,51 +227,26 @@ __GL_THREADED_OPTIMIZATIONS=0
 $COMMON_VARS
 ENVEOF
     if [ "$GPU_VENDOR" = "amd" ]; then
-        # Force GPU to low power DPM level
-        for f in /sys/class/drm/card*/device/power_dpm_force_performance_level; do
-            echo "low" > "$f" 2>/dev/null || true
-        done
-        # Set GPU power profile to video (profile 1) — lower clocks, optimised
-        # for sequential workloads rather than bursty gaming patterns
-        for f in /sys/class/drm/card*/device/pp_power_profile_mode; do
-            echo 1 > "$f" 2>/dev/null || true
-        done
-        # Enable GFXOFF: allows the GPU shader engine to fully power off at idle.
-        # On RDNA2+ this saves 0.5-2 W during desktop use.
+        # Use the driver's low-power DPM and Power Saving workload profile.
+        # Avoid manual overdrive clock caps that can remain after profile changes.
+        _set_amd_gpu_power_mode low 2
         for f in /sys/kernel/debug/dri/*/amdgpu_gfxoff; do
             echo 1 > "$f" 2>/dev/null || true
         done
-        # Hard cap GPU clocks to the lowest available level via OD
-        for card in /sys/class/drm/card*/device; do
-            if [ -f "$card/pp_od_clk_voltage" ]; then
-                echo "manual" > "$card/power_dpm_force_performance_level" 2>/dev/null || true
-                echo "s 0 $(awk 'NR==2{print $2}' "$card/pp_dpm_sclk" 2>/dev/null)"                     > "$card/pp_od_clk_voltage" 2>/dev/null || true
-                echo "c" > "$card/pp_od_clk_voltage" 2>/dev/null || true
-            fi
-        done 2>/dev/null || true
     fi
     if [ "$GPU_VENDOR" = "intel" ]; then
-        # Intel GPU: enable frequency scaling to minimum
-        for f in /sys/class/drm/card*/gt_min_freq_mhz; do
-            MIN=$(cat "${f%min_freq_mhz}min_freq_mhz" 2>/dev/null || echo 100)
-            echo "$MIN" > "$f" 2>/dev/null || true
-        done
-        for f in /sys/class/drm/card*/gt_max_freq_mhz; do
-            MIN=$(cat "${f%max_freq_mhz}min_freq_mhz" 2>/dev/null || echo 100)
-            echo "$MIN" > "$f" 2>/dev/null || true
-        done
-        # Intel Panel Self-Refresh: allows display controller to stop driving
-        # the panel backplane between frame updates. Saves 0.5-1.5 W on eDP.
+        _set_intel_gpu_power_mode powersave
+        # Preserve the existing Intel Panel Self Refresh power-saving feature.
         echo 1 > /sys/module/i915/parameters/enable_psr 2>/dev/null || true
     fi
     if [ "$GPU_VENDOR" = "nvidia" ]; then
-        # Disable NVIDIA persistence mode: GPU fully powers down when idle
+        # Let the GPU power down at idle and apply a conservative 80% TDP cap.
+        # Other profiles restore the firmware default power limit.
         nvidia-smi -pm 0 > /dev/null 2>&1 || true
-        # Reduce power limit to 80% of TDP if supported
-        MAX_PL=$(nvidia-smi --query-gpu=power.max_limit             --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d ' ')
-        if [ -n "$MAX_PL" ] && [ "$MAX_PL" -gt 0 ] 2>/dev/null; then
-            TARGET=$(( MAX_PL * 80 / 100 ))
-            nvidia-smi -pl "$TARGET" > /dev/null 2>&1 || true
+        MAX_PL=$(nvidia-smi --query-gpu=power.default_limit --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d ' ')
+        if [[ "$MAX_PL" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+            TARGET=$(awk -v limit="$MAX_PL" 'BEGIN { printf "%d", limit * 0.8 }')
+            [ "$TARGET" -gt 0 ] && nvidia-smi -pl "$TARGET" > /dev/null 2>&1 || true
         fi
     fi
     ;;
@@ -285,6 +293,13 @@ ENVEOF
 MESA_SHADER_CACHE_DISABLE=false
 $COMMON_VARS
 ENVEOF
+    fi
+    # Auto restores firmware/driver defaults after a manually selected profile.
+    if [ "$GPU_VENDOR" = "amd" ]; then _set_amd_gpu_power_mode auto 0; fi
+    if [ "$GPU_VENDOR" = "intel" ]; then _set_intel_gpu_power_mode balanced; fi
+    if [ "$GPU_VENDOR" = "nvidia" ]; then
+        _restore_nvidia_power_limit
+        nvidia-smi -pm 0 > /dev/null 2>&1 || true
     fi
     ;;
 esac
@@ -429,6 +444,10 @@ for raptor_f in $RAPTOR_EXPECTED_PAYLOAD; do
 done
 if [ -n "$raptor_missing" ]; then
     echo "GPU_PROFILE_PAYLOAD_MISSING:$raptor_missing" >&2
+    exit 1
+fi
+if ! bash -n /usr/lib/raptor/gpu-detect.sh; then
+    echo "GPU_PROFILE_SHELL_SYNTAX_ERROR:/usr/lib/raptor/gpu-detect.sh" >&2
     exit 1
 fi
 echo "GPU_PROFILE_READY payload=$(echo $RAPTOR_EXPECTED_PAYLOAD | wc -w | tr -d ' ') files verified"
