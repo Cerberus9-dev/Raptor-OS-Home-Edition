@@ -289,8 +289,8 @@ ENVEOF
     ;;
 esac
 
-# CPU governor is managed exclusively by Raptor Cortex and the CPU governor
-# service. GPU profile changes must not overwrite the user's CPU mode.
+# CPU policy is managed exclusively by power-profiles-daemon so KDE's
+# battery slider remains authoritative. GPU profile changes must not write CPU policy.
 
 # ── Apply env vars to any already-running user sessions ──────────────────────
 ENVFILE=/etc/environment.d/raptor-gpu.conf
