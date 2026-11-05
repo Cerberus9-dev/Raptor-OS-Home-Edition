@@ -538,11 +538,9 @@ chmod +x /usr/lib/raptor/cortex-apply-boot-mode
 
 cat << 'EOF' > /usr/lib/systemd/user/raptor-cortex-mode.service
 [Unit]
-Description=Raptor Cortex — apply persisted performance mode
-# After gpu-detect.sh has run: both write scaling_governor, and Cortex's mode
-# is the one the user explicitly chose, so it must win.
-After=raptor-gpu-profile.service
-# Do not delay the session; a failure here must never block login.
+Description=Raptor Cortex — apply persisted power profile
+# power-profiles-daemon is the sole CPU-policy owner; this user unit only
+# applies the user's selected PPD profile after the desktop session starts.
 After=graphical-session.target
 
 [Service]
