@@ -199,3 +199,6 @@ modules:
       enabled:
         - raptor-firstboot.service
         - gamemoded.service
+
+  # Configure signature verification for the signed OCI image and installer.
+  - type: signing

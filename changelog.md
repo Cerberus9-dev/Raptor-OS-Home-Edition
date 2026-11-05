@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- **Image signature policy:** added BlueBuild's signing module so the signed OCI image has the verification policy required by signed-image rebases and the ISO installer.
+
 - **Raptor Music queue editing:** added removal of the selected queue entry, reindexed the remaining queue, and stop the active entry when it is removed or a playlist replaces the queue.
 
 - **Raptor Music local playlists:** added SQLite-backed playlist creation, renaming/deletion, ordered track membership, removal/reordering support at the library layer, and desktop controls to create playlists, add the selected library track, and load a playlist into the playback queue.
