@@ -67,11 +67,11 @@ ACTION="${1:-help}"
 # handled by its own systemd stop below rather than SIGSTOP, which is safe
 # because PackageKit releases its transaction lock on SIGTERM.
 BACKGROUND_PROCS=(
+    # Indexing and thumbnail work only. Keep communications, audio, package
+    # management, printers, storage maintenance, and user applications running.
     "tracker-miner" "tracker-store" "tracker3"
-    "baloo_file" "baloo_file_extractor" "akonadi"
-    "kdeconnectd" "zeitgeist"
-    "tumblerd" "updatedb" "mlocate"
-    "snapd" "evolution" "gnome-software"
+    "baloo_file" "baloo_file_extractor" "kio_thumbnail"
+    "zeitgeist" "tumblerd" "updatedb" "mlocate"
 )
 
 # ── Hardware power helpers ────────────────────────────────────────────────────
@@ -363,22 +363,14 @@ case "$ACTION" in
             done
         fi
         if [ "$DO_DEEP" = "1" ]; then
-            echo never > /sys/kernel/mm/transparent_hugepage/enabled 2>/dev/null || true
-            sleep 0.5
-            echo madvise > /sys/kernel/mm/transparent_hugepage/enabled 2>/dev/null || true
-            echo 1 > /proc/sys/kernel/numa_balancing 2>/dev/null || true
-            echo 3 > /proc/sys/vm/drop_caches 2>/dev/null || true
-            echo 1 > /proc/sys/vm/compact_memory 2>/dev/null || true
-            # Deep clean: request a much larger reclaim (~3 GiB). The kernel
-            # reclaims at most what's actually reclaimable — over-requesting
-            # is harmless, it just means "give back everything you can".
-            _reclaim_user_slice 3221225472
+            # Deep reclaim remains pressure-aware and capped. Do not toggle THP,
+            # NUMA balancing, or discard useful page cache as a "cleanup".
+            _reclaim_user_slice 536870912
         fi
         if [ "$DO_SWAP" = "1" ]; then
-            CURRENT=$(cat /proc/sys/vm/swappiness 2>/dev/null || echo 80)
-            echo 100 > /proc/sys/vm/swappiness 2>/dev/null || true
-            sleep 1
-            echo "$CURRENT" > /proc/sys/vm/swappiness 2>/dev/null || true
+            # Do not temporarily rewrite global swappiness; ask the kernel for
+            # bounded reclaim only if the same low-memory threshold is crossed.
+            _reclaim_user_slice 536870912
         fi
         if [ "$DO_THP" = "1" ]; then
             echo madvise       > /sys/kernel/mm/transparent_hugepage/enabled 2>/dev/null || true
@@ -569,85 +561,39 @@ case "$ACTION" in
 
     # ── Background trimming for gaming ─────────────────────────────────────
     trim-background)
-        sync || true
-        echo 1 > /proc/sys/vm/drop_caches    2>/dev/null || true
-        echo 1 > /proc/sys/vm/compact_memory 2>/dev/null || true
-        # Reclaim ~1.5 GiB from background apps before the game starts —
-        # frees real RAM the game can use, not just kernel caches.
-        _reclaim_user_slice 1610612736
-        # irqbalance: switch to per-CPU interrupt affinity for gaming.
-        # Stops irqbalance from moving NIC/audio IRQs away from the CPU
-        # the game is running on mid-frame.
-        systemctl stop irqbalance.service 2>/dev/null || true
-        # Cap CPU idle-state exit latency for the duration of gaming, so the CPU
-        # wakes quickly. Closing the file descriptor releases the constraint, so a
-        # backgrounded subshell keeps it open.
-        #   * 0x32 = 50 us. This still allows the shallow idle states (C1/C1E) but
-        #     forbids deep ones. It used to be 0, which allows ONLY busy-polling:
-        #     the CPU never idles at all and draws near full power, even sitting
-        #     idle in a menu.
-        #   * Only held on AC. On battery deep idle matters more than shaving
-        #     wake latency, so no constraint is taken.
-        #   * The holder releases itself when the sentinel file is removed OR the
-        #     charger is unplugged. If the end-of-game hook never runs (game
-        #     crash, gamemode crash) the constraint used to stay until reboot.
+        # Game Mode pauses only optional indexers selected in the Cortex UI.
+        # Never flush caches, compact memory, stop irqbalance, or stop system
+        # services: those actions can create I/O spikes or disrupt peripherals.
+        _reclaim_user_slice 134217728
+        for proc in "${BACKGROUND_PROCS[@]}"; do
+            if [ ! -f /etc/raptor/cortex-suspend.conf ] || grep -Fxq "$proc" /etc/raptor/cortex-suspend.conf; then
+                /usr/lib/raptor/safe-signal STOP "$proc"
+            fi
+        done
+        balooctl6 suspend 2>/dev/null || balooctl suspend 2>/dev/null || true
+        # Only hold the CPU wake-latency constraint on AC; release on restore.
         rm -f /run/raptor-cpu-dma-latency-held
-        if _on_ac; then
+        if _on_ac && [ -w /dev/cpu_dma_latency ]; then
             (
                 exec 9<>/dev/cpu_dma_latency
                 echo 0x32 >&9
                 touch /run/raptor-cpu-dma-latency-held
-                while [ -f /run/raptor-cpu-dma-latency-held ] && _on_ac; do
-                    sleep 5
-                done
+                while [ -f /run/raptor-cpu-dma-latency-held ] && _on_ac; do sleep 5; done
                 rm -f /run/raptor-cpu-dma-latency-held
             ) &>/dev/null &
             disown
         fi
-        for proc in "${BACKGROUND_PROCS[@]}"; do
-            /usr/lib/raptor/safe-signal STOP "$proc"
-        done
-        for proc in baloo tracker zeitgeist; do
-            for pid in $(pgrep -x "$proc" 2>/dev/null); do
-                ionice -c 3 -p "$pid" 2>/dev/null || true
-                renice +15 -p "$pid" 2>/dev/null || true
-            done
-        done
-        systemctl stop snapd.service   2>/dev/null || true
-        systemctl stop fstrim.service  2>/dev/null || true
-        # PackageKit is a daemon, so stop it by service rather than SIGSTOP:
-        # it releases its transaction lock cleanly on SIGTERM.
-        systemctl stop packagekit.service 2>/dev/null || true
-        balooctl6 suspend 2>/dev/null || balooctl suspend 2>/dev/null || true
-        echo 6000 > /proc/sys/vm/dirty_writeback_centisecs 2>/dev/null || true
         ;;
 
     # ── Background restoration after gaming ────────────────────────────────
     restore-background)
-        # Continue all previously stopped background processes
+        # Resume only the optional indexers that Game Mode may have paused.
         for proc in "${BACKGROUND_PROCS[@]}"; do
             /usr/lib/raptor/safe-signal CONT "$proc"
         done
-        # Resume Baloo indexing
         balooctl6 resume 2>/dev/null || balooctl resume 2>/dev/null || true
-        # Restart systemd services that were stopped during trim
-        systemctl start snapd.service  2>/dev/null || true
-        systemctl start packagekit.service 2>/dev/null || true
-        systemctl start fstrim.timer  2>/dev/null || true
-        systemctl start irqbalance.service 2>/dev/null || true
-        systemctl start fstrim.service 2>/dev/null || true
-        # Release the cpu_dma_latency hold — removes the sentinel file, which
-        # the held-open subshell is polling for; it then exits and closes the
-        # FD, releasing the PM QoS constraint so the CPU can idle normally again.
+        # Release the AC-only CPU wake-latency constraint.
         rm -f /run/raptor-cpu-dma-latency-held
-        echo 500 > /proc/sys/vm/dirty_writeback_centisecs 2>/dev/null || true
-        # Ensure ionice/renice are reset for indexers
-        for proc in baloo tracker zeitgeist; do
-            for pid in $(pgrep -x "$proc" 2>/dev/null); do
-                ionice -c 0 -p "$pid" 2>/dev/null || true
-                renice 0 -p "$pid" 2>/dev/null || true
-            done
-        done
         ;;
 
     *)
@@ -730,17 +676,19 @@ EOF
 # ── Cortex suspend config ─────────────────────────────────────────────────────
 mkdir -p /etc/raptor
 cat << 'EOF' > /etc/raptor/cortex-suspend.conf
-# Raptor Cortex — services to suspend during gaming
+# Raptor Cortex — optional indexing/thumbnail work to pause during gaming.
+# Audio, networking, Bluetooth, package management, storage maintenance,
+# communications, and user applications are intentionally excluded.
 baloo_file
-tracker
-akonadiserver
-kdeconnectd
+baloo_file_extractor
+tracker-miner
+tracker-store
+tracker3
 kio_thumbnail
-plasma-geolocation
 zeitgeist
-evolution-data
-colord
-drkonqi
+tumblerd
+updatedb
+mlocate
 EOF
 
 # -- Safe freeze / unfreeze helpers ---------------------------------------------
@@ -913,23 +861,19 @@ HELPER         = "/usr/lib/raptor/cortex-helper"
 MODE_STATE_FILE = os.path.expanduser("~/.config/raptor-cortex-mode")
 
 ALL_SERVICES = [
-    # ── KDE / indexing ────────────────────────────────────────────────────────
-    ("Baloo file indexer",      "baloo_file"),
-    ("Akonadi server",          "akonadiserver"),
-    ("KDE Connect daemon",      "kdeconnectd"),
+    # Only optional indexing and thumbnail work is paused automatically.
+    # User-facing apps, audio, networking, Bluetooth, package tools, and
+    # device-management services remain available during games.
+    ("Baloo file indexer",       "baloo_file"),
+    ("Baloo extractor",          "baloo_file_extractor"),
+    ("Tracker miner",            "tracker-miner"),
+    ("Tracker store",            "tracker-store"),
+    ("Tracker 3",                "tracker3"),
     ("Thumbnail generator",     "kio_thumbnail"),
-    ("Plasma geolocation",      "plasma-geolocation"),
-    # ── GNOME / cross-desktop ─────────────────────────────────────────────────
-    ("Evolution data server",   "evolution-data"),
-    ("Zeitgeist daemon",        "zeitgeist"),
-    ("Colour management",       "colord"),
-    # ── System daemons safe to pause while gaming ─────────────────────────────
-    ("Package manager daemon",  "packagekitd"),      # apt/dnf background checks
-    ("KDE crash handler",       "drkonqi"),           # crash reporter, unneeded in-game
-    ("Bluetooth OBEX",          "obexd"),             # BT file transfer daemon
-    ("Smart card daemon",       "pcscd"),             # rarely used on gaming desktops
-    ("Printer discovery",       "cups-browsed"),      # network printer scan
-    # ── Audio session (suspend last — restoring audio can be slow) ────────────
+    ("Zeitgeist daemon",         "zeitgeist"),
+    ("Thumbnail service",        "tumblerd"),
+    ("Locate database updater",  "updatedb"),
+    ("Mlocate indexer",          "mlocate"),
 ]
 
 PERFORMANCE_MODES = {
@@ -1702,17 +1646,20 @@ def load_cortex_config():
                     patterns.add(line)
     except Exception:
         pass
-    # First-run defaults: suspend crash handler, indexers, and update daemons
-    # These are safe to suspend and provide measurable gains
+    # First-run defaults are restricted to optional indexers and thumbnailers.
+    # Existing config entries are filtered by the helper's safe process allowlist.
     if not patterns:
         defaults = {
-            "drkonqi",          # KDE crash handler
-            "baloo_file",       # file indexer
-            "akonadiserver",    # PIM server
-            "kdeconnectd",      # KDE Connect
-            "packagekitd",      # package updates
-            "gvfsd-metadata",   # GVFS metadata
-            "kactivitymanagerd", # activity tracking
+            "baloo_file",
+            "baloo_file_extractor",
+            "tracker-miner",
+            "tracker-store",
+            "tracker3",
+            "kio_thumbnail",
+            "zeitgeist",
+            "tumblerd",
+            "updatedb",
+            "mlocate",
         }
         patterns.update(defaults)
         # Persist the defaults so they survive reboots
