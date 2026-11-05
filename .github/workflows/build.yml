@@ -26,7 +26,7 @@ on:
   workflow_dispatch:
     inputs:
       include_one_time_apps:
-        description: 'Maintainer recovery fallback; release marker enables the first successful v3.0.0 main image build'
+        description: 'Maintainer recovery fallback; include the one-time app payload in this image build'
         required: false
         type: boolean
         default: false
@@ -103,11 +103,11 @@ jobs:
             exit 0
           fi
 
-          # The v3.0.0 release marker opts the first successful main-branch
-          # image build into the one-time payload. End users never run Actions.
+          # This repository marker opts the first successful main-branch image
+          # build into the one-time payload. End users never run Actions.
           if [[ "$EVENT_NAME" == "push" && "$REF_NAME" == "main" && -f ".github/one-time-apps-v3.0.0" ]]; then
             echo "include=true" >> "$GITHUB_OUTPUT"
-            echo "Including the one-time app payload in the v3.0.0 release image."
+            echo "Including the one-time app payload in this update image."
             exit 0
           fi
 
