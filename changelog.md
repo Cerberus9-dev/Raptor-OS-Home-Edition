@@ -28,6 +28,12 @@
 
 ### Fixed
 
+- **Shroudly advanced-mode cleanup could erase the entire host firewall.**
+  Its cleanup path called `nft flush ruleset`, which removes rules owned by
+  firewalld, containers, VPNs, and other applications—not just Shroudly.
+  Packet mode now reports itself as unimplemented and performs no nftables
+  changes until an isolated, app-owned table and scoped cleanup are implemented.
+
 - **Background-process resume no longer matches arbitrary command lines.**
   Cortex's manual Resume action and GameMode's end hook used
   `pkill -CONT -f`, which matches full command lines and could resume
