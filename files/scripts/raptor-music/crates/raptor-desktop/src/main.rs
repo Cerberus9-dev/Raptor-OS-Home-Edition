@@ -89,7 +89,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             None => return,
         };
         let all_tracks = db_for_search.lock().unwrap().get_all_tracks().unwrap_or_default();
-        let needle = query.trim().to_lowercase();
+        let needle = query.to_string().trim().to_lowercase();
         let filtered = all_tracks.into_iter().filter(|track| {
             needle.is_empty()
                 || track.title.to_lowercase().contains(&needle)
