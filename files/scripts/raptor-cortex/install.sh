@@ -1208,11 +1208,16 @@ def get_gpu_temp():
                         pass
                     value = _read_millidegrees(f"{root}/{item}")
                     if value is not None:
-                        priority = 0 if any(x in label for x in
-                                            ("edge", "gpu", "core", "junction")) else 1
-                        # Hotspot/junction is useful when no edge/core sensor
-                        # exists, but edge is preferred when both are present.
-                        if "hotspot" in label:
+                        # Prefer the conventional edge/core reading. Junction
+                        # is the hotspot sensor on many AMD GPUs, even when its
+                        # label also contains "GPU", so it must rank last.
+                        if any(x in label for x in ("edge", "core")):
+                            priority = 0
+                        elif any(x in label for x in ("hotspot", "junction")):
+                            priority = 3
+                        elif "gpu" in label:
+                            priority = 1
+                        else:
                             priority = 2
                         candidates.append((priority, value))
                 if candidates:
