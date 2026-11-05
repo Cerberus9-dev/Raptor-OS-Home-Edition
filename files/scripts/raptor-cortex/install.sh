@@ -1027,30 +1027,92 @@ def get_cpu_boost():
         return None
 
 
+def _read_millidegrees(path):
+    """Read a sysfs temperature sensor, returning a sane Celsius integer."""
+    try:
+        with open(path) as f:
+            raw = int(f.read().strip())
+        # hwmon and thermal sysfs normally report millidegrees Celsius.
+        value = raw / 1000.0 if abs(raw) > 1000 else float(raw)
+        if -20.0 < value < 150.0:
+            return round(value)
+    except (OSError, ValueError):
+        pass
+    return None
+
+
 def get_cpu_temp():
-    """Return CPU temperature in °C, or None if unavailable."""
-    # Try x86_pkg_temp first (most accurate on Intel/AMD)
+    """Return the CPU package temperature in °C, or None if unavailable."""
+    # Thermal-zone names vary by kernel and platform. Prefer explicit CPU
+    # package/core labels instead of assuming thermal_zone0 is the CPU.
     try:
         zones = sorted(os.listdir("/sys/class/thermal"))
-    except OSError:               # no thermal class at all (VMs, some boards)
+    except OSError:
         zones = []
+    preferred = ("x86_pkg_temp", "cpu-thermal", "k10temp", "cpu_thermal",
+                 "soc_thermal", "acpitz")
+    for wanted in preferred:
+        for zone in zones:
+            path = f"/sys/class/thermal/{zone}"
+            try:
+                with open(f"{path}/type") as f:
+                    label = f.read().strip().lower()
+                if wanted in label:
+                    value = _read_millidegrees(f"{path}/temp")
+                    if value is not None:
+                        return value
+            except OSError:
+                continue
+
+    # Many systems expose CPU sensors only through hwmon (k10temp,
+    # coretemp, zenpower, amd_energy, etc.).
+    try:
+        for hw in sorted(os.listdir("/sys/class/hwmon")):
+            root = f"/sys/class/hwmon/{hw}"
+            try:
+                with open(f"{root}/name") as f:
+                    chip = f.read().strip().lower()
+                if not any(token in chip for token in
+                           ("k10temp", "coretemp", "zenpower", "cpu_thermal")):
+                    continue
+                inputs = sorted(x for x in os.listdir(root)
+                                if x.startswith("temp") and x.endswith("_input"))
+                candidates = []
+                for item in inputs:
+                    idx = item[4:-6]
+                    label = ""
+                    try:
+                        with open(f"{root}/temp{idx}_label") as f:
+                            label = f.read().strip().lower()
+                    except OSError:
+                        pass
+                    value = _read_millidegrees(f"{root}/{item}")
+                    if value is not None:
+                        priority = 0 if any(x in label for x in
+                                            ("package", "tctl", "tdie", "cpu")) else 1
+                        candidates.append((priority, value))
+                if candidates:
+                    candidates.sort(key=lambda item: item[0])
+                    return candidates[0][1]
+            except OSError:
+                continue
+    except OSError:
+        pass
+
+    # Last resort: use a sane thermal-zone reading only when its type looks
+    # CPU-related. Never label an arbitrary battery/GPU/skin sensor as CPU.
     for zone in zones:
         path = f"/sys/class/thermal/{zone}"
         try:
             with open(f"{path}/type") as f:
-                t = f.read().strip()
-            if t in ("x86_pkg_temp", "k10temp", "acpitz", "cpu-thermal"):
-                with open(f"{path}/temp") as f:
-                    return int(f.read().strip()) // 1000
-        except Exception:
+                label = f.read().strip().lower()
+            if any(token in label for token in ("cpu", "package", "x86")):
+                value = _read_millidegrees(f"{path}/temp")
+                if value is not None:
+                    return value
+        except OSError:
             continue
-    # Fall back: first thermal zone that looks sane
-    try:
-        with open("/sys/class/thermal/thermal_zone0/temp") as f:
-            t = int(f.read().strip()) // 1000
-            return t if 10 < t < 120 else None
-    except Exception:
-        return None
+    return None
 
 
 # ── GPU performance profile ──────────────────────────────────────────────────
@@ -1121,30 +1183,60 @@ def set_gpu_profile(profile):
 
 
 def get_gpu_temp():
-    """Return GPU temperature in °C from hwmon or AMD sysfs."""
-    # AMD: check hwmon for devices advertising 'amdgpu'
+    """Return the primary GPU edge/core temperature in °C, or None."""
+    # AMD and many Intel GPUs expose labelled hwmon temperature inputs.
+    # Prefer edge/core over hotspot/junction to keep the displayed value
+    # comparable with the normal GPU temperature shown by vendor tools.
     try:
         for hwmon in sorted(os.listdir("/sys/class/hwmon")):
-            name_path = f"/sys/class/hwmon/{hwmon}/name"
-            with open(name_path) as f:
-                name = f.read().strip()
-            if name in ("amdgpu", "radeon"):
-                for label_cand in ("temp1_input", "temp2_input"):
-                    tp = f"/sys/class/hwmon/{hwmon}/{label_cand}"
-                    if os.path.exists(tp):
-                        with open(tp) as f:
-                            return int(f.read().strip()) // 1000
-    except Exception:
+            root = f"/sys/class/hwmon/{hwmon}"
+            try:
+                with open(f"{root}/name") as f:
+                    chip = f.read().strip().lower()
+                if not any(token in chip for token in ("amdgpu", "radeon", "i915", "xe")):
+                    continue
+                inputs = sorted(x for x in os.listdir(root)
+                                if x.startswith("temp") and x.endswith("_input"))
+                candidates = []
+                for item in inputs:
+                    idx = item[4:-6]
+                    label = ""
+                    try:
+                        with open(f"{root}/temp{idx}_label") as f:
+                            label = f.read().strip().lower()
+                    except OSError:
+                        pass
+                    value = _read_millidegrees(f"{root}/{item}")
+                    if value is not None:
+                        priority = 0 if any(x in label for x in
+                                            ("edge", "gpu", "core", "junction")) else 1
+                        # Hotspot/junction is useful when no edge/core sensor
+                        # exists, but edge is preferred when both are present.
+                        if "hotspot" in label:
+                            priority = 2
+                        candidates.append((priority, value))
+                if candidates:
+                    candidates.sort(key=lambda item: item[0])
+                    return candidates[0][1]
+            except OSError:
+                continue
+    except OSError:
         pass
-    # NVIDIA: try nvidia-smi
+
+    # NVIDIA supports multiple adapters; report the first GPU rather than
+    # failing int() on the multi-line output.
     try:
         r = subprocess.run(
-            ["nvidia-smi", "--query-gpu=temperature.gpu", "--format=csv,noheader,nounits"],
+            ["nvidia-smi", "--query-gpu=temperature.gpu",
+             "--format=csv,noheader,nounits"],
             capture_output=True, text=True, timeout=2
         )
         if r.returncode == 0:
-            return int(r.stdout.strip())
-    except Exception:
+            values = [line.strip() for line in r.stdout.splitlines()
+                      if line.strip().isdigit()]
+            if values:
+                return int(values[0])
+    except (OSError, ValueError, subprocess.TimeoutExpired):
         pass
     return None
 
