@@ -105,7 +105,7 @@ _apply_nvme_power() {
     # write min_power/max_performance here (those values are silently rejected).
     local S="$1" f
     case "$S" in auto|on) ;; *) return 2 ;; esac
-    for f in /sys/class/nvme/nvme*/device/power/control; do
+    for f in /sys/class/nvme/nvme*/power/control; do
         [ -f "$f" ] || continue
         printf '%s\\n' "$S" > "$f" 2>/dev/null || true
     done
