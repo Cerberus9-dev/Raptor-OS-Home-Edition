@@ -761,6 +761,15 @@ CORTEX_CONFIG  = "/etc/raptor/cortex-suspend.conf"
 HELPER         = "/usr/lib/raptor/cortex-helper"
 MODE_STATE_FILE = os.path.expanduser("~/.config/raptor-cortex-mode")
 
+
+def run_cortex_helper(*args, timeout=30):
+    """Run the privileged helper with bounded wait and a uniform error result."""
+    command = ["sudo", HELPER, *[str(arg) for arg in args]]
+    try:
+        return subprocess.run(command, capture_output=True, text=True, timeout=timeout)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return subprocess.CompletedProcess(command, 124, "", str(exc))
+
 ALL_SERVICES = [
     # Only optional indexing and thumbnail work is paused automatically.
     # User-facing apps, audio, networking, Bluetooth, package tools, and
@@ -2030,10 +2039,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
     def _do_one_click_boost(self, before, total):
         # Run in strict order: never claim success before each requested stage
         # has completed. CPU policy stays with power-profiles-daemon.
-        mode = subprocess.run(
-            ["sudo", HELPER, "set-mode", "performance"],
-            capture_output=True, text=True
-        )
+        mode = run_cortex_helper("set-mode", "performance")
         if mode.returncode != 0:
             err = (mode.stderr or mode.stdout or "Power profile failed").strip()
             GLib.idle_add(self._one_click_boost_done, False, before, total, 0,
@@ -2042,28 +2048,19 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
 
         # Reclaim only the current user's cgroup, and only when MemAvailable
         # is genuinely low. Useful file/game caches and system services remain.
-        memory = subprocess.run(
-            ["sudo", HELPER, "1", "0", "0", "0", "0", "0", "0", "0"],
-            capture_output=True, text=True, timeout=30
-        )
+        memory = run_cortex_helper("1", "0", "0", "0", "0", "0", "0", "0")
         if memory.returncode != 0:
             err = (memory.stderr or memory.stdout or "Memory reclaim failed").strip()
-            subprocess.run(["sudo", HELPER, "set-mode", "balanced"],
-                           capture_output=True, timeout=30)
+            run_cortex_helper("set-mode", "balanced")
             GLib.idle_add(self._one_click_boost_done, False, before, total, 0,
                           f"Memory optimization failed; reverted to Balanced: {err[:160]}")
             return
 
-        game = subprocess.run(
-            ["sudo", HELPER, "trim-background"],
-            capture_output=True, text=True, timeout=30
-        )
+        game = run_cortex_helper("trim-background")
         if game.returncode != 0:
             err = (game.stderr or game.stdout or "Game Mode setup failed").strip()
-            subprocess.run(["sudo", HELPER, "restore-background"],
-                           capture_output=True, timeout=30)
-            subprocess.run(["sudo", HELPER, "set-mode", "balanced"],
-                           capture_output=True, timeout=30)
+            run_cortex_helper("restore-background")
+            run_cortex_helper("set-mode", "balanced")
             GLib.idle_add(self._one_click_boost_done, False, before, total, 0,
                           f"Game Mode failed; reverted to Balanced: {err[:160]}")
             return
@@ -2551,28 +2548,19 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         threading.Thread(target=self._apply_mode, args=(mode_key,), daemon=True).start()
 
     def _apply_mode(self, mode_key):
-        result = subprocess.run(
-            ["sudo", HELPER, "set-mode", mode_key],
-            capture_output=True, text=True, timeout=30
-        )
+        result = run_cortex_helper("set-mode", mode_key)
         applied = result.returncode == 0
         detail = (result.stderr or result.stdout or "").strip()
 
         background_ok = True
         if applied and mode_key == "performance":
             # Pause only the optional process set selected in Cortex.
-            game = subprocess.run(
-                ["sudo", HELPER, "trim-background"],
-                capture_output=True, text=True, timeout=30
-            )
+            game = run_cortex_helper("trim-background")
             background_ok = game.returncode == 0
             if not background_ok:
                 detail = (game.stderr or game.stdout or "Game Mode setup failed").strip()
         elif applied:
-            restore = subprocess.run(
-                ["sudo", HELPER, "restore-background"],
-                capture_output=True, text=True, timeout=30
-            )
+            restore = run_cortex_helper("restore-background")
             background_ok = restore.returncode == 0
             if not background_ok:
                 detail = (restore.stderr or restore.stdout or "Background restore failed").strip()
