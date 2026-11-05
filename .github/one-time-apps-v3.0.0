@@ -1,1 +1,1 @@
-This marker opts the first successful v3.0.0 main-branch image build into the one-time Raptor Music payload. The build workflow creates raptor-one-time-apps-consumed only after the image has been successfully built and pushed. Subsequent builds skip this app.
+This marker opts the first successful v3.0.0 main-branch image build into the one-time Raptor Music and original upstream Shroudly Linux desktop app payloads. The build workflow creates raptor-one-time-apps-consumed only after the image has been successfully built and pushed. Subsequent builds skip both apps.
