@@ -18,6 +18,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let player = Arc::new(AudioPlayer::new());
 
     let ui = MainWindow::new()?;
+    let visible_track_ids = Arc::new(Mutex::new(
+        db.lock().unwrap().get_all_tracks().unwrap_or_default()
+            .into_iter().map(|track| track.id).collect::<Vec<_>>()
+    ));
+    let selected_track_id: Arc<Mutex<Option<Uuid>>> = Arc::new(Mutex::new(None));
     refresh_track_list(&ui, &db);
     refresh_queue_list(&ui, &db);
     refresh_playlist_list(&ui, &db);
@@ -45,29 +50,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let db_path_clone = db_path.clone();
     let ui_handle_scan = ui.as_weak();
+    let visible_ids_for_scan = Arc::clone(&visible_track_ids);
+    let selected_id_for_scan = Arc::clone(&selected_track_id);
 
     ui.on_scan_directory_clicked(move || {
         if let Some(folder) = rfd::FileDialog::new().pick_folder() {
             let db_path_inner = db_path_clone.clone();
             let ui_weak = ui_handle_scan.clone();
+            let visible_ids = Arc::clone(&visible_ids_for_scan);
+            let selected_id = Arc::clone(&selected_id_for_scan);
             std::thread::spawn(move || {
                 if let Ok(mut worker_db) = LibraryDatabase::new(db_path_inner) {
                     walk_dir_and_import(&folder, &mut worker_db);
                     let updated_tracks = worker_db.get_all_tracks().unwrap_or_default();
-                    let mut new_slint_tracks = Vec::new();
-                    for t in &updated_tracks {
-                        let dur = t.duration_secs.unwrap_or(0);
-                        new_slint_tracks.push(TrackData {
-                            id: t.id.to_string().into(),
-                            title: t.title.clone().into(),
-                            artist: t.artist.clone().into(),
-                            album: t.album.clone().unwrap_or_default().into(),
-                            duration: format!("{}:{:02}", dur / 60, dur % 60).into(),
-                        });
-                    }
+                    *visible_ids.lock().unwrap() = updated_tracks.iter().map(|track| track.id).collect();
+                    *selected_id.lock().unwrap() = None;
+                    let new_slint_tracks = tracks_to_slint(&updated_tracks);
 
                     let _ = slint::invoke_from_event_loop(move || {
                         if let Some(ui) = ui_weak.upgrade() {
+                            ui.set_search_query("".into());
+                            ui.set_selected_track_index(-1);
                             ui.set_track_list(slint::ModelRc::new(slint::VecModel::from(new_slint_tracks)));
                         }
                     });
@@ -76,13 +79,36 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    let db_for_select = Arc::clone(&db);
+    let db_for_search = Arc::clone(&db);
+    let visible_ids_for_search = Arc::clone(&visible_track_ids);
+    let selected_id_for_search = Arc::clone(&selected_track_id);
+    let ui_handle_search = ui.as_weak();
+    ui.on_search_changed(move |query| {
+        let ui = match ui_handle_search.upgrade() {
+            Some(ui) => ui,
+            None => return,
+        };
+        let all_tracks = db_for_search.lock().unwrap().get_all_tracks().unwrap_or_default();
+        let needle = query.trim().to_lowercase();
+        let filtered = all_tracks.into_iter().filter(|track| {
+            needle.is_empty()
+                || track.title.to_lowercase().contains(&needle)
+                || track.artist.to_lowercase().contains(&needle)
+                || track.album.as_deref().unwrap_or("").to_lowercase().contains(&needle)
+        }).collect::<Vec<_>>();
+        *visible_ids_for_search.lock().unwrap() = filtered.iter().map(|track| track.id).collect();
+        *selected_id_for_search.lock().unwrap() = None;
+        ui.set_selected_track_index(-1);
+        ui.set_track_list(slint::ModelRc::new(slint::VecModel::from(tracks_to_slint(&filtered))));
+    });
+
+    let visible_ids_for_select = Arc::clone(&visible_track_ids);
+    let selected_id_for_select = Arc::clone(&selected_track_id);
     let ui_handle_select = ui.as_weak();
     ui.on_track_selected(move |idx| {
-        let db_lock = db_for_select.lock().unwrap();
-        let tracks = db_lock.get_all_tracks().unwrap_or_default();
-        if tracks.get(idx as usize).is_some() {
-            drop(db_lock);
+        let id = visible_ids_for_select.lock().unwrap().get(idx as usize).copied();
+        if let Some(id) = id {
+            *selected_id_for_select.lock().unwrap() = Some(id);
             if let Some(ui) = ui_handle_select.upgrade() {
                 ui.set_selected_track_index(idx);
             }
@@ -123,23 +149,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     let db_for_playlist_add = Arc::clone(&db);
+    let selected_id_for_playlist_add = Arc::clone(&selected_track_id);
     let ui_handle_playlist_add = ui.as_weak();
     ui.on_add_to_playlist_clicked(move || {
         let ui = match ui_handle_playlist_add.upgrade() {
             Some(ui) => ui,
             None => return,
         };
-        let track_index = ui.get_selected_track_index();
+        let selected_id = *selected_id_for_playlist_add.lock().unwrap();
         let playlist_index = ui.get_selected_playlist_index();
         let db_lock = db_for_playlist_add.lock().unwrap();
         let tracks = db_lock.get_all_tracks().unwrap_or_default();
         let playlists = db_lock.get_playlists().unwrap_or_default();
-        if track_index < 0 || playlist_index < 0 {
+        if selected_id.is_none() || playlist_index < 0 {
             ui.set_player_state_label("Select a track and playlist".into());
             return;
         }
         if let (Some(track), Some(playlist)) = (
-            tracks.get(track_index as usize),
+            tracks.iter().find(|track| Some(track.id) == selected_id),
             playlists.get(playlist_index as usize),
         ) {
             if db_lock.add_track_to_playlist(playlist.id, track.id).is_ok() {
@@ -274,16 +301,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     let db_for_add = Arc::clone(&db);
+    let selected_id_for_queue_add = Arc::clone(&selected_track_id);
     let ui_handle_add = ui.as_weak();
     ui.on_add_to_queue_clicked(move || {
         let ui = match ui_handle_add.upgrade() {
             Some(u) => u,
             None => return,
         };
-        let idx = ui.get_selected_track_index();
+        let selected_id = *selected_id_for_queue_add.lock().unwrap();
         let db_lock = db_for_add.lock().unwrap();
         let tracks = db_lock.get_all_tracks().unwrap_or_default();
-        if let Some(track) = tracks.get(idx as usize) {
+        if let Some(track) = tracks.iter().find(|track| Some(track.id) == selected_id) {
             let mut current_queue = db_lock.get_queue().unwrap_or_default();
             let new_entry = QueueEntry {
                 queue_entry_id: Uuid::new_v4(),
@@ -303,6 +331,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let manual_stopped_for_play = Arc::clone(&manual_stopped);
     let session_token_for_play = Arc::clone(&active_session_token);
     let active_entry_for_play = Arc::clone(&active_playing_queue_entry_id);
+    let selected_id_for_play = Arc::clone(&selected_track_id);
 
     ui.on_play_clicked(move || {
         let ui = match ui_handle_play.upgrade() {
@@ -342,13 +371,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     None => return,
                 }
             } else {
-                let lib_idx = ui.get_selected_track_index();
-                if lib_idx >= 0 {
-                    if let Some(track) = all_tracks.get(lib_idx as usize) {
-                        (track.source.clone(), track.id, Uuid::new_v4())
-                    } else {
-                        return;
-                    }
+                let selected_id = *selected_id_for_play.lock().unwrap();
+                if let Some(track) = all_tracks.iter().find(|track| Some(track.id) == selected_id) {
+                    (track.source.clone(), track.id, Uuid::new_v4())
                 } else {
                     ui.set_player_state_label("No track selected".into());
                     return;
@@ -548,21 +573,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+fn tracks_to_slint(tracks: &[Track]) -> Vec<TrackData> {
+    tracks.iter().map(|track| {
+        let duration = track.duration_secs.unwrap_or(0);
+        TrackData {
+            id: track.id.to_string().into(),
+            title: track.title.clone().into(),
+            artist: track.artist.clone().into(),
+            album: track.album.clone().unwrap_or_default().into(),
+            duration: format!("{}:{:02}", duration / 60, duration % 60).into(),
+        }
+    }).collect()
+}
+
 fn refresh_track_list(ui: &MainWindow, db: &Arc<Mutex<LibraryDatabase>>) {
     let db_lock = db.lock().unwrap();
     let initial_tracks = db_lock.get_all_tracks().unwrap_or_default();
-    let mut slint_tracks = Vec::new();
-    for t in &initial_tracks {
-        let dur = t.duration_secs.unwrap_or(0);
-        slint_tracks.push(TrackData {
-            id: t.id.to_string().into(),
-            title: t.title.clone().into(),
-            artist: t.artist.clone().into(),
-            album: t.album.clone().unwrap_or_default().into(),
-            duration: format!("{}:{:02}", dur / 60, dur % 60).into(),
-        });
-    }
-    ui.set_track_list(slint::ModelRc::new(slint::VecModel::from(slint_tracks)));
+    ui.set_track_list(slint::ModelRc::new(slint::VecModel::from(tracks_to_slint(&initial_tracks))));
 }
 
 fn refresh_playlist_list(ui: &MainWindow, db: &Arc<Mutex<LibraryDatabase>>) {
