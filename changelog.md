@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### One-time app integration
+
+- Raptor Music and Shroudly are opt-in for one manually dispatched image build. The workflow defaults the one-time app input to false; normal pushes, pull requests, and scheduled rebuilds do not fetch the Shroudly submodule, compile either app, run their tests, or stage their binaries.
+- Both image installers require the one-time staging marker, so later builds skip installation. To include them in the intended build, manually dispatch **Build Raptor OS** once with `include_one_time_apps=true`; leave it false for every later build.
+
 ### Shroudly Raptor
 
 - Added the complete upstream Shroudly repository as a pinned Git submodule, preserving its original source tree and making the upstream revision auditable. Preserved upstream MIT licensing and attribution to umutxyp / Codeshare Technology Ltd.
