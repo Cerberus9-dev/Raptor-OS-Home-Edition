@@ -99,7 +99,7 @@ jobs:
           set -euo pipefail
           if git ls-remote --exit-code origin refs/tags/raptor-one-time-apps-consumed >/dev/null 2>&1; then
             echo "include=false" >> "$GITHUB_OUTPUT"
-            echo "The one-time Raptor Music/Shroudly integration has already been consumed."
+            echo "The one-time Raptor Music integration has already been consumed."
             exit 0
           fi
 
@@ -185,12 +185,6 @@ jobs:
         if: ${{ steps.one_time_apps.outputs.include == 'true' }}
         run: cargo test --workspace --manifest-path files/scripts/raptor-music/Cargo.toml
 
-      - name: Build Shroudly Raptor local monitor
-        if: ${{ steps.one_time_apps.outputs.include == 'true' }}
-        run: |
-          cargo build --release --workspace --manifest-path files/scripts/shroudly-raptor/Cargo.toml
-          install -Dm755 files/scripts/shroudly-raptor/target/release/shroudly-raptor files/staging/shroudly-raptor
-
       - name: Mark one-time app payload for this image only
         if: ${{ steps.one_time_apps.outputs.include == 'true' }}
         run: install -Dm644 /dev/null files/staging/.include-one-time-apps
@@ -211,7 +205,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -a raptor-one-time-apps-consumed -m "One-time Raptor Music and Shroudly image integration consumed"
+          git tag -a raptor-one-time-apps-consumed -m "One-time Raptor Music image integration consumed"
           git push origin refs/tags/raptor-one-time-apps-consumed
 
   # Runs only when the build fails. GitHub's raw job logs are awkward to get at,
