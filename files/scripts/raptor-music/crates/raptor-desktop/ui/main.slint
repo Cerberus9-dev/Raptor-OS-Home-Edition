@@ -263,10 +263,10 @@ export component MainWindow inherits Window {
                         value <=> root.playback_position_secs;
                         enabled: root.duration_secs > 0;
                         horizontal-stretch: 1;
-                        changed(value) => { root.is_seeking = true; }
-                        released(value) => {
-                            root.is_seeking = false;
+                        changed(value) => {
+                            root.is_seeking = true;
                             root.seek_clicked(value);
+                            root.is_seeking = false;
                         }
                     }
                 }

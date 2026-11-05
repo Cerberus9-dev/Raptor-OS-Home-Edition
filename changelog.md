@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- **Slint 1.5 compatibility:** use the standard Slider's supported `changed` callback for seek requests; Slint 1.5 does not expose the newer `released` callback.
+
 - **Cortex hardware telemetry:** expanded CPU temperature detection across common thermal-zone and hwmon drivers, selects labelled CPU package sensors instead of blindly reporting thermal_zone0, reads GPU edge/core labels from AMD/Intel hwmon, and handles multi-GPU NVIDIA temperature output without a parse failure.
 
 - **Raptor Music seeking:** added a real playback seek command that restarts decoding at the requested timestamp, keeps paused playback paused, and exposes a duration-bounded Slint progress slider. The position display no longer uses a hard-coded unknown-duration placeholder.
