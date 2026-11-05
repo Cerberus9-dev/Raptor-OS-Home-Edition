@@ -418,6 +418,7 @@ import ssl
 import urllib.request
 import sys
 import re
+import signal
 from queue import Queue, Empty
 import os
 import shutil
@@ -720,6 +721,7 @@ def run_privileged(helper_path, action_id=None):
                 stderr=subprocess.STDOUT,
                 text=True,
                 bufsize=1,
+                start_new_session=True,
             )
         except (FileNotFoundError, OSError):
             continue
@@ -739,6 +741,93 @@ def run_privileged(helper_path, action_id=None):
         "Cannot obtain administrator rights: neither `sudo -n` nor pkexec could run "
         f"{helper_path}. {last_error or 'Check ' + SUDOERS_FILE + '.'}"
     )
+
+
+def _stop_process_group(proc):
+    """Stop a helper and its children without leaving rpm-ostree/Flatpak behind."""
+    try:
+        os.killpg(proc.pid, signal.SIGTERM)
+    except (ProcessLookupError, PermissionError, OSError):
+        try:
+            proc.terminate()
+        except Exception:
+            pass
+    try:
+        proc.wait(timeout=5)
+        return
+    except Exception:
+        pass
+    try:
+        os.killpg(proc.pid, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError, OSError):
+        try:
+            proc.kill()
+        except Exception:
+            pass
+    try:
+        proc.wait(timeout=5)
+    except Exception:
+        pass
+
+
+def stream_process(proc, emit, timeout):
+    """Stream a process without blocking the GUI forever on a silent pipe.
+
+    A dedicated reader owns TextIOWrapper reads. The caller consumes complete
+    lines from a queue, so there is no select()+buffered-read race and the
+    timeout remains effective even when the child stops producing output.
+    """
+    if proc.stdout is None:
+        try:
+            return proc.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            _stop_process_group(proc)
+            return 124
+
+    lines = Queue()
+    finished = object()
+    reader_done = threading.Event()
+
+    def _reader():
+        try:
+            for line in proc.stdout:
+                lines.put(line)
+        except Exception as exc:
+            lines.put(f"\nOutput stream error: {exc}\n")
+        finally:
+            reader_done.set()
+            lines.put(finished)
+
+    threading.Thread(target=_reader, daemon=True).start()
+    deadline = time.monotonic() + timeout
+    timed_out = False
+
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            timed_out = True
+            break
+        try:
+            item = lines.get(timeout=min(0.25, remaining))
+        except Empty:
+            if proc.poll() is not None and reader_done.is_set():
+                break
+            continue
+        if item is finished:
+            break
+        if item:
+            emit(item)
+
+    if timed_out:
+        emit("\nProcess timed out; stopping the helper and its child processes.\n")
+        _stop_process_group(proc)
+        return 124
+
+    try:
+        return proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        _stop_process_group(proc)
+        return 124
 
 
 class RaptorUpdateApp(Adw.Application):
@@ -1104,12 +1193,11 @@ class RaptorUpdateWindow(Adw.ApplicationWindow):
             try:
                 # System-scoped refs require elevation.
                 fp_proc = run_privileged(FLATPAK_UPDATE_HELPER)
-                for line in fp_proc.stdout:
-                    clean = ANSI_ESCAPE.sub("", line)
-                    if clean:
-                        GLib.idle_add(self._append_log, clean)
-                fp_proc.stdout.close()
-                fp_rc = fp_proc.wait()
+                fp_rc = stream_process(
+                    fp_proc,
+                    lambda line: GLib.idle_add(self._append_log, ANSI_ESCAPE.sub("", line)),
+                    timeout=900,
+                )
 
                 # User-scoped refs belong to the logged-in account. Running
                 # flatpak update as root cannot update them, so do this second
@@ -1118,14 +1206,13 @@ class RaptorUpdateWindow(Adw.ApplicationWindow):
                 user_proc = subprocess.Popen(
                     ["flatpak", "update", "--user", "--noninteractive", "--assumeyes"],
                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                    text=True, bufsize=1,
+                    text=True, bufsize=1, start_new_session=True,
                 )
-                for line in user_proc.stdout:
-                    clean = ANSI_ESCAPE.sub("", line)
-                    if clean:
-                        GLib.idle_add(self._append_log, clean)
-                user_proc.stdout.close()
-                user_rc = user_proc.wait(timeout=900)
+                user_rc = stream_process(
+                    user_proc,
+                    lambda line: GLib.idle_add(self._append_log, ANSI_ESCAPE.sub("", line)),
+                    timeout=900,
+                )
                 if user_rc != 0:
                     fp_rc = user_rc
             except subprocess.TimeoutExpired:
@@ -1161,12 +1248,13 @@ class RaptorUpdateWindow(Adw.ApplicationWindow):
             GLib.idle_add(self._on_update_error, -1)
             return
         try:
-            for line in proc.stdout:
-                clean = ANSI_ESCAPE.sub("", line)
-                if clean:
-                    GLib.idle_add(self._append_log, clean)
-            proc.stdout.close()
-            rc = proc.wait()
+            # Eight 15-minute download attempts plus exponential backoff fit
+            # inside this bound; a wedged helper can no longer hang the GUI.
+            rc = stream_process(
+                proc,
+                lambda line: GLib.idle_add(self._append_log, ANSI_ESCAPE.sub("", line)),
+                timeout=3 * 60 * 60,
+            )
         except Exception as e:
             GLib.idle_add(self._append_log, f"\nERROR reading output: {e}\n")
             GLib.idle_add(self._on_update_error, -1)
