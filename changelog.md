@@ -21,7 +21,7 @@ This is the consolidation release for more than two months of sustained Raptor O
 
 ### One-time app integration
 
-- A release marker opts the first successful v3.0.0 main-branch image build into the one-time Raptor Music and transitional Shroudly prototype payload; normal pull-request builds, unrelated pushes, and scheduled rebuilds skip it.
+- A release marker opts the first successful v3.0.0 main-branch image build into the one-time Raptor Music and original upstream Shroudly Linux desktop application payload; normal pull-request builds, unrelated pushes, and scheduled rebuilds skip it.
 - A permanent Git tag, `raptor-one-time-apps-consumed`, locks the integration only after that image has been successfully built and pushed. Later builds cannot rebuild or reinstall these apps.
 - The installers require the one-time staging marker. Without it, they remove stale staged app binaries and skip installation. Generated binaries are no longer tracked in the source tree.
 - A maintainer-only manual dispatch remains as a recovery fallback; end users never need to run GitHub Actions. The one-time integration is not consumed by a failed image build.
@@ -53,9 +53,9 @@ This is the consolidation release for more than two months of sustained Raptor O
 
 ### Shroudly Raptor
 
-- Added the complete upstream Shroudly repository as a pinned Git submodule, preserving its original source tree and making the upstream revision auditable. Preserved upstream MIT licensing and attribution to umutxyp / Codeshare Technology Ltd.
-- Updated the workflow to fetch the pinned upstream submodule only during the first successful v3.0.0 release build, then verify the upstream desktop entrypoint, Linux engine source, and license. The original Linux application is still not wired into the image.
-- Updated the Shroudly Raptor README to distinguish the newly vendored upstream source from the still-transitional Rust prototype. The original Linux application is not yet wired into the Raptor image; this remains an explicit v3.0.0 release blocker, not a completed feature.
+- Added the complete upstream Shroudly repository as a pinned Git submodule, preserving its original source tree and MIT license with attribution to umutxyp / Codeshare Technology Ltd.
+- The one-time v3.0.0 image build now compiles the upstream Linux desktop app, normal engine, and Advanced-mode engine; checks linked runtime libraries; and stages the original UI, desktop entry, icon, and polkit policy.
+- The image installer places the original application under `/opt/Shroudly`, verifies both engines and the policy file, and creates no recurring boot service. The full v3.0.0 image build still needs to pass before this integration can be called verified.
 
 ### November 4–5 work consolidated into v3.0.0 — Raptor Music Expansion, Hardware Recovery & CI Reliability
 
