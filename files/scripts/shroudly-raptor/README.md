@@ -12,7 +12,7 @@ project by **umutxyp**, a **Codeshare Technology Ltd** product.
 The upstream repository is included as a Git submodule rather than copied into
 a partial reimplementation. This retains its original directory structure,
 source files, build scripts, tests, Linux integration, and platform-specific
-code while keeping the upstream revision traceable. GitHub Actions fetches the pinned submodule and verifies key upstream source and license files only during the first successful v2.9.0 release image build. The original application is not yet integrated into the image.
+code while keeping the upstream revision traceable. GitHub Actions fetches the pinned submodule and verifies key upstream source and license files only during the first successful v3.0.0 release image build. The original application is not yet integrated into the image.
 
 ## Integration status
 
@@ -49,4 +49,4 @@ official upstream release and not endorsed by Codeshare Technology Ltd.
 
 ## Image integration lifecycle
 
-The transitional Shroudly monitor prototype is staged only for the first successful v2.9.0 image build on `main`, when the release marker is present. Pull requests, unrelated pushes, and scheduled rebuilds skip it. A maintainer-only manual dispatch remains as a recovery fallback. The lock tag `raptor-one-time-apps-consumed` is created only after the image is successfully built and pushed. Its installer refuses to install without the one-time staging marker. The original upstream Linux application is not yet integrated.
+The transitional Shroudly monitor prototype is staged only for the first successful v3.0.0 image build on `main`, when the release marker is present. Pull requests, unrelated pushes, and scheduled rebuilds skip it. A maintainer-only manual dispatch remains as a recovery fallback. The lock tag `raptor-one-time-apps-consumed` is created only after the image is successfully built and pushed. Its installer refuses to install without the one-time staging marker. The original upstream Linux application is not yet integrated.
