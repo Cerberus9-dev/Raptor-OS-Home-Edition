@@ -403,7 +403,7 @@ case "$ACTION" in
                 # Avoid legacy laptop_mode write deferral on modern NVMe systems.
                 echo 0 > /proc/sys/vm/laptop_mode 2>/dev/null || true
 
-                # CPU: governor + turbo off
+                # CPU: efficiency governor and boost disabled on battery
                 echo 0 > /sys/devices/system/cpu/cpufreq/boost      2>/dev/null || true
                 for gov in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
                     echo powersave > "$gov" 2>/dev/null || true
@@ -464,8 +464,6 @@ case "$ACTION" in
                 ;;
 
             balanced)
-                # swappiness=30: lean toward keeping anonymous memory in RAM
-                # while still allowing some swapping for memory pressure relief.
                 # ZRAM is fast compressed RAM; allow it to absorb cold pages
                 # before the system approaches OOM on low-memory machines.
                 echo 100  > /proc/sys/vm/swappiness                2>/dev/null || true
@@ -505,11 +503,8 @@ case "$ACTION" in
                 ;;
 
             performance)
-                # swappiness=5: strongly prefer keeping all game data in RAM.
-                # dirty_ratio=25: buffer up to 25% of RAM as dirty pages before
-                # any synchronous write stall — games write saves/logs rarely so
-                # a large dirty window avoids I/O stalls during gameplay.
                 # Keep ZRAM available under pressure instead of forcing OOM.
+                # Modest dirty-page limits avoid large flush bursts during play.
                 echo 80  > /proc/sys/vm/swappiness                 2>/dev/null || true
                 echo 10  > /proc/sys/vm/dirty_ratio                2>/dev/null || true
                 echo 5   > /proc/sys/vm/dirty_background_ratio     2>/dev/null || true
@@ -2112,7 +2107,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
     # ── Quick Action handlers ──────────────────────────────────────────────────
 
     def _on_pregame_boost(self, row):
-        """One click: Performance mode + cache drop + 1.5 GB cgroup reclaim."""
+        """Apply Performance mode and pressure-aware Game Mode tuning."""
         self._on_mode_switch(None, "performance")
         opts = {"caches": True, "compact": False, "zram": False,
                 "swap": False, "oom": True, "deep": False, "thp": False, "cpu": False}
