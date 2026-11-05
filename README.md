@@ -173,11 +173,14 @@ Local proxy / DPI-bypass service (Rust, Tokio + hyper) that binds `127.0.0.1:108
 
 ---
 
-## Window Management (Windows-style)
-- **Buttons** — Minimize, Maximize, Close on the right; App Menu on the left
-- **Titlebar double-click** — maximises the window
-- **Click to raise**, **edge snap** (drag to screen edge to tile)
-- Panel/taskbar uses KDE Plasma's own stock theme — green accent colours (buttons, selections, window decoration) still apply throughout, independent of the panel itself
+## Window Management (KWin on Wayland)
+Raptor OS uses KDE Plasma's **KWin** window manager on a **Wayland** session (the documented Bazzite base). The Windows-style description refers to familiar desktop behavior and layout; it does **not** mean Microsoft Windows, and this configuration is not an X11 window manager or an Xlib/XCB-based implementation.
+
+- **Window decorations** — Raptor OS Aurorae decoration with Minimize, Maximize, and Close buttons on the right, plus the App Menu button on the left
+- **Titlebar double-click** — maximizes the window
+- **Focus behavior** — click-to-focus, matching a familiar desktop workflow
+- **Window snapping** — KWin provides screen-edge tiling/snapping; exact behavior depends on the active Plasma/KWin configuration
+- **Panel/taskbar** — KDE Plasma's stock panel theme; the Raptor green accent and window decoration are configured separately
 
 ---
 
