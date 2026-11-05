@@ -70,7 +70,7 @@ BACKGROUND_PROCS=(
     # management, printers, storage maintenance, and user applications running.
     "tracker-miner" "tracker-store" "tracker3"
     "baloo_file" "baloo_file_extractor" "kio_thumbnail"
-    "zeitgeist" "tumblerd" "updatedb" "mlocate"
+    "zeitgeist" "tumblerd" "updatedb" "mlocate" "drkonqi"
 )
 
 # ── Hardware power helpers ────────────────────────────────────────────────────
@@ -583,6 +583,7 @@ zeitgeist
 tumblerd
 updatedb
 mlocate
+drkonqi
 EOF
 
 # -- Safe freeze / unfreeze helpers ---------------------------------------------
@@ -775,6 +776,7 @@ ALL_SERVICES = [
     ("Thumbnail service",        "tumblerd"),
     ("Locate database updater",  "updatedb"),
     ("Mlocate indexer",          "mlocate"),
+    ("KDE crash handler",        "drkonqi"),
 ]
 
 PERFORMANCE_MODES = {
