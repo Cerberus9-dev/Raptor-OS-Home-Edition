@@ -161,9 +161,6 @@ modules:
         # dialog instead, keeping sizing/policy fully in the user's hands.
 
   # ── Kernel boot arguments ─────────────────────────────────────────────────────
-  # Keep kernel lockup/watchdog diagnostics and split-lock mitigation enabled.
-  # Their tiny overhead is preferable to losing recovery/diagnostic coverage or
-  # weakening a kernel mitigation for a marginal, workload-dependent gain.
   - type: kargs
     kargs:
       - transparent_hugepage=madvise
