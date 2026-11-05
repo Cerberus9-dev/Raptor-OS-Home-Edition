@@ -15,7 +15,7 @@ code while keeping the upstream revision traceable. GitHub Actions fetches the p
 
 ## Integration status
 
-The Raptor OS image includes only the local Rust monitoring prototype. It does not include a proxy, packet-processing engine, or network-filter circumvention features. The prototype is transitional and is not the complete upstream Shroudly application.
+Shroudly is not installed in the Raptor OS v3.0.0 image. The incomplete local Rust monitoring prototype remains in the repository as a development artifact only; it is not installed, exposed as a proxy, or advertised as the original upstream Shroudly application. The upstream network-filter circumvention engine is not built, fetched, or installed.
 
 Do not describe the transitional Rust binary as a complete Shroudly port.
 Raptor-specific work will be applied as a clearly documented patch layer over
