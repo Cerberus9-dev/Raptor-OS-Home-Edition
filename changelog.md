@@ -21,7 +21,7 @@ This is the consolidation release for more than two months of sustained Raptor O
 
 ### One-time app integration
 
-- A release marker opts the first successful v3.0.0 main-branch image build into the one-time Raptor Music payload; normal pull-request builds, unrelated pushes, and scheduled rebuilds skip it.
+- A release marker opts the first successful v3.0.0 main-branch image build into the one-time Raptor Music and original upstream Shroudly Linux desktop payloads. Pull requests build and test both apps without staging them; unrelated pushes and scheduled rebuilds skip the one-time payloads.
 - A permanent Git tag, `raptor-one-time-apps-consumed`, locks the integration only after that image has been successfully built and pushed. Later builds cannot rebuild or reinstall this app.
 - The Raptor Music installer requires the one-time staging marker. Without it, they remove stale staged app binaries and skip installation. Generated binaries are no longer tracked in the source tree.
 - A maintainer-only manual dispatch remains as a recovery fallback; end users never need to run GitHub Actions. The one-time integration is not consumed by a failed image build.
@@ -53,8 +53,10 @@ This is the consolidation release for more than two months of sustained Raptor O
 
 ### Shroudly Raptor
 
-- Kept the complete upstream Shroudly repository pinned as a submodule with MIT attribution to umutxyp / Codeshare Technology Ltd, preserving the source for audit and licensing clarity.
-- The incomplete Rust application-monitor prototype is not installed or advertised as a finished Shroudly port in v3.0.0. The upstream network-filter circumvention engine is not built, fetched, or installed.
+- The first successful v3.0.0 image build fetches the pinned upstream Shroudly submodule, runs its core tests and verification build, compiles the Linux Advanced-mode engine, packages the original Electron desktop app, and installs its desktop entry, icon, MIT license, and polkit action.
+- Pull requests compile and test the original upstream app but do not stage it into the image. Later image builds skip both one-time app payloads after the successful v3.0.0 build consumes the permanent lock tag.
+- Installation does not enable a service or login autostart and does not change proxy settings. The app is launched explicitly by the user; upstream protection modes remain user-controlled and Advanced mode requests administrator authorization.
+- The separate incomplete Raptor Rust application-monitor prototype is not installed or advertised as the upstream Shroudly application.
 
 ### November 4–5 work consolidated into v3.0.0 — Raptor Music Expansion, Hardware Recovery & CI Reliability
 
@@ -392,7 +394,7 @@ This is the consolidation release for more than two months of sustained Raptor O
 
 ### Added
 
-- **Raptor Music is the only one-time app packaged in v3.0.0.** CI builds its Rust workspace and stages the binary in `files/staging/`; the installer creates its desktop entry and verifies the payload. The incomplete Shroudly prototype is not installed, and the upstream network-filter circumvention application is not built or included.
+- **Raptor Music and the original upstream Shroudly desktop app are the one-time v3.0.0 payloads.** CI builds and tests both on pull requests without staging them; the first successful main-branch image build stages both apps. The permanent lock tag is created only after the image is successfully built and pushed.
 - **Hardware recovery after suspend** (`files/scripts/raptor-hardware-fixes.sh`):
   one resume hook plus one 1-minute timer, no new apps or menu entries. On
   every resume it re-binds the touchpad's I2C/PS/2 driver, binds the kernel's
