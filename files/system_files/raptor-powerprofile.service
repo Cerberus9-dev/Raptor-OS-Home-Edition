@@ -1,22 +1,20 @@
 [Unit]
-Description=Raptor OS Initial Power Profile
-# Wants= (not Requires=) — if power-profiles-daemon is slow or briefly
-# fails at boot, this service still attempts to run rather than blocking
-# for up to 90 s and stalling the multi-user target.
+Description=Raptor OS Power Profiles Readiness Check
+# This unit must not select a profile: KDE Powerdevil and the user own that
+# preference, and power-profiles-daemon restores its persisted selection.
 Wants=power-profiles-daemon.service
 After=power-profiles-daemon.service
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/powerprofilesctl set balanced
+ExecStart=/usr/bin/powerprofilesctl get
 RemainAfterExit=yes
 StandardOutput=journal
 StandardError=journal
 
 # ── Hardening ──────────────────────────────────────────────────────────────────
-# powerprofilesctl talks to power-profiles-daemon over the D-Bus system bus —
-# no direct filesystem writes, no /tmp usage, no privilege escalation needed.
-# Same safe candidate for full hardening as raptor-ensure-services.service.
+# Query-only D-Bus readiness check. It never overwrites the user's selected
+# profile, so the KDE battery slider remains authoritative.
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
