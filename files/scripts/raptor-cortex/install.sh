@@ -620,7 +620,7 @@ KNOWN=(baloo tracker akonadi kdeconnectd zeitgeist tumblerd updatedb mlocate
        snapd evolution gnome-software packagekitd drkonqi obexd pcscd
        cups-browsed colord plasma-geolocation kio_thumbnail)
 [ -f /etc/raptor/cortex-suspend.conf ] && while IFS= read -r l; do
-    [[ -z "$l" || "$l" == \\#* ]] || KNOWN+=("$l")
+    [[ -z "$l" || "${l:0:1}" == "#" ]] || KNOWN+=("$l")
 done < /etc/raptor/cortex-suspend.conf
 
 gaming=0
