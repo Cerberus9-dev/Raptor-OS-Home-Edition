@@ -9,10 +9,22 @@
 - The installers require the one-time staging marker. Without it, they remove any stale staged app binaries and skip installation. Generated binaries are no longer tracked in the source tree.
 - To include them in the intended build, manually dispatch **Build Raptor OS** once with `include_one_time_apps=true`. The successful build creates the permanent lock tag automatically.
 
+### Performance, audio, and gaming
+
+- Cortex memory cleanup is now pressure-aware: it checks available RAM, caps normal reclaim at 256 MiB, and preserves useful page/file caches instead of forcing cache drops or repeatedly reclaiming nested cgroups. Compaction, zRAM recompression, OOM-score changes, and deeper reclaim are no longer part of Quick Optimize or Pre-Game Boost by default.
+- Game Mode now separates performance-profile changes from memory cleanup. It pauses only optional indexers and thumbnail work selected in Cortex, tracks its active state, and restores only the work it paused. Package managers, Snap, fstrim, irqbalance, communications, audio, and user applications are left running.
+- Balanced mode retains normal CPU boost; battery mode uses a less aggressive 80% frequency cap. ZRAM-aware swappiness, smaller dirty-page limits, a proportionate 32 MiB free-page reserve, and slower Cortex telemetry polling reduce avoidable pressure on low-memory systems. The 4 GB target still needs real-hardware benchmarking.
+- GPU profiles no longer overwrite CPU governor settings or apply global Mesa threaded-rendering/CPU-throttle overrides. Cortex owns the baseline CPU mode; GameMode temporarily requests the performance governor and restores the governor it found when the game exits.
+- GameMode now accepts any compatible supervisor instead of restricting registration to a fixed launcher list. Its process priority is no longer lowered, and its real-time scheduler mode remains off to avoid competing with audio scheduling.
+- PipeWire keeps its stable 512-frame graph; Pulse-compatible streams remain allocated for 30 seconds, and WirePlumber waits 60 seconds before suspending idle audio devices. Audio controllers are excluded from PCI runtime power suspension, and HDA codec/controller power saving stays disabled across profiles.
+- Gaming defaults use moderate network buffers and fq_codel, avoid busy-poll spinning, prefer the NVMe none scheduler, and retain Steam shader pre-caching to reduce first-run shader stutter.
+- Gaming background trim no longer drops all caches, compacts memory, freezes package managers, or stops Snap/storage maintenance. It uses a state marker and restores only optional indexers.
+- Gaming device nodes now use mode 0660 with active-session uaccess ACLs instead of world-writable 0666 permissions. User-facing KDE services are no longer masked or given hard memory caps; Baloo has only a soft MemoryHigh guard.
+
 ### Shroudly Raptor
 
 - Added the complete upstream Shroudly repository as a pinned Git submodule, preserving its original source tree and making the upstream revision auditable. Preserved upstream MIT licensing and attribution to umutxyp / Codeshare Technology Ltd.
-- Updated the image workflow to check out submodules recursively and verify the upstream desktop entrypoint, Linux engine source, and license are present before continuing the build.
+- Updated the workflow to fetch the pinned upstream submodule only during the one-time manually dispatched build, then verify the upstream desktop entrypoint, Linux engine source, and license before compiling.
 - Updated the Shroudly Raptor README to distinguish the newly vendored upstream source from the still-transitional Rust prototype. The original Linux application is not yet wired into the Raptor image; that integration remains outstanding.
 
 ## [v2.8.0] - 2026-11-05 (Raptor Music Expansion, Hardware Recovery & CI Reliability)
@@ -27,7 +39,7 @@
 
 - **Pull requests now validate image-workflow edits.** The push trigger watched `.github/workflows/build.yml`, but the pull-request path filter did not, so changes to the main image workflow could merge without running its PR build. Added the workflow file to the PR path filter.
 
-- **CI no longer pushes generated application binaries to `main`.** The build already stages both Rust executables in `files/staging/` for the BlueBuild `files` module; the later copy step duplicated that work, and the GitHub Actions job committed and pushed those generated binaries, unnecessarily mutating the source branch and triggering another workflow run. Removed the duplicate staging/push steps and reduced the job's contents permission to read-only.
+- **CI no longer pushes generated application binaries to `main`.** The build stages Rust executables only in the temporary one-time staging directory; generated binaries are not committed. The workflow retains contents write permission solely for creating the permanent one-time integration lock tag after a successful opted-in image build.
 
 
 
