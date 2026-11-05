@@ -331,11 +331,10 @@ chmod +x /usr/lib/raptor/check-helper
 
 cat << 'EOF' > /usr/lib/raptor/flatpak-update-helper
 #!/bin/bash
-# Update both system-wide and user Flatpaks in one privileged pass.
-# System Flatpaks: installed by recipe.yml, need root to update.
-# User Flatpaks: installed by firstboot picker, technically user-owned
-# but handled here for a unified log stream in the GUI.
-exec flatpak update --noninteractive --assumeyes 2>&1
+# This helper is invoked through sudo/pkexec, so it updates only the
+# system installation. User-scoped Flatpaks are updated by the GUI as the
+# logged-in user; root must not pretend to update another user's app refs.
+exec flatpak update --system --noninteractive --assumeyes 2>&1
 EOF
 chmod +x /usr/lib/raptor/flatpak-update-helper
 
@@ -636,26 +635,31 @@ def check_for_updates(emit=None):
 
 
 def check_flatpak_updates():
-    """Check for pending Flatpak updates across all remotes.
-    Returns (has_update: bool, count: int, message: str)."""
-    try:
-        result = subprocess.run(
-            ["flatpak", "remote-ls", "--app", "--updates"],
-            capture_output=True, text=True, timeout=30,
-        )
-        if result.returncode != 0:
-            return False, 0, "Could not check Flatpak updates."
-        lines = [l for l in result.stdout.splitlines() if l.strip()]
-        if lines:
-            n = len(lines)
-            return True, n, f"{n} Flatpak app{'s' if n != 1 else ''} can be updated."
-        return False, 0, "Flatpak apps are up to date."
-    except FileNotFoundError:
-        return False, 0, ""   # flatpak not present — suppress
-    except subprocess.TimeoutExpired:
-        return False, 0, "Flatpak check timed out."
-    except Exception as e:
-        return False, 0, f"Error: {e}"
+    """Check system and per-user Flatpak installations independently."""
+    if not _have("flatpak"):
+        return False, 0, ""
+    total = 0
+    errors = []
+    for scope in ("--system", "--user"):
+        try:
+            result = subprocess.run(
+                ["flatpak", "remote-ls", "--app", "--updates", scope],
+                capture_output=True, text=True, timeout=30,
+            )
+            if result.returncode != 0:
+                detail = (result.stderr or result.stdout or "").strip()
+                errors.append(f"{scope[2:]}: {detail or 'check failed'}")
+                continue
+            total += sum(1 for line in result.stdout.splitlines() if line.strip())
+        except subprocess.TimeoutExpired:
+            errors.append(f"{scope[2:]}: check timed out")
+        except Exception as exc:
+            errors.append(f"{scope[2:]}: {exc}")
+    if total:
+        return True, total, f"{total} Flatpak app{'s' if total != 1 else ''} can be updated across system and user installs."
+    if errors:
+        return False, 0, "Could not check every Flatpak installation: " + "; ".join(errors)
+    return False, 0, "Flatpak apps are up to date."
 
 
 def _have(binary):
