@@ -861,8 +861,10 @@ park_cores=no
 pin_cores=no
 
 [supervisor]
-# These launchers can start and stop gamemode on behalf of child processes
-supervisor_whitelist=steam,heroic,lutris,bottles,gamescope
+# Allow common Linux game clients to register as GameMode supervisors.
+# This is not a forced network/proxy mode: games still need native GameMode
+# integration or must be launched through gamemoderun (see installed docs).
+supervisor_whitelist=steam,heroic,lutris,bottles,gamescope,prismlauncher,modrinth-app,ATLauncher,gdlauncher,minecraft-launcher,itch,minigalaxy,r2modman,sober
 
 [script]
 # Custom scripts run when gamemode activates / deactivates.
@@ -870,6 +872,38 @@ supervisor_whitelist=steam,heroic,lutris,bottles,gamescope
 start=
 end=
 GAMEMODE
+
+# ── GameMode compatibility notes ─────────────────────────────────────────────
+mkdir -p /usr/share/doc/raptor-gaming
+cat << 'GAMEDOC' > /usr/share/doc/raptor-gaming/README.md
+# Raptor OS GameMode compatibility
+
+Raptor OS configures GameMode for common Linux game clients, including Steam,
+Heroic, Lutris, Bottles, Gamescope, Prism Launcher, Modrinth App, ATLauncher,
+GDLauncher, Minecraft Launcher, itch, Minigalaxy, r2modman, and Sober.
+
+The supervisor allow-list permits these launchers to register as GameMode
+supervisors when they use GameMode's supervisor API. It does not force every
+launcher or game to request GameMode automatically.
+
+For a game or client without native GameMode integration, use the standard
+GameMode wrapper in that client's launch-command / launch-options field:
+
+    gamemoderun %command%
+
+For a standalone executable:
+
+    gamemoderun ./game
+
+This wrapper works with any game executable that can be launched through it;
+it is not limited to a fixed list of game titles. A launcher that does not
+support custom launch commands and does not integrate GameMode natively cannot
+be made universally compatible by an allow-list alone.
+
+GameMode temporarily applies the configured local performance settings and
+restores them when the session ends. Raptor's audio services and gaming
+services are not removed or disabled by this configuration.
+GAMEDOC
 
 # ── Input device udev rules ───────────────────────────────────────────────────
 cat << 'INPUTRULES' > /usr/lib/udev/rules.d/61-raptor-input.rules
