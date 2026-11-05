@@ -312,7 +312,17 @@ cat << 'BRAVELAUNCHER' > /usr/bin/brave-optimized
 FLAGS_FILE="$HOME/.config/BraveSoftware/Brave-Browser/Default/raptor-brave-flags.conf"
 EXTRA_FLAGS=""
 if [ -f "$FLAGS_FILE" ]; then
-    EXTRA_FLAGS=$(grep -v '^#' "$FLAGS_FILE" | grep -v '^
+    EXTRA_FLAGS=$(grep -v '^#' "$FLAGS_FILE" | grep -v '^$' | tr '\n' ' ')
+fi
+# Scale Chromium worker counts to installed RAM. These are caps, not forced
+# process counts: site isolation and browser security remain enabled.
+TOTAL_KB=$(awk '/^MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null)
+if [[ "$TOTAL_KB" =~ ^[0-9]+$ ]] && [ "$TOTAL_KB" -le 8388608 ]; then
+    EXTRA_FLAGS="$EXTRA_FLAGS --num-raster-threads=2 --renderer-process-limit=4"
+else
+    EXTRA_FLAGS="$EXTRA_FLAGS --num-raster-threads=4 --renderer-process-limit=6"
+fi
+exec brave-browser $EXTRA_FLAGS "$@"
 BRAVELAUNCHER
 chmod +x /usr/bin/brave-optimized
 
