@@ -1,28 +1,47 @@
-# Shroudly Raptor — experimental prototype
+# Shroudly Raptor
 
-Shroudly is not currently a working proxy. The Rust executable prints a status
-message and exits. It does not open a local listener, forward traffic, launch
-applications through a proxy, or provide a desktop GUI.
+Raptor's Shroudly integration is being rebuilt in stages around the upstream
+Shroudly project by **umutxyp**, a Codeshare Technology Ltd product.
 
-The previous listener incorrectly acknowledged HTTP CONNECT requests without
-creating an upstream tunnel. That listener has been removed so clients cannot
-mistake a successful handshake for working network access. Application
-launch-through-proxy is disabled until a real, tested implementation exists.
+Upstream project: https://github.com/umutxyp/Shroudly
 
-Advanced packet mode is deliberately disabled and makes no nftables changes.
-Do not configure applications to use Shroudly or rely on it for network access.
+## Current implementation status
 
-A successful CI compile only validates the prototype's Rust code; it does not
-mean proxy functionality is implemented.
+The current Raptor binary is an early local-monitoring build. It can detect
+selected running Linux game clients and display an honest status summary. It
+does **not** currently provide the upstream desktop UI, proxy engine, DNS
+forwarding, VPN routing, or packet-processing modes. No traffic is redirected,
+and no proxy listener is opened. The application must not be treated as a
+working network proxy.
 
-## Upstream attribution
+The dashboard intentionally reports only information it can observe. It does
+not display simulated running states, fake port numbers, or placeholder app
+counts.
 
-The original **Shroudly** project was created by **umutxyp** and is a
-**Codeshare Technology Ltd** product:
-https://github.com/umutxyp/Shroudly
+## Raptor integration work
 
-The upstream project is licensed under the MIT License. This Raptor prototype
-is an independent integration and does not include or claim to reproduce the
-upstream packet engine. It is not an official release or an endorsed build of
-the original project. This credit identifies the original creator and project;
-it does not imply that the upstream implementation is present here.
+The intended integration preserves upstream attribution and compatible
+non-circumvention application functionality while adding Raptor-specific
+reliability, local application monitoring, and GameMode integration. The
+network-circumvention engine and packet-filter evasion functionality are not
+part of this Raptor integration.
+
+Planned work is staged and must be marked implemented only after it is built
+and tested:
+
+- Desktop interface and settings adapted for Raptor.
+- Real application lifecycle and local process monitoring.
+- Raptor GameMode integration for local performance profiles.
+- Diagnostics, logs, error reporting, and safe shutdown.
+- Honest capability reporting for each supported platform.
+
+## Upstream license and attribution
+
+The original Shroudly project is maintained by **umutxyp** and is a
+**Codeshare Technology Ltd** product. The upstream repository is licensed
+under the MIT License. Its copyright and license notice are preserved in
+[UPSTREAM-LICENSE](UPSTREAM-LICENSE).
+
+This repository's Raptor-specific code is an independent integration. It is
+not an official upstream release and is not endorsed by Codeshare Technology
+Ltd.
