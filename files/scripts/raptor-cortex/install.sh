@@ -2105,15 +2105,22 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         self._running = False
         self.run_btn.set_sensitive(True)
         self.spinner.stop()
-        self._settings["last_optimize_timestamp"] = time.time()
-        threading.Thread(
-            target=save_persistent_settings, args=(self._settings,), daemon=True
-        ).start()
         if ok:
+            self._settings["last_optimize_timestamp"] = time.time()
+            threading.Thread(
+                target=save_persistent_settings, args=(self._settings,), daemon=True
+            ).start()
             self._current_mode = "performance"
             persist_mode("performance")
-            self._refresh_mode_buttons()
-            self._update_mode_banner()
+        else:
+            # Failure paths may have reverted PPD to Balanced. Reflect the
+            # actual daemon state immediately instead of leaving a stale mode.
+            active_mode = read_power_profile_mode()
+            if active_mode:
+                self._current_mode = active_mode
+                persist_mode(active_mode)
+        self._refresh_mode_buttons()
+        self._update_mode_banner()
         self._refresh_stats()
         self.result_group.set_visible(True)
         self.result_row.set_title(f"Memory change: {fmt_mb(freed)}")
