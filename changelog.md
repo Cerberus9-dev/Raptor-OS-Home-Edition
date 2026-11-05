@@ -28,6 +28,15 @@
 
 ### Fixed
 
+- **The ISO workflow never built an ISO.** It called `osbuild` with a
+  nonexistent `raptor-manifest.json`, then treated a successful `cargo build`
+  as a fallback even though that produces no installer image. The workflow now
+  uses `jasonn3/build-container-installer@v1.4.0` against the published
+  `ghcr.io/cerberus9-dev/raptor-os:latest` image, with Fedora 44 / Kinoite
+  installer inputs, and uploads the generated ISO plus checksum as a workflow
+  artifact. It is manually dispatched so routine source pushes do not trigger
+  an expensive ISO build.
+
 - **Shroudly was presented as a working DPI-bypass proxy despite having no
   upstream forwarding.** The daemon only acknowledged `CONNECT` and returned
   `501` for ordinary requests; its dashboard values were placeholders. The
