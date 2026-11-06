@@ -59,7 +59,7 @@ Raptor GPU profiles avoid forcing Mesa driver selection, Vulkan feature levels, 
 - Keep Steam's shader pre-caching enabled unless troubleshooting a specific issue; disabling it can increase first-run shader compilation stutter.
 - If Steam's store/library interface or Big Picture is sluggish while games themselves run smoothly, check **Steam → Settings → Interface → Enable GPU accelerated rendering in web views**, restart Steam, and compare. Bazzite documents this as a workaround for sluggish Big Picture rendering, but notes that some NVIDIA setups may show menu-rendering artifacts; revert the toggle if that happens.
 - Steam downloads can be limited by CPU decompression, verification, and storage write speed—not only network bandwidth. A slow displayed download rate during heavy disk activity does not automatically mean Wi-Fi is broken.
-- Avoid applying undocumented Steam client flags globally. HTTP/2 workarounds have helped some Linux systems, but Valve marked its original broad issue as solved; Raptor should keep such network workarounds opt-in and diagnose the affected machine first.
+- Raptor leaves Steam's download protocol, connection count, write buffer, and shader-cache settings at Steam's defaults. Avoid applying undocumented client flags globally: network behavior varies by router, ISP, storage and Steam client version. If downloads are slow, compare CPU decompression/verification and disk activity before changing network settings.
 
 ## System Requirements
 
