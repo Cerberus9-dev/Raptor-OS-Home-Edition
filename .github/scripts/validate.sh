@@ -169,6 +169,9 @@ assert_contains files/system_files/raptor-chat-choice.sh 'flatpak info --user'
 assert_contains files/system_files/raptor-app-choice.sh 'org.localsend.localsend_app'
 assert_contains files/system_files/raptor-app-choice.sh 'it.mijorus.gearlever'
 assert_contains files/system_files/raptor-app-choice.sh 'net.nokyan.Resources'
+assert_contains recipes/recipe.yml "raptor-bt-name.service"
+assert_contains files/scripts/raptor-hardware-fixes/install.sh "system-alias Raptor OS Bluetooth"
+assert_contains files/scripts/raptor-hardware-fixes/install.sh "Description=Set a friendly Raptor OS Bluetooth adapter name"
 assert_contains files/system_files/raptor-browser-choice.sh 'Zen Browser'
 assert_contains files/system_files/raptor-browser-choice.sh 'Floorp'
 assert_contains files/system_files/raptor-browser-choice.sh 'Waterfox'
