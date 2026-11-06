@@ -6,6 +6,15 @@
 
 This is the consolidation release for more than two months of sustained Raptor OS overhaul work. The scope includes substantial changes across performance and memory management, gaming and GPU behavior, audio, Cortex, update reliability, hardware recovery, browser and chat-client choice, build validation, and the installation/distribution path. The intent is to ship the work as one coherent major update rather than scatter it across a long sequence of small version bumps.
 
+### Boot-time hardware detection and service cleanup
+
+- GPU detection now performs one bounded PCI display-device probe instead of repeatedly invoking `lspci`; the optional verbose AMD iGPU probe is also bounded.
+- NVIDIA power queries and changes have time limits and safely tolerate an unavailable or unresponsive driver utility instead of holding the boot-critical service indefinitely.
+- Corrected hybrid-GPU classification so an Intel iGPU does not automatically cause a separate AMD adapter to be classified as an AMD iGPU.
+- Removed the redundant Raptor power-profile readiness check from the enabled boot services. Power Profiles Daemon itself remains enabled and owns the selected profile; the extra unit only queried it.
+- Kept the optional service-health checker installed but removed it from the default boot path. It only re-checked services already ordered by systemd and offered no user-facing recovery.
+- Removed the redundant global `sysctl --system` reload from GPU detection; systemd-sysctl already loads the static Raptor sysctl file during normal boot.
+
 ### Image build and app-payload verification fixes
 
 - Corrected post-build verification to use BlueBuild's actual version-suffixed image tags. The previous verifier attempted `pr-N`/ `latest`, while the build published `pr-N-VERSION` and branch-version tags, causing a false-negative after a successful image build.
