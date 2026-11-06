@@ -259,7 +259,7 @@ jobs:
           echo "Published image contains both complete app payloads."
 
           echo "=== OCI image size (uncompressed virtual size) ==="
-          docker image inspect --format='{{.Size}}' "$IMAGE_REF" | awk '{printf "Virtual image size: %.2f GiB\\n", $1 / 1073741824}'
+          docker image inspect --format='{{.Size}}' "$IMAGE_REF" | awk '{printf "Virtual image size: %.2f GiB\n", $1 / 1073741824}'
           echo "=== Largest image layers ==="
           docker history --no-trunc --format='{{.Size}} {{.CreatedBy}}' "$IMAGE_REF" | head -n 12
           echo "=== Installed filesystem usage ==="
