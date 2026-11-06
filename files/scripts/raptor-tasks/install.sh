@@ -278,7 +278,9 @@ class TaskEditDialog(Adw.Window):   # not Adw.Dialog: that has no transient_for/
         super().__init__(transient_for=parent, modal=True)
         self._on_save = on_save
         self._editing = task is not None
-        self._task = task
+        # Edit a working copy. If the atomic save fails, the in-memory task
+        # remains unchanged and the user can retry without losing old values.
+        self._task = Task(task.text, task.category, task.done, task.id) if task else None
         self.set_title("Edit Task" if self._editing else "New Task")
         self.set_default_size(400, 280)
         self._build_ui()
