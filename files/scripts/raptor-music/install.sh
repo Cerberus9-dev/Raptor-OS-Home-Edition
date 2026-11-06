@@ -10,6 +10,13 @@ set -euo pipefail
 STAGE_DIR="/tmp/raptor-staging"
 SRC_BIN="${STAGE_DIR}/raptor-music"
 
+# BlueBuild's files module exposes the source tree at /tmp/files during script
+# modules. Fall back to that bind mount if its destination copy is unavailable.
+if [[ ! -x "$SRC_BIN" && -x "/tmp/files/staging/raptor-music" ]]; then
+    STAGE_DIR="/tmp/files/staging"
+    SRC_BIN="${STAGE_DIR}/raptor-music"
+fi
+
 # CI stages this executable for every image build. Local builds without a binary
 # safely skip; no separate marker file is needed.
 if [[ ! -x "$SRC_BIN" ]]; then
