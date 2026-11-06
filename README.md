@@ -90,7 +90,7 @@ A one-time **Welcome to Raptor OS Home** dialog introduces the Raptor app suite 
 | **Media** | mpv (lightweight playback) |
 | **System** | htop, KDE Partition Manager, Plasma System Monitor, Gwenview, KCalc, Fastfetch, p7zip |
 | **Raptor Apps** | Raptor Cortex, Raptor Wallpaper, Raptor Update Manager — grouped under their own **Raptor OS** category in the app menu |
-| **One-time integration** | Raptor Music and the original Shroudly desktop app are staged only in the first successful v3.0.0 image; later image builds skip both one-time payloads |
+| **Raptor apps** | Raptor Music and the original Shroudly desktop app are built, staged, installed, and verified in every image build |
 | **Overlays** | MangoHud (green palette, Shift+F12), Gamemode |
 
 ---
@@ -142,7 +142,7 @@ Gallery-style wallpaper picker — click any thumbnail to apply it, including fo
 
 ## Raptor Music
 
-Native Rust/Slint local music player. Recursively scans folders into a SQLite library, extracts available tags and durations, supports local playlists and queue loading, and plays local audio through a `cpal` backend with pause/resume, previous/next queue controls, and automatic track advance. The scanner recognizes AAC, AIFF, ALAC, CAF, FLAC, M4A, MP3, MP4, Ogg, Opus, and WAV extensions supported by its Symphonia build. The library database is stored under `$XDG_DATA_HOME/raptor-music/` (or `~/.local/share/raptor-music/`). **Image inclusion is limited to the first successful v3.0.0 release image build**; the workflow permanently skips it on subsequent builds. This is a local-player prototype, not yet the completed independent multi-service music platform described in the project roadmap.
+Native Rust/Slint local music player. Recursively scans folders into a SQLite library, extracts available tags and durations, supports local playlists and queue loading, and plays local audio through a `cpal` backend with pause/resume, previous/next queue controls, and automatic track advance. The scanner recognizes AAC, AIFF, ALAC, CAF, FLAC, M4A, MP3, MP4, Ogg, Opus, and WAV extensions supported by its Symphonia build. The library database is stored under `$XDG_DATA_HOME/raptor-music/` (or `~/.local/share/raptor-music/`). **Built and installed in every image build**; CI compiles and tests the app, stages its executable and verifies the installed application in the resulting image. This is a local-player prototype, not yet the completed independent multi-service music platform described in the project roadmap.
 
 ## Release pipeline (maintainers)
 
@@ -158,7 +158,7 @@ The first-boot chooser offers the official Discord client, Vesktop, Equibop, and
 
 ## Raptor Shroudly
 
-**Original upstream application included once in v3.0.0.** The first successful v3.0.0 main-branch image build packages the pinned Shroudly Linux desktop app, its normal and Advanced-mode engines, desktop entry, icon, and polkit action. It does not enable autostart or change proxy settings during installation; users launch it and choose when to activate protection. The transitional Rust monitor prototype is not packaged. Upstream MIT attribution: **umutxyp / Codeshare Technology Ltd**.
+**Original upstream application, built into every Raptor OS image.** CI builds the pinned Shroudly Linux desktop app and packages its normal and Advanced-mode engines, desktop entry, icon, and polkit action. It does not enable autostart or change proxy settings during installation; users launch it and choose when to activate protection. The transitional Rust monitor prototype is not packaged. Upstream MIT attribution: **umutxyp / Codeshare Technology Ltd**.
 
 
 ---
