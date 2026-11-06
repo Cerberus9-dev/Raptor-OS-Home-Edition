@@ -76,8 +76,6 @@ assert_not_contains() {
 }
 
 echo "=== Checking power-profile and Cortex contracts ==="
-assert_contains files/system_files/raptor-powerprofile.service "ExecStart=/usr/bin/powerprofilesctl get"
-assert_not_contains files/system_files/raptor-powerprofile.service "powerprofilesctl set balanced"
 assert_contains recipes/recipe.yml "- power-profiles-daemon.service"
 assert_contains files/scripts/raptor-cortex/install.sh "def _sync_external_power_mode"
 assert_contains files/scripts/raptor-cortex/install.sh "def _do_one_click_boost"
@@ -410,8 +408,11 @@ if grep -R -n 'systemd-udev-settle\.service' recipes files/system_files files/sc
   echo "Do not add a global udev-settle dependency to the boot path" >&2
   exit 1
 fi
-assert_not_contains recipes/recipe.yml '        - raptor-powerprofile.service'
-assert_not_contains recipes/recipe.yml '        - raptor-ensure-services.service'
+assert_contains recipes/recipe.yml "- power-profiles-daemon.service"
+assert_not_contains recipes/recipe.yml 'raptor-powerprofile.service'
+assert_not_contains recipes/recipe.yml 'raptor-ensure-services.service'
+test ! -e files/system_files/raptor-powerprofile.service
+test ! -e files/system_files/raptor-ensure-services.service
 assert_contains files/scripts/raptor-gpu-profile/install.sh 'GPU_PCI_INFO="$(timeout 3s lspci -nn'
 echo "Boot latency regression checks passed."
 
