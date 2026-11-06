@@ -5,7 +5,7 @@ set -euo pipefail
 # CI builds and stages this application into every Raptor OS image. No service or
 # autostart entry is created; users start Shroudly explicitly from the menu.
 STAGE_DIR="/tmp/raptor-staging/shroudly-app"
-APP_DIR="/opt/Shroudly"
+APP_DIR="/usr/lib/raptor/shroudly"
 
 # The source files bind mount remains available to BlueBuild script modules.
 # Use it as a fallback if the files module's destination copy is not present.
@@ -37,9 +37,15 @@ done
 install -d "$APP_DIR"
 cp -a "$STAGE_DIR/." "$APP_DIR/"
 chmod 0755 "$APP_DIR/shroudly" "$APP_DIR/resources/app.asar.unpacked/electron/tools/core/linux-x64/shroudly-core" "$APP_DIR/resources/app.asar.unpacked/electron/tools/core/linux-x64/shroudly-core-adv"
-# Install a real launcher rather than a symlink into /opt. The final OSTree
-# image can relocate /opt through usr-merge; a copy avoids a fragile absolute link.
-install -m 0755 "$APP_DIR/shroudly" /usr/bin/shroudly
+# Keep the Electron executable beside its resources: Electron resolves
+# resources/app.asar relative to its own executable. /opt is redirected to
+# /var/opt on Fedora Atomic and is not committed to the immutable image, so
+# install the complete app under /usr/lib instead. /usr/bin gets a small wrapper.
+cat > /usr/bin/shroudly <<'EOF'
+#!/usr/bin/bash
+exec /usr/lib/raptor/shroudly/shroudly "$@"
+EOF
+chmod 0755 /usr/bin/shroudly
 
 install -Dm644 "$APP_DIR/me.codeshare.shroudly.policy" /usr/share/polkit-1/actions/me.codeshare.shroudly.policy
 install -Dm644 "$APP_DIR/shroudly.png" /usr/share/icons/hicolor/256x256/apps/shroudly.png
@@ -67,5 +73,5 @@ for required in /usr/bin/shroudly /usr/share/applications/shroudly.desktop /usr/
 done
 
 [[ -f /usr/bin/shroudly && -x /usr/bin/shroudly ]] || { echo "SHROUDLY_INSTALL_ERROR: launcher is not executable at /usr/bin/shroudly" >&2; exit 1; }
-echo "SHROUDLY_READY: original upstream desktop app and Linux engines installed."
+echo "SHROUDLY_READY: original upstream desktop app, Electron resources, and Linux engines installed under /usr/lib."
 echo "No background service or autostart entry was enabled."
