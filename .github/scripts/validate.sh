@@ -427,7 +427,6 @@ awk "/^cat << 'EOF' > \/usr\/lib\/raptor\/cortex-helper$/ { inside=1; next } /^E
 test -s "$wifi_helper_tmp"
 bash -n "$wifi_helper_tmp"
 grep -Fq "printf '[connection]" "$wifi_helper_tmp"
-rm -f "$wifi_helper_tmp"
 wifi_test_dir="$(mktemp -d)"
 mkdir -p "$wifi_test_dir/bin"
 cat > "$wifi_test_dir/bin/nmcli" <<'NMCLI'
@@ -444,7 +443,7 @@ grep -Fxq '[connection]' "$wifi_conf"
 grep -Fxq 'wifi.powersave=2' "$wifi_conf"
 bash "$wifi_helper_tmp" wifi-powersave default
 test ! -e "$wifi_conf"
-printf '[connection]\\nwifi.powersave=3\\n' > "$wifi_conf"
+printf '[connection]\nwifi.powersave=3\n' > "$wifi_conf"
 export RAPTOR_TEST_NMCLI_EXIT=1
 if bash "$wifi_helper_tmp" wifi-powersave disable; then
   echo "Wi-Fi helper unexpectedly succeeded when NetworkManager reload failed" >&2
@@ -452,5 +451,6 @@ if bash "$wifi_helper_tmp" wifi-powersave disable; then
 fi
 grep -Fxq 'wifi.powersave=3' "$wifi_conf"
 unset RAPTOR_NM_CONF_DIR RAPTOR_TEST_NMCLI_EXIT
+rm -f "$wifi_helper_tmp"
 rm -rf "$wifi_test_dir"
 echo "Wi-Fi power-management contracts passed."
