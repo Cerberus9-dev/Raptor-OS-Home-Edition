@@ -100,13 +100,18 @@ for marker in "cat << 'BRAVELAUNCHER'" "cat << 'TRIMMER'" 'echo "GAMING_READY'; 
     fi
 done
 
-echo "=== Checking Wine, Bluetooth and desktop app compatibility ==="
-assert_contains files/scripts/raptor-wine/install.sh 'DEFAULT_RUNTIMES=(vcrun2015 vcrun2019 corefonts)'
-assert_contains files/scripts/raptor-wine/install.sh 'timeout "$RUNTIME_TIMEOUT" winetricks'
-assert_contains files/scripts/raptor-wine/install.sh '--no-bootstrap'
-assert_not_contains files/scripts/raptor-wine/install.sh 'DEFAULT_RUNTIMES=(vcrun2015 vcrun2019 corefonts dxvk)'
-assert_not_contains files/scripts/raptor-wine/install.sh 'export WINEESYNC='
-assert_not_contains files/scripts/raptor-wine/install.sh 'VKD3D_CONFIG='
+echo "=== Checking Wine + Proton compatibility contracts ==="
+assert_contains recipes/recipe.yml "- umu-launcher"
+assert_contains files/scripts/raptor-wine/install.sh "command -v umu-run"
+assert_contains files/scripts/raptor-wine/install.sh "exec umu-run"
+assert_contains files/scripts/raptor-wine/install.sh 'RUNNER="auto"'
+assert_contains files/scripts/raptor-wine/install.sh 'RUNNER=proton'
+assert_contains files/scripts/raptor-wine/install.sh 'RUNNER=wine'
+assert_contains files/scripts/raptor-wine/install.sh 'export WINEPREFIX="$PREFIX_PATH"'
+assert_contains files/scripts/raptor-wine/install.sh 'exec umu-run winetricks'
+assert_not_contains files/scripts/raptor-wine/install.sh 'use Steam with Proton'
+assert_not_contains files/system_files/10-raptor-wine.conf 'WINEESYNC=1'
+assert_not_contains files/system_files/10-raptor-wine.conf 'WINEFSYNC=1'
 assert_contains files/scripts/raptor-hardware-fixes/install.sh 'system-alias Raptor OS Bluetooth'
 assert_contains files/scripts/raptor-hardware-fixes/install.sh 'for attempt in {1..10}; do'
 assert_contains files/scripts/raptor-hardware-fixes/install.sh 'No BlueZ controllers appeared; systemd will retry later.'
@@ -184,9 +189,9 @@ assert_contains files/scripts/shroudly-raptor/install.sh '/opt/Shroudly'
 assert_contains files/scripts/shroudly-raptor/install.sh 'shroudly-core-adv'
 assert_contains files/scripts/shroudly-raptor/install.sh 'me.codeshare.shroudly.policy'
 assert_contains files/scripts/shroudly-raptor/install.sh 'SHROUDLY_READY'
-assert_contains files/scripts/shroudly-raptor/install.sh '/tmp/raptor-staging/include-one-time-apps'
-assert_contains files/scripts/raptor-music/install.sh '/tmp/raptor-staging/include-one-time-apps'
-assert_contains files/scripts/raptor-music/install.sh 'RAPTOR_MUSIC_INSTALL_ERROR'
+assert_contains files/scripts/shroudly-raptor/install.sh 'no complete one-time Shroudly payload in this image build'
+assert_contains files/scripts/raptor-music/install.sh 'no one-time Raptor Music payload in this image build'
+assert_contains files/scripts/raptor-music/install.sh 'RAPTOR_MUSIC_PAYLOAD_MISSING'
 assert_contains .github/workflows/build.yml 'git add -f -- files/staging'
 assert_contains .github/workflows/build.yml 'RECOVERY_RUN'
 assert_contains .github/workflows/build.yml 'Verify both apps inside the published image'
