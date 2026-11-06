@@ -19,12 +19,6 @@ modules:
         destination: /usr/lib/systemd/user/raptor-firstboot.service
       - source: ../files/system_files/raptor-ensure-services.service
         destination: /usr/lib/systemd/system/raptor-ensure-services.service
-      - source: ../files/system_files/raptor-resume-trigger.service
-        destination: /usr/lib/systemd/system/raptor-resume-trigger.service
-      - source: ../files/system_files/raptor-lid-open-fix.service
-        destination: /usr/lib/systemd/system/raptor-lid-open-fix.service
-      - source: ../files/system_files/raptor-cpugovernor.service
-        destination: /usr/lib/systemd/system/raptor-cpugovernor.service
       - source: ../files/system_files/raptor-powerprofile.service
         destination: /usr/lib/systemd/system/raptor-powerprofile.service
       - source: ../files/system_files/raptor-app-choice.sh
@@ -206,8 +200,6 @@ modules:
         # Wants= relationship from the initial-profile unit.
         - power-profiles-daemon.service
         - raptor-gpu-profile.service
-        - raptor-resume-trigger.service
-        - raptor-lid-open-fix.service
         - raptor-bt-name.service
     user:
       enabled:
