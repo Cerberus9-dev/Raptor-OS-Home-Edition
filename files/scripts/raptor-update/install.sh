@@ -1390,13 +1390,13 @@ cat << 'SVGEOF' > /usr/share/icons/hicolor/scalable/apps/raptor-update.svg
       <stop offset="100%" stop-color="#0d150d"/>
     </radialGradient>
   </defs>
-  <circle cx="32" cy="32" r="30" fill="url(#bg)" stroke="#2ec27e" stroke-width="1.5"/>
-  <line x1="32" y1="13" x2="32" y2="40" stroke="#2ec27e" stroke-width="5"
+  <circle cx="32" cy="32" r="30" fill="url(#bg)" stroke="#33ff33" stroke-width="1.5"/>
+  <line x1="32" y1="13" x2="32" y2="40" stroke="#33ff33" stroke-width="5"
         stroke-linecap="round"/>
-  <polyline points="20,30 32,44 44,30" stroke="#2ec27e" stroke-width="5"
+  <polyline points="20,30 32,44 44,30" stroke="#33ff33" stroke-width="5"
             stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-  <rect x="18" y="49" width="28" height="4" rx="2" fill="#2ec27e"/>
-  <path d="M 14 22 A 20 20 0 0 1 50 22" fill="none" stroke="#1e90ff"
+  <rect x="18" y="49" width="28" height="4" rx="2" fill="#33ff33"/>
+  <path d="M 14 22 A 20 20 0 0 1 50 22" fill="none" stroke="#69e886"
         stroke-width="2" stroke-linecap="round" opacity="0.6"/>
 </svg>
 SVGEOF
