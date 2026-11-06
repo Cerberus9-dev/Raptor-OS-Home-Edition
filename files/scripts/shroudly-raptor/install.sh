@@ -2,15 +2,15 @@
 set -euo pipefail
 
 # Install the original, pinned upstream Shroudly Electron application.
-# It is staged only in the one-time update image build. No service or
+# CI builds and stages this application into every Raptor OS image. No service or
 # autostart entry is created; users start Shroudly explicitly from the menu.
 STAGE_DIR="/tmp/raptor-staging/shroudly-app"
 APP_DIR="/opt/Shroudly"
 
-# CI stages this directory only for the one-time integration build. Ordinary
-# builds have no app payload and safely skip without relying on a marker file.
+# CI stages this directory for every image build. Local builds without a staged
+# CI payload safely skip without relying on a marker file.
 if [[ ! -x "$STAGE_DIR/shroudly" || ! -s "$STAGE_DIR/resources/app.asar" ]]; then
-    echo "SHROUDLY_SKIP: no complete one-time Shroudly payload in this image build."
+    echo "SHROUDLY_SKIP: no complete Shroudly payload in this image build."
     exit 0
 fi
 
