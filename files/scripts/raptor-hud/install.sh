@@ -2,8 +2,8 @@
 set -e
 
 # =============================================================================
-# Raptor HUD — F-22 Themed KDE Plasma Shell
-# • RaptorOS color scheme (gunmetal + electric blue + amber)
+# Raptor HUD — Aviation-inspired KDE Plasma Shell
+# • RaptorOS color scheme (flight-deck navy + instrument cyan + caution amber)
 # • Cockpit radar bottom taskbar
 # • Working "Raptor OS" app-launcher category
 # • GPU profiler TUI (detect, profile switch, crash handler toggle)
@@ -13,8 +13,8 @@ set -e
 # =============================================================================
 
 # ── Palette ───────────────────────────────────────────────────────────────────
-# Base:    #0d0f12   Surface: #151a20   Panel:   #1c2330   Border:  #2a3444
-# Accent:  #1e90ff   Warning: #f5a623   Success: #2ec27e   Text:    #c8d6e8
+# Base:    #0b1118   Surface: #111c27   Panel:   #182635   Border:  #2b3d4e
+# Accent:  #58b8e8   Warning: #f5a623   Success: #2ec27e   Text:    #d4e2ed
 
 mkdir -p /usr/lib/raptor/hud \
          /usr/lib/raptor \
@@ -64,50 +64,50 @@ IntensityEffect=0
 [Colors:Button]
 BackgroundAlternate=30,42,58
 BackgroundNormal=28,35,48
-DecorationFocus=30,144,255
-DecorationHover=30,144,255
-ForegroundActive=30,144,255
-ForegroundInactive=90,106,126
-ForegroundLink=30,144,255
+DecorationFocus=88,184,232
+DecorationHover=88,184,232
+ForegroundActive=88,184,232
+ForegroundInactive=129,150,168
+ForegroundLink=88,184,232
 ForegroundNegative=220,50,50
 ForegroundNeutral=245,166,35
-ForegroundNormal=200,214,232
+ForegroundNormal=212,226,237
 ForegroundPositive=46,194,126
 ForegroundVisited=140,100,220
 
 [Colors:Complementary]
 BackgroundAlternate=20,28,40
 BackgroundNormal=13,15,18
-DecorationFocus=30,144,255
-DecorationHover=30,144,255
-ForegroundActive=30,144,255
-ForegroundInactive=90,106,126
-ForegroundLink=30,144,255
+DecorationFocus=88,184,232
+DecorationHover=88,184,232
+ForegroundActive=88,184,232
+ForegroundInactive=129,150,168
+ForegroundLink=88,184,232
 ForegroundNegative=220,50,50
 ForegroundNeutral=245,166,35
-ForegroundNormal=200,214,232
+ForegroundNormal=212,226,237
 ForegroundPositive=46,194,126
 ForegroundVisited=140,100,220
 
 [Colors:Header]
 BackgroundAlternate=21,26,32
 BackgroundNormal=21,26,32
-DecorationFocus=30,144,255
-DecorationHover=30,144,255
-ForegroundActive=30,144,255
-ForegroundInactive=90,106,126
-ForegroundLink=30,144,255
+DecorationFocus=88,184,232
+DecorationHover=88,184,232
+ForegroundActive=88,184,232
+ForegroundInactive=129,150,168
+ForegroundLink=88,184,232
 ForegroundNegative=220,50,50
 ForegroundNeutral=245,166,35
-ForegroundNormal=200,214,232
+ForegroundNormal=212,226,237
 ForegroundPositive=46,194,126
 ForegroundVisited=140,100,220
 
 [Colors:Selection]
-BackgroundAlternate=20,100,200
-BackgroundNormal=30,144,255
-DecorationFocus=30,144,255
-DecorationHover=30,144,255
+BackgroundAlternate=24,94,130
+BackgroundNormal=88,184,232
+DecorationFocus=88,184,232
+DecorationHover=88,184,232
 ForegroundActive=255,255,255
 ForegroundInactive=180,200,220
 ForegroundLink=180,220,255
@@ -120,42 +120,42 @@ ForegroundVisited=200,170,255
 [Colors:Tooltip]
 BackgroundAlternate=21,26,32
 BackgroundNormal=13,15,18
-DecorationFocus=30,144,255
-DecorationHover=30,144,255
-ForegroundActive=30,144,255
-ForegroundInactive=90,106,126
-ForegroundLink=30,144,255
+DecorationFocus=88,184,232
+DecorationHover=88,184,232
+ForegroundActive=88,184,232
+ForegroundInactive=129,150,168
+ForegroundLink=88,184,232
 ForegroundNegative=220,50,50
 ForegroundNeutral=245,166,35
-ForegroundNormal=200,214,232
+ForegroundNormal=212,226,237
 ForegroundPositive=46,194,126
 ForegroundVisited=140,100,220
 
 [Colors:View]
 BackgroundAlternate=18,24,32
 BackgroundNormal=13,15,18
-DecorationFocus=30,144,255
-DecorationHover=30,144,255
-ForegroundActive=30,144,255
-ForegroundInactive=90,106,126
-ForegroundLink=30,144,255
+DecorationFocus=88,184,232
+DecorationHover=88,184,232
+ForegroundActive=88,184,232
+ForegroundInactive=129,150,168
+ForegroundLink=88,184,232
 ForegroundNegative=220,50,50
 ForegroundNeutral=245,166,35
-ForegroundNormal=200,214,232
+ForegroundNormal=212,226,237
 ForegroundPositive=46,194,126
 ForegroundVisited=140,100,220
 
 [Colors:Window]
 BackgroundAlternate=21,26,32
 BackgroundNormal=28,35,48
-DecorationFocus=30,144,255
-DecorationHover=30,144,255
-ForegroundActive=30,144,255
-ForegroundInactive=90,106,126
-ForegroundLink=30,144,255
+DecorationFocus=88,184,232
+DecorationHover=88,184,232
+ForegroundActive=88,184,232
+ForegroundInactive=129,150,168
+ForegroundLink=88,184,232
 ForegroundNegative=220,50,50
 ForegroundNeutral=245,166,35
-ForegroundNormal=200,214,232
+ForegroundNormal=212,226,237
 ForegroundPositive=46,194,126
 ForegroundVisited=140,100,220
 
@@ -169,11 +169,11 @@ contrast=5
 
 [WM]
 activeBackground=21,26,32
-activeBlend=30,144,255
-activeForeground=200,214,232
+activeBlend=88,184,232
+activeForeground=212,226,237
 inactiveBackground=13,15,18
 inactiveBlend=42,52,68
-inactiveForeground=90,106,126
+inactiveForeground=129,150,168
 EOF
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -181,7 +181,7 @@ EOF
 # ══════════════════════════════════════════════════════════════════════════════
 cat << 'EOF' > /usr/share/aurorae/themes/RaptorOS/RaptorOSrc
 [General]
-ActiveTextColor=200,214,232
+ActiveTextColor=212,226,237
 Animation=0
 BorderBottom=1
 BorderLeft=1
@@ -195,7 +195,7 @@ DecorationPosition=0
 DrawButtons=true
 DrawSeparator=false
 GrabBarBelow=false
-InactiveTextColor=90,106,126
+InactiveTextColor=129,150,168
 OverrideBorderSizes=false
 PaddingBottom=4
 PaddingLeft=4
@@ -217,23 +217,23 @@ cat << 'SVGEOF' > /usr/share/aurorae/themes/RaptorOS/RaptorOS.svg
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
   <defs>
     <linearGradient id="titlebar-active" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#1c2330"/>
-      <stop offset="100%" stop-color="#151a20"/>
+      <stop offset="0%" stop-color="#182635"/>
+      <stop offset="100%" stop-color="#111c27"/>
     </linearGradient>
     <linearGradient id="titlebar-inactive" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#111418"/>
-      <stop offset="100%" stop-color="#0d0f12"/>
+      <stop offset="100%" stop-color="#0b1118"/>
     </linearGradient>
   </defs>
   <g id="decoration">
     <rect width="100" height="30" fill="url(#titlebar-active)"/>
-    <rect y="29" width="100" height="1" fill="#1e90ff" opacity="0.7"/>
-    <rect width="2" height="30" fill="#1e90ff" opacity="0.5"/>
+    <rect y="29" width="100" height="1" fill="#58b8e8" opacity="0.7"/>
+    <rect width="2" height="30" fill="#58b8e8" opacity="0.5"/>
   </g>
   <g id="decoration-inactive">
     <rect width="100" height="30" fill="url(#titlebar-inactive)"/>
-    <rect y="29" width="100" height="1" fill="#2a3444"/>
-    <rect width="2" height="30" fill="#2a3444"/>
+    <rect y="29" width="100" height="1" fill="#2b3d4e"/>
+    <rect width="2" height="30" fill="#2b3d4e"/>
   </g>
   <g id="close">
     <rect width="18" height="18" rx="1" fill="#3a1515"/>
@@ -246,20 +246,20 @@ cat << 'SVGEOF' > /usr/share/aurorae/themes/RaptorOS/RaptorOS.svg
     <line x1="13" y1="5" x2="5" y2="13" stroke="white" stroke-width="1.5" stroke-linecap="square"/>
   </g>
   <g id="maximize">
-    <rect width="18" height="18" rx="1" fill="#1c2330"/>
-    <rect x="4" y="4" width="10" height="10" fill="none" stroke="#1e90ff" stroke-width="1.5"/>
+    <rect width="18" height="18" rx="1" fill="#182635"/>
+    <rect x="4" y="4" width="10" height="10" fill="none" stroke="#58b8e8" stroke-width="1.5"/>
   </g>
   <g id="maximize-hover">
-    <rect width="18" height="18" rx="1" fill="#1e4a7a"/>
-    <rect x="4" y="4" width="10" height="10" fill="none" stroke="#5ab0ff" stroke-width="1.5"/>
+    <rect width="18" height="18" rx="1" fill="#244b63"/>
+    <rect x="4" y="4" width="10" height="10" fill="none" stroke="#9ad9f5" stroke-width="1.5"/>
   </g>
   <g id="minimize">
-    <rect width="18" height="18" rx="1" fill="#1c2330"/>
-    <line x1="4" y1="13" x2="14" y2="13" stroke="#1e90ff" stroke-width="1.5" stroke-linecap="square"/>
+    <rect width="18" height="18" rx="1" fill="#182635"/>
+    <line x1="4" y1="13" x2="14" y2="13" stroke="#58b8e8" stroke-width="1.5" stroke-linecap="square"/>
   </g>
   <g id="minimize-hover">
-    <rect width="18" height="18" rx="1" fill="#1e4a7a"/>
-    <line x1="4" y1="13" x2="14" y2="13" stroke="#5ab0ff" stroke-width="1.5" stroke-linecap="square"/>
+    <rect width="18" height="18" rx="1" fill="#244b63"/>
+    <line x1="4" y1="13" x2="14" y2="13" stroke="#9ad9f5" stroke-width="1.5" stroke-linecap="square"/>
   </g>
 </svg>
 SVGEOF
@@ -489,39 +489,51 @@ chmod +x /usr/lib/raptor/hud/apply-plasma-panel.sh
 # GTK + KVANTUM THEMES
 # ══════════════════════════════════════════════════════════════════════════════
 cat << 'EOF' > /usr/share/themes/RaptorOS-GTK/gtk-3.0/gtk.css
-@define-color bg_color #151a20;
-@define-color fg_color #c8d6e8;
-@define-color base_color #0d0f12;
-@define-color text_color #c8d6e8;
-@define-color selected_bg_color #1e90ff;
+@define-color bg_color #111c27;
+@define-color fg_color #d4e2ed;
+@define-color base_color #0b1118;
+@define-color text_color #d4e2ed;
+@define-color selected_bg_color #58b8e8;
 @define-color selected_fg_color #ffffff;
-@define-color tooltip_bg_color #0d0f12;
-@define-color tooltip_fg_color #c8d6e8;
-@define-color borders #2a3444;
-@define-color accent #1e90ff;
+@define-color tooltip_bg_color #0b1118;
+@define-color tooltip_fg_color #d4e2ed;
+@define-color borders #2b3d4e;
+@define-color accent #58b8e8;
 * { -gtk-icon-style: symbolic; }
 window, .background { background-color: @bg_color; color: @fg_color; }
-headerbar { background: linear-gradient(to bottom, #1c2330, #151a20); border-bottom: 1px solid #1e90ff; padding: 4px 8px; min-height: 36px; }
-headerbar .title { font-weight: 600; color: @fg_color; letter-spacing: 0.04em; }
-button { background: #1c2330; border: 1px solid @borders; color: @fg_color; border-radius: 2px; padding: 4px 12px; transition: all 120ms ease; }
-button:hover { background: #1e4a7a; border-color: @accent; color: white; }
+headerbar { background: linear-gradient(to bottom, #182635, #111c27); border-bottom: 1px solid #58b8e8; padding: 4px 8px; min-height: 36px; }
+headerbar .title { font-weight: 700; color: @fg_color; letter-spacing: 0.055em; }
+button { background: #182635; border: 1px solid @borders; color: @fg_color; border-radius: 2px; padding: 4px 12px; transition: all 120ms ease; }
+button:hover { background: #244b63; border-color: @accent; color: white; }
 button.suggested-action  { background: @accent; border-color: @accent; color: white; }
 button.destructive-action { background: #8b1a1a; border-color: #cc3333; color: white; }
 entry { background: @base_color; border: 1px solid @borders; color: @fg_color; border-radius: 2px; padding: 4px 8px; caret-color: @accent; }
 entry:focus { border-color: @accent; box-shadow: 0 0 0 1px @accent; }
 treeview.view:selected, row:selected { background-color: @selected_bg_color; color: @selected_fg_color; }
-scrollbar slider { background-color: #2a3444; border-radius: 2px; min-width: 6px; min-height: 6px; }
+scrollbar slider { background-color: #2b3d4e; border-radius: 2px; min-width: 6px; min-height: 6px; }
 scrollbar slider:hover { background-color: @accent; }
 tooltip { background-color: @tooltip_bg_color; border: 1px solid @borders; color: @tooltip_fg_color; border-radius: 2px; }
-menubar, .menubar { background-color: #1c2330; border-bottom: 1px solid @borders; }
-menu, .menu { background-color: #151a20; border: 1px solid @borders; }
+menubar, .menubar { background-color: #182635; border-bottom: 1px solid @borders; }
+menu, .menu { background-color: #111c27; border: 1px solid @borders; }
 menu menuitem:hover { background-color: @accent; color: white; }
-notebook header { background-color: #1c2330; border-bottom: 1px solid @borders; }
+notebook header { background-color: #182635; border-bottom: 1px solid @borders; }
 notebook header tab:checked { background-color: @base_color; border-bottom: 2px solid @accent; }
 progressbar progress { background-color: @accent; border-radius: 2px; }
+/* Adwaita surfaces: restrained instrument-panel hierarchy, not a novelty cockpit. */
+.card, .boxed-list { background-color: #182635; border: 1px solid #2b3d4e; border-radius: 6px; }
+.navigation-sidebar, .sidebar { background-color: #0e1721; border-right: 1px solid #2b3d4e; }
+.navigation-sidebar row:selected, .sidebar row:selected { background-color: #203d52; color: #ffffff; border-left: 2px solid @accent; }
+.toolbar, .toolbarview > .toolbar { background-color: #182635; border-bottom: 1px solid #2b3d4e; }
+.status-page .icon { color: #58b8e8; }
+.dim-label, .caption { color: #9aabba; }
+switch:checked, checkbutton check:checked, radiobutton radio:checked { background-color: #287c68; border-color: #65c98f; }
+.warning { color: #f5b85c; }
+.success { color: #65c98f; }
+separator { background-color: #2b3d4e; }
+
 checkbutton check, radiobutton radio { background: @base_color; border: 1px solid @borders; }
 checkbutton check:checked, radiobutton radio:checked { background-color: @accent; border-color: @accent; }
-scale trough { background-color: #2a3444; border-radius: 2px; min-height: 4px; }
+scale trough { background-color: #2b3d4e; border-radius: 2px; min-height: 4px; }
 scale highlight { background-color: @accent; border-radius: 2px; }
 EOF
 cp /usr/share/themes/RaptorOS-GTK/gtk-3.0/gtk.css /usr/share/themes/RaptorOS-GTK/gtk-4.0/gtk.css
@@ -530,7 +542,7 @@ cat << 'EOF' > /usr/share/themes/RaptorOS-GTK/index.theme
 [Desktop Entry]
 Type=X-GNOME-Metatheme
 Name=RaptorOS-GTK
-Comment=F-22 Raptor themed GTK style
+Comment=Aviation-inspired Raptor OS dark GTK style
 Encoding=UTF-8
 
 [X11 Properties]
@@ -547,7 +559,7 @@ EOF
 cat << 'EOF' > /usr/share/Kvantum/RaptorOS/RaptorOS.kvconfig
 [%General]
 author=RaptorOS
-comment=F-22 Raptor stealth dark theme
+comment=Flight-deck navy with instrument cyan and caution amber
 x11drag=all
 composite=true
 menu_shadow_depth=6
@@ -558,24 +570,24 @@ intensity=1.0
 saturation=1.0
 
 [GeneralColors]
-window.color=#1c2330
-base.color=#0d0f12
-alt.base.color=#151a20
-button.color=#1c2330
+window.color=#182635
+base.color=#0b1118
+alt.base.color=#111c27
+button.color=#182635
 light.color=#2a3a4e
-mid.light.color=#1e2d3e
-mid.color=#151a20
-dark.color=#0a0c0f
+mid.light.color=#203447
+mid.color=#111c27
+dark.color=#080e14
 shadow.color=#000000
-highlight.color=#1e90ff
-inactive.highlight.color=#2a3444
-text.color=#c8d6e8
-window.text.color=#c8d6e8
-button.text.color=#c8d6e8
-disabled.text.color=#5a6a7e
-tooltip.base.color=#0d0f12
-tooltip.text.color=#c8d6e8
-link.color=#1e90ff
+highlight.color=#58b8e8
+inactive.highlight.color=#2b3d4e
+text.color=#d4e2ed
+window.text.color=#d4e2ed
+button.text.color=#d4e2ed
+disabled.text.color=#8196a8
+tooltip.base.color=#0b1118
+tooltip.text.color=#d4e2ed
+link.color=#58b8e8
 link.visited.color=#8c64dc
 progress.indicator.text.color=#ffffff
 
@@ -583,7 +595,7 @@ progress.indicator.text.color=#ffffff
 transparent_ktitle_label=true
 blur_konsole=true
 EOF
-printf '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><rect width="200" height="200" fill="#1c2330"/></svg>' \
+printf '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><rect width="200" height="200" fill="#182635"/></svg>' \
     > /usr/share/Kvantum/RaptorOS/RaptorOS.svg
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -637,7 +649,7 @@ Color=245,166,35
 [Color4]
 Color=30,100,200
 [Color4Intense]
-Color=30,144,255
+Color=88,184,232
 [Color5]
 Color=100,60,180
 [Color5Intense]
@@ -649,9 +661,9 @@ Color=30,180,220
 [Color7]
 Color=160,180,200
 [Color7Intense]
-Color=200,214,232
+Color=212,226,237
 [Foreground]
-Color=200,214,232
+Color=212,226,237
 [ForegroundIntense]
 Color=230,240,255
 [General]
@@ -668,7 +680,7 @@ EOF
 # ══════════════════════════════════════════════════════════════════════════════
 cat << 'EOF' > /usr/lib/systemd/user/raptor-hud-apply.service
 [Unit]
-Description=Raptor HUD — Apply KDE theme on first login
+Description=Raptor OS — Apply aviation-inspired desktop theme on first login
 # Run after plasmashell is up so kwriteconfig5 and plasmashell --replace work
 After=plasma-plasmashell.service
 # Guard file lives in the user's home so it works on immutable/ostree systems.
