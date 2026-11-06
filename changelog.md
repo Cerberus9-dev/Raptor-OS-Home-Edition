@@ -26,6 +26,11 @@ This is the consolidation release for more than two months of sustained Raptor O
 - The Raptor Music installer requires the one-time staging marker. Without it, they remove stale staged app binaries and skip installation. Generated binaries are no longer tracked in the source tree.
 - A maintainer-only manual dispatch remains as a recovery fallback; end users never need to run GitHub Actions. The one-time integration is not consumed by a failed image build.
 
+### Bluetooth adapter identity
+
+- Added a BlueZ startup helper that assigns each detected controller the friendly alias “Raptor OS Bluetooth”, preventing the raw kernel interface name (such as `hci0`) from being used as the adapter's user-facing identity in KDE.
+- Paired-device cache entries are deliberately preserved. Automatically deleting apparent duplicates can remove legitimate separate Bluetooth LE/classic identities; this change avoids destructive cleanup.
+
 ### Windows application compatibility and resource tuning
 
 - Raptor Wine is being separated from game-focused Proton: ordinary Windows apps use clean, isolated Wine prefixes without automatically downloading DXVK, Direct3D components, or a large Winetricks bundle. Optional Winetricks components are explicit; Steam Proton remains game-focused.
