@@ -1,0 +1,30 @@
+name: Validate minimum-spec VM test script
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "tools/test-minimum-requirements-vm.sh"
+      - ".github/workflows/validate-minimum-vm-script.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "tools/test-minimum-requirements-vm.sh"
+      - ".github/workflows/validate-minimum-vm-script.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  shellcheck:
+    name: Validate VM test script
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Check Bash syntax
+        run: bash -n tools/test-minimum-requirements-vm.sh
+
+      - name: Check help output
+        run: bash tools/test-minimum-requirements-vm.sh --help
