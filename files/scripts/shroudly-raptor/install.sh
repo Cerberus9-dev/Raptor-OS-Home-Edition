@@ -37,7 +37,9 @@ done
 install -d "$APP_DIR"
 cp -a "$STAGE_DIR/." "$APP_DIR/"
 chmod 0755 "$APP_DIR/shroudly" "$APP_DIR/resources/app.asar.unpacked/electron/tools/core/linux-x64/shroudly-core" "$APP_DIR/resources/app.asar.unpacked/electron/tools/core/linux-x64/shroudly-core-adv"
-# Install a real launcher rather than a symlink into /opt. The final OSTree\n# image can relocate /opt through usr-merge; a copy avoids a fragile absolute link.\ninstall -m 0755 "$APP_DIR/shroudly" /usr/bin/shroudly
+# Install a real launcher rather than a symlink into /opt. The final OSTree
+# image can relocate /opt through usr-merge; a copy avoids a fragile absolute link.
+install -m 0755 "$APP_DIR/shroudly" /usr/bin/shroudly
 
 install -Dm644 "$APP_DIR/me.codeshare.shroudly.policy" /usr/share/polkit-1/actions/me.codeshare.shroudly.policy
 install -Dm644 "$APP_DIR/shroudly.png" /usr/share/icons/hicolor/256x256/apps/shroudly.png
@@ -64,5 +66,6 @@ for required in /usr/bin/shroudly /usr/share/applications/shroudly.desktop /usr/
     [[ -s "$required" ]] || { echo "SHROUDLY_INSTALL_ERROR: installed file missing: $required" >&2; exit 1; }
 done
 
-[[ -f /usr/bin/shroudly && -x /usr/bin/shroudly ]] || { echo "SHROUDLY_INSTALL_ERROR: launcher is not executable at /usr/bin/shroudly" >&2; exit 1; }\necho "SHROUDLY_READY: original upstream desktop app and Linux engines installed."
+[[ -f /usr/bin/shroudly && -x /usr/bin/shroudly ]] || { echo "SHROUDLY_INSTALL_ERROR: launcher is not executable at /usr/bin/shroudly" >&2; exit 1; }
+echo "SHROUDLY_READY: original upstream desktop app and Linux engines installed."
 echo "No background service or autostart entry was enabled."
