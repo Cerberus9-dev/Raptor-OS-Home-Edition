@@ -20,11 +20,6 @@ BIN_DEST="/usr/bin/raptor-music"
 
 mkdir -p /usr/bin /usr/share/applications /usr/share/icons/hicolor/scalable/apps
 
-if [[ ! -x "$SRC_BIN" ]]; then
-    echo "RAPTOR_MUSIC_INSTALL_ERROR: required staged binary missing at ${SRC_BIN}." >&2
-    exit 1
-fi
-
 install -m 0755 "$SRC_BIN" "$BIN_DEST"
 
 # ── .desktop ──────────────────────────────────────────────────────────────────
