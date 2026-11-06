@@ -309,6 +309,39 @@ def scan_gallery_images():
     return unique
 
 
+def apply_lockscreen_wallpaper(image_path):
+    """Set the Plasma lock-screen image without changing the desktop wallpaper."""
+    path = Path(image_path).expanduser()
+    if not path.is_file() or path.suffix.lower() not in IMAGE_EXTS:
+        return False, "Choose an existing supported image file"
+    writer = shutil.which("kwriteconfig6")
+    if not writer:
+        return False, "KDE configuration utility kwriteconfig6 is unavailable"
+    base = [
+        writer, "--file", "kscreenlockerrc",
+        "--group", "Greeter", "--group", "Wallpaper",
+        "--group", "org.kde.image", "--group", "General",
+    ]
+    try:
+        plugin = subprocess.run(
+            [writer, "--file", "kscreenlockerrc", "--group", "Greeter",
+             "--key", "WallpaperPlugin", "org.kde.image"],
+            capture_output=True, text=True, timeout=10,
+        )
+        if plugin.returncode != 0:
+            return False, plugin.stderr.strip() or "Could not configure the lock-screen image plugin"
+        for key in ("Image", "PreviewImage"):
+            result = subprocess.run(
+                base + ["--key", key, str(path)],
+                capture_output=True, text=True, timeout=10,
+            )
+            if result.returncode != 0:
+                return False, result.stderr.strip() or f"Could not save lock-screen {key}"
+        return True, "Lock-screen wallpaper saved. Lock the screen again to see the change."
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return False, f"Could not update lock-screen settings: {exc}"
+
+
 def apply_wallpaper(image_path, fill_mode):
     """Apply the wallpaper via KDE's scripting bridge (sets both Image and
     FillMode together). Falls back to plasma-apply-wallpaperimage — which
@@ -508,11 +541,17 @@ class RaptorWallpaperWindow(Adw.ApplicationWindow):
         btn_box.set_margin_top(4)
         content.append(btn_box)
 
-        self.apply_btn = Gtk.Button(label="Apply Wallpaper")
+        self.apply_btn = Gtk.Button(label="Apply Desktop Wallpaper")
         self.apply_btn.add_css_class("suggested-action")
         self.apply_btn.add_css_class("pill")
         self.apply_btn.connect("clicked", self._on_apply_clicked)
         btn_box.append(self.apply_btn)
+
+        self.lock_btn = Gtk.Button(label="Apply to Lock Screen")
+        self.lock_btn.add_css_class("pill")
+        self.lock_btn.set_tooltip_text("Use the selected image for the KDE lock screen without changing the desktop wallpaper")
+        self.lock_btn.connect("clicked", self._on_lock_clicked)
+        btn_box.append(self.lock_btn)
 
         self.spinner = Gtk.Spinner()
         btn_box.append(self.spinner)
@@ -639,6 +678,28 @@ class RaptorWallpaperWindow(Adw.ApplicationWindow):
     def _on_apply_done(self, ok, msg):
         self.spinner.stop()
         self.apply_btn.set_sensitive(True)
+        self.lock_btn.set_sensitive(True)
+        self._toast(msg)
+
+    def _on_lock_clicked(self, _btn):
+        if not self._selected_path or not Path(self._selected_path).is_file():
+            self._toast("Select an existing wallpaper first")
+            return
+        selected_path = self._selected_path
+        self.apply_btn.set_sensitive(False)
+        self.lock_btn.set_sensitive(False)
+        self.spinner.start()
+
+        def worker():
+            ok, msg = apply_lockscreen_wallpaper(selected_path)
+            GLib.idle_add(self._on_lock_done, ok, msg)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_lock_done(self, ok, msg):
+        self.spinner.stop()
+        self.apply_btn.set_sensitive(True)
+        self.lock_btn.set_sensitive(True)
         self._toast(msg)
 
     def _toast(self, msg):
