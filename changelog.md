@@ -4,12 +4,12 @@
 
 - Removed the unused resume-marker service, redundant lid-open unit, and inactive CPU-governor compatibility unit. Suspend/resume recovery is already handled by the single systemd-sleep hook; target-bound units could run at the wrong point in the suspend transition and add avoidable delay.
 - Kept touchpad rebind and asynchronous Wi-Fi/Bluetooth recovery in the existing post-resume hook, avoiding duplicate recovery paths.
-- Corrected a contradictory gaming validator: shader pre-caching is intentionally retained, and CI now asserts that it remains enabled while risky global Steam/GameMode overrides stay absent.
+- Corrected a contradictory gaming validator: Steam's shader pre-caching setting is left untouched, and CI now asserts that no global setting overrides it while risky Steam/GameMode tweaks stay absent.
 - Added regression checks to ensure removed service units are not reintroduced into the image recipe.
 
 ## V3.0 reliability follow-up — conservative gaming defaults
 
-- Removed forced Steam HTTP/2, extra-connection, and write-buffer settings from the system-wide Steam template. They are network-specific troubleshooting knobs, not universal performance wins; shader pre-caching remains enabled.
+- Removed forced Steam HTTP/2, extra-connection, and write-buffer settings from the system-wide Steam template. They are network-specific troubleshooting knobs, not universal performance wins; Steam's shader pre-caching setting is left at its own default.
 - Removed GameMode's global AMD high-performance and NVIDIA maximum-performance GPU overrides. Upstream explicitly labels GPU optimisations as an at-your-own-risk operation and notes that they change hardware performance levels; Raptor now leaves GPU policy to the driver and user-selected system power profile.
 - Added quality-gate assertions preventing these risky global overrides from silently returning.
 
