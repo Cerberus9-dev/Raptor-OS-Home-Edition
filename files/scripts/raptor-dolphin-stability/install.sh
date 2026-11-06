@@ -96,3 +96,56 @@ done
 if [[ "${removed}" -gt 0 ]]; then
     echo "raptor-dolphin-stability: archive metadata reading disabled (${removed} total files removed)."
 fi
+
+
+# ── Raptor-owned KIO service menus ──────────────────────────────────────────
+# Replace the removed upstream Ark context-menu plugins with small service
+# entries that call Ark's documented CLI directly. This keeps archive actions
+# available without loading the per-selection MIME-scanning plugins.
+SERVICE_MENU_DIR=/usr/share/kio/servicemenus
+install -d "$SERVICE_MENU_DIR"
+
+cat > "$SERVICE_MENU_DIR/raptor-ark-extract.desktop" <<'ARK_EXTRACT'
+[Desktop Entry]
+Type=Service
+Name=Raptor Archive
+Icon=ark
+TryExec=ark
+X-KDE-Submenu=Raptor Archive
+X-KDE-Protocols=file
+X-KDE-RequiredNumberOfUrls=1
+MimeType=application/zip;application/x-zip;application/x-zip-compressed;application/x-tar;application/x-compressed-tar;application/x-7z-compressed;application/x-rar;application/vnd.rar;application/x-rar-compressed;application/x-bzip;application/x-bzip2;application/x-bzip-compressed-tar;application/gzip;application/x-gzip;application/x-xz;application/x-lzma;application/x-lzip;application/x-zstd;application/zstd;application/x-cpio;application/x-archive;application/x-iso9660-image;application/x-cd-image;application/vnd.ms-cab-compressed;application/x-rpm;application/vnd.debian.binary-package;application/java-archive;application/x-cbz;application/x-cbr;application/vnd.comicbook+zip;application/vnd.comicbook-rar;
+Actions=extractHere;extractTo;
+
+[Desktop Action extractHere]
+Name=Extract Here (into a folder)
+Icon=ark
+Exec=ark --batch --autodestination --autosubfolder %F
+
+[Desktop Action extractTo]
+Name=Extract To…
+Icon=ark
+Exec=ark --batch --dialog %F
+ARK_EXTRACT
+chmod 0755 "$SERVICE_MENU_DIR/raptor-ark-extract.desktop"
+
+cat > "$SERVICE_MENU_DIR/raptor-ark-create.desktop" <<'ARK_CREATE'
+[Desktop Entry]
+Type=Service
+Name=Raptor Archive
+Icon=ark
+TryExec=ark
+X-KDE-Submenu=Raptor Archive
+X-KDE-Protocols=file
+X-KDE-MinNumberOfUrls=1
+MimeType=application/*;audio/*;font/*;image/*;inode/directory;message/*;model/*;multipart/*;text/*;video/*;x-content/*;
+Actions=createArchive;
+
+[Desktop Action createArchive]
+Name=Create Archive…
+Icon=ark
+Exec=ark --add %F
+ARK_CREATE
+chmod 0755 "$SERVICE_MENU_DIR/raptor-ark-create.desktop"
+
+echo "raptor-dolphin-stability: installed Raptor-owned Ark extract/create context actions."
