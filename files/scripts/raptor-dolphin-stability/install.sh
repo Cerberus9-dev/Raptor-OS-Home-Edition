@@ -69,7 +69,10 @@ if ! command -v unzip >/dev/null 2>&1; then
     exit 1
 fi
 
-echo "raptor-dolphin-stability: applied targeted Ark context-menu workaround (${removed} plugin files removed); Ark and unzip are available."\n\n# Ark is the dedicated archive application. Keep its executable and MIME handlers\n# available even when the known slow context-menu plugins are disabled.
+echo "raptor-dolphin-stability: applied targeted Ark context-menu workaround (${removed} plugin files removed); Ark and unzip are available."
+
+# Ark is the dedicated archive application. Keep its executable and MIME handlers
+# available even when the known slow context-menu plugins are disabled.
 
 # ── In-process archive metadata extractors (KFileMetaData) ──────────────────
 # Name varies across distros (kfilemetadata_archiveextractor.so vs bare
