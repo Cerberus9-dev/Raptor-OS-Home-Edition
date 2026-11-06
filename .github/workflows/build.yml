@@ -239,13 +239,10 @@ jobs:
           test -s files/staging/shroudly-app/shroudly.png
           test -s files/staging/shroudly-app/LICENSE
 
-          # Use a normal filename (not a dotfile) and force-add generated,
-          # gitignored staging files so Git-backed build contexts retain them.
-          install -Dm644 /dev/null files/staging/include-one-time-apps
-          printf '%s\n' 'RAPTOR_ONE_TIME_APPS=1' > files/staging/include-one-time-apps
+          # Force-add generated, gitignored staging files so Git-backed
+          # build contexts retain the two app payloads.
           git add -f -- files/staging
           git ls-files --error-unmatch \
-            files/staging/include-one-time-apps \
             files/staging/raptor-music \
             files/staging/shroudly-app/shroudly \
             files/staging/shroudly-app/resources/app.asar >/dev/null
@@ -253,7 +250,8 @@ jobs:
 
           # BlueBuild's Git-backed files context is created from HEAD, not the
           # runner's uncommitted index. Commit generated payloads locally so
-          # the files module receives the marker and both app trees. This
+          # the files module receives both app trees. Payload presence is
+          # the install gate; no separate marker file is required. This
           # commit exists only on the ephemeral Actions runner; it is never
           # pushed and does not alter the repository branch.
           git -c user.name="github-actions[bot]" \
