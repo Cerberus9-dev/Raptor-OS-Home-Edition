@@ -6,6 +6,12 @@
 
 This is the consolidation release for more than two months of sustained Raptor OS overhaul work. The scope includes substantial changes across performance and memory management, gaming and GPU behavior, audio, Cortex, update reliability, hardware recovery, browser and chat-client choice, build validation, and the installation/distribution path. The intent is to ship the work as one coherent major update rather than scatter it across a long sequence of small version bumps.
 
+### Aviation-inspired desktop identity
+
+- Refined the Raptor HUD palette from bright electric blue toward flight-deck navy, graphite, instrument cyan, caution amber, and operational green.
+- Extended the GTK3/GTK4 theme with consistent Adwaita cards, navigation sidebars, toolbars, status pages, and semantic status colors so first-party GTK apps inherit a more coherent aerospace interface.
+- Updated theme metadata and first-login service descriptions to identify the aviation-inspired Raptor OS visual system. The design stays restrained and readable rather than turning the desktop into a novelty cockpit.
+
 ### Cortex and GPU telemetry reliability
 
 - GPU telemetry now checks PCI vendor IDs before reading AMD or Intel sysfs counters, prefers NVIDIA's own telemetry on hybrid systems, and reports VRAM for all exposed NVIDIA/AMD adapters rather than accidentally treating the first DRM card as the discrete GPU.
