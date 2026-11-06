@@ -17,6 +17,15 @@ This is the consolidation release for more than two months of sustained Raptor O
 - Added a one-time **Welcome to Raptor OS Home** dialog before the existing browser, chat, and optional-app choices. It explains the Raptor app suite in plain language and can be dismissed without blocking setup.
 - The completion stamp is stored per user under the XDG data directory, so the welcome screen does not repeat after dismissal. If the dialog dependency is unavailable, setup continues rather than trapping the user.
 
+### Raptor Tasks reliability and usability
+
+- Fixed the Ctrl+N shortcut by registering it through a GTK ShortcutController rather than calling a nonexistent window shortcut helper.
+- Added a native empty-state panel so a new task list explains how to get started instead of presenting a blank window.
+- Task storage now writes to a temporary file, flushes it to disk, and atomically replaces the previous JSON file. Failed writes leave the previous file intact and surface a toast instead of silently losing changes.
+- Damaged or invalid task data is preserved under a separate `.corrupt` backup name instead of being silently interpreted as an empty list and overwritten on the next save.
+- Editing uses a working copy so an unsuccessful save does not mutate the existing in-memory task.
+- Added CI extraction and Python AST validation for the embedded Tasks application, plus checks for its shortcut controller, atomic persistence, corruption preservation, and empty state.
+
 ### App picker usability and everyday integration
 
 - Made the optional-app catalogue reusable after first boot: the first-run service still respects its one-time completion stamp, while the new **Raptor App Picker** application-menu entry opens the catalogue on demand without changing that stamp.
