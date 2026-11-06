@@ -10,11 +10,6 @@ command -v wine >/dev/null 2>&1 || {
   echo "RAPTOR_WINE_ERROR: Wine is not installed" >&2
   exit 1
 }
-command -v umu-run >/dev/null 2>&1 || {
-  echo "RAPTOR_WINE_ERROR: UMU is not installed" >&2
-  exit 1
-}
-
 cat <<'WINE' > /usr/bin/raptor-wine
 #!/usr/bin/env bash
 set -euo pipefail
@@ -94,7 +89,9 @@ shift
 
 case "${target,,}" in
   *.msi)
-    exec umu-run wine msiexec /i "$target" "$@"
+    echo "raptor-wine-proton: MSI installers should be run with standard Wine:" >&2
+    echo "  wine msiexec /i \"$target\"" >&2
+    exit 2
     ;;
   *)
     exec umu-run "$target" "$@"
