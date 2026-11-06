@@ -9,6 +9,7 @@ This is the consolidation release for more than two months of sustained Raptor O
 ### Cortex and GPU telemetry reliability
 
 - GPU telemetry now checks PCI vendor IDs before reading AMD or Intel sysfs counters, prefers NVIDIA's own telemetry on hybrid systems, and reports VRAM for all exposed NVIDIA/AMD adapters rather than accidentally treating the first DRM card as the discrete GPU.
+- Moved GPU temperature, model/load/clock/VRAM readings, and read-only fan sensors into Cortex's Graphics tab beside the GPU profile controls, keeping the Overview focused on system memory and CPU health.
 - CI now extracts and byte-compiles the embedded Cortex Python application, and validates the archive installer shell syntax before the image build.
 
 ### First-login welcome and application tour
