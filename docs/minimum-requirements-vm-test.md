@@ -8,13 +8,13 @@ Use the repository script to create a disposable QEMU/KVM virtual machine from a
 |---|---:|
 | Guest RAM | 4 GiB (4096 MiB) |
 | Virtual CPUs | 2 |
-| CPU feature baseline | QEMU/libvirt `Nehalem` |
+| CPU feature baseline | QEMU/libvirt `Skylake-Client` (Core i3-6100 class) |
 | Virtual disk | 64 GiB sparse QCOW2 |
 | Firmware | UEFI (OVMF) |
 | Display | SPICE + virtio video |
 | Network | libvirt default NAT network |
 
-The two-vCPU/Nehalem profile is an approximate older Intel baseline, not a precise simulation of a particular Core i3. Core i3 spans many generations and performance levels. KVM still uses the host for execution, so this is useful for install, boot, driver, desktop, and constrained-memory smoke testing—not a reliable benchmark of physical i3 performance.
+The default CPU target is an Intel Core i3-6100: Skylake, 2 physical cores / 4 threads, 3.7 GHz base/turbo frequency, and Intel HD Graphics 530. The VM uses QEMU's `Skylake-Client` CPU feature model and a 2-core / 4-thread virtual topology. QEMU/KVM does not reproduce the i3-6100's exact clock speed, cache, memory controller, or HD 530 graphics; the guest uses a virtual display adapter. Host CPU speed still affects execution, so use this for install, boot, desktop, and 4 GiB memory-pressure testing—not as a precise physical performance benchmark.
 
 ## Host prerequisites
 
@@ -53,7 +53,7 @@ The script creates `~/VirtualMachines/<name>.qcow2` as a sparse disk and starts 
 
 After installation, eject/detach the ISO using virt-manager or the VM's device menu, then boot from the virtual disk. Test first login, Wi-Fi/network behavior, audio/display, app launch, update manager, and memory pressure. Record whether the system remains responsive at 4 GiB; note that gaming performance and GPU passthrough are not represented by this default virtual display.
 
-To test an even tighter memory profile, rerun with a separate VM name and `--ram-mib 3072`. The requested 4 GiB profile remains the default.
+To test an even tighter memory profile, rerun with a separate VM name and `--ram-mib 3072`. The requested 4 GiB / Core i3-6100-class profile remains the default.
 
 ## Cleanup
 
