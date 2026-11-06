@@ -214,7 +214,7 @@ for attempt in {1..10}; do
     [[ -n "$controllers" ]] && break
     sleep 2
 done
-[[ -n "$controllers" ]] || { echo "No BlueZ controllers appeared; leaving adapter names unchanged." >&2; exit 0; }
+[[ -n "$controllers" ]] || { echo "No BlueZ controllers appeared; systemd will retry later." >&2; exit 1; }
 while IFS= read -r mac; do
     [[ "$mac" =~ ^([[:xdigit:]]{2}:){5}[[:xdigit:]]{2}$ ]] || continue
     printf 'select %s\nsystem-alias Raptor OS Bluetooth\n' "$mac" |
@@ -232,7 +232,9 @@ Wants=bluetooth.service
 [Service]
 Type=oneshot
 ExecStart=/usr/lib/raptor/bt-name
-RemainAfterExit=yes
+Restart=on-failure
+RestartSec=15
+StartLimitIntervalSec=0
 
 [Install]
 WantedBy=multi-user.target
