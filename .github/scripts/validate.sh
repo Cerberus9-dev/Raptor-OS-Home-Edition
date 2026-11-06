@@ -379,3 +379,19 @@ assert_contains files/scripts/shroudly-raptor/install.sh 'if [[ ! -x "$STAGE_DIR
 assert_contains files/scripts/raptor-music/install.sh 'STAGE_DIR="/tmp/files/staging"'
 assert_contains files/scripts/shroudly-raptor/install.sh 'STAGE_DIR="/tmp/files/staging/shroudly-app"'
 echo "Image tagging and payload staging contracts passed."
+
+echo "=== Checking boot-time GPU detection safety ==="
+gpu_tmp="$(mktemp --suffix=.sh)"
+awk "/^cat << 'DETECT' > \/usr\/lib\/raptor\/gpu-detect.sh$/ { inside=1; next } /^DETECT$/ && inside { exit } inside { print }" files/scripts/raptor-gpu-profile/install.sh > "$gpu_tmp"
+test -s "$gpu_tmp"
+bash -n "$gpu_tmp"
+grep -Fq 'GPU_PCI_INFO="$(timeout 3s lspci -nn' "$gpu_tmp"
+grep -Fq 'timeout 3s lspci -v' "$gpu_tmp"
+grep -Fq 'timeout 3s nvidia-smi' "$gpu_tmp"
+grep -Fq 'timeout 2s loginctl list-users' "$gpu_tmp"
+if grep -Fq 'sysctl --system' "$gpu_tmp"; then
+  echo "GPU profile must not re-run the global sysctl loader during boot" >&2
+  exit 1
+fi
+rm -f "$gpu_tmp"
+echo "Boot-time GPU detection contracts passed."
