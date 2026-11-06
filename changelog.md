@@ -26,6 +26,12 @@ This is the consolidation release for more than two months of sustained Raptor O
 - The Raptor Music installer requires the one-time staging marker. Without it, they remove stale staged app binaries and skip installation. Generated binaries are no longer tracked in the source tree.
 - A maintainer-only manual dispatch remains as a recovery fallback; end users never need to run GitHub Actions. The one-time integration is not consumed by a failed image build.
 
+### Desktop app resource and Wayland tuning
+
+- Extended safe Electron Wayland backend selection to every optional chat client in the chooser: official Discord, Vesktop, Equibop, and GoofCord.
+- Removed fragile forced memory ceilings from Vesktop rather than imposing renderer/V8 limits that can break large servers, screen sharing, or voice/video calls. No game, audio, or networking services are disabled.
+- Kept Firefox's existing low-memory policy and Brave's hardware acceleration profile intact rather than layering on unverified flags or reducing browser functionality.
+
 ### Bluetooth adapter identity
 
 - Added a BlueZ startup helper that assigns each detected controller the friendly alias “Raptor OS Bluetooth”, preventing the raw kernel interface name (such as `hci0`) from being used as the adapter's user-facing identity in KDE.
