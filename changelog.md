@@ -6,6 +6,12 @@
 
 This is the consolidation release for more than two months of sustained Raptor OS overhaul work. The scope includes substantial changes across performance and memory management, gaming and GPU behavior, audio, Cortex, update reliability, hardware recovery, browser and chat-client choice, build validation, and the installation/distribution path. The intent is to ship the work as one coherent major update rather than scatter it across a long sequence of small version bumps.
 
+### Build reliability and one-time app integration
+
+- Fixed the one-time app installer gate: the image build stages Raptor Music and Shroudly only when requested, and each installer now detects its actual staged application payload instead of relying on a separate marker file that the BlueBuild files module did not deliver to the script stage.
+- Ordinary image builds remain app-payload-free and skip both optional installers. The one-time update build must still verify both applications and all required files inside the published GHCR image before consuming the internal integration lock.
+- The build workflow remains the update-image workflow: it pushes the OCI image to GHCR and does not create GitHub Releases or downloadable artifacts. ISO creation remains separate.
+
 ### Choice, compatibility, and distribution improvements
 
 - Expanded the first-boot chat-client chooser beyond official Discord and Vesktop to include Equibop (Equicord) and GoofCord. All are optional downloads; none is silently preinstalled, and skipping remains supported.
