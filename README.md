@@ -36,6 +36,10 @@ Raptor OS uses a restrained aerospace / flight-deck visual language across the d
 
 ---
 
+## Build verification
+
+The image workflow derives the verification tag from the recipe's `image-version` and the event ref, matching BlueBuild's version-suffixed tags (for example, pull-request images use `pr-N-VERSION`). It then pulls that exact image and verifies the installed Raptor Music and Shroudly payloads. The installers also fall back to the build's mounted source-files tree if the temporary staging copy is not visible between BlueBuild modules.
+
 ## GPU compatibility defaults
 
 Raptor GPU profiles avoid forcing Mesa driver selection, Vulkan feature levels, or ray-tracing capabilities globally. The graphics stack selects the driver and supported features for the detected hardware. NVIDIA-specific Proton NVAPI integration is emitted only for NVIDIA systems. Shader-cache cleanup remains enabled so caches do not grow without bounds. Performance profiles adjust supported power policy without replacing the graphics driver's compatibility decisions.
