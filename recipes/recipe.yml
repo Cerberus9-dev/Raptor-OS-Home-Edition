@@ -145,6 +145,8 @@ modules:
       - mingw64-wine-gecko
       - winetricks
       - protontricks
+      # UMU runs Proton outside the Steam client.
+      - umu-launcher
 
       # Python + GObject — required by Raptor GTK4/Adwaita apps
       - python3
