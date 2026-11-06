@@ -236,12 +236,14 @@ assert_contains files/scripts/raptor-cortex/install.sh 'def get_fan_info():'
 assert_contains files/scripts/raptor-cortex/install.sh 'vendor == "0x1002"'
 assert_contains files/scripts/raptor-cortex/install.sh 'vendor == "0x8086"'
 assert_contains files/scripts/raptor-cortex/install.sh 'NVIDIA GPU {index}'
+echo "=== Shell syntax: Raptor Cortex installer ==="
+bash -n files/scripts/raptor-cortex/install.sh
 echo "=== Python syntax: embedded Raptor Cortex application ==="
 cortex_tmp="$(mktemp --suffix=.py)"
 awk "/^cat << 'PYEOF' > \\/usr\\/bin\\/raptor-cortex$/ { inside=1; next } /^PYEOF$/ && inside { exit } inside { print }" files/scripts/raptor-cortex/install.sh > "$cortex_tmp"
 test -s "$cortex_tmp"
-python3 -m py_compile "$cortex_tmp"
-rm -f "$cortex_tmp" "${cortex_tmp}c"
+python3 -c 'import ast, sys; ast.parse(open(sys.argv[1], encoding="utf-8").read())' "$cortex_tmp"
+rm -f "$cortex_tmp"
 
 
 echo "=== Checking Dolphin and archive backends ==="
