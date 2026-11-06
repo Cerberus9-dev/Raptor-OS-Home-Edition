@@ -56,17 +56,17 @@ GPU_MODEL=""
 # Probe PCI display devices once. Repeated lspci calls (including a verbose
 # full-device scan) were unnecessary work on the boot-critical path.
 GPU_PCI_INFO="$(timeout 3s lspci -nn 2>/dev/null || true)"
-DISPLAY_LINES="$(printf '%s\\n' "$GPU_PCI_INFO" | grep -Ei 'VGA|3D|Display' || true)"
+DISPLAY_LINES="$(printf '%s\n' "$GPU_PCI_INFO" | grep -Ei 'VGA|3D|Display' || true)"
 
-if printf '%s\\n' "$DISPLAY_LINES" | grep -qi "nvidia"; then
+if printf '%s\n' "$DISPLAY_LINES" | grep -qi "nvidia"; then
     GPU_VENDOR="nvidia"
-    GPU_MODEL="$(printf '%s\\n' "$DISPLAY_LINES" | grep -i "nvidia" | sed 's/.*\\[//;s/\\].*//' | head -1)"
-elif printf '%s\\n' "$DISPLAY_LINES" | grep -Eqi "amd|radeon|ati"; then
+    GPU_MODEL="$(printf '%s\n' "$DISPLAY_LINES" | grep -i "nvidia" | sed 's/.*\[//;s/\].*//' | head -1)"
+elif printf '%s\n' "$DISPLAY_LINES" | grep -Eqi "amd|radeon|ati"; then
     GPU_VENDOR="amd"
-    GPU_MODEL="$(printf '%s\\n' "$DISPLAY_LINES" | grep -Ei "amd|radeon|ati" | sed 's/.*\\[//;s/\\].*//' | head -1)"
-elif printf '%s\\n' "$DISPLAY_LINES" | grep -qi "intel"; then
+    GPU_MODEL="$(printf '%s\n' "$DISPLAY_LINES" | grep -Ei "amd|radeon|ati" | sed 's/.*\[//;s/\].*//' | head -1)"
+elif printf '%s\n' "$DISPLAY_LINES" | grep -qi "intel"; then
     GPU_VENDOR="intel"
-    GPU_MODEL="$(printf '%s\\n' "$DISPLAY_LINES" | grep -i "intel" | sed 's/.*\\[//;s/\\].*//' | head -1)"
+    GPU_MODEL="$(printf '%s\n' "$DISPLAY_LINES" | grep -i "intel" | sed 's/.*\[//;s/\].*//' | head -1)"
 fi
 echo "Detected GPU vendor: $GPU_VENDOR  model: ${GPU_MODEL:-unknown}"
 
@@ -75,13 +75,13 @@ IS_IGPU=false
 IS_HYBRID=false
 if [ "$GPU_VENDOR" = "intel" ]; then
     IS_IGPU=true
-elif [ "$GPU_VENDOR" = "amd" ] && ! printf '%s\\n' "$DISPLAY_LINES" | grep -qi "intel"; then
+elif [ "$GPU_VENDOR" = "amd" ] && ! printf '%s\n' "$DISPLAY_LINES" | grep -qi "intel"; then
     AMD_VERBOSE="$(timeout 3s lspci -v 2>/dev/null || true)"
-    if printf '%s\\n' "$AMD_VERBOSE" | grep -Ei 'VGA|3D|Display' -A5 | grep -Eqi 'subsystem.*apu|integrated|cezanne|renoir|lucienne|rembrandt|mendocino|phoenix|hawk point'; then
+    if printf '%s\n' "$AMD_VERBOSE" | grep -Ei 'VGA|3D|Display' -A5 | grep -Eqi 'subsystem.*apu|integrated|cezanne|renoir|lucienne|rembrandt|mendocino|phoenix|hawk point'; then
         IS_IGPU=true
     fi
 fi
-DISPLAY_DEVS="$(printf '%s\\n' "$DISPLAY_LINES" | grep -c . || true)"
+DISPLAY_DEVS="$(printf '%s\n' "$DISPLAY_LINES" | grep -c . || true)"
 if [[ "$DISPLAY_DEVS" =~ ^[0-9]+$ ]] && [ "$DISPLAY_DEVS" -ge 2 ]; then
     IS_HYBRID=true
 fi
@@ -118,7 +118,7 @@ _set_intel_gpu_power_mode() {
 _restore_nvidia_power_limit() {
     command -v nvidia-smi >/dev/null 2>&1 || return 0
     local default_limit
-    default_limit=$(timeout 3s nvidia-smi --query-gpu=power.default_limit --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d ' ')
+    default_limit=$(timeout 3s nvidia-smi --query-gpu=power.default_limit --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d ' ' || true)
     if [[ "$default_limit" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
         timeout 3s nvidia-smi -pl "${default_limit%.*}" >/dev/null 2>&1 || true
     fi
@@ -229,7 +229,7 @@ ENVEOF
         # Let the GPU power down at idle and apply a conservative 80% TDP cap.
         # Other profiles restore the firmware default power limit.
         timeout 3s nvidia-smi -pm 0 > /dev/null 2>&1 || true
-        MAX_PL=$(timeout 3s nvidia-smi --query-gpu=power.default_limit --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d ' ')
+        MAX_PL=$(timeout 3s nvidia-smi --query-gpu=power.default_limit --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d ' ' || true)
         if [[ "$MAX_PL" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
             TARGET=$(awk -v limit="$MAX_PL" 'BEGIN { printf "%d", limit * 0.8 }')
             [ "$TARGET" -gt 0 ] && timeout 3s nvidia-smi -pl "$TARGET" > /dev/null 2>&1 || true
