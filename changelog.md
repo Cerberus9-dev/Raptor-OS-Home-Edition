@@ -6,6 +6,18 @@
 
 This is the consolidation release for more than two months of sustained Raptor OS overhaul work. The scope includes substantial changes across performance and memory management, gaming and GPU behavior, audio, Cortex, update reliability, hardware recovery, browser and chat-client choice, build validation, and the installation/distribution path. The intent is to ship the work as one coherent major update rather than scatter it across a long sequence of small version bumps.
 
+### Recovery and lock-screen controls
+
+- Added a guarded **Roll Back System** action to Raptor Update Manager. It appears only when rpm-ostree reports a valid current deployment and a previous deployment, confirms before acting, verifies the deployment list again in the privileged helper, and stages `rpm-ostree rollback` without forcing an immediate reboot.
+- Added explicit recovery messaging that distinguishes an OSTree system rollback from Flatpak updates and user-home configuration; the rollback does not promise to restore those independent data stores.
+- Raptor Wallpaper can now apply the selected image to the KDE Plasma lock screen independently of the desktop background. It selects the supported `org.kde.image` wallpaper plugin and writes both the image and preview entries through `kwriteconfig6`, with bounded subprocess calls and visible error reporting.
+- Expanded CI contracts to syntax-check the update manager, parse its embedded Python, and verify the rollback and lock-screen integration points.
+
+### Continuous quality gate
+
+- Added a lightweight GitHub Actions quality workflow that runs on every push and pull request, independent of path filters. It checks every Actions workflow with actionlint, runs the repository's application/integration validator, and syntax-checks every tracked shell script.
+- The full image workflow remains responsible for image-build and published-image verification; the new quality gate provides faster feedback for documentation-only, workflow-only, and application-only commits too.
+
 ### Aviation-inspired desktop identity
 
 - Refined the Raptor HUD palette from bright electric blue toward flight-deck navy, graphite, instrument cyan, caution amber, and operational green.
