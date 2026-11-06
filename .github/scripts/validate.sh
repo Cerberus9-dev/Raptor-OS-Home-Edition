@@ -412,3 +412,18 @@ assert_not_contains recipes/recipe.yml '        - raptor-powerprofile.service'
 assert_not_contains recipes/recipe.yml '        - raptor-ensure-services.service'
 assert_contains files/scripts/raptor-gpu-profile/install.sh 'GPU_PCI_INFO="$(timeout 3s lspci -nn'
 echo "Boot latency regression checks passed."
+
+echo "=== Checking user-controlled Wi-Fi power management ==="
+assert_not_contains files/system_files/91-raptor-network.conf 'wifi.powersave=2'
+assert_not_contains files/system_files/91-raptor-network.conf 'wifi.scan-rand-mac-address=no'
+assert_contains files/scripts/raptor-cortex/install.sh 'wifi-powersave)'
+assert_contains files/scripts/raptor-cortex/install.sh 'Disable Wi-Fi power saving'
+assert_contains files/scripts/raptor-cortex/install.sh '91-raptor-wifi-powersave.conf'
+assert_contains files/scripts/raptor-cortex/install.sh 'NetworkManager default'
+wifi_helper_tmp="$(mktemp --suffix=.sh)"
+awk "/^cat << 'EOF' > \/usr\/lib\/raptor\/cortex-helper$/ { inside=1; next } /^EOF$/ && inside { exit } inside { print }" files/scripts/raptor-cortex/install.sh > "$wifi_helper_tmp"
+test -s "$wifi_helper_tmp"
+bash -n "$wifi_helper_tmp"
+grep -Fq "printf '[connection]" "$wifi_helper_tmp"
+rm -f "$wifi_helper_tmp"
+echo "Wi-Fi power-management contracts passed."
