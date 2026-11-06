@@ -64,6 +64,20 @@ else
     log "Vesktop not installed — skipping Vesktop config."
 fi
 
+# ── Consistent Electron/Chromium Wayland integration for chat clients ─────────
+# Use Electron's automatic Wayland backend selection for each optional client.
+# Do not impose global V8 heap/renderer limits: these can break large servers,
+# voice/video calls, screen sharing, and accessibility features.
+if command -v flatpak >/dev/null 2>&1; then
+    for chat_app in com.discordapp.Discord dev.vencord.Vesktop org.equicord.equibop io.github.milkshiift.GoofCord; do
+        if flatpak info "$chat_app" >/dev/null 2>&1; then
+            flatpak override --user "$chat_app" \
+                --env=ELECTRON_OZONE_PLATFORM_HINT=auto \
+                >/dev/null 2>&1 || log "Could not apply Wayland hint to $chat_app"
+        fi
+    done
+fi
+
 # Firefox: copy skel user.js to any existing profiles that don't have one yet.
 # policies.json (system-wide, from raptor-gaming.sh) handles memory defaults;
 # user.js covers GPU compositing, rendering quality, and privacy prefs.
