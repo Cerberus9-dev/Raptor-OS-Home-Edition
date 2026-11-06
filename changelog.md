@@ -1977,7 +1977,7 @@ This is the consolidation release for more than two months of sustained Raptor O
 - Preserved the ordinary Wine workflow: `wine`, `winecfg`, `wineboot`, `wineserver`, and `winetricks` remain directly available, using Wine's standard `~/.wine` prefix unless the user chooses otherwise.
 - Added simple executable handling: opening `.exe` files launches them with Wine, while `.msi` installers are passed to `wine msiexec /i`. KDE's right-click menu offers direct Wine launching without a setup wizard or profile manager.
 - Added an optional Proton game action powered by UMU. Proton supplies its game-focused compatibility patches and supported DXVK/VKD3D graphics translation inside the Steam Linux Runtime, without requiring the Steam client.
-- Proton prefixes are created automatically per executable; no profile setup, storefront selection, or game ID entry is required for ordinary use. Advanced UMU settings remain optional environment variables.
+- UMU manages its normal default Proton prefix automatically; no per-game profile setup, storefront selection, or game ID entry is required for ordinary use. Users can still override the standard WINEPREFIX or optional UMU settings when needed.
 - Kept Wine Mono, Gecko, and Winetricks available for common Windows application dependencies. No global DLL overrides or forced synchronization settings are applied, avoiding needless regressions in desktop applications.
 - Windows compatibility varies by program; anti-cheat, DRM, kernel drivers, and unsupported Windows APIs may still prevent some titles from running.
 
