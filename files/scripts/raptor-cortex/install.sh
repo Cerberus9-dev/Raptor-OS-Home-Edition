@@ -1179,7 +1179,7 @@ def get_gpu_usage(sys_root="/sys"):
     """
     drm = os.path.join(sys_root, "class/drm")
     try:
-        cards = sorted(d for d in os.listdir(drm) if re.fullmatch(r"card\\d+", d))
+        cards = sorted(d for d in os.listdir(drm) if re.fullmatch(r"card\d+", d))
     except OSError:
         cards = []
 
@@ -1201,7 +1201,7 @@ def get_gpu_usage(sys_root="/sys"):
             sclk = rd(os.path.join(dev, "pp_dpm_sclk"))
             if sclk:
                 for line in sclk.splitlines():
-                    m = re.search(r"(\\d+)\\s*[Mm][Hh][Zz]\\s*\\*", line)
+                    m = re.search(r"(\d+)\s*[Mm][Hh][Zz]\s*\*", line)
                     if m:
                         clock = int(m.group(1))
                         break
@@ -1270,7 +1270,7 @@ def get_gpu_memory():
     # as AMD VRAM, and keep all AMD adapters instead of stopping at card0.
     try:
         drm = "/sys/class/drm"
-        cards = sorted(x for x in os.listdir(drm) if re.fullmatch(r"card\\d+", x))
+        cards = sorted(x for x in os.listdir(drm) if re.fullmatch(r"card\d+", x))
         for card in cards:
             dev = os.path.join(drm, card, "device")
             try:
