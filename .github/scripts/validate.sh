@@ -372,8 +372,9 @@ assert_not_contains files/scripts/raptor-gpu-profile/install.sh '__GL_THREADED_O
 echo "GPU vendor-safe defaults passed."
 
 echo "=== Checking CI image tag and generated app payload staging ==="
-assert_contains .github/workflows/build.yml 'IMAGE_TAG="pr-$PR_NUMBER-$IMAGE_VERSION"'
-assert_contains .github/workflows/build.yml 'IMAGE_TAG="${REF_NAME//\\//_}-$IMAGE_VERSION"'
+assert_contains .github/workflows/build.yml 'IMAGE_VERSION_SUFFIX="${IMAGE_VERSION##*-}"'
+assert_contains .github/workflows/build.yml 'IMAGE_TAG="pr-$PR_NUMBER-$IMAGE_VERSION_SUFFIX"'
+assert_contains .github/workflows/build.yml 'IMAGE_TAG="${REF_NAME//\\//_}-$IMAGE_VERSION_SUFFIX"'
 assert_contains files/scripts/raptor-music/install.sh 'if [[ ! -x "$SRC_BIN" && -x "/tmp/files/staging/raptor-music" ]]; then'
 assert_contains files/scripts/shroudly-raptor/install.sh 'if [[ ! -x "$STAGE_DIR/shroudly" && -x "/tmp/files/staging/shroudly-app/shroudly" ]]; then'
 assert_contains files/scripts/raptor-music/install.sh 'STAGE_DIR="/tmp/files/staging"'
