@@ -1,0 +1,37 @@
+name: Raptor Quality Gate
+
+on:
+  push:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Static quality and application contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact proposed revision
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Lint every GitHub Actions workflow
+        run: docker run --rm -v "$PWD:/repo" --workdir /repo rhysd/actionlint:1.7.12 -color
+
+      - name: Validate Raptor installers, embedded applications, and integration contracts
+        run: |
+          chmod +x .github/scripts/validate.sh
+          .github/scripts/validate.sh
+
+      - name: Syntax-check every tracked shell script
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' script; do
+            bash -n "$script"
+          done < <(git ls-files -z '*.sh')
