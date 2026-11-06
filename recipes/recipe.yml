@@ -103,7 +103,9 @@ modules:
       # System utilities
       - fastfetch
       - htop
-      - p7zip
+      - ark
+      - 7zip
+      - unzip
       - curl
       - wget
       - jq
