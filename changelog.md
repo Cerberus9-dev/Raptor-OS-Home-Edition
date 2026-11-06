@@ -6,6 +6,14 @@
 
 This is the consolidation release for more than two months of sustained Raptor OS overhaul work. The scope includes substantial changes across performance and memory management, gaming and GPU behavior, audio, Cortex, update reliability, hardware recovery, browser and chat-client choice, build validation, and the installation/distribution path. The intent is to ship the work as one coherent major update rather than scatter it across a long sequence of small version bumps.
 
+### Wi-Fi connection reliability
+
+- Fixed a watchdog logic error that treated NetworkManager's connecting/configuring states as healthy forever, allowing stalled Wi-Fi activation to evade recovery indefinitely.
+- Added a per-adapter stalled-activation counter, a three-minute grace period, and a serialized recovery lock so timer and resume recovery cannot fight each other.
+- Bounded NetworkManager CLI operations to prevent a stuck D-Bus request from holding the recovery helper open indefinitely.
+- Removed automatic Wi-Fi driver reload from background/watch/resume recovery. Recovery now stops after a bounded radio reset and reports the failure; driver reload remains available only through explicit force recovery.
+- Preserved saved connection profiles and credentials; the watchdog does not delete networks or alter their security settings.
+
 ### Wine and Proton reliability
 
 - Kept the normal Wine installer independent of UMU availability: Wine and its KDE integration can still be installed even if the optional Proton launcher is unavailable. The Proton action now checks for UMU only when the user invokes it.
