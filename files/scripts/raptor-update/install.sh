@@ -63,6 +63,18 @@ cat << 'EOF' > /usr/share/polkit-1/actions/io.github.cerberus9dev.raptorupdate.p
     <annotate key="org.freedesktop.policykit.exec.allow_gui">true</annotate>
   </action>
 
+  <action id="io.github.cerberus9dev.raptorupdate.rollback">
+    <description>Roll back to the previous Raptor OS deployment</description>
+    <message>Authentication required to stage a system rollback</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/lib/raptor/rollback-helper</annotate>
+    <annotate key="org.freedesktop.policykit.exec.allow_gui">true</annotate>
+  </action>
+
 </policyconfig>
 EOF
 
@@ -361,6 +373,32 @@ exec systemctl reboot
 EOF
 chmod +x /usr/lib/raptor/reboot-helper
 
+# Rollback only changes the next boot's default deployment. It does not reboot,
+# delete user data, or alter the current deployment. Keep the helper conservative:
+# require valid rpm-ostree JSON and at least two available deployments.
+cat << 'EOF' > /usr/lib/raptor/rollback-helper
+#!/bin/bash
+set -euo pipefail
+if ! command -v rpm-ostree >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
+    echo "Rollback unavailable: rpm-ostree or jq is missing." >&2
+    exit 1
+fi
+status="$(timeout 20 rpm-ostree status --json)"
+count="$(printf '%s' "$status" | jq -er '.deployments | length')"
+if [[ ! "$count" =~ ^[0-9]+$ ]] || (( count < 2 )); then
+    echo "No previous deployment is available to roll back to." >&2
+    exit 2
+fi
+if ! printf '%s' "$status" | jq -e '[.deployments[] | select(.booted == true)] | length == 1' >/dev/null; then
+    echo "Could not identify exactly one currently booted deployment; refusing rollback." >&2
+    exit 3
+fi
+echo "Staging rollback to the previous OSTree deployment…"
+rpm-ostree rollback
+echo "Rollback staged. Restart the computer to boot the previous deployment."
+EOF
+chmod +x /usr/lib/raptor/rollback-helper
+
 # ── Sudoers fallback ──────────────────────────────────────────────────────────
 # These NOPASSWD rules are what lets the GUI run the helpers without a polkit
 # agent, so run_privileged() picks `sudo -n`. If this file is malformed, sudo
@@ -375,6 +413,7 @@ ALL ALL=(root) NOPASSWD: /usr/lib/raptor/update-helper
 ALL ALL=(root) NOPASSWD: /usr/lib/raptor/check-helper
 ALL ALL=(root) NOPASSWD: /usr/lib/raptor/flatpak-update-helper
 ALL ALL=(root) NOPASSWD: /usr/lib/raptor/reboot-helper
+ALL ALL=(root) NOPASSWD: /usr/lib/raptor/rollback-helper
 EOF
 chmod 440 /etc/sudoers.d/raptor-update
 if command -v visudo >/dev/null 2>&1; then
@@ -430,6 +469,8 @@ CHECK_HELPER          = "/usr/lib/raptor/check-helper"
 CHECK_ACTION          = "io.github.cerberus9dev.raptorupdate.check"
 FLATPAK_UPDATE_HELPER = "/usr/lib/raptor/flatpak-update-helper"
 REBOOT_HELPER         = "/usr/lib/raptor/reboot-helper"
+ROLLBACK_HELPER       = "/usr/lib/raptor/rollback-helper"
+ROLLBACK_ACTION       = "io.github.cerberus9dev.raptorupdate.rollback"
 # NOPASSWD rules that let the helpers run without a polkit agent.
 SUDOERS_FILE          = "/etc/sudoers.d/raptor-update"
 # Wall-clock budget for the whole privileged refresh. check-helper already
@@ -847,12 +888,13 @@ class RaptorUpdateWindow(Adw.ApplicationWindow):
         self._validate_installation()
         threading.Thread(target=self._do_check,       daemon=True).start()
         threading.Thread(target=self._load_changelog, daemon=True).start()
+        threading.Thread(target=self._check_rollback_available, daemon=True).start()
 
     def _validate_installation(self):
         """Check that all required helpers and sudoers are present.
         Shows a warning in the console if something is missing."""
         missing = []
-        for helper in (UPDATE_HELPER, CHECK_HELPER, FLATPAK_UPDATE_HELPER, REBOOT_HELPER):
+        for helper in (UPDATE_HELPER, CHECK_HELPER, FLATPAK_UPDATE_HELPER, REBOOT_HELPER, ROLLBACK_HELPER):
             if not os.path.exists(helper):
                 missing.append(f"Missing: {helper}")
         # NOTE: do not os.path.exists(SUDOERS_FILE) here. /etc/sudoers.d is mode 0750
@@ -1003,8 +1045,102 @@ class RaptorUpdateWindow(Adw.ApplicationWindow):
         self.cancel_reboot_btn.connect("clicked", self.on_cancel_reboot)
         btn_box.append(self.cancel_reboot_btn)
 
+        self.rollback_btn = Gtk.Button(label="Roll Back System")
+        self.rollback_btn.add_css_class("pill")
+        self.rollback_btn.add_css_class("destructive-action")
+        self.rollback_btn.set_sensitive(False)
+        self.rollback_btn.set_tooltip_text("Boot the previous Raptor OS deployment if an update caused problems")
+        self.rollback_btn.connect("clicked", self.on_rollback_clicked)
+        btn_box.append(self.rollback_btn)
+
         self.update_spinner = Gtk.Spinner()
         btn_box.append(self.update_spinner)
+
+    # ── Deployment recovery ───────────────────────────────────────────────────
+
+    def _check_rollback_available(self):
+        import json
+        available = False
+        try:
+            result = subprocess.run(
+                ["rpm-ostree", "status", "--json"],
+                capture_output=True, text=True, timeout=20,
+            )
+            if result.returncode == 0:
+                deployments = json.loads(result.stdout).get("deployments", [])
+                available = (
+                    len(deployments) >= 2
+                    and sum(1 for item in deployments if item.get("booted") is True) == 1
+                )
+        except (OSError, subprocess.TimeoutExpired, ValueError, TypeError):
+            available = False
+        GLib.idle_add(self.rollback_btn.set_sensitive, available)
+
+    def on_rollback_clicked(self, _btn):
+        if self._update_running:
+            return
+        heading = "Roll Back Raptor OS?"
+        body = (
+            "Raptor OS will select the previous system deployment for the next boot. "
+            "Your personal files are not intentionally changed. This does not roll back "
+            "Flatpak apps or every setting in your home folder. Save open work, then restart "
+            "after the rollback is staged. Continue?"
+        )
+        try:
+            dialog = Adw.AlertDialog(heading=heading, body=body)
+            dialog.add_response("cancel", "Cancel")
+            dialog.add_response("rollback", "Stage Rollback")
+            dialog.set_response_appearance("rollback", Adw.ResponseAppearance.DESTRUCTIVE)
+            dialog.connect("response", self._on_rollback_confirmed)
+            dialog.present(self)
+        except AttributeError:
+            dialog = Adw.MessageDialog(transient_for=self, heading=heading, body=body)
+            dialog.add_response("cancel", "Cancel")
+            dialog.add_response("rollback", "Stage Rollback")
+            dialog.set_response_appearance("rollback", Adw.ResponseAppearance.DESTRUCTIVE)
+            dialog.connect("response", self._on_rollback_confirmed)
+            dialog.present()
+
+    def _on_rollback_confirmed(self, _dialog, response):
+        if response != "rollback":
+            return
+        self.rollback_btn.set_sensitive(False)
+        self.check_btn.set_sensitive(False)
+        self.update_btn.set_sensitive(False)
+        self.update_spinner.start()
+        self._append_console("── Staging system rollback ──\\n")
+        threading.Thread(target=self._run_rollback, daemon=True).start()
+
+    def _run_rollback(self):
+        try:
+            proc = run_privileged(ROLLBACK_HELPER, action_id=ROLLBACK_ACTION)
+            rc = stream_process(
+                proc,
+                lambda line: GLib.idle_add(self._append_console, ANSI_ESCAPE.sub("", line)),
+                timeout=120,
+            )
+        except Exception as exc:
+            GLib.idle_add(self._on_rollback_done, -1, str(exc))
+            return
+        GLib.idle_add(self._on_rollback_done, rc, "")
+
+    def _on_rollback_done(self, rc, error):
+        self.update_spinner.stop()
+        self.check_btn.set_sensitive(True)
+        if rc == 0:
+            self._append_console("\\nRollback staged successfully. Restart when ready to boot the previous deployment.\\n")
+            self._set_status(
+                "Previous system selected. Restart to complete rollback.",
+                "emblem-ok-symbolic", "success")
+            self.subtitle.set_text("Rollback is ready; no automatic restart was performed.")
+            self.rollback_btn.set_sensitive(False)
+        else:
+            self._append_console(f"\\nRollback failed: {error or f'exit {rc}'}.\\n")
+            self._set_status(
+                "Rollback could not be staged. The current system was left in place.",
+                "dialog-warning-symbolic", "warning")
+            self.rollback_btn.set_sensitive(True)
+            self.update_btn.set_sensitive(self._ostree_has_update or self._flatpak_has_update)
 
     # ── Changelog ─────────────────────────────────────────────────────────────
 
@@ -1433,6 +1569,7 @@ RAPTOR_EXPECTED_PAYLOAD="
 /usr/lib/raptor/check-helper
 /usr/lib/raptor/flatpak-update-helper
 /usr/lib/raptor/reboot-helper
+/usr/lib/raptor/rollback-helper
 /usr/share/applications/raptor-update.desktop
 /usr/share/polkit-1/actions/io.github.cerberus9dev.raptorupdate.policy
 "
@@ -1450,7 +1587,8 @@ for raptor_shell in \
     /usr/lib/raptor/update-helper \
     /usr/lib/raptor/check-helper \
     /usr/lib/raptor/flatpak-update-helper \
-    /usr/lib/raptor/reboot-helper; do
+    /usr/lib/raptor/reboot-helper \
+    /usr/lib/raptor/rollback-helper; do
     if ! bash -n "$raptor_shell"; then
         echo "UPDATE_MANAGER_SHELL_SYNTAX_ERROR:$raptor_shell" >&2
         exit 1
