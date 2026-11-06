@@ -454,3 +454,13 @@ unset RAPTOR_NM_CONF_DIR RAPTOR_TEST_NMCLI_EXIT
 rm -f "$wifi_helper_tmp"
 rm -rf "$wifi_test_dir"
 echo "Wi-Fi power-management contracts passed."
+
+echo "=== Checking conservative gaming defaults ==="
+assert_contains files/scripts/raptor-gaming/install.sh '@bEnableShaderPreCaching 1'
+assert_not_contains files/scripts/raptor-gaming/install.sh '@nClientDownloadEnableHTTP2PlatformLinux'
+assert_not_contains files/scripts/raptor-gaming/install.sh '@fDownloadRateImprovementToAddAnotherConnection'
+assert_not_contains files/scripts/raptor-gaming/install.sh '@cMaxFileSystemWriteBufferSizeBytes'
+assert_not_contains files/scripts/raptor-gaming/install.sh 'apply_gpu_optimisations=accept-responsibility'
+assert_not_contains files/scripts/raptor-gaming/install.sh 'amd_performance_level=high'
+assert_not_contains files/scripts/raptor-gaming/install.sh 'nv_powermizer_mode=1'
+echo "Conservative gaming defaults passed."
