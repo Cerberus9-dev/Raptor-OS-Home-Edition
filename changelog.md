@@ -24,6 +24,14 @@ This is the consolidation release for more than two months of sustained Raptor O
 - Added a one-time **Welcome to Raptor OS Home** dialog before the existing browser, chat, and optional-app choices. It explains the Raptor app suite in plain language and can be dismissed without blocking setup.
 - The completion stamp is stored per user under the XDG data directory, so the welcome screen does not repeat after dismissal. If the dialog dependency is unavailable, setup continues rather than trapping the user.
 
+### Raptor Tasks and Wallpaper usability polish
+
+- Raptor Tasks now has live text search, an Open/Completed status filter, category filtering, a compact open/completed/total summary, and active-first alphabetical ordering.
+- Recolored the Tasks and Wallpaper application icons to match the aviation-inspired flight-deck navy and instrument-cyan palette.
+- Raptor Wallpaper now includes a larger selected-image preview, the selected filename, live gallery search, and a useful no-results state.
+- Fixed both apps' JSON writers to append a real newline rather than a literal backslash-n sequence, so files saved by the apps remain valid JSON on the next launch.
+- Restored the `apply_wallpaper` function docstring to its proper position before executable statements.
+
 ### Raptor Wallpaper reliability
 
 - Wallpaper settings now use atomic writes, preventing interrupted saves from truncating the previous selection and fit mode.
