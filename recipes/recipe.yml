@@ -17,10 +17,6 @@ modules:
       # login session (needed for GUI dialogs and correct env on Wayland).
       - source: ../files/system_files/raptor-firstboot.service
         destination: /usr/lib/systemd/user/raptor-firstboot.service
-      - source: ../files/system_files/raptor-ensure-services.service
-        destination: /usr/lib/systemd/system/raptor-ensure-services.service
-      - source: ../files/system_files/raptor-powerprofile.service
-        destination: /usr/lib/systemd/system/raptor-powerprofile.service
       - source: ../files/system_files/raptor-app-choice.sh
         destination: /usr/bin/raptor-app-choice.sh
       - source: ../files/system_files/raptor-browser-choice.sh
