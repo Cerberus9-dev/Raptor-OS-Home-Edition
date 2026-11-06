@@ -111,7 +111,7 @@ assert_contains files/scripts/raptor-wine/install.sh "exec wine"
 assert_contains files/scripts/raptor-wine/install.sh "exec umu-run"
 assert_contains files/scripts/raptor-wine/install.sh "Exec=raptor-wine %f"
 assert_contains files/scripts/raptor-wine/install.sh "Exec=raptor-wine-proton %f"
-assert_contains files/scripts/raptor-wine/install.sh "WINEPREFIX=\"$data_dir/$name\""
+assert_contains files/scripts/raptor-wine/install.sh 'export WINEPREFIX="$data_dir/$name"'
 assert_not_contains files/scripts/raptor-wine/install.sh "zenity"
 assert_not_contains files/scripts/raptor-wine/install.sh "wineboot -u"
 assert_not_contains files/scripts/raptor-wine/install.sh "winetricks --unattended"
