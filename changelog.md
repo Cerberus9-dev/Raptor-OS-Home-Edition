@@ -8,6 +8,12 @@ This is the consolidation release for more than two months of sustained Raptor O
 
 ### Choice, compatibility, and distribution improvements
 
+### Optional application catalogue
+
+- Added LocalSend for direct local-network file sharing, Gear Lever for managing AppImages on the immutable desktop, and Resources for CPU, memory, GPU, network, storage, and process monitoring. All remain opt-in Flatpaks and add no idle background services to the base image.
+- First-boot chat-client installation now consistently uses the per-user Flatpak installation, matching the user-session service and avoiding unexpected system-wide installs or administrator prompts.
+
+
 - Expanded the first-boot chat-client chooser beyond official Discord and Vesktop to include Equibop (Equicord) and GoofCord. All are optional downloads; none is silently preinstalled, and skipping remains supported.
 - Documented Meowcord accurately as a separate self-hosted, federated Discord-like service in very early alpha, not a desktop client that can be installed from the first-boot Flatpak chooser.
 - Browser choice now documents the full optional catalogue: Firefox, Brave, Zen Browser, Floorp, Waterfox, Chromium, Chrome, and Edge. The image remains browser-minimal by default.
