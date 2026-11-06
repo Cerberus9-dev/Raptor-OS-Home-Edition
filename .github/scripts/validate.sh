@@ -333,3 +333,29 @@ echo "=== Checking memory compression defaults ==="
 assert_contains files/system_files/zram-generator.conf 'zram-size = min(ram, 8192)'
 assert_contains files/system_files/zram-generator.conf 'compression-algorithm = zstd'
 assert_not_contains files/system_files/zram-generator.conf 'compression-algorithm = lz4'
+
+
+echo "=== Raptor Update Manager rollback and lock-screen validation ==="
+bash -n files/scripts/raptor-update/install.sh
+update_tmp="$(mktemp --suffix=.py)"
+awk "/^cat << 'PYEOF' > \/usr\/bin\/raptor-update$/ { inside=1; next } /^PYEOF$/ && inside { exit } inside { print }" files/scripts/raptor-update/install.sh > "$update_tmp"
+test -s "$update_tmp"
+python3 -c 'import ast, sys; ast.parse(open(sys.argv[1], encoding="utf-8").read())' "$update_tmp"
+grep -Fq 'ROLLBACK_HELPER       = "/usr/lib/raptor/rollback-helper"' "$update_tmp"
+grep -Fq 'def on_rollback_clicked(self, _btn):' "$update_tmp"
+grep -Fq 'def _run_rollback(self):' "$update_tmp"
+grep -Fq 'self.rollback_btn.set_sensitive(available)' "$update_tmp"
+grep -Fq 'No automatic restart was performed.' "$update_tmp"
+rm -f "$update_tmp"
+assert_contains files/scripts/raptor-update/install.sh 'cat << '\''EOF'\'' > /usr/lib/raptor/rollback-helper'
+assert_contains files/scripts/raptor-update/install.sh 'rpm-ostree rollback'
+assert_contains files/scripts/raptor-update/install.sh 'ROLLBACK_ACTION'
+assert_contains files/scripts/raptor-update/install.sh 'io.github.cerberus9dev.raptorupdate.rollback'
+assert_contains files/scripts/raptor-update/install.sh '/usr/lib/raptor/rollback-helper'
+assert_contains files/scripts/raptor-wallpaper-manager/install.sh 'def apply_lockscreen_wallpaper(image_path):'
+assert_contains files/scripts/raptor-wallpaper-manager/install.sh 'kwriteconfig6'
+assert_contains files/scripts/raptor-wallpaper-manager/install.sh 'WallpaperPlugin'
+assert_contains files/scripts/raptor-wallpaper-manager/install.sh 'PreviewImage'
+assert_contains files/scripts/raptor-wallpaper-manager/install.sh 'Apply to Lock Screen'
+assert_contains files/scripts/raptor-wallpaper-manager/install.sh 'import shutil'
+echo "Raptor recovery and lock-screen contracts passed."
