@@ -59,6 +59,7 @@ This is the consolidation release for more than two months of sustained Raptor O
 - Fixed a watchdog logic error that treated NetworkManager's connecting/configuring states as healthy forever, allowing stalled Wi-Fi activation to evade recovery indefinitely.
 - Added a per-adapter stalled-activation counter, a three-minute grace period, and a serialized recovery lock so timer and resume recovery cannot fight each other.
 - Bounded NetworkManager CLI operations to prevent a stuck D-Bus request from holding the recovery helper open indefinitely.
+- Bounded radio-state, saved-profile, scan, and autoconnect queries individually; saved-network inspection is capped to eight profiles, and explicit driver reload commands have time limits so recovery cannot wait forever on one helper call.
 - Removed automatic Wi-Fi driver reload from background/watch/resume recovery. Recovery now stops after a bounded radio reset and reports the failure; driver reload remains available only through explicit force recovery.
 - Preserved saved connection profiles and credentials; the watchdog does not delete networks or alter their security settings.
 
