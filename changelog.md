@@ -6,6 +6,14 @@
 
 This is the consolidation release for more than two months of sustained Raptor OS overhaul work. The scope includes substantial changes across performance and memory management, gaming and GPU behavior, audio, Cortex, update reliability, hardware recovery, browser and chat-client choice, build validation, and the installation/distribution path. The intent is to ship the work as one coherent major update rather than scatter it across a long sequence of small version bumps.
 
+### GPU compatibility and resource safety
+
+- Removed forced AMD Vulkan ICD selection and forced Intel Mesa driver overrides so Mesa/Vulkan can select the supported driver for each device and hybrid-GPU configuration.
+- Removed forced VKD3D feature levels and DXR feature flags. Unsupported capabilities must not be advertised to games by a global environment override.
+- Limited Proton NVAPI enablement to NVIDIA hardware rather than applying it to AMD and Intel systems.
+- Removed experimental RADV performance flags and NVIDIA threaded-optimization overrides from global profiles; removed the setting that disabled NVIDIA shader-cache cleanup to avoid unbounded cache growth.
+- Added CI assertions to prevent these cross-vendor overrides from returning unnoticed.
+
 ### Steam behavior and gaming troubleshooting
 
 - Added evidence-based Steam troubleshooting guidance for sluggish Big Picture/web views, shader pre-caching, and download rates constrained by CPU decompression or storage writes.
