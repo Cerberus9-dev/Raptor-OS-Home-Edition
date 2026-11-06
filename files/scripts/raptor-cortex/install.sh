@@ -366,11 +366,11 @@ case "$ACTION" in
                 # only the radio hardware powers down during idle periods.
                 _apply_net_runtime_pm auto
 
-                # Wi-Fi / Bluetooth power save is deliberately NOT forced on here.
-                # 802.11 power save and Bluetooth sniff/park modes cause missed
-                # reconnects, dropped links and dead adapters after resume on many
-                # laptops. NetworkManager owns Wi-Fi power save (wifi.powersave=2 in
-                # 91-raptor-network.conf) and BlueZ owns Bluetooth link policy.
+                # NetworkManager's normal Wi-Fi power-save default is retained.
+                # Users with adapter-specific reconnect/latency problems can opt in
+                # to disabling it from Settings → Wi-Fi Compatibility. That workaround
+                # is not forced globally because it can reduce laptop battery life.
+                # BlueZ continues to own Bluetooth link policy.
 
                 # Display backlight is deliberately NOT touched here. This used to write
                 # 50% of max straight into /sys/class/backlight every time the mode was
