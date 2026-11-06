@@ -7,14 +7,14 @@ Use the repository script to create a disposable QEMU/KVM virtual machine from a
 | Setting | Default |
 |---|---:|
 | Guest RAM | 4 GiB (4096 MiB) |
-| Virtual CPUs | 2 |
+| Virtual CPU topology | 2 cores / 4 threads (4 vCPUs) |
 | CPU feature baseline | QEMU/libvirt `Skylake-Client` (Core i3-6100 class) |
 | Virtual disk | 64 GiB sparse QCOW2 |
 | Firmware | UEFI (OVMF) |
 | Display | SPICE + virtio video |
 | Network | libvirt default NAT network |
 
-The default CPU target is an Intel Core i3-6100: Skylake, 2 physical cores / 4 threads, 3.7 GHz base/turbo frequency, and Intel HD Graphics 530. The VM uses QEMU's `Skylake-Client` CPU feature model and a 2-core / 4-thread virtual topology. QEMU/KVM does not reproduce the i3-6100's exact clock speed, cache, memory controller, or HD 530 graphics; the guest uses a virtual display adapter. Host CPU speed still affects execution, so use this for install, boot, desktop, and 4 GiB memory-pressure testing—not as a precise physical performance benchmark.
+The default CPU target is an Intel Core i3-6100: Skylake, 2 physical cores / 4 threads, 3.7 GHz clock, 3 MB cache, and Intel HD Graphics 530. The VM uses QEMU's `Skylake-Client` CPU feature model and a 2-core / 4-thread virtual topology. QEMU/KVM cannot enforce the i3-6100's exact 3.7 GHz clock, cache, memory controller, or HD 530 graphics; the guest uses a virtual display adapter. Host CPU speed still affects execution, so use this for install, boot, desktop, and 4 GiB memory-pressure testing—not as a precise physical performance benchmark.
 
 ## Host prerequisites
 
@@ -44,8 +44,8 @@ Optional overrides:
 bash tools/test-minimum-requirements-vm.sh ./raptor-os.iso \
   --name raptor-os-4gb-test \
   --ram-mib 4096 \
-  --vcpus 2 \
-  --cpu-model Nehalem \
+  --vcpus 4 \
+  --cpu-model Skylake-Client \
   --disk-gib 64
 ```
 
