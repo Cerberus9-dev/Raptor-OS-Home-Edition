@@ -233,10 +233,17 @@ jobs:
             echo "::error::Could not read image-version from recipes/recipe.yml"
             exit 1
           fi
+          # BlueBuild tags the output with the Fedora release suffix, not the
+          # full base tag (stable-44 -> -44).
+          IMAGE_VERSION_SUFFIX="${IMAGE_VERSION##*-}"
+          if [[ ! "$IMAGE_VERSION_SUFFIX" =~ ^[0-9]+$ ]]; then
+            echo "::error::Unexpected BlueBuild image-version suffix: $IMAGE_VERSION"
+            exit 1
+          fi
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
-            IMAGE_TAG="pr-$PR_NUMBER-$IMAGE_VERSION"
+            IMAGE_TAG="pr-$PR_NUMBER-$IMAGE_VERSION_SUFFIX"
           else
-            IMAGE_TAG="${REF_NAME//\\//_}-$IMAGE_VERSION"
+            IMAGE_TAG="${REF_NAME//\\//_}-$IMAGE_VERSION_SUFFIX"
           fi
           echo "Verifying BlueBuild image tag: $IMAGE_TAG"
           IMAGE_REF="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/raptor-os:$IMAGE_TAG"
