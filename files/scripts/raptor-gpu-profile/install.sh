@@ -53,34 +53,36 @@ set -euo pipefail
 GPU_VENDOR="unknown"
 GPU_MODEL=""
 
-if lspci 2>/dev/null | grep -i "VGA\|3D\|Display" | grep -qi "nvidia"; then
+# Probe PCI display devices once. Repeated lspci calls (including a verbose
+# full-device scan) were unnecessary work on the boot-critical path.
+GPU_PCI_INFO="$(timeout 3s lspci -nn 2>/dev/null || true)"
+DISPLAY_LINES="$(printf '%s\\n' "$GPU_PCI_INFO" | grep -Ei 'VGA|3D|Display' || true)"
+
+if printf '%s\\n' "$DISPLAY_LINES" | grep -qi "nvidia"; then
     GPU_VENDOR="nvidia"
-    GPU_MODEL=$(lspci | grep -i "VGA\|3D\|Display" | grep -i "nvidia" \
-        | sed 's/.*\[//;s/\].*//' | head -1)
-elif lspci 2>/dev/null | grep -i "VGA\|3D\|Display" | grep -qi "amd\|radeon\|ati"; then
+    GPU_MODEL="$(printf '%s\\n' "$DISPLAY_LINES" | grep -i "nvidia" | sed 's/.*\\[//;s/\\].*//' | head -1)"
+elif printf '%s\\n' "$DISPLAY_LINES" | grep -Eqi "amd|radeon|ati"; then
     GPU_VENDOR="amd"
-    GPU_MODEL=$(lspci | grep -i "VGA\|3D\|Display" | grep -i "amd\|radeon\|ati" \
-        | sed 's/.*\[//;s/\].*//' | head -1)
-elif lspci 2>/dev/null | grep -i "VGA\|3D\|Display" | grep -qi "intel"; then
+    GPU_MODEL="$(printf '%s\\n' "$DISPLAY_LINES" | grep -Ei "amd|radeon|ati" | sed 's/.*\\[//;s/\\].*//' | head -1)"
+elif printf '%s\\n' "$DISPLAY_LINES" | grep -qi "intel"; then
     GPU_VENDOR="intel"
-    GPU_MODEL=$(lspci | grep -i "VGA\|3D\|Display" | grep -i "intel" \
-        | sed 's/.*\[//;s/\].*//' | head -1)
+    GPU_MODEL="$(printf '%s\\n' "$DISPLAY_LINES" | grep -i "intel" | sed 's/.*\\[//;s/\\].*//' | head -1)"
 fi
 echo "Detected GPU vendor: $GPU_VENDOR  model: ${GPU_MODEL:-unknown}"
 
-# ── iGPU / hybrid detection ───────────────────────────────────────────────────
+# Do not mistake an Intel iGPU for an AMD iGPU on Intel+AMD hybrid laptops.
 IS_IGPU=false
 IS_HYBRID=false
-
-if lspci 2>/dev/null | grep -i "VGA\|3D\|Display" | grep -qi "intel"; then
+if [ "$GPU_VENDOR" = "intel" ]; then
     IS_IGPU=true
+elif [ "$GPU_VENDOR" = "amd" ] && ! printf '%s\\n' "$DISPLAY_LINES" | grep -qi "intel"; then
+    AMD_VERBOSE="$(timeout 3s lspci -v 2>/dev/null || true)"
+    if printf '%s\\n' "$AMD_VERBOSE" | grep -Ei 'VGA|3D|Display' -A5 | grep -Eqi 'subsystem.*apu|integrated|cezanne|renoir|lucienne|rembrandt|mendocino|phoenix|hawk point'; then
+        IS_IGPU=true
+    fi
 fi
-if lspci -v 2>/dev/null | grep -i "VGA\|3D\|Display" -A5 | grep -qi \
-    "subsystem.*apu\|integrated\|cezanne\|renoir\|lucienne\|rembrandt\|mendocino\|phoenix\|hawk point"; then
-    IS_IGPU=true
-fi
-DISPLAY_DEVS=$(lspci 2>/dev/null | grep -ic "VGA\|3D\|Display" || echo 0)
-if [ "$DISPLAY_DEVS" -ge 2 ]; then
+DISPLAY_DEVS="$(printf '%s\\n' "$DISPLAY_LINES" | grep -c . || true)"
+if [[ "$DISPLAY_DEVS" =~ ^[0-9]+$ ]] && [ "$DISPLAY_DEVS" -ge 2 ]; then
     IS_HYBRID=true
 fi
 
@@ -116,9 +118,9 @@ _set_intel_gpu_power_mode() {
 _restore_nvidia_power_limit() {
     command -v nvidia-smi >/dev/null 2>&1 || return 0
     local default_limit
-    default_limit=$(nvidia-smi --query-gpu=power.default_limit --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d ' ')
+    default_limit=$(timeout 3s nvidia-smi --query-gpu=power.default_limit --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d ' ')
     if [[ "$default_limit" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
-        nvidia-smi -pl "${default_limit%.*}" >/dev/null 2>&1 || true
+        timeout 3s nvidia-smi -pl "${default_limit%.*}" >/dev/null 2>&1 || true
     fi
 }
 
@@ -165,7 +167,7 @@ ENVEOF
     if [ "$GPU_VENDOR" = "intel" ]; then _set_intel_gpu_power_mode performance; fi
     if [ "$GPU_VENDOR" = "nvidia" ]; then
         _restore_nvidia_power_limit
-        nvidia-smi -pm 1 > /dev/null 2>&1 || true
+        timeout 3s nvidia-smi -pm 1 > /dev/null 2>&1 || true
     fi
     ;;
 
@@ -182,7 +184,7 @@ ENVEOF
     if [ "$GPU_VENDOR" = "intel" ]; then _set_intel_gpu_power_mode performance; fi
     if [ "$GPU_VENDOR" = "nvidia" ]; then
         _restore_nvidia_power_limit
-        nvidia-smi -pm 1 > /dev/null 2>&1 || true
+        timeout 3s nvidia-smi -pm 1 > /dev/null 2>&1 || true
     fi
     ;;
 
@@ -197,7 +199,7 @@ ENVEOF
     if [ "$GPU_VENDOR" = "intel" ]; then _set_intel_gpu_power_mode balanced; fi
     if [ "$GPU_VENDOR" = "nvidia" ]; then
         _restore_nvidia_power_limit
-        nvidia-smi -pm 0 > /dev/null 2>&1 || true
+        timeout 3s nvidia-smi -pm 0 > /dev/null 2>&1 || true
     fi
     ;;
 
@@ -226,11 +228,11 @@ ENVEOF
     if [ "$GPU_VENDOR" = "nvidia" ]; then
         # Let the GPU power down at idle and apply a conservative 80% TDP cap.
         # Other profiles restore the firmware default power limit.
-        nvidia-smi -pm 0 > /dev/null 2>&1 || true
-        MAX_PL=$(nvidia-smi --query-gpu=power.default_limit --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d ' ')
+        timeout 3s nvidia-smi -pm 0 > /dev/null 2>&1 || true
+        MAX_PL=$(timeout 3s nvidia-smi --query-gpu=power.default_limit --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d ' ')
         if [[ "$MAX_PL" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
             TARGET=$(awk -v limit="$MAX_PL" 'BEGIN { printf "%d", limit * 0.8 }')
-            [ "$TARGET" -gt 0 ] && nvidia-smi -pl "$TARGET" > /dev/null 2>&1 || true
+            [ "$TARGET" -gt 0 ] && timeout 3s nvidia-smi -pl "$TARGET" > /dev/null 2>&1 || true
         fi
     fi
     ;;
@@ -275,7 +277,7 @@ ENVEOF
     if [ "$GPU_VENDOR" = "intel" ]; then _set_intel_gpu_power_mode balanced; fi
     if [ "$GPU_VENDOR" = "nvidia" ]; then
         _restore_nvidia_power_limit
-        nvidia-smi -pm 0 > /dev/null 2>&1 || true
+        timeout 3s nvidia-smi -pm 0 > /dev/null 2>&1 || true
     fi
     ;;
 esac
@@ -294,7 +296,7 @@ if [ -f "$ENVFILE" ]; then
     done < "$ENVFILE"
 
     if [ ${#LIVE_VARS[@]} -gt 0 ]; then
-        for uid in $(loginctl list-users --no-legend 2>/dev/null | awk '{print $1}'); do
+        for uid in $(timeout 2s loginctl list-users --no-legend 2>/dev/null | awk '{print $1}'); do
             RUNTIME_DIR="/run/user/$uid"
             if [ -d "$RUNTIME_DIR" ]; then
                 DBUS="unix:path=$RUNTIME_DIR/bus"
@@ -302,7 +304,7 @@ if [ -f "$ENVFILE" ]; then
                 # only accepts variable names already in the current env — wrong here).
                 sudo -u "#$uid" \
                      DBUS_SESSION_BUS_ADDRESS="$DBUS" \
-                     systemctl --user set-environment "${LIVE_VARS[@]}" \
+                     timeout 2s systemctl --user set-environment "${LIVE_VARS[@]}" \
                      2>/dev/null || true
                 USER_ENVDIR="$(getent passwd "$uid" | cut -d: -f6)/.config/environment.d"
                 mkdir -p "$USER_ENVDIR" 2>/dev/null || true
@@ -311,9 +313,6 @@ if [ -f "$ENVFILE" ]; then
         done
     fi
 fi
-
-# ── Reload sysctl ─────────────────────────────────────────────────────────────
-sysctl --system > /dev/null 2>&1 || true
 
 echo "GPU_PROFILE_READY  profile=$PROFILE  vendor=$GPU_VENDOR  igpu=$IS_IGPU  hybrid=$IS_HYBRID"
 DETECT
