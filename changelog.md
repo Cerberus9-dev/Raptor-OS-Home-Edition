@@ -2065,3 +2065,7 @@ This is the consolidation release for more than two months of sustained Raptor O
 - Added **Flameshot** as an optional screenshot capture and annotation tool.
 - Added **Save Desktop** as an optional desktop-configuration backup and restore tool.
 - Both remain opt-in Flatpaks; neither adds a default background service or increases the base image footprint.
+
+
+### Raptor app visual consistency
+- Aligned the Raptor Cortex, Raptor Wallpaper, and Raptor Update Manager application icons with the Raptor green-on-graphite identity. App glyphs remain distinct while sharing a consistent accent palette.
