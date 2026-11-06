@@ -31,18 +31,23 @@ COUNT_FILE="$STATE_DIR/wifi-fail-count"
 mkdir -p "$STATE_DIR"
 log() { logger -t raptor-wifi "$*" 2>/dev/null || echo "raptor-wifi: $*" >&2; }
 
-nmcli general status >/dev/null 2>&1 || exit 0          # NetworkManager not running
-wifi_devs()  { nmcli -t -f DEVICE,TYPE device 2>/dev/null | awk -F: '$2=="wifi"{print $1}'; }
-dev_state()  { nmcli -t -g GENERAL.STATE device show "$1" 2>/dev/null | head -1; }
+# Prevent overlapping timer/resume recovery attempts from fighting each other.
+exec 9>"$STATE_DIR/wifi-recover.lock"
+flock -n 9 || exit 0
+
+nmcli_status() { timeout 5 nmcli "$@" 2>/dev/null; }
+nmcli_status general status >/dev/null || exit 0          # NetworkManager not running
+wifi_devs()  { timeout 5 nmcli -t -f DEVICE,TYPE device 2>/dev/null | awk -F: '$2=="wifi"{print $1}'; }
+dev_state()  { timeout 5 nmcli -t -g GENERAL.STATE device show "$1" 2>/dev/null | head -1; }
 connected()  { [[ "$(dev_state "$1")" == 100* ]]; }
 busy()       { local s; s="$(dev_state "$1")"; [[ "$s" =~ ^(40|50|60|70|80|90)\  ]]; }
 have_profiles() { nmcli -t -f TYPE connection show 2>/dev/null | grep -q '^802-11-wireless$'; }
 wait_for()   { local d="$1" t="$2"; while (( t > 0 )); do connected "$d" && return 0; sleep 1; t=$((t-1)); done; return 1; }
 known_in_range() {
     local known scan
-    known="$(nmcli -t -f NAME,TYPE connection show 2>/dev/null | awk -F: '$2=="802-11-wireless"{print $1}' |
-             while read -r n; do nmcli -g 802-11-wireless.ssid connection show "$n" 2>/dev/null; done)"
-    scan="$(nmcli -t -f SSID device wifi list 2>/dev/null | sed 's/\\:/:/g')"
+    known="$(timeout 8 nmcli -t -f NAME,TYPE connection show 2>/dev/null | awk -F: '$2=="802-11-wireless"{print $1}' |
+             while read -r n; do timeout 5 nmcli -g 802-11-wireless.ssid connection show "$n" 2>/dev/null; done)"
+    scan="$(timeout 12 nmcli -t -f SSID device wifi list 2>/dev/null | sed 's/\\:/:/g')"
     [[ -n "$known" && -n "$scan" ]] && grep -Fxqf <(printf '%s\n' "$known") <(printf '%s\n' "$scan")
 }
 scan_empty() { [[ -z "$(nmcli -t -f SSID device wifi list 2>/dev/null | tr -d '[:space:]')" ]]; }
@@ -50,12 +55,12 @@ scan_empty() { [[ -z "$(nmcli -t -f SSID device wifi list 2>/dev/null | tr -d '[
 level1() {  # make sure autoconnect is allowed, then ask NM to connect
     local d="$1"; log "L1: re-enable autoconnect and connect $d"
     nmcli device set "$d" autoconnect yes 2>/dev/null || true
-    nmcli -w 20 device connect "$d" >/dev/null 2>&1 || true
+    timeout 25 nmcli -w 20 device connect "$d" >/dev/null 2>&1 || true
     wait_for "$d" 5
 }
 level2() {  # power-cycle the radio
     local d="$1"; log "L2: power-cycling the Wi-Fi radio ($d)"
-    nmcli radio wifi off 2>/dev/null; sleep 2; nmcli radio wifi on 2>/dev/null; sleep 3
+    timeout 8 nmcli radio wifi off 2>/dev/null || true; sleep 2; timeout 8 nmcli radio wifi on 2>/dev/null || true; sleep 3
     nmcli device set "$d" autoconnect yes 2>/dev/null || true
     wait_for "$d" 25
 }
@@ -80,18 +85,27 @@ level3() {  # reload the driver
 # Wi-Fi is working fine -- leave it alone. force mode (manual) skips this check.
 worth_escalating() { known_in_range || scan_empty; }
 
-recover() {  # recover <mode> <dev>
-    local mode="$1" d="$2"
-    level1 "$d" && return 0
+recover() {  # recover <mode> <dev> [stalled]
+    local mode="$1" d="$2" stalled="${3:-no}"
+    if [[ "$stalled" != yes ]]; then
+        level1 "$d" && return 0
+    else
+        log "$mode: activation remained stuck; skipping another concurrent connect request"
+    fi
     if [[ "$mode" != force ]]; then
-        nmcli device wifi rescan >/dev/null 2>&1; sleep 4
+        timeout 12 nmcli device wifi rescan >/dev/null 2>&1 || true; sleep 4
         worth_escalating || { log "$mode: no known network in range, leaving $d alone"; return 1; }
     fi
     level2 "$d" && return 0
     if [[ "$mode" != force ]]; then
         worth_escalating || { log "$mode: no known network in range after radio cycle, not reloading the driver"; return 1; }
     fi
-    level3 "$d"
+    if [[ "$mode" == force ]]; then
+        level3 "$d"
+    else
+        log "$mode: radio reset did not recover Wi-Fi; automatic driver reload skipped for safety"
+        return 1
+    fi
 }
 
 # pre: remember whether Wi-Fi was connected before suspend. Recovery after resume
@@ -120,25 +134,53 @@ for dev in $(wifi_devs); do
             n=0; while busy "$dev" && (( n++ < 20 )); do sleep 1; done
             connected "$dev" && continue
             log "resume: $dev not connected after resume"
-            recover resume "$dev" && log "resume: $dev reconnected" || log "resume: $dev still not connected"
+            if busy "$dev"; then
+                recover resume "$dev" yes && log "resume: $dev reconnected" || log "resume: $dev still not connected"
+            else
+                recover resume "$dev" && log "resume: $dev reconnected" || log "resume: $dev still not connected"
+            fi
             ;;
         watch)
             have_profiles || { echo 0 > "$COUNT_FILE"; continue; }
             [[ "$(nmcli radio wifi 2>/dev/null)" == enabled ]] || { echo 0 > "$COUNT_FILE"; continue; }
-            if connected "$dev" || busy "$dev"; then
-                connected "$dev" && touch "$STATE_DIR/wifi-ever-connected"
-                echo 0 > "$COUNT_FILE"; continue
+            if connected "$dev"; then
+                touch "$STATE_DIR/wifi-ever-connected"
+                echo 0 > "$COUNT_FILE"
+                echo 0 > "$STATE_DIR/wifi-busy-count-$dev"
+                continue
+            fi
+            # A connecting/configuring state is not proof of health. Give
+            # NetworkManager three timer intervals (about three minutes) to
+            # finish, then treat a persistent activation as a stalled attempt.
+            stalled=no
+            if busy "$dev"; then
+                busy_n=$(( $(cat "$STATE_DIR/wifi-busy-count-$dev" 2>/dev/null || echo 0) + 1 ))
+                echo "$busy_n" > "$STATE_DIR/wifi-busy-count-$dev"
+                if (( busy_n < 3 )); then
+                    echo 0 > "$COUNT_FILE"
+                    continue
+                fi
+                log "watch: $dev has remained in an activation state for about three minutes"
+                stalled=yes
+                echo 0 > "$STATE_DIR/wifi-busy-count-$dev"
+            else
+                echo 0 > "$STATE_DIR/wifi-busy-count-$dev"
             fi
             # Wi-Fi that never connected this boot (Ethernet-only use, nothing in range)
             # is not "dropped": never escalate on it.
             [[ -e "$STATE_DIR/wifi-ever-connected" ]] || { echo 0 > "$COUNT_FILE"; continue; }
+            if [[ "$stalled" == yes ]]; then
+                echo 0 > "$COUNT_FILE"
+                recover watch "$dev" yes && log "watch: $dev recovered from stalled activation" || log "watch: $dev remains disconnected after bounded recovery"
+                continue
+            fi
             n=$(( $(cat "$COUNT_FILE" 2>/dev/null || echo 0) + 1 ))
             echo "$n" > "$COUNT_FILE"
             if   (( n == 2 )); then level1 "$dev"
             elif (( n == 4 )) && { known_in_range || scan_empty; }; then level2 "$dev"
             elif (( n >= 8 )); then
                 echo 0 > "$COUNT_FILE"
-                known_in_range && level3 "$dev"
+                log "watch: repeated Wi-Fi failures; automatic driver reload is disabled (use explicit recovery if needed)"
             fi
             ;;
     esac
