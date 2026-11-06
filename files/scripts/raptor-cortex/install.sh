@@ -1774,6 +1774,11 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         stats_group = Adw.PreferencesGroup(title="System Memory")
         content.append(stats_group)
 
+        gpu_telemetry_group = Adw.PreferencesGroup(
+            title="GPU telemetry",
+            description="Live readings from the graphics driver. Unsupported sensors are simply omitted.")
+        graphics_content.append(gpu_telemetry_group)
+
         ram_row = Adw.ActionRow(title="RAM Usage")
         self.ram_bar = Gtk.LevelBar()
         self.ram_bar.set_min_value(0)
@@ -1814,7 +1819,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         self.gpu_temp_label = Gtk.Label(label="…")
         self.gpu_temp_label.add_css_class("dim-label")
         self.gpu_temp_row.add_suffix(self.gpu_temp_label)
-        stats_group.add(self.gpu_temp_row)
+        gpu_telemetry_group.add(self.gpu_temp_row)
 
         self.gpu_info_row = Adw.ActionRow(title="Graphics Processor")
         self.gpu_info_row.set_subtitle("Model, utilization, clock and dedicated memory when exposed by the driver")
@@ -1823,7 +1828,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         self.gpu_info_label.set_wrap(True)
         self.gpu_info_label.set_justify(Gtk.Justification.RIGHT)
         self.gpu_info_row.add_suffix(self.gpu_info_label)
-        stats_group.add(self.gpu_info_row)
+        gpu_telemetry_group.add(self.gpu_info_row)
 
         # Read-only fan information — Cortex never writes fan speed or curves.
         self.fan_row = Adw.ActionRow(title="Fans")
@@ -1833,7 +1838,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         self.fan_label.set_wrap(True)
         self.fan_label.set_justify(Gtk.Justification.RIGHT)
         self.fan_row.add_suffix(self.fan_label)
-        stats_group.add(self.fan_row)
+        gpu_telemetry_group.add(self.fan_row)
 
         self.cpu_freq_row = Adw.ActionRow(title="CPU Frequency")
         self.cpu_freq_label = Gtk.Label(label="…")
