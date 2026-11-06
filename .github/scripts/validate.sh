@@ -226,6 +226,11 @@ assert_contains files/scripts/raptor-hardware-fixes/install.sh 'wifi-busy-count-
 assert_contains files/scripts/raptor-hardware-fixes/install.sh 'activation remained stuck'
 assert_contains files/scripts/raptor-hardware-fixes/install.sh 'automatic driver reload skipped for safety'
 assert_not_contains files/scripts/raptor-hardware-fixes/install.sh 'known_in_range && level3 "$dev"'
+assert_contains files/scripts/raptor-hardware-fixes/install.sh 'nmcli_status() { timeout 5 nmcli'
+assert_contains files/scripts/raptor-hardware-fixes/install.sh 'count++ < 8'
+assert_contains files/scripts/raptor-hardware-fixes/install.sh 'timeout 10 modprobe'
+assert_not_contains files/scripts/raptor-hardware-fixes/install.sh 'nmcli radio wifi 2>/dev/null'
+assert_not_contains files/scripts/raptor-hardware-fixes/install.sh 'nmcli device set "$d" autoconnect yes 2>/dev/null'
 
 echo "=== Checking first-login welcome and hardware telemetry ==="
 assert_contains files/scripts/raptor-hardware-fixes/install.sh 'Welcome to Raptor OS Home'
