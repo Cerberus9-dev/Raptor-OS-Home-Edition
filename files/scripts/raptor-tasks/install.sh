@@ -42,20 +42,52 @@ class Task:
 CATEGORIES = ["Personal", "Work", "Gaming", "Shopping", "Ideas", "Other"]
 
 def load_tasks():
+    if not CONFIG_FILE.exists():
+        return []
     try:
-        with open(CONFIG_FILE) as f:
-            data = json.load(f)
-        return [Task.from_dict(t) for t in data]
-    except Exception:
+        with CONFIG_FILE.open(encoding="utf-8") as stream:
+            data = json.load(stream)
+        if not isinstance(data, list):
+            raise ValueError("task file root must be a list")
+        tasks = []
+        for item in data:
+            if not isinstance(item, dict) or not isinstance(item.get("text"), str):
+                raise ValueError("invalid task entry")
+            tasks.append(Task.from_dict(item))
+        return tasks
+    except (OSError, ValueError, TypeError, KeyError, json.JSONDecodeError) as exc:
+        # Never silently treat a damaged file as an empty list: that could
+        # overwrite a user's tasks on the next save.
+        backup = CONFIG_FILE.with_suffix(".json.corrupt")
+        suffix = 1
+        while backup.exists():
+            backup = CONFIG_FILE.with_suffix(f".json.corrupt.{suffix}")
+            suffix += 1
+        try:
+            CONFIG_FILE.replace(backup)
+            print(f"[raptor-tasks] unreadable task data preserved at {backup}: {exc}", file=sys.stderr)
+        except OSError as backup_error:
+            print(f"[raptor-tasks] could not read task data ({exc}) or preserve it ({backup_error})", file=sys.stderr)
         return []
 
 def save_tasks(tasks):
+    CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    temporary = CONFIG_FILE.with_suffix(".json.tmp")
     try:
-        CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
-        with open(CONFIG_FILE, "w") as f:
-            json.dump([t.to_dict() for t in tasks], f, indent=2)
-    except Exception as e:
-        print(f"[raptor-tasks] could not save: {e}", file=sys.stderr)
+        with temporary.open("w", encoding="utf-8") as stream:
+            json.dump([task.to_dict() for task in tasks], stream, indent=2, ensure_ascii=False)
+            stream.write("\\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        temporary.replace(CONFIG_FILE)
+        return True
+    except OSError as exc:
+        try:
+            temporary.unlink(missing_ok=True)
+        except OSError:
+            pass
+        print(f"[raptor-tasks] could not save: {exc}", file=sys.stderr)
+        return False
 
 
 class TaskRow(Adw.ActionRow):
@@ -157,6 +189,12 @@ class RaptorTasksWindow(Adw.ApplicationWindow):
 
         self.list_box = Gtk.ListBox()
         self.list_box.set_selection_mode(Gtk.SelectionMode.NONE)
+        self.list_box.add_css_class("boxed-list")
+        empty = Adw.StatusPage()
+        empty.set_icon_name("view-list-symbolic")
+        empty.set_title("No tasks yet")
+        empty.set_description("Add a task to start organizing your day.")
+        self.list_box.set_placeholder(empty)
         scroll.set_child(self.list_box)
 
         # Keyboard shortcuts
@@ -168,7 +206,10 @@ class RaptorTasksWindow(Adw.ApplicationWindow):
             Gtk.ShortcutTrigger.parse_string("<Ctrl>n"),
             Gtk.CallbackAction.new(self._on_add_clicked, None)
         )
-        self.add_shortcut(shortcut)
+        controller = Gtk.ShortcutController()
+        controller.set_scope(Gtk.ShortcutScope.LOCAL)
+        controller.add_shortcut(shortcut)
+        self.add_controller(controller)
 
     def _on_category_changed(self, combo):
         self._current_category = combo.get_active_id() or "All"
@@ -198,13 +239,21 @@ class RaptorTasksWindow(Adw.ApplicationWindow):
 
     def _on_toggle(self, row):
         row.task.done = not row.task.done
-        save_tasks(self.tasks)
+        if not save_tasks(self.tasks):
+            row.task.done = not row.task.done
+            self._toast("Couldn't save changes — check file permissions")
+            return
         self._refresh_list()
         self._toast("Task " + ("completed" if row.task.done else "reopened"))
 
     def _on_delete(self, row):
         self.tasks = [t for t in self.tasks if t.id != row.task.id]
-        save_tasks(self.tasks)
+        previous = self.tasks
+        self.tasks = [t for t in self.tasks if t.id != row.task.id]
+        if not save_tasks(self.tasks):
+            self.tasks = previous
+            self._toast("Couldn't save changes — task was not deleted")
+            return
         self._refresh_list()
         self._toast("Task deleted")
 
@@ -214,7 +263,9 @@ class RaptorTasksWindow(Adw.ApplicationWindow):
             self.tasks[existing] = task
         else:
             self.tasks.append(task)
-        save_tasks(self.tasks)
+        if not save_tasks(self.tasks):
+            self._toast("Couldn't save task — check file permissions")
+            return
         self._refresh_list()
 
     def _toast(self, msg):
