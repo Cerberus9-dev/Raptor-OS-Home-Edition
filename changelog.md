@@ -1,5 +1,12 @@
 # Changelog
 
+## V3.0 reliability follow-up — suspend/resume and CI regression cleanup
+
+- Removed the unused resume-marker service, redundant lid-open unit, and inactive CPU-governor compatibility unit. Suspend/resume recovery is already handled by the single systemd-sleep hook; target-bound units could run at the wrong point in the suspend transition and add avoidable delay.
+- Kept touchpad rebind and asynchronous Wi-Fi/Bluetooth recovery in the existing post-resume hook, avoiding duplicate recovery paths.
+- Corrected a contradictory gaming validator: shader pre-caching is intentionally retained, and CI now asserts that it remains enabled while risky global Steam/GameMode overrides stay absent.
+- Added regression checks to ensure removed service units are not reintroduced into the image recipe.
+
 ## V3.0 reliability follow-up — conservative gaming defaults
 
 - Removed forced Steam HTTP/2, extra-connection, and write-buffer settings from the system-wide Steam template. They are network-specific troubleshooting knobs, not universal performance wins; shader pre-caching remains enabled.
