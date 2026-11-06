@@ -133,9 +133,6 @@ _set_amd_gpu_power_mode() {
 }
 
 # ── Common env vars ───────────────────────────────────────────────────────────
-# RADV_PERFTEST=gpl: Vulkan Graphics Pipeline Library — pre-compiles shader
-# variant stubs as a library rather than full monolithic programs. Cuts
-# in-game compile stalls by 30-60% on RDNA2+. Safe, well-tested upstream.
 NVAPI_VAR=""
 if [ "$GPU_VENDOR" = "nvidia" ]; then
     NVAPI_VAR="PROTON_ENABLE_NVAPI=1"
@@ -211,7 +208,6 @@ ENVEOF
 # recompiling shaders on every launch costs far more CPU/GPU energy than the
 # occasional cache write saves.
 MESA_SHADER_CACHE_DISABLE=false
-# Disable threaded optimizations: fewer background threads = lower idle power.
 $COMMON_VARS
 ENVEOF
     if [ "$GPU_VENDOR" = "amd" ]; then
