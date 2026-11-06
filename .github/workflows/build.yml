@@ -217,6 +217,8 @@ jobs:
           registry_token: ${{ secrets.GITHUB_TOKEN }}
           pr_event_number: ${{ github.event.number }}
           cosign_private_key: ${{ secrets.SIGNING_SECRET }}
+          # Keep the current runner checkout: it contains the generated app payload commit.
+          skip_checkout: true
 
       - name: Verify both apps inside the published image
         env:
