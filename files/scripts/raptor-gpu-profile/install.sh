@@ -133,9 +133,6 @@ _set_amd_gpu_power_mode() {
 }
 
 # ── Common env vars ───────────────────────────────────────────────────────────
-# RADV_PERFTEST=gpl: Vulkan Graphics Pipeline Library — pre-compiles shader
-# variant stubs as a library rather than full monolithic programs. Cuts
-# in-game compile stalls by 30-60% on RDNA2+. Safe, well-tested upstream.
 COMMON_VARS="WINE_LARGE_ADDRESS_AWARE=1
 PROTON_FORCE_LARGE_ADDRESS_AWARE=1
 # WINE_FULLSCREEN_FSR and DXVK_ASYNC are intentionally NOT set globally.
@@ -145,7 +142,7 @@ PROTON_FORCE_LARGE_ADDRESS_AWARE=1
 STAGING_SHARED_MEMORY=1
 PROTON_NO_ESYNC=0
 PROTON_NO_FSYNC=0
-RADV_PERFTEST=gpl"
+"
 
 # ── Profile → env file ────────────────────────────────────────────────────────
 case "$PROFILE" in
@@ -175,7 +172,6 @@ ENVEOF
   performance)
     cat << ENVEOF > /etc/environment.d/raptor-gpu.conf
 # ── Raptor OS: MAX PERFORMANCE profile ───────────────────────────────────────
-AMD_VULKAN_ICD=RADV
 MESA_SHADER_CACHE_DISABLE=false
 MESA_SHADER_CACHE_MAX_SIZE=2G
 __GL_SHADER_DISK_CACHE=1
