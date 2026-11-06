@@ -1242,7 +1242,7 @@ def get_gpu_memory():
     # used by an integrated GPU with dedicated VRAM.
     try:
         drm = "/sys/class/drm"
-        cards = sorted(x for x in os.listdir(drm) if re.fullmatch(r"card\\d+", x))
+        cards = sorted(x for x in os.listdir(drm) if re.fullmatch(r"card\d+", x))
         for card in cards:
             dev = os.path.join(drm, card, "device")
             used_path = os.path.join(dev, "mem_info_vram_used")
