@@ -129,6 +129,12 @@ echo "=== Checking first-boot recovery contracts ==="
 assert_contains files/system_files/raptor-browser-choice.sh "browser choice deferred; it will retry on the next login"
 assert_contains files/system_files/raptor-chat-choice.sh "chat client choice deferred; it will retry on the next login"
 assert_contains files/system_files/raptor-app-choice.sh "app selection deferred; it will retry on the next login"
+bash -n files/system_files/raptor-app-choice.sh
+assert_contains files/system_files/raptor-app-choice.sh 'Exec=/usr/bin/raptor-app-choice.sh --reopen'
+assert_contains files/system_files/raptor-app-choice.sh 'if [[ -f "${STAMP_FILE}" && "${REOPEN}" -ne 1 ]]'
+assert_contains files/system_files/raptor-app-choice.sh 'if [[ "${REOPEN}" -ne 1 ]]; then touch "${STAMP_FILE}"; fi'
+assert_contains files/system_files/raptor-app-choice.sh '--search-column=3'
+assert_contains files/system_files/raptor-app-choice.sh 'org.kde.kdeconnect'
 assert_not_contains files/system_files/raptor-browser-choice.sh "Writing stamp to avoid loop"
 assert_not_contains files/system_files/raptor-chat-choice.sh "Writing stamp to avoid loop"
 assert_not_contains files/system_files/raptor-app-choice.sh "Writing stamp to avoid loop"
