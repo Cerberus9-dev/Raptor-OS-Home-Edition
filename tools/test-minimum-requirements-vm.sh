@@ -62,7 +62,7 @@ done
 ISO="$(realpath "$ISO")"
 
 [[ "$RAM_MIB" =~ ^[0-9]+$ ]] && ((RAM_MIB >= 2048)) || die "--ram-mib must be an integer of at least 2048."
-[[ "$VCPUS" =~ ^[0-9]+$ ]] && ((VCPUS >= 1 && VCPUS <= 32)) || die "--vcpus must be between 1 and 32."
+[[ "$VCPUS" =~ ^[0-9]+$ ]] && ((VCPUS >= 2 && VCPUS <= 32 && VCPUS % 2 == 0)) || die "--vcpus must be an even number between 2 and 32 (two threads per core)."
 [[ "$DISK_GIB" =~ ^[0-9]+$ ]] && ((DISK_GIB >= 40)) || die "--disk-gib must be an integer of at least 40."
 [[ "$VM_NAME" =~ ^[A-Za-z0-9._-]+$ ]] || die "VM name may contain only letters, numbers, dot, underscore and hyphen."
 
@@ -110,7 +110,7 @@ virt-install \
   --connect "$CONNECT" \
   --name "$VM_NAME" \
   --memory "$RAM_MIB" \
-  --vcpus "$VCPUS,sockets=1,cores=2,threads=2" \
+  --vcpus "$VCPUS,sockets=1,cores=$((VCPUS / 2)),threads=2" \
   --cpu "model=$CPU_MODEL" \
   --machine q35 \
   --os-variant generic \
