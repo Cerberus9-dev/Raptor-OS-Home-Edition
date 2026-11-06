@@ -6,6 +6,12 @@
 
 This is the consolidation release for more than two months of sustained Raptor OS overhaul work. The scope includes substantial changes across performance and memory management, gaming and GPU behavior, audio, Cortex, update reliability, hardware recovery, browser and chat-client choice, build validation, and the installation/distribution path. The intent is to ship the work as one coherent major update rather than scatter it across a long sequence of small version bumps.
 
+### Image build and app-payload verification fixes
+
+- Corrected post-build verification to use BlueBuild's actual version-suffixed image tags. The previous verifier attempted `pr-N`/ `latest`, while the build published `pr-N-VERSION` and branch-version tags, causing a false-negative after a successful image build.
+- Raptor Music and Shroudly installers now fall back to the source-files bind mount when the temporary staging destination is not visible to a later script module. This addresses a real build log where both installers skipped despite the workflow having built and staged their payloads.
+- Added regression assertions for tag derivation and both payload fallback paths.
+
 ### GPU compatibility and resource safety
 
 - Removed forced AMD Vulkan ICD selection and forced Intel Mesa driver overrides so Mesa/Vulkan can select the supported driver for each device and hybrid-GPU configuration.
