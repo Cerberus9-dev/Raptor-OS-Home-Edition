@@ -180,7 +180,7 @@ python3 -c 'import ast, sys; ast.parse(open(sys.argv[1], encoding="utf-8").read(
 grep -Fq 'Gtk.ShortcutController()' "$tasks_tmp"
 grep -Fq 'os.fsync(stream.fileno())' "$tasks_tmp"
 grep -Fq 'CONFIG_FILE.replace(backup)' "$tasks_tmp"
-grep -Fq 'set_placeholder(empty)' "$tasks_tmp"
+grep -Fq 'set_placeholder(self.empty_page)' "$tasks_tmp"
 grep -Fq 'Search tasks' "$tasks_tmp"
 grep -Fq 'self.status_combo' "$tasks_tmp"
 grep -Fq 'No matching tasks' "$tasks_tmp"
