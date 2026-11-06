@@ -6,7 +6,6 @@ Description=Raptor OS Service Health Check
 # immutable OSTree image is a no-op or fails silently on the read-only layer).
 After=multi-user.target
 After=raptor-gpu-profile.service
-After=raptor-powerprofile.service
 
 [Service]
 Type=oneshot
