@@ -18,6 +18,22 @@ This is the consolidation release for more than two months of sustained Raptor O
 - Kept the existing conservative Dolphin safeguards: archive content metadata extraction and the slow archive context-menu plugins remain disabled to avoid known selection/context-menu hangs. This intentionally trades those context-menu entries for responsiveness; archive opening remains through Ark.
 - Added image-build checks that Ark and unzip are present. This does not claim to fix every upstream Ark extraction or multi-volume ZIP bug.
 
+### Cortex control-center redesign
+
+- Reorganized Raptor Cortex into dedicated Overview, Graphics, Games, Optimize, and Settings tabs using the native libadwaita ViewStack/ViewSwitcher controls.
+- Increased the window's usable desktop layout and reduced routine sensor polling from every five seconds to every eight seconds to lower background wakeups on low-power systems.
+- GPU telemetry shows model, utilization, clock and dedicated VRAM where supported; fan reporting remains read-only and only shows sensors exposed by hardware/firmware.
+
+### Memory compression and low-memory behavior
+
+- Updated ZRAM to use standard zstd compression and a maximum size of up to the installed physical RAM, capped at 8 GiB. This favors compression efficiency while keeping CPU cost bounded by the default zstd level.
+- Kept ZRAM rather than enabling Zswap globally. Zswap requires a correctly configured backing swap device and has different failure/performance tradeoffs; forum reports show both ZRAM and Zswap can cause stalls when poorly sized. A blanket switch would be an unsafe guess.
+
+### Dolphin and Ark reliability
+
+- Retained the targeted workaround for known archive metadata/context-menu stalls while keeping Ark as the dedicated archive opener and 7-Zip/unzip backends installed.
+- Documented the limitation: context-menu compress/extract actions may be absent while the upstream plugin issue persists; archive opening remains available through Ark.
+
 ### Cortex GPU and fan telemetry
 
 - Expanded the Graphics Processor row to show the detected adapter model, utilization, active clock, and dedicated VRAM when the kernel/vendor driver exposes those values.
