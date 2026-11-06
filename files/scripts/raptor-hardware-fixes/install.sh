@@ -228,13 +228,13 @@ cat << 'BTUNIT' > /usr/lib/systemd/system/raptor-bt-name.service
 Description=Set a friendly Raptor OS Bluetooth adapter name
 After=bluetooth.service
 Wants=bluetooth.service
+StartLimitIntervalSec=0
 
 [Service]
 Type=oneshot
 ExecStart=/usr/lib/raptor/bt-name
 Restart=on-failure
 RestartSec=15
-StartLimitIntervalSec=0
 
 [Install]
 WantedBy=multi-user.target
