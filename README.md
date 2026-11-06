@@ -36,6 +36,10 @@ Raptor OS uses a restrained aerospace / flight-deck visual language across the d
 
 ---
 
+## GPU compatibility defaults
+
+Raptor GPU profiles avoid forcing Mesa driver selection, Vulkan feature levels, or ray-tracing capabilities globally. The graphics stack selects the driver and supported features for the detected hardware. NVIDIA-specific Proton NVAPI integration is emitted only for NVIDIA systems. Shader-cache cleanup remains enabled so caches do not grow without bounds. Performance profiles adjust supported power policy without replacing the graphics driver's compatibility decisions.
+
 ## Steam performance and troubleshooting
 
 - Keep Steam's shader pre-caching enabled unless troubleshooting a specific issue; disabling it can increase first-run shader compilation stutter.
