@@ -475,7 +475,7 @@ assert_not_contains recipes/recipe.yml 'raptor-lid-open-fix.service'
 assert_not_contains recipes/recipe.yml 'raptor-cpugovernor.service'
 assert_contains files/scripts/raptor-hardware-fixes/install.sh "cat << 'EOF' > /usr/lib/systemd/system-sleep/raptor-resume"
 assert_contains files/scripts/raptor-hardware-fixes/install.sh 'post) rebind_touchpads'
-assert_not_contains files/system_files 'raptor-resume-trigger.service'
-assert_not_contains files/system_files 'raptor-lid-open-fix.service'
-assert_not_contains files/system_files 'raptor-cpugovernor.service'
+test ! -e files/system_files/raptor-resume-trigger.service
+test ! -e files/system_files/raptor-lid-open-fix.service
+test ! -e files/system_files/raptor-cpugovernor.service
 echo "Suspend/resume ownership checks passed."
