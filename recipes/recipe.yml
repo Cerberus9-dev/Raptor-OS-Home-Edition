@@ -207,7 +207,6 @@ modules:
         - power-profiles-daemon.service
         - raptor-ensure-services.service
         - raptor-gpu-profile.service
-        - raptor-powerprofile.service
         - raptor-resume-trigger.service
         - raptor-lid-open-fix.service
         - raptor-bt-name.service
