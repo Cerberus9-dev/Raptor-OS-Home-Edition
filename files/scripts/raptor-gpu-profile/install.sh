@@ -387,7 +387,6 @@ cat << 'SUDOERS' > /etc/sudoers.d/raptor-gpu
 ALL ALL=(root) NOPASSWD: /usr/lib/raptor/gpu-detect.sh
 ALL ALL=(root) NOPASSWD: /usr/bin/touch /etc/raptor-force-*
 ALL ALL=(root) NOPASSWD: /usr/bin/rm -f /etc/raptor-force-*
-ALL ALL=(root) NOPASSWD: /usr/sbin/sysctl --system
 SUDOERS
 chmod 440 /etc/sudoers.d/raptor-gpu
 if command -v visudo >/dev/null 2>&1; then
