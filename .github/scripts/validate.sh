@@ -428,4 +428,29 @@ test -s "$wifi_helper_tmp"
 bash -n "$wifi_helper_tmp"
 grep -Fq "printf '[connection]" "$wifi_helper_tmp"
 rm -f "$wifi_helper_tmp"
+wifi_test_dir="$(mktemp -d)"
+mkdir -p "$wifi_test_dir/bin"
+cat > "$wifi_test_dir/bin/nmcli" <<'NMCLI'
+#!/bin/sh
+exit "${RAPTOR_TEST_NMCLI_EXIT:-0}"
+NMCLI
+chmod +x "$wifi_test_dir/bin/nmcli"
+export PATH="$wifi_test_dir/bin:$PATH"
+export RAPTOR_NM_CONF_DIR="$wifi_test_dir/conf"
+export RAPTOR_TEST_NMCLI_EXIT=0
+bash "$wifi_helper_tmp" wifi-powersave disable
+wifi_conf="$RAPTOR_NM_CONF_DIR/91-raptor-wifi-powersave.conf"
+grep -Fxq '[connection]' "$wifi_conf"
+grep -Fxq 'wifi.powersave=2' "$wifi_conf"
+bash "$wifi_helper_tmp" wifi-powersave default
+test ! -e "$wifi_conf"
+printf '[connection]\\nwifi.powersave=3\\n' > "$wifi_conf"
+export RAPTOR_TEST_NMCLI_EXIT=1
+if bash "$wifi_helper_tmp" wifi-powersave disable; then
+  echo "Wi-Fi helper unexpectedly succeeded when NetworkManager reload failed" >&2
+  exit 1
+fi
+grep -Fxq 'wifi.powersave=3' "$wifi_conf"
+unset RAPTOR_NM_CONF_DIR RAPTOR_TEST_NMCLI_EXIT
+rm -rf "$wifi_test_dir"
 echo "Wi-Fi power-management contracts passed."
