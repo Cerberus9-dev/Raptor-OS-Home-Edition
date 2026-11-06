@@ -85,7 +85,7 @@ assert_contains files/scripts/raptor-cortex/install.sh "ACTUAL_PROFILE"
 assert_contains files/scripts/raptor-cortex/install.sh '"drkonqi"'
 
 echo "=== Checking memory, audio and browser contracts ==="
-assert_contains files/system_files/zram-generator.conf "compression-algorithm = lz4"
+# ZRAM defaults are validated below against the current zstd configuration.
 assert_contains files/system_files/99-raptor-wireplumber-alsa.conf "resample.quality                = 10"
 assert_contains files/scripts/raptor-gaming/install.sh "org.mozilla.firefox/.mozilla/firefox"
 assert_contains files/scripts/raptor-gaming/install.sh "flatpak run com.brave.Browser"
