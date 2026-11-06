@@ -193,21 +193,52 @@ FILL_MODES = [
 
 def load_config() -> dict:
     defaults = {"image": None, "fill_mode": 0}
+    if not CONFIG_FILE.exists():
+        return defaults
     try:
-        with open(CONFIG_FILE) as f:
-            defaults.update(json.load(f))
-    except Exception:
-        pass
+        with CONFIG_FILE.open(encoding="utf-8") as stream:
+            stored = json.load(stream)
+        if not isinstance(stored, dict):
+            raise ValueError("wallpaper settings must be a JSON object")
+        image = stored.get("image")
+        mode = stored.get("fill_mode", 0)
+        if image is not None and not isinstance(image, str):
+            raise ValueError("saved wallpaper path is invalid")
+        if not isinstance(mode, int) or mode not in {value for _, value in FILL_MODES}:
+            raise ValueError("saved wallpaper fit mode is invalid")
+        defaults.update({"image": image, "fill_mode": mode})
+    except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
+        backup = CONFIG_FILE.with_suffix(".json.corrupt")
+        suffix = 1
+        while backup.exists():
+            backup = CONFIG_FILE.with_suffix(f".json.corrupt.{suffix}")
+            suffix += 1
+        try:
+            CONFIG_FILE.replace(backup)
+            print(f"[raptor-wallpaper] invalid settings preserved at {backup}: {exc}", file=sys.stderr)
+        except OSError as backup_error:
+            print(f"[raptor-wallpaper] could not read settings ({exc}) or preserve them ({backup_error})", file=sys.stderr)
     return defaults
 
 
-def save_config(cfg: dict):
+def save_config(cfg: dict) -> bool:
+    CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    temporary = CONFIG_FILE.with_suffix(".json.tmp")
     try:
-        CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
-        with open(CONFIG_FILE, "w") as f:
-            json.dump(cfg, f, indent=2)
-    except Exception as e:
-        print(f"[raptor-wallpaper] could not save config: {e}", file=sys.stderr)
+        with temporary.open("w", encoding="utf-8") as stream:
+            json.dump(cfg, stream, indent=2)
+            stream.write("\\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        temporary.replace(CONFIG_FILE)
+        return True
+    except OSError as exc:
+        try:
+            temporary.unlink(missing_ok=True)
+        except OSError:
+            pass
+        print(f"[raptor-wallpaper] could not save config: {exc}", file=sys.stderr)
+        return False
 
 
 def scan_gallery_images():
@@ -215,20 +246,23 @@ def scan_gallery_images():
     ~/Pictures/Wallpapers, most-recently-modified first within each group."""
     images = []
 
-    if BUNDLED_DIR.is_dir():
-        images.extend(sorted(
-            p for p in BUNDLED_DIR.iterdir()
-            if p.suffix.lower() in IMAGE_EXTS
-        ))
-
-    for folder in (Path.home() / "Pictures", Path.home() / "Pictures" / "Wallpapers"):
-        if folder.is_dir():
-            found = sorted(
-                (p for p in folder.iterdir() if p.suffix.lower() in IMAGE_EXTS),
-                key=lambda p: p.stat().st_mtime,
-                reverse=True,
-            )
-            images.extend(found)
+    folders = (BUNDLED_DIR, Path.home() / "Pictures", Path.home() / "Pictures" / "Wallpapers")
+    for index, folder in enumerate(folders):
+        if not folder.is_dir():
+            continue
+        try:
+            candidates = [p for p in folder.iterdir() if p.is_file() and p.suffix.lower() in IMAGE_EXTS]
+            if index == 0:
+                images.extend(sorted(candidates))
+            else:
+                def modified(path):
+                    try:
+                        return path.stat().st_mtime
+                    except OSError:
+                        return 0
+                images.extend(sorted(candidates, key=modified, reverse=True))
+        except OSError as exc:
+            print(f"[raptor-wallpaper] cannot scan {folder}: {exc}", file=sys.stderr)
 
     seen = set()
     unique = []
@@ -241,6 +275,10 @@ def scan_gallery_images():
 
 
 def apply_wallpaper(image_path, fill_mode):
+    image_path = os.path.abspath(os.fspath(image_path))
+    if not os.path.isfile(image_path) or Path(image_path).suffix.lower() not in IMAGE_EXTS:
+        return False, "Select an existing supported image file"
+
     """Apply the wallpaper via KDE's scripting bridge (sets both Image and
     FillMode together). Falls back to plasma-apply-wallpaperimage — which
     sets the image only, with whatever fill mode Plasma currently has — if
@@ -510,8 +548,8 @@ class RaptorWallpaperWindow(Adw.ApplicationWindow):
 
         def worker():
             ok, msg = apply_wallpaper(self._selected_path, self._fill_mode)
-            if ok:
-                save_config({"image": self._selected_path, "fill_mode": self._fill_mode})
+            if ok and not save_config({"image": self._selected_path, "fill_mode": self._fill_mode}):
+                msg += " (settings could not be saved)"
             GLib.idle_add(self._on_apply_done, ok, msg)
 
         threading.Thread(target=worker, daemon=True).start()
@@ -546,8 +584,8 @@ def main():
         image_path = os.path.abspath(sys.argv[2])
         cfg = load_config()
         ok, msg = apply_wallpaper(image_path, cfg.get("fill_mode", 0))
-        if ok:
-            save_config({"image": image_path, "fill_mode": cfg.get("fill_mode", 0)})
+        if ok and not save_config({"image": image_path, "fill_mode": cfg.get("fill_mode", 0)}):
+            msg += " (settings could not be saved)"
         print(msg)
         sys.exit(0 if ok else 1)
 
