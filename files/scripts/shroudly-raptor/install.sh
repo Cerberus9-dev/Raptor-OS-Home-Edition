@@ -7,6 +7,12 @@ set -euo pipefail
 STAGE_DIR="/tmp/raptor-staging/shroudly-app"
 APP_DIR="/opt/Shroudly"
 
+# The source files bind mount remains available to BlueBuild script modules.
+# Use it as a fallback if the files module's destination copy is not present.
+if [[ ! -x "$STAGE_DIR/shroudly" && -x "/tmp/files/staging/shroudly-app/shroudly" ]]; then
+    STAGE_DIR="/tmp/files/staging/shroudly-app"
+fi
+
 # CI stages this directory for every image build. Local builds without a staged
 # CI payload safely skip without relying on a marker file.
 if [[ ! -x "$STAGE_DIR/shroudly" || ! -s "$STAGE_DIR/resources/app.asar" ]]; then
