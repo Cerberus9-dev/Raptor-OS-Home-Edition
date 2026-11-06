@@ -167,7 +167,7 @@ The first-boot chooser offers the official Discord client, Vesktop, Equibop, and
 
 ### GPU
 - **Auto GPU detection** at boot — AMD, NVIDIA, Intel and hybrid configurations. Raptor leaves kernel/Mesa driver selection to the supported system stack and applies only controls exposed by the detected driver. Older Intel GPUs are not forced onto the `iris` driver; unsupported Vulkan/DirectX feature levels and ray-tracing modes are never globally forced. CPU power policy is handled separately by power-profiles-daemon
-- **`RADV_PERFTEST=gpl`** — cuts in-game shader compile stalls 30–60% on RDNA2+
+- **Driver-selected Vulkan defaults** — Raptor does not force experimental RADV flags or a Vulkan ICD globally; Mesa and the active GPU driver select supported features, especially on hybrid and older systems
 - **Mesa GL threading** is enabled for Wine/Proton where supported; native applications keep driver defaults to avoid global compatibility regressions
 - **`WINE_FULLSCREEN_FSR` and `DXVK_ASYNC` not set globally** — both caused flickering in OpenGL games (Project Zomboid). Set per-game in Steam launch options instead
 
