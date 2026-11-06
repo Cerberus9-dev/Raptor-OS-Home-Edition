@@ -1,5 +1,5 @@
 #!/bin/bash
-set -oue pipefail
+set -euo pipefail
 
 # ═════════════════════════════════════════════════════════════════════════════
 # Raptor OS — Dolphin stability hardening (archive selection freeze/crash)
