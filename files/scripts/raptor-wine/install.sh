@@ -73,22 +73,8 @@ command -v umu-run >/dev/null 2>&1 || {
   exit 1
 }
 
-# Give each executable its own Proton prefix automatically. No profile
-# manager, first-run wizard, or per-game configuration is required.
-target="$1"
-[[ -f "$target" ]] || {
-  echo "raptor-wine-proton: file not found: $target" >&2
-  exit 2
-}
-target="$(realpath -- "$target")"
-name="$(basename -- "$target")"
-name="${name%.*}"
-name="${name,,}"
-name="$(printf '%s' "$name" | sed -E 's/[^a-z0-9._-]+/-/g; s/^[.-]+//; s/[.-]+$//')"
-[[ -n "$name" ]] || name="default"
-
-data_dir="${XDG_DATA_HOME:-$HOME/.local/share}/raptor-wine/proton"
-export WINEPREFIX="$data_dir/$name"
+# Let UMU manage its standard default Proton prefix. Respect a caller-supplied
+# WINEPREFIX, but do not force users into a custom prefix/profile workflow.
 export GAMEID="${RAPTOR_WINE_GAME_ID:-umu-default}"
 [[ -z "${RAPTOR_WINE_STORE:-}" ]] || export STORE="$RAPTOR_WINE_STORE"
 [[ -z "${RAPTOR_WINE_PROTONPATH:-}" ]] || export PROTONPATH="$RAPTOR_WINE_PROTONPATH"
@@ -98,7 +84,6 @@ if [[ "${RAPTOR_WINE_DEBUG:-0}" == "1" ]]; then
   export PROTON_LOG=1
 fi
 
-mkdir -p "$data_dir"
 case "${target,,}" in
   *.msi)
     exec umu-run wine msiexec /i "$target" "${@:2}"
