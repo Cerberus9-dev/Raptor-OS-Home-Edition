@@ -245,6 +245,9 @@ APP_CATALOGUE=(
     "Development|Neovim|rpm:neovim|Terminal editor - reboot required"
     "Development|C/C++ toolchain|rpm:gcc make cmake|GCC, Make, CMake - reboot required"
     # System & Utilities
+    "System & Utilities|LocalSend|org.localsend.localsend_app|Send files between nearby devices over your local network without cloud accounts"
+    "System & Utilities|Gear Lever|it.mijorus.gearlever|Manage AppImages, desktop entries and AppImage updates"
+    "System & Utilities|Resources|net.nokyan.Resources|Monitor CPU, memory, GPU, network, storage and running processes"
     "System & Utilities|Mission Center|io.missioncenter.MissionCenter|Windows-style Task Manager - processes, performance, startup"
     "System & Utilities|Warehouse|io.github.flattool.Warehouse|Manage and fully uninstall Flatpaks, including their data"
     "System & Utilities|Flatseal|com.github.tchx84.Flatseal|Flatpak permissions"
