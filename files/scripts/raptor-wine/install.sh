@@ -11,6 +11,7 @@ DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/raptor-wine"
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/winetricks"
 RUNTIME_TIMEOUT="${RAPTOR_WINE_RUNTIME_TIMEOUT:-300}"
 PREFIX_NAME="default"
+PREFIX_EXPLICIT=0
 RUNNER="auto"
 GAME_ID="${RAPTOR_WINE_GAME_ID:-umu-default}"
 STORE="${RAPTOR_WINE_STORE:-}"
@@ -52,7 +53,7 @@ HELP
 while (($#)); do
   case "$1" in
     --runner) [[ $# -ge 2 ]] || { echo "raptor-wine: --runner needs auto, wine, or proton" >&2; exit 2; }; RUNNER="$2"; shift 2 ;;
-    --prefix) [[ $# -ge 2 && -n "$2" ]] || { echo "raptor-wine: --prefix needs a name" >&2; exit 2; }; PREFIX_NAME="$2"; shift 2 ;;
+    --prefix) [[ $# -ge 2 && -n "$2" ]] || { echo "raptor-wine: --prefix needs a name" >&2; exit 2; }; PREFIX_NAME="$2"; PREFIX_EXPLICIT=1; shift 2 ;;
     --game-id) [[ $# -ge 2 && -n "$2" ]] || { echo "raptor-wine: --game-id needs an ID" >&2; exit 2; }; GAME_ID="$2"; shift 2 ;;
     --store) [[ $# -ge 2 && -n "$2" ]] || { echo "raptor-wine: --store needs a value" >&2; exit 2; }; STORE="$2"; shift 2 ;;
     --proton-version) [[ $# -ge 2 && -n "$2" ]] || { echo "raptor-wine: --proton-version needs a path or version" >&2; exit 2; }; PROTON_VERSION="$2"; shift 2 ;;
@@ -67,6 +68,15 @@ while (($#)); do
   esac
 done
 
+if (( PREFIX_EXPLICIT == 0 )) && [[ -n "${1:-}" && -n "$INSTALL_RUNTIME" ]]; then
+  :
+elif (( PREFIX_EXPLICIT == 0 )) && [[ -n "${1:-}" ]]; then
+  app_name="$(basename -- "$1")"
+  app_name="${app_name%.*}"
+  app_name="${app_name,,}"
+  PREFIX_NAME="$(printf '%s' "$app_name" | sed -E 's/[^a-z0-9._-]+/-/g; s/^[.-]+//; s/[.-]+$//')"
+  [[ -n "$PREFIX_NAME" ]] || PREFIX_NAME="default"
+fi
 [[ "$PREFIX_NAME" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "raptor-wine: invalid prefix name" >&2; exit 2; }
 [[ "$RUNNER" == auto || "$RUNNER" == wine || "$RUNNER" == proton ]] || { echo "raptor-wine: runner must be auto, wine, or proton" >&2; exit 2; }
 
