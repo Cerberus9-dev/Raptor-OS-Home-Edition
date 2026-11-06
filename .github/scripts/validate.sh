@@ -267,6 +267,10 @@ echo "=== Checking Cortex multi-page control center ==="
 assert_contains files/scripts/raptor-cortex/install.sh 'Adw.ViewStack()'
 assert_contains files/scripts/raptor-cortex/install.sh 'add_page("overview", "Overview")'
 assert_contains files/scripts/raptor-cortex/install.sh 'add_page("graphics", "Graphics")'
+assert_contains files/scripts/raptor-cortex/install.sh 'title="GPU telemetry"'
+assert_contains files/scripts/raptor-cortex/install.sh 'graphics_content.append(gpu_telemetry_group)'
+assert_contains files/scripts/raptor-cortex/install.sh 'gpu_telemetry_group.add(self.gpu_info_row)'
+
 assert_contains files/scripts/raptor-cortex/install.sh 'add_page("games", "Games")'
 assert_contains files/scripts/raptor-cortex/install.sh 'add_page("optimize", "Optimize")'
 assert_contains files/scripts/raptor-cortex/install.sh 'add_page("settings", "Settings")'
