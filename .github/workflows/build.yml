@@ -87,6 +87,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          # Pull-request validation must test the proposed head, not silently
+          # fall back to the base branch. Push and dispatch events use github.sha.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: false
 
       - name: Check one-time app integration lock
