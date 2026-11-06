@@ -36,6 +36,13 @@ Raptor OS uses a restrained aerospace / flight-deck visual language across the d
 
 ---
 
+## Steam performance and troubleshooting
+
+- Keep Steam's shader pre-caching enabled unless troubleshooting a specific issue; disabling it can increase first-run shader compilation stutter.
+- If Steam's store/library interface or Big Picture is sluggish while games themselves run smoothly, check **Steam → Settings → Interface → Enable GPU accelerated rendering in web views**, restart Steam, and compare. Bazzite documents this as a workaround for sluggish Big Picture rendering, but notes that some NVIDIA setups may show menu-rendering artifacts; revert the toggle if that happens.
+- Steam downloads can be limited by CPU decompression, verification, and storage write speed—not only network bandwidth. A slow displayed download rate during heavy disk activity does not automatically mean Wi-Fi is broken.
+- Avoid applying undocumented Steam client flags globally. HTTP/2 workarounds have helped some Linux systems, but Valve marked its original broad issue as solved; Raptor should keep such network workarounds opt-in and diagnose the affected machine first.
+
 ## System Requirements
 
 | Component | Minimum to install and use | Recommended |
