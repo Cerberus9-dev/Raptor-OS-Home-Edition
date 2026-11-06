@@ -395,3 +395,20 @@ if grep -Fq 'sysctl --system' "$gpu_tmp"; then
 fi
 rm -f "$gpu_tmp"
 echo "Boot-time GPU detection contracts passed."
+
+echo "=== Checking embedded Raptor Cortex Python ==="
+cortex_tmp="$(mktemp --suffix=.py)"
+awk "/^cat << 'PYEOF' > \/usr\/bin\/raptor-cortex$/ { inside=1; next } /^PYEOF$/ && inside { exit } inside { print }" files/scripts/raptor-cortex/install.sh > "$cortex_tmp"
+test -s "$cortex_tmp"
+python3 -c 'import ast, sys; ast.parse(open(sys.argv[1], encoding="utf-8").read())' "$cortex_tmp"
+rm -f "$cortex_tmp"
+
+echo "=== Checking boot ordering for known latency traps ==="
+if grep -R -n 'systemd-udev-settle\.service' recipes files/system_files files/scripts; then
+  echo "Do not add a global udev-settle dependency to the boot path" >&2
+  exit 1
+fi
+assert_not_contains recipes/recipe.yml 'raptor-powerprofile.service'
+assert_not_contains recipes/recipe.yml 'raptor-ensure-services.service'
+assert_contains files/scripts/raptor-gpu-profile/install.sh 'GPU_PCI_INFO="$(timeout 3s lspci -nn'
+echo "Boot latency regression checks passed."
