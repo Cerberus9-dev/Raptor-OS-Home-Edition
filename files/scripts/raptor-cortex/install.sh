@@ -1678,7 +1678,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.set_title("Raptor Cortex")
-        self.set_default_size(700, 940)
+        self.set_default_size(1040, 760)
         self._running = False
         self._suspended_now = []
         self._cortex_patterns = load_cortex_config()
@@ -1689,31 +1689,49 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         self._mode_btns = {}
         self._toast_overlay = None
         self._build_ui()
-        GLib.timeout_add_seconds(5, self._refresh_stats)
+        GLib.timeout_add_seconds(8, self._refresh_stats)
         # First reading happens after the window is on screen (on a worker thread).
         GLib.idle_add(lambda: (self._refresh_stats(), False)[1])
 
     def _build_ui(self):
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.set_content(root)
-        root.append(Adw.HeaderBar())
 
-        # Toast overlay wraps the scrollable content
+        # A real multi-page control center: overview, graphics, games,
+        # optimization and settings. ViewStack keeps each page lightweight and
+        # avoids one extremely long preferences screen.
+        self._view_stack = Adw.ViewStack()
+        self._view_stack.set_vexpand(True)
+        switcher = Adw.ViewSwitcher()
+        switcher.set_stack(self._view_stack)
+        switcher.set_policy(Adw.ViewSwitcherPolicy.WIDE)
+        header = Adw.HeaderBar()
+        header.set_title_widget(switcher)
+        root.append(header)
+
         self._toast_overlay = Adw.ToastOverlay()
         self._toast_overlay.set_vexpand(True)
         root.append(self._toast_overlay)
+        self._toast_overlay.set_child(self._view_stack)
 
-        scroll = Gtk.ScrolledWindow()
-        scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
-        scroll.set_vexpand(True)
-        self._toast_overlay.set_child(scroll)
+        def add_page(name, title):
+            page_scroll = Gtk.ScrolledWindow()
+            page_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+            page_scroll.set_vexpand(True)
+            page_content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+            page_content.set_margin_top(20)
+            page_content.set_margin_bottom(20)
+            page_content.set_margin_start(20)
+            page_content.set_margin_end(20)
+            page_scroll.set_child(page_content)
+            self._view_stack.add_titled(page_scroll, name, title)
+            return page_content
 
-        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
-        content.set_margin_top(20)
-        content.set_margin_bottom(20)
-        content.set_margin_start(20)
-        content.set_margin_end(20)
-        scroll.set_child(content)
+        content = add_page("overview", "Overview")
+        graphics_content = add_page("graphics", "Graphics")
+        games_content = add_page("games", "Games")
+        memory_content = add_page("optimize", "Optimize")
+        settings_content = add_page("settings", "Settings")
 
         self.mode_banner = Adw.Banner()
         self.mode_banner.set_revealed(True)
@@ -1869,7 +1887,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
                 self._gfx_rows[key] = (row, check)
             self._refresh_gpu_profile()
 
-        content.append(gfx_group)
+        graphics_content.append(gfx_group)
 
         # ── Game Library ─────────────────────────────────────────────────────────
         # The primary, front-and-centre feature: add a game once, then launch
@@ -1879,7 +1897,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         game_group = Adw.PreferencesGroup(title="Game Library")
         game_group.set_description(
             "Launch a game from here to boost automatically and monitor it live.")
-        content.append(game_group)
+        games_content.append(game_group)
         self._game_group = game_group
         self._game_rows = {}       # game id -> (Adw.ActionRow, monitor_labels dict)
         self._active_monitor = None  # ProcessMonitor for the currently-running tracked game
@@ -1917,7 +1935,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         opts_group = Adw.PreferencesGroup(title="Optimize Memory")
         opts_group.set_description(
             "Quick Optimize covers the common case. Advanced options are available below if you want finer control.")
-        content.append(opts_group)
+        memory_content.append(opts_group)
 
         # Quick Optimize — pressure-aware and deliberately non-disruptive
         quick_row = Adw.ActionRow(title="One-Click Boost")
@@ -1954,7 +1972,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         cortex_group = Adw.PreferencesGroup(title="Raptor Cortex — Game Mode")
         cortex_group.set_description(
             "Selected services are suspended when any game launches and resumed when it exits.")
-        content.append(cortex_group)
+        games_content.append(cortex_group)
 
         self._service_switches = {}
         for name, pattern in ALL_SERVICES:
@@ -1968,7 +1986,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
 
         self.result_group = Adw.PreferencesGroup(title="Last Optimization")
         self.result_group.set_visible(False)
-        content.append(self.result_group)
+        memory_content.append(self.result_group)
 
         self.result_row = Adw.ActionRow()
         self.result_row.set_title("Freed")
@@ -1979,7 +1997,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
 
         self.sus_group = Adw.PreferencesGroup(title="Currently Suspended")
         self.sus_group.set_visible(False)
-        content.append(self.sus_group)
+        games_content.append(self.sus_group)
 
         self.sus_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         self.sus_group.add(self.sus_box)
@@ -2025,7 +2043,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         persist_group = Adw.PreferencesGroup(title="Persistent Settings")
         persist_group.set_description(
             "These settings survive reboots and are applied automatically.")
-        content.append(persist_group)
+        settings_content.append(persist_group)
 
         self.boot_mode_row = Adw.SwitchRow()
         self.boot_mode_row.set_title("Apply selected mode on every boot")
@@ -2048,7 +2066,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         sched_group.set_description(
             "Automatically run memory optimization in the background on a timer. "
             "Useful for long gaming sessions where browser memory grows over time.")
-        content.append(sched_group)
+        settings_content.append(sched_group)
 
         self.sched_enable_row = Adw.SwitchRow()
         self.sched_enable_row.set_title("Enable scheduled cleanup")
@@ -2077,7 +2095,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
 
         btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
         btn_box.set_halign(Gtk.Align.CENTER)
-        content.append(btn_box)
+        memory_content.append(btn_box)
 
         self.run_btn = Gtk.Button(label="Quick Optimize")
         self.run_btn.add_css_class("suggested-action")
