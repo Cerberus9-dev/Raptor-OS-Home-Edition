@@ -359,3 +359,14 @@ assert_contains files/scripts/raptor-wallpaper-manager/install.sh 'PreviewImage'
 assert_contains files/scripts/raptor-wallpaper-manager/install.sh 'Apply to Lock Screen'
 assert_contains files/scripts/raptor-wallpaper-manager/install.sh 'import shutil'
 echo "Raptor recovery and lock-screen contracts passed."
+
+echo "=== Checking GPU vendor-safe defaults ==="
+assert_contains files/scripts/raptor-gpu-profile/install.sh 'NVAPI_VAR="PROTON_ENABLE_NVAPI=1"'
+assert_not_contains files/scripts/raptor-gpu-profile/install.sh 'AMD_VULKAN_ICD=RADV'
+assert_not_contains files/scripts/raptor-gpu-profile/install.sh 'MESA_LOADER_DRIVER_OVERRIDE=iris'
+assert_not_contains files/scripts/raptor-gpu-profile/install.sh 'VKD3D_CONFIG='
+assert_not_contains files/scripts/raptor-gpu-profile/install.sh 'VKD3D_FEATURE_LEVEL='
+assert_not_contains files/scripts/raptor-gpu-profile/install.sh 'RADV_PERFTEST=gpl'
+assert_not_contains files/scripts/raptor-gpu-profile/install.sh '__GL_SHADER_DISK_CACHE_SKIP_CLEANUP=1'
+assert_not_contains files/scripts/raptor-gpu-profile/install.sh '__GL_THREADED_OPTIMIZATIONS='
+echo "GPU vendor-safe defaults passed."
