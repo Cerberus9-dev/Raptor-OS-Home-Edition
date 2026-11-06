@@ -31,13 +31,10 @@ EOF
 # ── Steam ────────────────────────────────────────────────────────────�[...]
 mkdir -p /etc/skel/.steam/steam
 cat << 'EOF' > /etc/skel/.steam/steam/steam_dev.cfg
-# Disable HTTP/2 (causes stalled downloads on many routers)
-@nClientDownloadEnableHTTP2PlatformLinux 0
-# More aggressive multi-connection download
-@fDownloadRateImprovementToAddAnotherConnection 1.0
-# Larger disk write buffer
-@cMaxFileSystemWriteBufferSizeBytes 4194304
-# Keep Steam shader pre-caching enabled to reduce first-run shader stutter
+# Preserve Steam's protocol and download defaults. HTTP/2 and extra
+# download connections are troubleshooting workarounds for specific networks,
+# not universal performance improvements.
+# Keep shader pre-caching enabled to reduce first-run shader stutter.
 @bEnableShaderPreCaching 1
 EOF
 
@@ -722,11 +719,10 @@ inhibit_screensaver=1
 whitelist=
 blacklist=
 
-[gpu]
-# Standard driver power profiles only; no clock offsets or overclocking.
-apply_gpu_optimisations=accept-responsibility
-amd_performance_level=high
-nv_powermizer_mode=1
+# No global GameMode GPU performance/clock overrides. Feral warns that
+# enabling GPU optimisations is an at-your-own-risk operation and may change
+# hardware performance levels. Raptor leaves GPU policy to the vendor driver
+# and desktop power profile rather than forcing it for every game.
 
 [cpu]
 # Let the kernel scheduler manage affinity and heterogeneous cores.
