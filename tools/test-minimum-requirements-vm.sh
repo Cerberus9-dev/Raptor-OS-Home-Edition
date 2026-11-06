@@ -110,8 +110,8 @@ virt-install \
   --connect "$CONNECT" \
   --name "$VM_NAME" \
   --memory "$RAM_MIB" \
-  --vcpus "$VCPUS" \
-  --cpu "$CPU_MODEL" \
+  --vcpus "$VCPUS,sockets=1,cores=2,threads=2" \
+  --cpu "model=$CPU_MODEL" \
   --machine q35 \
   --os-variant generic \
   --boot uefi \
