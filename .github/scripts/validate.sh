@@ -233,6 +233,16 @@ assert_contains files/scripts/raptor-cortex/install.sh 'title="Graphics Processo
 assert_contains files/scripts/raptor-cortex/install.sh 'def get_gpu_memory():'
 assert_contains files/scripts/raptor-cortex/install.sh 'Telemetry unavailable — check the graphics driver'
 assert_contains files/scripts/raptor-cortex/install.sh 'def get_fan_info():'
+assert_contains files/scripts/raptor-cortex/install.sh 'vendor == "0x1002"'
+assert_contains files/scripts/raptor-cortex/install.sh 'vendor == "0x8086"'
+assert_contains files/scripts/raptor-cortex/install.sh 'NVIDIA GPU {index}'
+echo "=== Python syntax: embedded Raptor Cortex application ==="
+cortex_tmp="$(mktemp --suffix=.py)"
+awk "/^cat << 'PYEOF' > \\/usr\\/bin\\/raptor-cortex$/ { inside=1; next } /^PYEOF$/ && inside { exit } inside { print }" files/scripts/raptor-cortex/install.sh > "$cortex_tmp"
+test -s "$cortex_tmp"
+python3 -m py_compile "$cortex_tmp"
+rm -f "$cortex_tmp" "${cortex_tmp}c"
+
 
 echo "=== Checking Dolphin and archive backends ==="
 assert_contains recipes/recipe.yml '      - ark'
