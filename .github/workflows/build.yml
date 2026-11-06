@@ -239,13 +239,10 @@ jobs:
           test -s files/staging/shroudly-app/shroudly.png
           test -s files/staging/shroudly-app/LICENSE
 
-          # Use a normal filename (not a dotfile) and force-add generated,
-          # gitignored staging files so Git-backed build contexts retain them.
-          install -Dm644 /dev/null files/staging/include-one-time-apps
-          printf '%s\n' 'RAPTOR_ONE_TIME_APPS=1' > files/staging/include-one-time-apps
+          # Force-add generated, gitignored staging files so Git-backed
+          # build contexts retain the two app payloads.
           git add -f -- files/staging
           git ls-files --error-unmatch \
-            files/staging/include-one-time-apps \
             files/staging/raptor-music \
             files/staging/shroudly-app/shroudly \
             files/staging/shroudly-app/resources/app.asar >/dev/null
