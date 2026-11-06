@@ -23,6 +23,7 @@ This is the consolidation release for more than two months of sustained Raptor O
 - Made Ark, 7-Zip and Info-ZIP unzip explicit image dependencies instead of relying on incidental base-image packages.
 - Routed additional ZIP MIME aliases to Ark, including archives opened from outside Dolphin, avoiding the reported Bazzite behavior where an externally opened ZIP is sent back to Dolphin as a folder.
 - Expanded Ark defaults to common bzip2/gzip/xz/zstd, cpio, ISO, CAB, RPM/DEB, Java archive, and comic-book archive MIME types so supported formats open in the archive manager instead of being misrouted to Dolphin.
+- Restored common Dolphin archive actions through Raptor-owned KIO service menus: Extract Here, Extract To, and Create Archive call Ark's documented batch/add interfaces directly. The slow upstream per-selection plugins stay disabled; drag-and-drop extraction remains unavailable.
 - Kept the existing conservative Dolphin safeguards: archive content metadata extraction and the slow archive context-menu plugins remain disabled to avoid known selection/context-menu hangs. This intentionally trades those context-menu entries for responsiveness; archive opening remains through Ark.
 - Added image-build checks that Ark and unzip are present. This does not claim to fix every upstream Ark extraction or multi-volume ZIP bug.
 
