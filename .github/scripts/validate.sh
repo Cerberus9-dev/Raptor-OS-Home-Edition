@@ -242,3 +242,17 @@ assert_contains files/system_files/raptor-mimeapps.list 'application/x-zip-compr
 assert_contains files/system_files/raptor-mimeapps.list 'application/x-cbz=org.kde.ark.desktop'
 assert_contains files/scripts/raptor-dolphin-stability/install.sh 'command -v ark'
 assert_contains files/scripts/raptor-dolphin-stability/install.sh 'command -v unzip'
+
+echo "=== Checking Cortex multi-page control center ==="
+assert_contains files/scripts/raptor-cortex/install.sh 'Adw.ViewStack()'
+assert_contains files/scripts/raptor-cortex/install.sh 'add_page("overview", "Overview")'
+assert_contains files/scripts/raptor-cortex/install.sh 'add_page("graphics", "Graphics")'
+assert_contains files/scripts/raptor-cortex/install.sh 'add_page("games", "Games")'
+assert_contains files/scripts/raptor-cortex/install.sh 'add_page("optimize", "Optimize")'
+assert_contains files/scripts/raptor-cortex/install.sh 'add_page("settings", "Settings")'
+assert_contains files/scripts/raptor-cortex/install.sh 'GLib.timeout_add_seconds(8, self._refresh_stats)'
+
+echo "=== Checking memory compression defaults ==="
+assert_contains files/system_files/zram-generator.conf 'zram-size = min(ram, 8192)'
+assert_contains files/system_files/zram-generator.conf 'compression-algorithm = zstd'
+assert_not_contains files/system_files/zram-generator.conf 'compression-algorithm = lz4'
