@@ -588,25 +588,25 @@ cat << 'SVGEOF' > /usr/share/icons/hicolor/scalable/apps/raptor-wallpaper.svg
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <defs>
     <radialGradient id="bg" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#7c3aed"/>
-      <stop offset="100%" stop-color="#4c1d95"/>
+      <stop offset="0%" stop-color="#33ff33"/>
+      <stop offset="100%" stop-color="#07170b"/>
     </radialGradient>
   </defs>
   <circle cx="32" cy="32" r="30" fill="url(#bg)"/>
-  <circle cx="32" cy="32" r="24" fill="none" stroke="#a78bfa" stroke-width="1.5"
+  <circle cx="32" cy="32" r="24" fill="none" stroke="#69e886" stroke-width="1.5"
           stroke-dasharray="12 4" stroke-linecap="round"/>
-  <line x1="32" y1="10" x2="32" y2="18" stroke="#c4b5fd" stroke-width="2" stroke-linecap="round"/>
-  <line x1="32" y1="46" x2="32" y2="54" stroke="#c4b5fd" stroke-width="2" stroke-linecap="round"/>
-  <line x1="10" y1="32" x2="18" y2="32" stroke="#c4b5fd" stroke-width="2" stroke-linecap="round"/>
-  <line x1="46" y1="32" x2="54" y2="32" stroke="#c4b5fd" stroke-width="2" stroke-linecap="round"/>
-  <line x1="16.7" y1="16.7" x2="22.4" y2="22.4" stroke="#c4b5fd" stroke-width="1.5" stroke-linecap="round"/>
-  <line x1="41.6" y1="41.6" x2="47.3" y2="47.3" stroke="#c4b5fd" stroke-width="1.5" stroke-linecap="round"/>
-  <line x1="47.3" y1="16.7" x2="41.6" y2="22.4" stroke="#c4b5fd" stroke-width="1.5" stroke-linecap="round"/>
-  <line x1="22.4" y1="41.6" x2="16.7" y2="47.3" stroke="#c4b5fd" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="32" y1="10" x2="32" y2="18" stroke="#c8ffd0" stroke-width="2" stroke-linecap="round"/>
+  <line x1="32" y1="46" x2="32" y2="54" stroke="#c8ffd0" stroke-width="2" stroke-linecap="round"/>
+  <line x1="10" y1="32" x2="18" y2="32" stroke="#c8ffd0" stroke-width="2" stroke-linecap="round"/>
+  <line x1="46" y1="32" x2="54" y2="32" stroke="#c8ffd0" stroke-width="2" stroke-linecap="round"/>
+  <line x1="16.7" y1="16.7" x2="22.4" y2="22.4" stroke="#c8ffd0" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="41.6" y1="41.6" x2="47.3" y2="47.3" stroke="#c8ffd0" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="47.3" y1="16.7" x2="41.6" y2="22.4" stroke="#c8ffd0" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="22.4" y1="41.6" x2="16.7" y2="47.3" stroke="#c8ffd0" stroke-width="1.5" stroke-linecap="round"/>
   <rect x="21" y="22" width="22" height="20" rx="2" fill="white" opacity="0.95"/>
   <rect x="23.5" y="24.5" width="17" height="15" fill="url(#bg)"/>
-  <circle cx="35.5" cy="28.5" r="2.2" fill="#c4b5fd"/>
-  <path d="M 23.5 39.5 L 29 32 L 33 36 L 37 30 L 40.5 39.5 Z" fill="#c4b5fd"/>
+  <circle cx="35.5" cy="28.5" r="2.2" fill="#c8ffd0"/>
+  <path d="M 23.5 39.5 L 29 32 L 33 36 L 37 30 L 40.5 39.5 Z" fill="#c8ffd0"/>
 </svg>
 SVGEOF
 
