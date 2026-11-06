@@ -266,7 +266,7 @@ jobs:
           REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
-          IMAGE_REF="ghcr.io/${REPOSITORY_OWNER,,}/raptor-os:latest"
+          IMAGE_REF="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/raptor-os:latest"
           echo "$GH_TOKEN" | docker login ghcr.io -u "$GH_ACTOR" --password-stdin
           docker pull "$IMAGE_REF"
           docker run --rm --entrypoint /bin/bash "$IMAGE_REF" -lc '
