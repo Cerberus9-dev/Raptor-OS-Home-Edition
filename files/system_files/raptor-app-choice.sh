@@ -23,14 +23,12 @@ fi
 
 # ── Prerequisite check ────────────────────────────────────────────────────────
 if ! command -v zenity &>/dev/null; then
-    err "zenity not found — cannot show app dialog. Writing stamp to avoid loop."
-    mkdir -p "$(dirname "${STAMP_FILE}")" && touch "${STAMP_FILE}"
+    err "zenity not found — app selection deferred; it will retry on the next login."
     exit 0
 fi
 
 if ! command -v flatpak &>/dev/null; then
-    err "flatpak not found — cannot install optional apps. Writing stamp to avoid loop."
-    mkdir -p "$(dirname "${STAMP_FILE}")" && touch "${STAMP_FILE}"
+    err "Flatpak is unavailable — app selection deferred; it will retry on the next login."
     exit 0
 fi
 
