@@ -100,6 +100,17 @@ for marker in "cat << 'BRAVELAUNCHER'" "cat << 'TRIMMER'" 'echo "GAMING_READY'; 
     fi
 done
 
+echo "=== Checking Wine, Bluetooth and desktop app compatibility ==="
+assert_contains files/scripts/raptor-wine/install.sh 'DEFAULT_RUNTIMES=(vcrun2015 vcrun2019 corefonts)'
+assert_contains files/scripts/raptor-wine/install.sh 'timeout "$RUNTIME_TIMEOUT" winetricks'
+assert_contains files/scripts/raptor-wine/install.sh '--no-bootstrap'
+assert_not_contains files/scripts/raptor-wine/install.sh 'DEFAULT_RUNTIMES=(vcrun2015 vcrun2019 corefonts dxvk)'
+assert_not_contains files/scripts/raptor-wine/install.sh 'export WINEESYNC='
+assert_not_contains files/scripts/raptor-wine/install.sh 'VKD3D_CONFIG='
+assert_contains files/scripts/raptor-hardware-fixes/install.sh 'system-alias Raptor OS Bluetooth'
+assert_contains files/scripts/raptor-hardware-fixes/install.sh 'raptor-bt-name.service'
+assert_contains files/system_files/raptor-app-choice.sh 'ELECTRON_OZONE_PLATFORM_HINT=auto'
+
 echo "=== Checking Update Manager contracts ==="
 assert_contains files/scripts/raptor-update/install.sh "from queue import Queue, Empty"
 assert_contains files/scripts/raptor-update/install.sh 'flatpak", "update", "--user'
