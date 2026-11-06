@@ -6,6 +6,12 @@
 
 This is the consolidation release for more than two months of sustained Raptor OS overhaul work. The scope includes substantial changes across performance and memory management, gaming and GPU behavior, audio, Cortex, update reliability, hardware recovery, browser and chat-client choice, build validation, and the installation/distribution path. The intent is to ship the work as one coherent major update rather than scatter it across a long sequence of small version bumps.
 
+### Steam behavior and gaming troubleshooting
+
+- Added evidence-based Steam troubleshooting guidance for sluggish Big Picture/web views, shader pre-caching, and download rates constrained by CPU decompression or storage writes.
+- Kept Steam's network compatibility flags out of universal defaults: HTTP/2 workarounds are reported for some affected Linux configurations, but Valve marked the original broad issue as solved. Per-machine diagnosis is safer than imposing undocumented client behavior on every installation.
+- Documented the Bazzite-reported GPU-accelerated web-view toggle as a reversible troubleshooting option, including its reported NVIDIA menu-rendering caveat.
+
 ### Recovery and lock-screen controls
 
 - Added a guarded **Roll Back System** action to Raptor Update Manager. It appears only when rpm-ostree reports a valid current deployment and a previous deployment, confirms before acting, verifies the deployment list again in the privileged helper, and stages `rpm-ostree rollback` without forcing an immediate reboot.
