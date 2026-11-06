@@ -149,7 +149,10 @@ assert_contains files/scripts/raptor-update/install.sh 'rpm-ostree upgrade 2>&1 
 assert_contains files/scripts/raptor-update/install.sh "_stop_process_group(helper)"
 assert_contains .github/workflows/build.yml 'cargo build --release --workspace --manifest-path files/scripts/raptor-music/Cargo.toml'
 assert_contains .github/workflows/build.yml 'cargo test --workspace --manifest-path files/scripts/raptor-music/Cargo.toml'
-assert_contains .github/workflows/build.yml 'PR validation only: built Raptor Music without staging it into the image.'
+assert_contains .github/workflows/build.yml 'test -x files/staging/raptor-music'
+assert_contains .github/workflows/build.yml 'test -x files/staging/shroudly-app/shroudly'
+assert_contains .github/workflows/build.yml 'Verify both apps inside the published image'
+assert_not_contains .github/workflows/build.yml 'PR validation only: built Raptor Music without staging it into the image.'
 assert_not_contains files/scripts/raptor-update/install.sh "for line in user_proc.stdout"
 assert_not_contains files/scripts/raptor-update/install.sh "for line in fp_proc.stdout"
 
