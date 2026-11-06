@@ -499,7 +499,7 @@ case "$ACTION" in
             disable)
                 install -d -m 0755 /etc/NetworkManager/conf.d
                 TMP_CONF="$(mktemp /etc/NetworkManager/conf.d/.raptor-wifi-powersave.XXXXXX)"
-                printf '[connection]\\nwifi.powersave=2\\n' > "$TMP_CONF"
+                printf '[connection]\nwifi.powersave=2\n' > "$TMP_CONF"
                 chmod 0644 "$TMP_CONF"
                 mv -f "$TMP_CONF" "$CONF"
                 ;;
