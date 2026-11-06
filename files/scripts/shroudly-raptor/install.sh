@@ -7,7 +7,7 @@ set -euo pipefail
 STAGE_DIR="/tmp/raptor-staging/shroudly-app"
 APP_DIR="/opt/Shroudly"
 
-if [[ ! -f "/tmp/raptor-staging/include-one-time-apps" ]]; then
+if [[ ! -f "/usr/share/raptor/include-one-time-apps" ]]; then
     rm -rf "$STAGE_DIR"
     echo "SHROUDLY_SKIP: one-time app payload was not requested."
     exit 0
