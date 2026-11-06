@@ -488,7 +488,8 @@ case "$ACTION" in
         # Adapter-specific compatibility workaround. Keep upstream power-save
         # and scan-MAC defaults unless the user explicitly opts out in Cortex.
         MODE="${2:-}"
-        CONF="/etc/NetworkManager/conf.d/91-raptor-wifi-powersave.conf"
+        CONF_DIR="${RAPTOR_NM_CONF_DIR:-/etc/NetworkManager/conf.d}"
+        CONF="$CONF_DIR/91-raptor-wifi-powersave.conf"
         BACKUP="$(mktemp)"
         HAD_CONFIG=0
         if [ -f "$CONF" ]; then
@@ -497,8 +498,8 @@ case "$ACTION" in
         fi
         case "$MODE" in
             disable)
-                install -d -m 0755 /etc/NetworkManager/conf.d
-                TMP_CONF="$(mktemp /etc/NetworkManager/conf.d/.raptor-wifi-powersave.XXXXXX)"
+                install -d -m 0755 "$CONF_DIR"
+                TMP_CONF="$(mktemp "$CONF_DIR/.raptor-wifi-powersave.XXXXXX")"
                 printf '[connection]\nwifi.powersave=2\n' > "$TMP_CONF"
                 chmod 0644 "$TMP_CONF"
                 mv -f "$TMP_CONF" "$CONF"
