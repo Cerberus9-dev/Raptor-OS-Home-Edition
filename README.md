@@ -206,7 +206,7 @@ The first-boot chooser offers the official Discord client, Vesktop, Equibop, and
 ### Network
 - **BBR congestion control + CAKE qdisc**, **128 MB TCP buffers**, **socket busy-polling**, **TCP fast-open**
 - **Network's own DNS wins, fast DoT resolvers on fallback** — the per-link (DHCP) resolver is always used first (so school/corporate DNS and captive portals work out of the box); Cloudflare/Quad9 DoT are consulted only when a network provides no DNS server. Pinning Cloudflare as the *only* resolver broke DPI'd networks that block `1.1.1.1`
-- **Forced WiFi reconnection on resume** — NetworkManager dispatcher + resume-trigger service cycle the WiFi interface on wake from suspend (school/corporate APs often drop associations during suspend), and the DNS cache is flushed to clear stale entries from the old network
+- **Bounded Wi-Fi recovery** — NetworkManager gets time to complete normal association; a watchdog now detects activation states stuck for about three minutes, serializes recovery attempts, bounds CLI calls, and uses a radio reset only after checking for a likely saved network. Automatic driver reloads are avoided because they can disrupt hardware and are reserved for explicit recovery. Resume recovery remains separate and respects the user's Wi-Fi-off choice
 
 ### Input
 - **USB autosuspend disabled** for HID devices and Bluetooth adapters specifically — excluded from Cortex's power-mode switching entirely, so a Bluetooth mouse/keyboard can never be swept into a suspended state by a mode change
