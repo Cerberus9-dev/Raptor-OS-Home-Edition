@@ -1974,10 +1974,12 @@ This is the consolidation release for more than two months of sustained Raptor O
 
 ### Windows compatibility: Raptor Wine
 
-- Raptor Wine now deliberately follows normal Wine behavior: use the existing `wine`, `wineboot`, `wineserver`, and `winetricks` commands with Wine's standard default prefix (`~/.wine`). No custom prefix manager, per-app profiles, setup wizard, or runner-selection dialog is inserted into the normal workflow.
-- Windows executables and MSI files are associated with a minimal KDE desktop entry that launches `wine %f`, so opening a Windows program behaves like opening it with Wine directly.
-- UMU/Proton remains available as an optional separate `raptor-wine-proton` command for games. It runs without the Steam client; it does not replace or intercept normal Wine launches.
-- No claim of universal Windows compatibility is made; individual applications and games still need testing.
+- Preserved the ordinary Wine workflow: `wine`, `winecfg`, `wineboot`, `wineserver`, and `winetricks` remain directly available, using Wine's standard `~/.wine` prefix unless the user chooses otherwise.
+- Added simple executable handling: opening `.exe` files launches them with Wine, while `.msi` installers are passed to `wine msiexec /i`. KDE's right-click menu offers direct Wine launching without a setup wizard or profile manager.
+- Added an optional Proton game action powered by UMU. Proton supplies its game-focused compatibility patches and supported DXVK/VKD3D graphics translation inside the Steam Linux Runtime, without requiring the Steam client.
+- Proton prefixes are created automatically per executable; no profile setup, storefront selection, or game ID entry is required for ordinary use. Advanced UMU settings remain optional environment variables.
+- Kept Wine Mono, Gecko, and Winetricks available for common Windows application dependencies. No global DLL overrides or forced synchronization settings are applied, avoiding needless regressions in desktop applications.
+- Windows compatibility varies by program; anti-cheat, DRM, kernel drivers, and unsupported Windows APIs may still prevent some titles from running.
 
 ### Desktop app resource and Wayland tuning
 
