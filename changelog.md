@@ -7,6 +7,9 @@
 This is the consolidation release for more than two months of sustained Raptor OS overhaul work. The scope includes substantial changes across performance and memory management, gaming and GPU behavior, audio, Cortex, update reliability, hardware recovery, browser and chat-client choice, build validation, and the installation/distribution path. The intent is to ship the work as one coherent major update rather than scatter it across a long sequence of small version bumps.
 
 ### Boot-time hardware detection and service cleanup
+- Moved Wi-Fi power-save handling from a forced global override to an opt-in Raptor Cortex setting. NetworkManager defaults and scan-MAC randomization are preserved for battery life and privacy; users with adapter-specific reconnect/latency problems can disable 802.11 power saving from the GUI.
+- Added a bounded privileged helper that atomically updates the NetworkManager override, reloads configuration, restores the previous file on reload failure, and tells users to reconnect for the active connection to adopt the change.
+
 - Added CI coverage for the embedded Python application entry points, including Raptor Cortex, so malformed Python cannot hide inside an otherwise valid shell installer.
 - Added a regression guard against introducing a global `systemd-udev-settle.service` dependency, which has been reported to add substantial boot latency and is discouraged by systemd.
 
