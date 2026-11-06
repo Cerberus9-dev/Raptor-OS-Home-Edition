@@ -262,7 +262,7 @@ def save_config(cfg: dict) -> bool:
     try:
         with temporary.open("w", encoding="utf-8") as stream:
             json.dump(cfg, stream, indent=2)
-            stream.write("\\n")
+            stream.write("\n")
             stream.flush()
             os.fsync(stream.fileno())
         temporary.replace(CONFIG_FILE)
@@ -310,14 +310,13 @@ def scan_gallery_images():
 
 
 def apply_wallpaper(image_path, fill_mode):
-    image_path = os.path.abspath(os.fspath(image_path))
-    if not os.path.isfile(image_path) or Path(image_path).suffix.lower() not in IMAGE_EXTS:
-        return False, "Select an existing supported image file"
-
     """Apply the wallpaper via KDE's scripting bridge (sets both Image and
     FillMode together). Falls back to plasma-apply-wallpaperimage — which
     sets the image only, with whatever fill mode Plasma currently has — if
     the scripting bridge is unavailable for any reason."""
+    image_path = os.path.abspath(os.fspath(image_path))
+    if not os.path.isfile(image_path) or Path(image_path).suffix.lower() not in IMAGE_EXTS:
+        return False, "Select an existing supported image file"
     # The path is embedded in a JavaScript string that Plasma evaluates, and in
     # a URL. Both must be escaped: a filename containing a quote, backslash, '#'
     # or '%' used to break the script (or inject into it) and fail silently.
@@ -414,6 +413,7 @@ class RaptorWallpaperWindow(Adw.ApplicationWindow):
         self._selected_path = self._cfg.get("image")
         self._fill_mode = self._cfg.get("fill_mode", 0)
         self._cards = []
+        self._search_text = ""
 
         self._build_ui()
         self._populate_gallery()
@@ -447,8 +447,18 @@ class RaptorWallpaperWindow(Adw.ApplicationWindow):
         scroll.set_child(content)
 
         gallery_label = Gtk.Label(label="Choose a wallpaper", xalign=0)
-        gallery_label.add_css_class("title-3")
+        gallery_label.add_css_class("title-2")
         content.append(gallery_label)
+
+        self.preview = Gtk.Picture()
+        self.preview.set_content_fit(Gtk.ContentFit.CONTAIN)
+        self.preview.set_size_request(-1, 190)
+        self.preview.add_css_class("card")
+        content.append(self.preview)
+
+        self.selected_label = Gtk.Label(label="No wallpaper selected", xalign=0)
+        self.selected_label.add_css_class("heading")
+        content.append(self.selected_label)
 
         subtitle = Gtk.Label(
             label="Click any thumbnail to preview it, then Apply below. "
@@ -463,9 +473,20 @@ class RaptorWallpaperWindow(Adw.ApplicationWindow):
         self.flow_box.set_max_children_per_line(4)
         self.flow_box.set_min_children_per_line(2)
         self.flow_box.set_selection_mode(Gtk.SelectionMode.NONE)
+        self.flow_box.set_filter_func(self._filter_wallpaper_card)
+        empty = Adw.StatusPage()
+        empty.set_icon_name("image-missing-symbolic")
+        empty.set_title("No matching wallpapers")
+        empty.set_description("Try a different search or browse for an image.")
+        self.flow_box.set_placeholder(empty)
         self.flow_box.set_row_spacing(12)
         self.flow_box.set_column_spacing(12)
         content.append(self.flow_box)
+
+        self.gallery_search = Gtk.SearchEntry()
+        self.gallery_search.set_placeholder_text("Search wallpapers…")
+        self.gallery_search.connect("search-changed", self._on_gallery_search_changed)
+        content.insert_child_after(self.gallery_search, subtitle)
 
         options_group = Adw.PreferencesGroup(title="Display Options")
         content.append(options_group)
@@ -514,6 +535,18 @@ class RaptorWallpaperWindow(Adw.ApplicationWindow):
             self.get_display(), css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
         )
 
+    def _on_gallery_search_changed(self, entry):
+        self._search_text = entry.get_text().strip().casefold()
+        self.flow_box.invalidate_filter()
+
+    def _filter_wallpaper_card(self, child):
+        card = child.get_child()
+        if not card:
+            return False
+        if not self._search_text:
+            return True
+        return self._search_text in card.image_path.name.casefold()
+
     def _populate_gallery(self):
         for image_path in scan_gallery_images():
             self._add_card(image_path)
@@ -533,6 +566,8 @@ class RaptorWallpaperWindow(Adw.ApplicationWindow):
         for c in self._cards:
             c.set_selected(c is card)
         self._selected_path = str(card.image_path)
+        self.preview.set_filename(self._selected_path)
+        self.selected_label.set_text(card.image_path.name)
 
     def _on_browse_clicked(self, _btn):
         dialog = Gtk.FileChooserDialog(
