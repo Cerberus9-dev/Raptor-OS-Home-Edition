@@ -769,32 +769,9 @@ GAMEDOC
 
 # ── Input device udev rules ───────────────────────────────────────────────────
 cat << 'INPUTRULES' > /usr/lib/udev/rules.d/61-raptor-input.rules
-# Disable USB autosuspend for all HID input devices (mice, keyboards, pads).
-# Autosuspend saves ~0.5 W but causes 16-500 ms input latency spikes on wake.
-ACTION=="add", SUBSYSTEM=="usb", DRIVERS=="usbhid", \
-    ATTR{power/autosuspend}="-1"
-
-# Disable USB autosuspend for Bluetooth adapters (btusb driver). This is a
-# SEPARATE device from any HID rule above — a Bluetooth mouse/keyboard talks
-# to the OS through this adapter, not as its own USB HID node, so the usbhid
-# rule above never protected it. Applying autosuspend to a Bluetooth adapter
-# is a known way to leave it unresponsive after its next suspend cycle,
-# breaking every Bluetooth input device connected through it until a manual
-# USB reset or reboot. This affects internal laptop Bluetooth chips too —
-# most enumerate as USB devices even though they're physically built in.
-ACTION=="add", SUBSYSTEM=="usb", DRIVERS=="btusb", \
-    ATTR{power/control}="on", \
-    ATTR{power/autosuspend}="-1"
-
-# Disable USB autosuspend for USB audio devices (snd-usb-audio driver).
-# Wireless headset/gaming dongles almost always enumerate as USB audio
-# regardless of the RF protocol used internally — this covers those in
-# addition to any wired USB DAC/audio interface. Autosuspend mid-stream on
-# a USB audio device is a well-known cause of crackling and audio dropouts.
-ACTION=="add", SUBSYSTEM=="usb", DRIVERS=="snd-usb-audio", \
-    ATTR{power/control}="on", \
-    ATTR{power/autosuspend}="-1"
-
+# Preserve kernel USB autosuspend defaults. Blanket autosuspend disable rules
+# can increase idle power draw on laptops; apply device-specific workarounds
+# only when a reproducible controller, Bluetooth or audio issue requires one.
 # uinput: allow user-space to create virtual devices (antimicro, xpadneo, etc.)
 KERNEL=="uinput", SUBSYSTEM=="misc", \
     OPTIONS+="static_node=uinput", TAG+="uaccess", TAG+="udev-acl", \
