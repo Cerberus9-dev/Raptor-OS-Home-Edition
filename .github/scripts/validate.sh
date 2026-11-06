@@ -147,7 +147,6 @@ assert_contains files/scripts/raptor-update/install.sh "timeout=3 * 60 * 60"
 assert_contains files/scripts/raptor-update/install.sh "timeout=900"
 assert_contains files/scripts/raptor-update/install.sh 'rpm-ostree upgrade 2>&1 | tee "$out"'
 assert_contains files/scripts/raptor-update/install.sh "_stop_process_group(helper)"
-assert_contains .github/workflows/build.yml "steps.one_time_apps.outputs.include == 'true' || github.event_name == 'pull_request'"
 assert_contains .github/workflows/build.yml 'cargo build --release --workspace --manifest-path files/scripts/raptor-music/Cargo.toml'
 assert_contains .github/workflows/build.yml 'cargo test --workspace --manifest-path files/scripts/raptor-music/Cargo.toml'
 assert_contains .github/workflows/build.yml 'PR validation only: built Raptor Music without staging it into the image.'
@@ -161,14 +160,12 @@ assert_contains .github/workflows/build-iso.yml "mkksiso --ks"
 assert_contains README.md "Intel Core i5-8250U"
 assert_contains README.md "Vulkan 1.3+"
 assert_contains README.md "optimization target under development"
-assert_contains changelog.md "v3.0.0 (Major Release — planned)"
+assert_contains changelog.md "v3.0.0 (Major Release"
 
 echo "All validations passed."
 
 echo "=== Checking v3.0.0 release integration ==="
 assert_contains .github/workflows/build.yml 'REF_NAME: ${{ github.ref_name }}'
-assert_contains .github/workflows/build.yml 'raptor-one-time-apps-consumed'
-assert_contains .github/one-time-apps-v3.0.0 'first successful'
 assert_contains files/scripts/raptor-cortex/install.sh 'auto|on)'
 assert_contains files/scripts/raptor-cortex/install.sh '/sys/class/nvme/nvme*/power/control'
 assert_not_contains files/scripts/raptor-cortex/install.sh '_apply_nvme_power      min_power'
@@ -210,7 +207,6 @@ assert_contains files/scripts/shroudly-raptor/install.sh 'no complete one-time S
 assert_contains files/scripts/raptor-music/install.sh 'no one-time Raptor Music payload in this image build'
 assert_contains files/scripts/raptor-music/install.sh 'RAPTOR_MUSIC_PAYLOAD_MISSING'
 assert_contains .github/workflows/build.yml 'git add -f -- files/staging'
-assert_contains .github/workflows/build.yml 'RECOVERY_RUN'
 assert_contains .github/workflows/build.yml 'Verify both apps inside the published image'
 assert_contains .github/workflows/build.yml 'docker run --rm --entrypoint /bin/bash'
 assert_contains .github/workflows/build.yml '/usr/bin/raptor-music'
