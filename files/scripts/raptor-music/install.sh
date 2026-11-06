@@ -9,7 +9,7 @@ set -euo pipefail
 
 # One-time payload gate: only the staged payload from the first successful
 # one-time update image build (or a maintainer recovery dispatch) may install.
-if [[ ! -f "/usr/share/raptor/include-one-time-apps" ]]; then
+if [[ ! -f "/tmp/raptor-staging/include-one-time-apps" ]]; then
     rm -f "/tmp/raptor-staging/raptor-music"
     echo "RAPTOR_MUSIC_SKIP: one-time app integration was not requested; staged binary removed."
     exit 0
