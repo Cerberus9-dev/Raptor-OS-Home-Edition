@@ -1,6 +1,9 @@
 # Changelog
 
 ## V3.0 reliability follow-up — suspend/resume and CI regression cleanup
+- Removed the obsolete readiness-only CPU governor and power-profile units, plus the inactive service-health checker. Power Profiles Daemon is the sole CPU/firmware policy owner; the removed units only queried or rechecked service state and did not provide useful behavior.
+- Removed the unused unit files from the image recipe entirely rather than merely leaving them disabled, reducing installed systemd clutter and preventing accidental activation by future dependencies.
+
 
 - Removed the unused resume-marker service, redundant lid-open unit, and inactive CPU-governor compatibility unit. Suspend/resume recovery is already handled by the single systemd-sleep hook; target-bound units could run at the wrong point in the suspend transition and add avoidable delay.
 - Kept touchpad rebind and asynchronous Wi-Fi/Bluetooth recovery in the existing post-resume hook, avoiding duplicate recovery paths.
