@@ -84,12 +84,20 @@ if [[ "${RAPTOR_WINE_DEBUG:-0}" == "1" ]]; then
   export PROTON_LOG=1
 fi
 
+if [[ $# -eq 0 ]]; then
+  echo "Usage: raptor-wine-proton program.exe [arguments...]" >&2
+  exit 2
+fi
+
+target="$1"
+shift
+
 case "${target,,}" in
   *.msi)
-    exec umu-run wine msiexec /i "$target" "${@:2}"
+    exec umu-run wine msiexec /i "$target" "$@"
     ;;
   *)
-    exec umu-run "$target" "${@:2}"
+    exec umu-run "$target" "$@"
     ;;
 esac
 PROTON
