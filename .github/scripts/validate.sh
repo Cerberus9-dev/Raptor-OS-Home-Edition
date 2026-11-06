@@ -104,6 +104,8 @@ echo "=== Checking Wine + Proton compatibility contracts ==="
 assert_contains recipes/recipe.yml "- umu-launcher"
 assert_contains files/scripts/raptor-wine/install.sh "command -v umu-run"
 assert_contains files/scripts/raptor-wine/install.sh "exec umu-run"
+assert_contains files/scripts/raptor-wine/install.sh "PREFIX_EXPLICIT=0"
+assert_contains files/scripts/raptor-wine/install.sh "app_name=\"$(basename -- \"$1\")\""
 assert_contains files/scripts/raptor-wine/install.sh 'RUNNER="auto"'
 assert_contains files/scripts/raptor-wine/install.sh 'RUNNER=proton'
 assert_contains files/scripts/raptor-wine/install.sh 'RUNNER=wine'
