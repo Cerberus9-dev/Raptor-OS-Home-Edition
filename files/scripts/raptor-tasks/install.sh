@@ -318,8 +318,9 @@ class RaptorTasksWindow(Adw.ApplicationWindow):
             self.tasks.append(task)
         if not save_tasks(self.tasks):
             self._toast("Couldn't save task — check file permissions")
-            return
+            return False
         self._refresh_list()
+        return True
 
     def _toast(self, msg):
         toast = Adw.Toast.new(msg)
@@ -394,8 +395,8 @@ class TaskEditDialog(Adw.Window):   # not Adw.Dialog: that has no transient_for/
             saved = self._task
         else:
             saved = Task(text, category)
-        self._on_save(saved)
-        self.close()
+        if self._on_save(saved) is not False:
+            self.close()
 
 
 class RaptorTasksApp(Adw.Application):
