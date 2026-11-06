@@ -76,7 +76,7 @@ A one-time **Welcome to Raptor OS Home** dialog introduces the Raptor app suite 
 
 1. **Browser choice** — no browser ships in the image; Raptor keeps the default *minimal*. Choose Firefox, Brave, Zen Browser, Floorp, Waterfox, Chromium, Chrome, or Edge (each a one-time Flathub download, Firefox pre-selected). Shows a network check, download progress bar, and retry prompt on failure. "Skip — No Browser" installs nothing and forces no default.
 2. **Chat client choice** — choose official Discord, Vesktop (Vencord), Equibop (Equicord), or GoofCord. None is pre-installed. "Skip — Install Neither" is always available.
-3. **App picker** — 90+ optional apps across 21 categories, including Flameshot for screenshot annotation, Save Desktop for desktop backups, the GOverlay MangoHud config GUI, game-streaming stack (Moonlight + Sunshine), extra emulators, JetBrains IDEs, and VS Code. Nothing is pre-ticked. Everything here is also installable later from Discover or `flatpak install flathub <id>`. "Skip — Install Nothing" is always available.
+3. **App picker** — 90+ optional apps across 21 categories, including Flameshot for screenshot annotation, Save Desktop for desktop backups, KDE Connect, the GOverlay MangoHud config GUI, game-streaming (Moonlight + Sunshine), emulators, IDEs, and more. Nothing is pre-ticked. Search the list by typing, and reopen **Raptor App Picker** from the application menu after first boot to install more software later. "Skip — Install Nothing" is always available.
 
 ---
 
