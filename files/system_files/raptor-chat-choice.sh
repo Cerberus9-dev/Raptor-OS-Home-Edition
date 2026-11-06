@@ -44,8 +44,12 @@ if command -v flatpak >/dev/null 2>&1; then
 fi
 
 if ! command -v zenity &>/dev/null; then
-    err "zenity not found — cannot show chat client dialog. Writing stamp to avoid loop."
-    mkdir -p "$(dirname "${STAMP_FILE}")" && touch "${STAMP_FILE}"
+    err "zenity not found — chat client choice deferred; it will retry on the next login."
+    exit 0
+fi
+
+if ! command -v flatpak &>/dev/null; then
+    err "Flatpak is unavailable — chat client choice deferred; it will retry on the next login."
     exit 0
 fi
 
