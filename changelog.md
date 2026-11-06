@@ -31,6 +31,8 @@ This is the consolidation release for more than two months of sustained Raptor O
 - Raptor Wallpaper now includes a larger selected-image preview, the selected filename, live gallery search, and a useful no-results state.
 - Fixed both apps' JSON writers to append a real newline rather than a literal backslash-n sequence, so files saved by the apps remain valid JSON on the next launch.
 - Restored the `apply_wallpaper` function docstring to its proper position before executable statements.
+- Task editing now stays open when a save fails, allowing the user to correct the problem and retry instead of losing the draft.
+- Wallpaper file selection now rejects unsupported or inaccessible paths, avoids duplicate gallery cards, and captures the chosen image/fit mode before applying so a later click cannot change the in-flight operation.
 
 ### Raptor Wallpaper reliability
 
