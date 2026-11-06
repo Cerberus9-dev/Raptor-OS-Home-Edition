@@ -35,6 +35,14 @@ if [[ -f "${STAMP_FILE}" ]]; then
 fi
 
 # ── Prerequisite: zenity must be available ────────────────────────────────────
+# This runs as a user service. Keep the remote and installs in the user
+# installation so first-boot setup does not unexpectedly request admin
+# authentication or install chat clients for every account.
+if command -v flatpak >/dev/null 2>&1; then
+    flatpak remote-add --user --if-not-exists flathub \
+        https://dl.flathub.org/repo/flathub.flatpakrepo 2>/dev/null || true
+fi
+
 if ! command -v zenity &>/dev/null; then
     err "zenity not found — cannot show chat client dialog. Writing stamp to avoid loop."
     mkdir -p "$(dirname "${STAMP_FILE}")" && touch "${STAMP_FILE}"
@@ -66,7 +74,7 @@ install_with_progress() {
     info "Starting Flatpak install: ${flatpak_id}"
 
     (
-        flatpak install -y --noninteractive flathub "${flatpak_id}" \
+        flatpak install --user -y --noninteractive flathub "${flatpak_id}" \
             >> "${INSTALL_LOG}" 2>&1
         echo "100"
     ) | zenity --progress \
@@ -77,7 +85,7 @@ install_with_progress() {
             --no-cancel \
             --width=420 2>/dev/null || true
 
-    if flatpak info "${flatpak_id}" &>/dev/null; then
+    if flatpak info --user "${flatpak_id}" &>/dev/null; then
         info "${flatpak_id} installed successfully"
         return 0
     else
@@ -105,7 +113,7 @@ install_with_retry() {
             --ok-label="Try Again" \
             --cancel-label="Skip" \
             --width=380 2>/dev/null; then
-        if flatpak install -y --noninteractive flathub "$flatpak_id" \
+        if flatpak install --user -y --noninteractive flathub "$flatpak_id" \
                 >> "${INSTALL_LOG}" 2>&1; then
             log "${display_name} installed on retry."
             return 0
