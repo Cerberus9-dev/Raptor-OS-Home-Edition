@@ -456,7 +456,7 @@ rm -rf "$wifi_test_dir"
 echo "Wi-Fi power-management contracts passed."
 
 echo "=== Checking conservative gaming defaults ==="
-assert_contains files/scripts/raptor-gaming/install.sh '@bEnableShaderPreCaching 1'
+assert_not_contains files/scripts/raptor-gaming/install.sh '@bEnableShaderPreCaching'
 assert_not_contains files/scripts/raptor-gaming/install.sh '@nClientDownloadEnableHTTP2PlatformLinux'
 assert_not_contains files/scripts/raptor-gaming/install.sh '@fDownloadRateImprovementToAddAnotherConnection'
 assert_not_contains files/scripts/raptor-gaming/install.sh '@cMaxFileSystemWriteBufferSizeBytes'
