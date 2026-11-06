@@ -1108,7 +1108,7 @@ class RaptorUpdateWindow(Adw.ApplicationWindow):
         self.check_btn.set_sensitive(False)
         self.update_btn.set_sensitive(False)
         self.update_spinner.start()
-        self._append_console("── Staging system rollback ──\\n")
+        self._append_console("── Staging system rollback ──\n")
         threading.Thread(target=self._run_rollback, daemon=True).start()
 
     def _run_rollback(self):
@@ -1128,14 +1128,14 @@ class RaptorUpdateWindow(Adw.ApplicationWindow):
         self.update_spinner.stop()
         self.check_btn.set_sensitive(True)
         if rc == 0:
-            self._append_console("\\nRollback staged successfully. Restart when ready to boot the previous deployment.\\n")
+            self._append_console("\nRollback staged successfully. Restart when ready to boot the previous deployment.\n")
             self._set_status(
                 "Previous system selected. Restart to complete rollback.",
                 "emblem-ok-symbolic", "success")
             self.subtitle.set_text("Rollback is ready; no automatic restart was performed.")
             self.rollback_btn.set_sensitive(False)
         else:
-            self._append_console(f"\\nRollback failed: {error or f'exit {rc}'}.\\n")
+            self._append_console(f"\nRollback failed: {error or f'exit {rc}'}.\n")
             self._set_status(
                 "Rollback could not be staged. The current system was left in place.",
                 "dialog-warning-symbolic", "warning")
