@@ -242,6 +242,10 @@ assert_contains files/system_files/raptor-mimeapps.list 'application/x-zip-compr
 assert_contains files/system_files/raptor-mimeapps.list 'application/x-cbz=org.kde.ark.desktop'
 assert_contains files/scripts/raptor-dolphin-stability/install.sh 'command -v ark'
 assert_contains files/scripts/raptor-dolphin-stability/install.sh 'command -v unzip'
+assert_contains files/scripts/raptor-dolphin-stability/install.sh 'set -euo pipefail'
+echo "=== Shell syntax: archive stability installer ==="
+bash -n files/scripts/raptor-dolphin-stability/install.sh
+
 
 echo "=== Checking Cortex multi-page control center ==="
 assert_contains files/scripts/raptor-cortex/install.sh 'Adw.ViewStack()'
