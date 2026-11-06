@@ -109,6 +109,9 @@ assert_contains recipes/recipe.yml "- winetricks"
 assert_contains recipes/recipe.yml "- umu-launcher"
 assert_contains files/scripts/raptor-wine/install.sh "exec wine"
 assert_contains files/scripts/raptor-wine/install.sh "exec umu-run"
+assert_contains files/scripts/raptor-wine/install.sh 'target="$1"'
+assert_contains files/scripts/raptor-wine/install.sh 'shift'
+assert_contains files/scripts/raptor-wine/install.sh 'Usage: raptor-wine-proton program.exe'
 assert_contains files/scripts/raptor-wine/install.sh "Exec=raptor-wine %f"
 assert_contains files/scripts/raptor-wine/install.sh "Exec=raptor-wine-proton %f"
 assert_not_contains files/scripts/raptor-wine/install.sh "zenity"
