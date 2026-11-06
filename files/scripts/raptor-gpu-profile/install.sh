@@ -296,7 +296,7 @@ if [ -f "$ENVFILE" ]; then
     done < "$ENVFILE"
 
     if [ ${#LIVE_VARS[@]} -gt 0 ]; then
-        for uid in $(timeout 2s loginctl list-users --no-legend 2>/dev/null | awk '{print $1}'); do
+        for uid in $(timeout 2s loginctl list-users --no-legend 2>/dev/null | awk '{print $1}' || true); do
             RUNTIME_DIR="/run/user/$uid"
             if [ -d "$RUNTIME_DIR" ]; then
                 DBUS="unix:path=$RUNTIME_DIR/bus"
