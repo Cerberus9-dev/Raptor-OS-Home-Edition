@@ -269,6 +269,11 @@ assert_contains files/scripts/raptor-dolphin-stability/install.sh 'command -v un
 assert_contains files/scripts/raptor-dolphin-stability/install.sh 'set -euo pipefail'
 echo "=== Shell syntax: archive stability installer ==="
 bash -n files/scripts/raptor-dolphin-stability/install.sh
+assert_contains files/scripts/raptor-dolphin-stability/install.sh 'raptor-ark-extract.desktop'
+assert_contains files/scripts/raptor-dolphin-stability/install.sh 'ark --batch --autodestination --autosubfolder %F'
+assert_contains files/scripts/raptor-dolphin-stability/install.sh 'ark --batch --dialog %F'
+assert_contains files/scripts/raptor-dolphin-stability/install.sh 'ark --add %F'
+assert_contains files/scripts/raptor-dolphin-stability/install.sh 'chmod 0755 "$SERVICE_MENU_DIR/raptor-ark-create.desktop"'
 
 
 echo "=== Checking Cortex multi-page control center ==="
