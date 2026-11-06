@@ -1974,12 +1974,10 @@ This is the consolidation release for more than two months of sustained Raptor O
 
 ### Windows compatibility: Raptor Wine
 
-- Raptor Wine now offers regular Wine for Windows desktop applications and UMU-managed Proton for games or programs that benefit from Proton-specific compatibility.
-- UMU launches Proton with its expected Steam Linux Runtime without requiring the Steam client or a Steam game library. UMU manages the Proton/runtime downloads on first use.
-- The desktop launcher and KDE file-manager action let users choose Wine or Proton; terminal use defaults to Wine unless `--runner proton` is specified.
-- Wine and Proton use separate per-application prefixes. Optional controls include UMU game IDs, storefront fixes, Proton version selection, Winetricks runtime installation, and diagnostic logging.
-- Removed globally forced esync/fsync and DLL overrides so desktop Wine is not forced into game-specific settings and Proton can apply its own defaults.
-- Actual application/game compatibility and first-run UMU downloads still require testing on a built image; universal Windows compatibility is not claimed.
+- Raptor Wine now deliberately follows normal Wine behavior: use the existing `wine`, `wineboot`, `wineserver`, and `winetricks` commands with Wine's standard default prefix (`~/.wine`). No custom prefix manager, per-app profiles, setup wizard, or runner-selection dialog is inserted into the normal workflow.
+- Windows executables and MSI files are associated with a minimal KDE desktop entry that launches `wine %f`, so opening a Windows program behaves like opening it with Wine directly.
+- UMU/Proton remains available as an optional separate `raptor-wine-proton` command for games. It runs without the Steam client; it does not replace or intercept normal Wine launches.
+- No claim of universal Windows compatibility is made; individual applications and games still need testing.
 
 ### Desktop app resource and Wayland tuning
 
