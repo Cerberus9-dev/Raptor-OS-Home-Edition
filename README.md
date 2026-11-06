@@ -72,7 +72,7 @@ systemctl reboot
 
 ## First Boot
 
-Three dialogs appear on the first login, in sequence:
+A one-time **Welcome to Raptor OS Home** dialog introduces the Raptor app suite before the three setup dialogs appear:
 
 1. **Browser choice** — no browser ships in the image; Raptor keeps the default *minimal*. Choose Firefox, Brave, Zen Browser, Floorp, Waterfox, Chromium, Chrome, or Edge (each a one-time Flathub download, Firefox pre-selected). Shows a network check, download progress bar, and retry prompt on failure. "Skip — No Browser" installs nothing and forces no default.
 2. **Chat client choice** — choose official Discord, Vesktop (Vencord), Equibop (Equicord), or GoofCord. None is pre-installed. "Skip — Install Neither" is always available.
@@ -121,7 +121,7 @@ Three dialogs appear on the first login, in sequence:
 
 GTK4/Adwaita app with Power Saving / Balanced / Performance modes. **power-profiles-daemon is the sole owner of CPU governor, boost, EPP, frequency and firmware power policy**, keeping KDE Powerdevil's battery slider functional. Cortex applies separate device-level tuning (such as PCIe/NVMe where supported) and reports failures instead of silently claiming success.
 
-- **Live stats** — RAM, swap, ZRAM, CPU boost, CPU/GPU temperature (colour-coded), CPU frequency, and time since the last optimization run
+- **Live stats** — RAM, swap, ZRAM, CPU boost, CPU/GPU temperature (colour-coded), CPU frequency, GPU model/load/clock/VRAM when the driver exposes them, readable fan RPM/percent sensors, and time since the last optimization run
 - **Optimize Memory Now** — performs bounded, pressure-aware reclaim; it does not indiscriminately flush useful file/game caches
 - **Quick Actions** — One-Click Boost (Performance profile, supported GPU profile, optional indexer pause and pressure-aware memory reclaim), Restore Desktop, Clear Shader Cache
 - **Persistent Settings** — apply saved mode on every boot, auto-switch to Performance for games launched from the Game Library, auto-restore the previous mode when they exit
@@ -167,6 +167,7 @@ The first-boot chooser offers the official Discord client, Vesktop, Equibop, and
 
 ### GPU
 - **Auto GPU detection** at boot — AMD, NVIDIA, Intel and hybrid configurations; selects supported GPU environment and driver settings. CPU power policy is handled separately by power-profiles-daemon
+- **Cortex hardware telemetry** — reports detected GPU model, utilization, active clock and dedicated VRAM where the driver exposes those counters; fan RPM/percentage is read-only and shown only when firmware/driver sensors are available. No unsupported fan-control or overclocking writes are attempted.
 - **`RADV_PERFTEST=gpl`** — cuts in-game shader compile stalls 30–60% on RDNA2+
 - **Mesa GL threading** is enabled for Wine/Proton where supported; native applications keep driver defaults to avoid global compatibility regressions
 - **`WINE_FULLSCREEN_FSR` and `DXVK_ASYNC` not set globally** — both caused flickering in OpenGL games (Project Zomboid). Set per-game in Steam launch options instead
@@ -181,9 +182,9 @@ The first-boot chooser offers the official Discord client, Vesktop, Equibop, and
 
 ### File Manager (Dolphin)
 - **Default file browser** — Dolphin, not Nautilus (removed). Folders and image types are bound via system-wide `/etc/xdg/mimeapps.list` (+ skel + login migration for existing users)
-- **ZIP/archive freeze & crash defused** — selecting or hovering a .zip used to make the F4 Information Panel parse the file with KFileMetaData in the main process (blocking the UI on big/remote archives and hard-crashing on corrupt ones). The panel is now static by default (`[InformationPanel]` `previewsShown`/`previewsAutoPlay`/`showHovered` all off — F4 still opens it on demand), and Baloo's content indexer is disabled with all archive globs (`*.zip *.tar *.gz *.7z …`) excluded, so bulk-selecting / right-clicking to delete archives never triggers an archive read. Ark's Compress/Extract context-menu plugins (which force a per-file MIME scan on any selection) are also removed at build time — double-clicking a .zip still opens it instantly in Ark. Configs seed new users via skel and correct existing users through a once-per-user login migration
+- **Archive-selection safeguards** — Dolphin's information-panel archive extraction and Baloo content reads are disabled for archive files, and Ark's expensive Compress/Extract context-menu plugins are removed from Dolphin to avoid known selection/context-menu stalls. Archive context actions are intentionally sacrificed for responsiveness; double-clicking archives opens Ark instead. The image explicitly includes Ark, 7-Zip and Info-ZIP `unzip`, and common ZIP MIME aliases are routed to Ark so external ZIP opens do not loop back into Dolphin. These measures avoid known failure paths but do not claim to eliminate every upstream Ark/Dolphin freeze.
 - **Preview plugins limited to images + folders** — video/audio/document thumbnail generation could stall selection on large media folders; restricting the enabled thumbnails keeps Dolphin responsive
-- **Archive MIME defaults bound to Ark** — double-clicking a .zip/.tar/.7z/.rar opens it in Ark immediately
+- **Archive MIME defaults bound to Ark** — double-clicking common ZIP/TAR/7z/RAR formats opens Ark; ZIP MIME aliases are explicitly associated to avoid Dolphin's external-open-as-folder bug
 
 ### CPU & Power
 - **power-profiles-daemon** owns CPU governor, boost, EPP, frequency limits and supported firmware platform profiles. KDE Powerdevil and Raptor Cortex use this shared interface, so the desktop battery slider remains authoritative
@@ -191,7 +192,7 @@ The first-boot chooser offers the official Discord client, Vesktop, Equibop, and
 - **Game Mode** avoids repeatedly rewriting CPU policy or performing disruptive memory operations at game launch
 
 ### Memory & Low-RAM Tuning
-- **ZRAM** — LZ4 compression, sized to `min(RAM/2, 8 GB)`, priority 100, `discard` enabled; LZ4 favors lower CPU overhead on older low-power processors
+- **ZRAM** — LZ4 compression, sized to `min(RAM/2, 8 GB)`, priority 100, `discard` enabled; LZ4 favors lower CPU overhead on older low-power processors. Zswap is not layered on top of ZRAM: zswap is a compressed cache in front of a separate backing swap device, and stacking it with compressed ZRAM can waste CPU on double compression. A zswap profile should only be considered for systems with real disk-backed swap and measured benefit.
 - **Baloo** — filename-only indexing with full-text content indexing disabled and a reduced worker count
 - **Cortex One-Click Boost** — applies the Performance power profile, pauses configured optional indexers, and requests bounded memory reclaim only under pressure
 - **No blanket cache flushes, routine OOM-score changes or forced compaction** as a supposed memory booster
