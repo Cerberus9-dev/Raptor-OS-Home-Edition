@@ -50,8 +50,9 @@ This is the consolidation release for more than two months of sustained Raptor O
 
 ### Memory compression decision
 
-- Kept LZ4 ZRAM as the default for low-power and low-memory systems because its low CPU overhead is a better baseline for older Celeron/Core i3/AMD A-series-class CPUs.
-- Did not stack zswap on top of ZRAM: zswap is a compressed cache in front of a separate backing swap device, not a universal drop-in replacement. Double-compressing through both layers can add CPU cost without a reliable benefit. A disk-backed zswap profile requires separate benchmarking before it becomes an optional mode.
+- The current image configuration uses standard-level zstd ZRAM with logical capacity `min(RAM, 8 GiB)`. The logical limit is not preallocated at boot; physical memory is consumed as compressed pages are stored.
+- zstd trades additional CPU work for a better compression ratio than LZ4 on many workloads. That tradeoff is documented rather than presented as a universal win; weak CPUs and sustained memory pressure still need real-device benchmarking.
+- Did not stack zswap on top of ZRAM: zswap requires a separate backing swap device and can add CPU cost when layered over another compressed swap device. A disk-backed zswap profile requires separate benchmarking before it becomes an optional mode.
 
 ### Wi-Fi connection reliability
 
@@ -67,10 +68,12 @@ This is the consolidation release for more than two months of sustained Raptor O
 - Corrected the Proton launcher's MSI handling. UMU accepts an executable as its launch target; passing `wine msiexec` as though UMU were a general Wine command wrapper was incorrect. MSI installers now produce a clear instruction to use standard Wine (`wine msiexec /i installer.msi`), while Proton remains available for executable game launches.
 - Added CI assertions to prevent the optional UMU dependency from blocking the normal Wine installer and to guard against reintroducing the invalid MSI invocation.
 
-### Build reliability and one-time app integration
+### Build reliability and persistent app integration
 
-- Fixed the one-time app installer gate: the image build stages Raptor Music and Shroudly only when requested, and each installer now detects its actual staged application payload instead of relying on a separate marker file that the BlueBuild files module did not deliver to the script stage.
-- Ordinary image builds remain app-payload-free and skip both optional installers. The one-time update build must still verify both applications and all required files inside the published GHCR image before consuming the internal integration lock.
+- Raptor Music and the original upstream Shroudly desktop app are built and staged during every image build. Their installers verify the actual staged payload and safely skip only when a local build intentionally omits CI-generated staging files.
+- The workflow verifies both applications inside the resulting GHCR image instead of relying on a one-time marker or a first-build-only integration lock.
+- Static validation and workflow linting now run before expensive Shroudly and Raptor Music dependency builds, so shell, embedded-Python, and repository-contract failures surface earlier.
+- After image verification, CI reports the OCI virtual size, largest image layers, and installed filesystem usage. This provides a measurable baseline for future size reduction rather than guessing which dependencies are safe to remove.
 - The build workflow remains the update-image workflow: it pushes the OCI image to GHCR and does not create GitHub Releases or downloadable artifacts. ISO creation remains separate.
 
 ### Choice, compatibility, and distribution improvements
