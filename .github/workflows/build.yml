@@ -225,13 +225,20 @@ jobs:
           REPOSITORY: ${{ github.repository }}
           EVENT_NAME: ${{ github.event_name }}
           PR_NUMBER: ${{ github.event.number }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          if [[ "$EVENT_NAME" == "pull_request" ]]; then
-            IMAGE_TAG="pr-$PR_NUMBER"
-          else
-            IMAGE_TAG="latest"
+          IMAGE_VERSION="$(sed -nE 's/^image-version:[[:space:]]*([^[:space:]#]+).*/\\1/p' recipes/recipe.yml | head -n1)"
+          if [[ -z "$IMAGE_VERSION" ]]; then
+            echo "::error::Could not read image-version from recipes/recipe.yml"
+            exit 1
           fi
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            IMAGE_TAG="pr-$PR_NUMBER-$IMAGE_VERSION"
+          else
+            IMAGE_TAG="${REF_NAME//\\//_}-$IMAGE_VERSION"
+          fi
+          echo "Verifying BlueBuild image tag: $IMAGE_TAG"
           IMAGE_REF="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/raptor-os:$IMAGE_TAG"
           echo "$GH_TOKEN" | docker login ghcr.io -u "$GH_ACTOR" --password-stdin
           docker pull "$IMAGE_REF"
