@@ -6,6 +6,29 @@
 
 This is the consolidation release for more than two months of sustained Raptor OS overhaul work. The scope includes substantial changes across performance and memory management, gaming and GPU behavior, audio, Cortex, update reliability, hardware recovery, browser and chat-client choice, build validation, and the installation/distribution path. The intent is to ship the work as one coherent major update rather than scatter it across a long sequence of small version bumps.
 
+### First-login welcome and application tour
+
+- Added a one-time **Welcome to Raptor OS Home** dialog before the existing browser, chat, and optional-app choices. It explains the Raptor app suite in plain language and can be dismissed without blocking setup.
+- The completion stamp is stored per user under the XDG data directory, so the welcome screen does not repeat after dismissal. If the dialog dependency is unavailable, setup continues rather than trapping the user.
+
+### Dolphin and archive reliability
+
+- Made Ark, 7-Zip and Info-ZIP unzip explicit image dependencies instead of relying on incidental base-image packages.
+- Routed additional ZIP MIME aliases to Ark, including archives opened from outside Dolphin, avoiding the reported Bazzite behavior where an externally opened ZIP is sent back to Dolphin as a folder.
+- Kept the existing conservative Dolphin safeguards: archive content metadata extraction and the slow archive context-menu plugins remain disabled to avoid known selection/context-menu hangs. This intentionally trades those context-menu entries for responsiveness; archive opening remains through Ark.
+- Added image-build checks that Ark and unzip are present. This does not claim to fix every upstream Ark extraction or multi-volume ZIP bug.
+
+### Cortex GPU and fan telemetry
+
+- Expanded the Graphics Processor row to show the detected adapter model, utilization, active clock, and dedicated VRAM when the kernel/vendor driver exposes those values.
+- Changed the generic fallback from the unhelpful label “GPU” to an explicit telemetry-unavailable message.
+- Kept fan reporting read-only. RPM/percentage appears only when hwmon or NVIDIA driver sensors expose it; systems without readable fan sensors receive a clear firmware/driver limitation instead of fabricated values.
+
+### Memory compression decision
+
+- Kept LZ4 ZRAM as the default for low-power and low-memory systems because its low CPU overhead is a better baseline for older Celeron/Core i3/AMD A-series-class CPUs.
+- Did not stack zswap on top of ZRAM: zswap is a compressed cache in front of a separate backing swap device, not a universal drop-in replacement. Double-compressing through both layers can add CPU cost without a reliable benefit. A disk-backed zswap profile requires separate benchmarking before it becomes an optional mode.
+
 ### Wi-Fi connection reliability
 
 - Fixed a watchdog logic error that treated NetworkManager's connecting/configuring states as healthy forever, allowing stalled Wi-Fi activation to evade recovery indefinitely.
