@@ -223,7 +223,8 @@ class RaptorTasksWindow(Adw.ApplicationWindow):
         empty.set_icon_name("view-list-symbolic")
         empty.set_title("No tasks yet")
         empty.set_description("Add a task to start organizing your day.")
-        self.list_box.set_placeholder(empty)
+        self.empty_page = empty
+        self.list_box.set_placeholder(self.empty_page)
         scroll.set_child(self.list_box)
 
         # Keyboard shortcuts
@@ -279,6 +280,12 @@ class RaptorTasksWindow(Adw.ApplicationWindow):
         self.summary_label.set_text(
             f"{total - completed} open   •   {completed} completed   •   {total} total"
         )
+        if total == 0:
+            self.empty_page.set_title("No tasks yet")
+            self.empty_page.set_description("Add a task to start organizing your day.")
+        elif not visible:
+            self.empty_page.set_title("No matching tasks")
+            self.empty_page.set_description("Try another search or change the category/status filters.")
         for task in visible:
             row = TaskRow(task, self._on_toggle, self._on_delete, self._on_edit)
             self.list_box.append(row)
