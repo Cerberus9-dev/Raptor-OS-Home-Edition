@@ -247,8 +247,7 @@ class RaptorTasksWindow(Adw.ApplicationWindow):
         self._toast("Task " + ("completed" if row.task.done else "reopened"))
 
     def _on_delete(self, row):
-        self.tasks = [t for t in self.tasks if t.id != row.task.id]
-        previous = self.tasks
+        previous = list(self.tasks)
         self.tasks = [t for t in self.tasks if t.id != row.task.id]
         if not save_tasks(self.tasks):
             self.tasks = previous
