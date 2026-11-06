@@ -142,7 +142,7 @@ A lightweight GTK4/Libadwaita task list with category filtering, keyboard shortc
 
 ## Raptor Wallpaper
 
-Gallery-style wallpaper picker — click any thumbnail to apply it, including four bundled Raptor-branded wallpapers alongside anything in your Pictures folder. Fit mode control (Fill/Fit/Stretch/Center/Tile). Right-click any image file in Dolphin → **Set as Raptor Wallpaper** to apply it directly with no window opening.
+Gallery-style wallpaper picker — click any thumbnail to apply it, including four bundled Raptor-branded wallpapers alongside anything in your Pictures folder. Fit mode control (Fill/Fit/Stretch/Center/Tile). Right-click any image file in Dolphin → **Set as Raptor Wallpaper** to apply it directly with no window opening. Settings are saved atomically, damaged preferences are preserved for recovery, and inaccessible image folders no longer prevent the rest of the gallery from loading.
 
 ## Raptor Music
 
