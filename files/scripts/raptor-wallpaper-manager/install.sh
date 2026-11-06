@@ -595,12 +595,22 @@ class RaptorWallpaperWindow(Adw.ApplicationWindow):
     def _on_file_chosen(self, dialog, response):
         if response == Gtk.ResponseType.OK:
             file = dialog.get_file()
-            if file:
-                path = Path(file.get_path())
-                card = WallpaperCard(path, self._on_card_selected)
-                self.flow_box.prepend(card)
-                self._cards.insert(0, card)
-                self._select_card(card)
+            raw_path = file.get_path() if file else None
+            if not raw_path:
+                self._toast("That image location cannot be opened")
+            else:
+                path = Path(raw_path)
+                if not path.is_file() or path.suffix.lower() not in IMAGE_EXTS:
+                    self._toast("Choose a supported image file")
+                else:
+                    existing = next((card for card in self._cards if card.image_path.resolve() == path.resolve()), None)
+                    if existing:
+                        self._select_card(existing)
+                    else:
+                        card = WallpaperCard(path, self._on_card_selected)
+                        self.flow_box.prepend(card)
+                        self._cards.insert(0, card)
+                        self._select_card(card)
         dialog.close()
 
     def _on_fill_mode_changed(self, row, _param):
@@ -613,12 +623,14 @@ class RaptorWallpaperWindow(Adw.ApplicationWindow):
             self._toast("Select a wallpaper first")
             return
 
+        selected_path = self._selected_path
+        fill_mode = self._fill_mode
         self.apply_btn.set_sensitive(False)
         self.spinner.start()
 
         def worker():
-            ok, msg = apply_wallpaper(self._selected_path, self._fill_mode)
-            if ok and not save_config({"image": self._selected_path, "fill_mode": self._fill_mode}):
+            ok, msg = apply_wallpaper(selected_path, fill_mode)
+            if ok and not save_config({"image": selected_path, "fill_mode": fill_mode}):
                 msg += " (settings could not be saved)"
             GLib.idle_add(self._on_apply_done, ok, msg)
 
