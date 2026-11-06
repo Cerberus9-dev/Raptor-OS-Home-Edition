@@ -205,7 +205,6 @@ modules:
         # the provider explicitly enabled instead of relying on a transient
         # Wants= relationship from the initial-profile unit.
         - power-profiles-daemon.service
-        - raptor-ensure-services.service
         - raptor-gpu-profile.service
         - raptor-resume-trigger.service
         - raptor-lid-open-fix.service
