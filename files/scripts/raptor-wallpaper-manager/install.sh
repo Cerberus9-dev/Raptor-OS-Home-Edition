@@ -210,6 +210,7 @@ import os
 import subprocess
 import sys
 import threading
+import shutil
 from pathlib import Path
 
 CONFIG_FILE = Path.home() / ".config" / "raptor-wallpaper.json"
