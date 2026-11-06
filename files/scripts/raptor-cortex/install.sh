@@ -19,25 +19,25 @@ cat << 'SVGEOF' > /usr/share/icons/hicolor/scalable/apps/raptor-cortex.svg
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <defs>
     <radialGradient id="bg" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#7c3aed"/>
-      <stop offset="100%" stop-color="#4c1d95"/>
+      <stop offset="0%" stop-color="#33ff33"/>
+      <stop offset="100%" stop-color="#07170b"/>
     </radialGradient>
     <radialGradient id="core" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#c4b5fd"/>
-      <stop offset="100%" stop-color="#7c3aed"/>
+      <stop offset="0%" stop-color="#c8ffd0"/>
+      <stop offset="100%" stop-color="#33ff33"/>
     </radialGradient>
   </defs>
   <circle cx="32" cy="32" r="30" fill="url(#bg)"/>
-  <circle cx="32" cy="32" r="24" fill="none" stroke="#a78bfa" stroke-width="1.5"
+  <circle cx="32" cy="32" r="24" fill="none" stroke="#69e886" stroke-width="1.5"
           stroke-dasharray="12 4" stroke-linecap="round"/>
-  <line x1="32" y1="10" x2="32" y2="18" stroke="#c4b5fd" stroke-width="2" stroke-linecap="round"/>
-  <line x1="32" y1="46" x2="32" y2="54" stroke="#c4b5fd" stroke-width="2" stroke-linecap="round"/>
-  <line x1="10" y1="32" x2="18" y2="32" stroke="#c4b5fd" stroke-width="2" stroke-linecap="round"/>
-  <line x1="46" y1="32" x2="54" y2="32" stroke="#c4b5fd" stroke-width="2" stroke-linecap="round"/>
-  <line x1="16.7" y1="16.7" x2="22.4" y2="22.4" stroke="#c4b5fd" stroke-width="1.5" stroke-linecap="round"/>
-  <line x1="41.6" y1="41.6" x2="47.3" y2="47.3" stroke="#c4b5fd" stroke-width="1.5" stroke-linecap="round"/>
-  <line x1="47.3" y1="16.7" x2="41.6" y2="22.4" stroke="#c4b5fd" stroke-width="1.5" stroke-linecap="round"/>
-  <line x1="22.4" y1="41.6" x2="16.7" y2="47.3" stroke="#c4b5fd" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="32" y1="10" x2="32" y2="18" stroke="#c8ffd0" stroke-width="2" stroke-linecap="round"/>
+  <line x1="32" y1="46" x2="32" y2="54" stroke="#c8ffd0" stroke-width="2" stroke-linecap="round"/>
+  <line x1="10" y1="32" x2="18" y2="32" stroke="#c8ffd0" stroke-width="2" stroke-linecap="round"/>
+  <line x1="46" y1="32" x2="54" y2="32" stroke="#c8ffd0" stroke-width="2" stroke-linecap="round"/>
+  <line x1="16.7" y1="16.7" x2="22.4" y2="22.4" stroke="#c8ffd0" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="41.6" y1="41.6" x2="47.3" y2="47.3" stroke="#c8ffd0" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="47.3" y1="16.7" x2="41.6" y2="22.4" stroke="#c8ffd0" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="22.4" y1="41.6" x2="16.7" y2="47.3" stroke="#c8ffd0" stroke-width="1.5" stroke-linecap="round"/>
   <circle cx="32" cy="32" r="9" fill="url(#core)"/>
   <path d="M 29 26 L 35 26 L 33 31 L 36 31 L 29 40 L 31 33 L 28 33 Z"
         fill="white" opacity="0.95"/>
