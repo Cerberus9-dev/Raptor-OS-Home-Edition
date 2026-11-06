@@ -165,6 +165,8 @@ APP_CATALOGUE=(
     "Graphics|Pinta|com.github.PintaProject.Pinta|Simple Paint-style image editor"
     "Graphics|Drawing|com.github.maoschanz.drawing|Basic drawing app"
     "Graphics|Upscayl|org.upscayl.Upscayl|AI image upscaling"
+    # Screenshots & Capture
+    "Screenshots & Capture|Flameshot|org.flameshot.Flameshot|Capture, annotate and share screenshots"
     # Video & Streaming
     "Video & Streaming|OBS Studio|com.obsproject.Studio|Recording and live streaming - high-end"
     "Video & Streaming|Kooha|io.github.seadve.Kooha|Simple screen recorder - low-end friendly"
@@ -244,6 +246,7 @@ APP_CATALOGUE=(
     "Development|C/C++ toolchain|rpm:gcc make cmake|GCC, Make, CMake - reboot required"
     # System & Utilities
     "System & Utilities|LocalSend|org.localsend.localsend_app|Send files between nearby devices over your local network without cloud accounts"
+    "System & Utilities|Save Desktop|io.github.vikdevelop.SaveDesktop|Back up and restore themes, wallpapers, Flatpaks and desktop settings"
     "System & Utilities|Gear Lever|it.mijorus.gearlever|Manage AppImages, desktop entries and AppImage updates"
     "System & Utilities|Resources|net.nokyan.Resources|Monitor CPU, memory, GPU, network, storage and running processes"
     "System & Utilities|Mission Center|io.missioncenter.MissionCenter|Windows-style Task Manager - processes, performance, startup"
