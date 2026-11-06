@@ -484,6 +484,49 @@ case "$ACTION" in
         ;;
 
     # ── Background restoration after gaming ────────────────────────────────
+    wifi-powersave)
+        # Adapter-specific compatibility workaround. Keep upstream power-save
+        # and scan-MAC defaults unless the user explicitly opts out in Cortex.
+        MODE="${2:-}"
+        CONF="/etc/NetworkManager/conf.d/91-raptor-wifi-powersave.conf"
+        BACKUP="$(mktemp)"
+        HAD_CONFIG=0
+        if [ -f "$CONF" ]; then
+            cp -a "$CONF" "$BACKUP"
+            HAD_CONFIG=1
+        fi
+        case "$MODE" in
+            disable)
+                install -d -m 0755 /etc/NetworkManager/conf.d
+                TMP_CONF="$(mktemp /etc/NetworkManager/conf.d/.raptor-wifi-powersave.XXXXXX)"
+                printf '[connection]\\nwifi.powersave=2\\n' > "$TMP_CONF"
+                chmod 0644 "$TMP_CONF"
+                mv -f "$TMP_CONF" "$CONF"
+                ;;
+            default)
+                rm -f "$CONF"
+                ;;
+            *)
+                rm -f "$BACKUP"
+                echo "Usage: cortex-helper wifi-powersave <disable|default>" >&2
+                exit 2
+                ;;
+        esac
+        if ! timeout 10s nmcli general reload conf; then
+            if [ "$HAD_CONFIG" = "1" ]; then
+                mv -f "$BACKUP" "$CONF"
+            else
+                rm -f "$CONF"
+            fi
+            timeout 10s nmcli general reload conf >/dev/null 2>&1 || true
+            rm -f "$BACKUP"
+            echo "NetworkManager could not reload its configuration; previous setting restored." >&2
+            exit 1
+        fi
+        rm -f "$BACKUP"
+        echo "Wi-Fi power-save preference saved. Reconnect to Wi-Fi for the active connection to adopt it."
+        ;;
+
     restore-background)
         # A mode switch at boot must not send SIGCONT to unrelated processes.
         # Only restore work if this session actually entered Game Mode.
@@ -2100,6 +2143,21 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         self.auto_restore_row.connect("notify::active", self._on_setting_toggle, "auto_restore_after_game")
         persist_group.add(self.auto_restore_row)
 
+        # ── Network compatibility ──────────────────────────────────────────────
+        network_group = Adw.PreferencesGroup(title="Wi-Fi Compatibility")
+        network_group.set_description(
+            "Leave adapter power management at its normal default unless a specific Wi-Fi adapter has reconnect or latency problems.")
+        settings_content.append(network_group)
+
+        self.wifi_powersave_row = Adw.SwitchRow()
+        self.wifi_powersave_row.set_title("Disable Wi-Fi power saving")
+        self.wifi_powersave_row.set_subtitle(
+            "Compatibility workaround for affected adapters. May reduce battery life; reconnect to Wi-Fi after changing.")
+        self.wifi_powersave_row.set_active(
+            os.path.isfile("/etc/NetworkManager/conf.d/91-raptor-wifi-powersave.conf"))
+        self.wifi_powersave_row.connect("notify::active", self._on_wifi_powersave_toggle)
+        network_group.add(self.wifi_powersave_row)
+
         # ── Scheduled Cleanup ─────────────────────────────────────────────────
         sched_group = Adw.PreferencesGroup(title="Scheduled Memory Cleanup")
         sched_group.set_description(
@@ -2324,6 +2382,37 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         threading.Thread(
             target=save_persistent_settings, args=(self._settings,), daemon=True
         ).start()
+
+    def _on_wifi_powersave_toggle(self, row, _param):
+        if getattr(self, "_wifi_powersave_busy", False):
+            return
+        active = row.get_active()
+        row.set_sensitive(False)
+        self._wifi_powersave_busy = True
+
+        def worker():
+            mode = "disable" if active else "default"
+            proc = run_cortex_helper("wifi-powersave", mode, timeout=15)
+            if proc.returncode == 0:
+                message = ("Wi-Fi power saving disabled. Reconnect to apply; battery life may decrease."
+                           if active else "Wi-Fi power saving returned to the NetworkManager default.")
+                GLib.idle_add(self._finish_wifi_powersave_toggle, row, active, True, message)
+            else:
+                detail = (proc.stderr or proc.stdout or "Unknown error").strip()
+                GLib.idle_add(self._finish_wifi_powersave_toggle, row, active, False,
+                              "Could not change Wi-Fi power saving: " + detail[:220])
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _finish_wifi_powersave_toggle(self, row, active, ok, message):
+        row.set_sensitive(True)
+        self._wifi_powersave_busy = False
+        if not ok:
+            self._wifi_powersave_busy = True
+            row.set_active(not active)
+            self._wifi_powersave_busy = False
+        self._show_toast(message)
+        return False
 
     # ── Scheduled Cleanup handlers ─────────────────────────────────────────────
 
