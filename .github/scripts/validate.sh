@@ -344,8 +344,8 @@ python3 -c 'import ast, sys; ast.parse(open(sys.argv[1], encoding="utf-8").read(
 grep -Fq 'ROLLBACK_HELPER       = "/usr/lib/raptor/rollback-helper"' "$update_tmp"
 grep -Fq 'def on_rollback_clicked(self, _btn):' "$update_tmp"
 grep -Fq 'def _run_rollback(self):' "$update_tmp"
-grep -Fq 'self.rollback_btn.set_sensitive(available)' "$update_tmp"
-grep -Fq 'No automatic restart was performed.' "$update_tmp"
+grep -Fq 'GLib.idle_add(self.rollback_btn.set_sensitive, available)' "$update_tmp"
+grep -Fq 'no automatic restart was performed.' "$update_tmp"
 rm -f "$update_tmp"
 assert_contains files/scripts/raptor-update/install.sh 'cat << '\''EOF'\'' > /usr/lib/raptor/rollback-helper'
 assert_contains files/scripts/raptor-update/install.sh 'rpm-ostree rollback'
