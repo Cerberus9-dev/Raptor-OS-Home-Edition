@@ -440,18 +440,18 @@ cat << 'SVGEOF' > /usr/share/icons/hicolor/scalable/apps/raptor-tasks.svg
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <defs>
     <radialGradient id="bg" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#059669"/>
-      <stop offset="100%" stop-color="#047857"/>
+      <stop offset="0%" stop-color="#203d52"/>
+      <stop offset="100%" stop-color="#0b1118"/>
     </radialGradient>
   </defs>
   <circle cx="32" cy="32" r="30" fill="url(#bg)"/>
-  <circle cx="32" cy="32" r="24" fill="none" stroke="#6ee7b7" stroke-width="1.5"
+  <circle cx="32" cy="32" r="24" fill="none" stroke="#8bd4f1" stroke-width="1.5"
           stroke-dasharray="12 4" stroke-linecap="round"/>
-  <rect x="16" y="18" width="32" height="28" rx="2" fill="none" stroke="#6ee7b7" stroke-width="2"/>
-  <line x1="20" y1="28" x2="44" y2="28" stroke="#6ee7b7" stroke-width="2" stroke-linecap="round"/>
-  <line x1="20" y1="34" x2="36" y2="34" stroke="#6ee7b7" stroke-width="2" stroke-linecap="round"/>
-  <line x1="20" y1="40" x2="32" y2="40" stroke="#6ee7b7" stroke-width="2" stroke-linecap="round"/>
-  <circle cx="48" cy="16" r="8" fill="#f59e0b"/>
+  <rect x="16" y="18" width="32" height="28" rx="2" fill="none" stroke="#8bd4f1" stroke-width="2"/>
+  <line x1="20" y1="28" x2="44" y2="28" stroke="#8bd4f1" stroke-width="2" stroke-linecap="round"/>
+  <line x1="20" y1="34" x2="36" y2="34" stroke="#8bd4f1" stroke-width="2" stroke-linecap="round"/>
+  <line x1="20" y1="40" x2="32" y2="40" stroke="#8bd4f1" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="48" cy="16" r="8" fill="#f5b85c"/>
   <line x1="48" y1="12" x2="48" y2="20" stroke="white" stroke-width="2" stroke-linecap="round"/>
   <line x1="44" y1="16" x2="52" y2="16" stroke="white" stroke-width="2" stroke-linecap="round"/>
 </svg>
