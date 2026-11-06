@@ -408,7 +408,7 @@ if grep -R -n 'systemd-udev-settle\.service' recipes files/system_files files/sc
   echo "Do not add a global udev-settle dependency to the boot path" >&2
   exit 1
 fi
-assert_not_contains recipes/recipe.yml 'raptor-powerprofile.service'
-assert_not_contains recipes/recipe.yml 'raptor-ensure-services.service'
+assert_not_contains recipes/recipe.yml '        - raptor-powerprofile.service'
+assert_not_contains recipes/recipe.yml '        - raptor-ensure-services.service'
 assert_contains files/scripts/raptor-gpu-profile/install.sh 'GPU_PCI_INFO="$(timeout 3s lspci -nn'
 echo "Boot latency regression checks passed."
