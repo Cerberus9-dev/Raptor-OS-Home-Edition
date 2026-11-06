@@ -268,9 +268,9 @@ jobs:
             check_file s /usr/share/icons/hicolor/scalable/apps/raptor-music.svg
             check_file x /usr/bin/shroudly
             check_file s /usr/share/applications/shroudly.desktop
-            check_file s /opt/Shroudly/resources/app.asar
-            check_file x /opt/Shroudly/resources/app.asar.unpacked/electron/tools/core/linux-x64/shroudly-core
-            check_file x /opt/Shroudly/resources/app.asar.unpacked/electron/tools/core/linux-x64/shroudly-core-adv
+            check_file s /usr/lib/raptor/shroudly/resources/app.asar
+            check_file x /usr/lib/raptor/shroudly/resources/app.asar.unpacked/electron/tools/core/linux-x64/shroudly-core
+            check_file x /usr/lib/raptor/shroudly/resources/app.asar.unpacked/electron/tools/core/linux-x64/shroudly-core-adv
             check_file s /usr/share/polkit-1/actions/me.codeshare.shroudly.policy
             check_file s /usr/share/icons/hicolor/256x256/apps/shroudly.png
           '
