@@ -89,7 +89,7 @@ A one-time **Welcome to Raptor OS Home** dialog introduces the Raptor app suite 
 | **Gaming** | Heroic Games Launcher (Epic/GOG/Amazon), ProtonUp-Qt, Protontricks, Wine, Winetricks |
 | **Media** | mpv (lightweight playback) |
 | **System** | htop, KDE Partition Manager, Plasma System Monitor, Gwenview, KCalc, Fastfetch, p7zip |
-| **Raptor Apps** | Raptor Cortex, Raptor Wallpaper, Raptor Update Manager — grouped under their own **Raptor OS** category in the app menu |
+| **Raptor Apps** | Raptor Cortex, Raptor Wallpaper, Raptor Update Manager, and Raptor Tasks — grouped under their own **Raptor OS** category in the app menu |
 | **Raptor apps** | Raptor Music and the original Shroudly desktop app are built, staged, installed, and verified in every image build |
 | **Overlays** | MangoHud (green palette, Shift+F12), Gamemode |
 
@@ -135,6 +135,10 @@ GPU profile selection now lives inside **Raptor Cortex**, under a **Graphics** g
 - Five profiles — **Auto Detect / Balanced / Max Performance / Extreme / Power Saving** — with a one-line plain-English description of what each actually changes
 - Applies immediately, no reboot; the choice survives a reboot because it is stored as a marker file that `gpu-detect.sh` re-reads on every boot
 - The `raptor-gpu-profile` package now ships only the detection and apply machinery. If it is not installed, Cortex says so instead of offering buttons that do nothing
+
+## Raptor Tasks
+
+A lightweight GTK4/Libadwaita task list with category filtering, keyboard shortcuts, a helpful empty state, and per-user JSON storage. Saves are atomic so an interrupted write cannot truncate the previous task list; damaged data is preserved for recovery rather than silently discarded.
 
 ## Raptor Wallpaper
 
