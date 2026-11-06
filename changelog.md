@@ -1,5 +1,12 @@
 # Changelog
 
+## V3.0 reliability follow-up — conservative gaming defaults
+
+- Removed forced Steam HTTP/2, extra-connection, and write-buffer settings from the system-wide Steam template. They are network-specific troubleshooting knobs, not universal performance wins; shader pre-caching remains enabled.
+- Removed GameMode's global AMD high-performance and NVIDIA maximum-performance GPU overrides. Upstream explicitly labels GPU optimisations as an at-your-own-risk operation and notes that they change hardware performance levels; Raptor now leaves GPU policy to the driver and user-selected system power profile.
+- Added quality-gate assertions preventing these risky global overrides from silently returning.
+
+
 ## [Unreleased]
 
 ### v3.0.0 (Major Release — planned)
