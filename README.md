@@ -2,7 +2,7 @@
 **Current stable version: v2.8.0**  
 **Next release: v3.0.0 (Major Release) — in preparation**
 
-A custom Bazzite-based Linux distribution built for gaming — automatic GPU optimisation, low-latency audio, a green accent theme with familiar desktop window management, and a zero-terminal firstboot experience.
+A custom Bazzite-based Linux distribution built for gaming — automatic GPU optimisation, low-latency audio, an aviation-inspired flight-deck desktop identity, familiar window management, and a zero-terminal first-boot experience.
 
 > **Heavy W.I.P — Feedback appreciated!** This is **not** a live OS. It needs its own drive, replaces your current OS, or runs alongside it as a dual boot. Minimum 40–50 GB free for dual boot. Can be tested in a VM first.
 
@@ -19,6 +19,10 @@ Raptor OS is designed to deliver the reliability and gaming readiness of Bazzite
 - **Honest compatibility and requirements:** document known limitations, distinguish tested support from targets, and do not promise that every Windows program or every low-spec device will work.
 
 These principles apply to both Home Edition and Security Edition. Each edition keeps its own purpose and security posture, but both should feel coherent, approachable, and dependable.
+
+### Aviation-inspired visual identity
+
+Raptor OS uses a restrained aerospace / flight-deck visual language across the desktop: deep instrument-panel navy, graphite surfaces, instrument-cyan focus accents, amber caution states, and green operational/success indicators. The Raptor HUD applies the matching KDE, GTK, and Qt/Kvantum styling, with clearer Adwaita cards, navigation surfaces, and status treatments. The aim is a modern aircraft systems aesthetic—not a literal cockpit simulator: keep controls readable, status colors meaningful, animations restrained, and everyday desktop workflows familiar.
 
 ---
 
