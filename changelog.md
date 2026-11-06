@@ -17,6 +17,13 @@ This is the consolidation release for more than two months of sustained Raptor O
 - Added a one-time **Welcome to Raptor OS Home** dialog before the existing browser, chat, and optional-app choices. It explains the Raptor app suite in plain language and can be dismissed without blocking setup.
 - The completion stamp is stored per user under the XDG data directory, so the welcome screen does not repeat after dismissal. If the dialog dependency is unavailable, setup continues rather than trapping the user.
 
+### App picker usability and everyday integration
+
+- Made the optional-app catalogue reusable after first boot: the first-run service still respects its one-time completion stamp, while the new **Raptor App Picker** application-menu entry opens the catalogue on demand without changing that stamp.
+- Added in-dialog type-to-search and increased the picker window size so the existing large catalogue is easier to browse on common laptop displays.
+- Added KDE Connect as an optional Flatpak for Android-to-desktop notifications, file sharing, clipboard integration, and device controls. It remains opt-in and adds no default background service.
+- Updated the README to describe the real post-first-boot installation path rather than implying every catalogue item is available through Discover.
+
 ### Dolphin and archive reliability
 - Corrected the archive-hardening installer so its logging/comment block is valid shell rather than embedding literal `\\n` text in the command; the CI validator now runs `bash -n` against this installer.
 
