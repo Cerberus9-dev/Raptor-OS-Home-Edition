@@ -117,11 +117,11 @@ A one-time **Welcome to Raptor OS Home** dialog introduces the Raptor app suite 
 
 ---
 
-## Raptor Cortex\n\nCortex is organized into Overview, Graphics, Games, Optimize, and Settings tabs. GPU and fan telemetry is shown only when the hardware driver exposes it; fan controls remain with firmware and supported kernel interfaces. Memory compression uses standard zstd-backed ZRAM by default, with conservative sizing.\n\n — Performance & Memory Manager
+## Raptor Cortex\n\nCortex is organized into Overview, Graphics, Games, Optimize, and Settings tabs. The Graphics tab groups live GPU temperature, model/load/clock/VRAM telemetry, read-only fan sensors, and GPU performance profiles in one place. Unsupported readings are omitted rather than fabricated; fan controls remain with firmware and supported kernel interfaces. Memory compression uses standard zstd-backed ZRAM by default, with conservative sizing.\n\n — Performance & Memory Manager
 
 GTK4/Adwaita app with Power Saving / Balanced / Performance modes. **power-profiles-daemon is the sole owner of CPU governor, boost, EPP, frequency and firmware power policy**, keeping KDE Powerdevil's battery slider functional. Cortex applies separate device-level tuning (such as PCIe/NVMe where supported) and reports failures instead of silently claiming success.
 
-- **Live stats** — RAM, swap, ZRAM, CPU boost, CPU/GPU temperature (colour-coded), CPU frequency, GPU model/load/clock/VRAM when the driver exposes them, readable fan RPM/percent sensors, and time since the last optimization run
+- **Live stats** — RAM, swap, ZRAM, CPU boost, CPU temperature (colour-coded), CPU frequency, memory/swap state, and time since the last optimization run. GPU temperature, adapter model/load/clock/VRAM, and read-only fan RPM/percent sensors live in the Graphics tab when the driver exposes them
 - **Optimize Memory Now** — performs bounded, pressure-aware reclaim; it does not indiscriminately flush useful file/game caches
 - **Quick Actions** — One-Click Boost (Performance profile, supported GPU profile, optional indexer pause and pressure-aware memory reclaim), Restore Desktop, Clear Shader Cache
 - **Persistent Settings** — apply saved mode on every boot, auto-switch to Performance for games launched from the Game Library, auto-restore the previous mode when they exit
