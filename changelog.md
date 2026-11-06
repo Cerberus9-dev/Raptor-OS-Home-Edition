@@ -2059,3 +2059,9 @@ This is the consolidation release for more than two months of sustained Raptor O
 
 - Added a BlueZ startup helper that assigns detected controllers the friendly alias “Raptor OS Bluetooth”, avoiding raw interface names such as hci0 in the user-facing adapter identity.
 - Paired-device cache entries are deliberately preserved; automatic deletion could remove legitimate separate Bluetooth LE/classic identities.
+
+
+### App picker additions
+- Added **Flameshot** as an optional screenshot capture and annotation tool.
+- Added **Save Desktop** as an optional desktop-configuration backup and restore tool.
+- Both remain opt-in Flatpaks; neither adds a default background service or increases the base image footprint.
