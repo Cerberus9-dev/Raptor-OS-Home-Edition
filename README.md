@@ -72,7 +72,7 @@ systemctl reboot
 
 ## First Boot
 
-Three dialogs appear on the first login, in sequence:
+A one-time **Welcome to Raptor OS Home** dialog introduces the Raptor app suite and explains what each core app does. Three setup dialogs then appear on the first login, in sequence:
 
 1. **Browser choice** — no browser ships in the image; Raptor keeps the default *minimal*. Choose Firefox, Brave, Zen Browser, Floorp, Waterfox, Chromium, Chrome, or Edge (each a one-time Flathub download, Firefox pre-selected). Shows a network check, download progress bar, and retry prompt on failure. "Skip — No Browser" installs nothing and forces no default.
 2. **Chat client choice** — choose official Discord, Vesktop (Vencord), Equibop (Equicord), or GoofCord. None is pre-installed. "Skip — Install Neither" is always available.
@@ -166,7 +166,7 @@ The first-boot chooser offers the official Discord client, Vesktop, Equibop, and
 ## Performance
 
 ### GPU
-- **Auto GPU detection** at boot — AMD, NVIDIA, Intel and hybrid configurations; selects supported GPU environment and driver settings. CPU power policy is handled separately by power-profiles-daemon
+- **Auto GPU detection** at boot — AMD, NVIDIA, Intel and hybrid configurations. Raptor leaves kernel/Mesa driver selection to the supported system stack and applies only controls exposed by the detected driver. Older Intel GPUs are not forced onto the `iris` driver; unsupported Vulkan/DirectX feature levels and ray-tracing modes are never globally forced. CPU power policy is handled separately by power-profiles-daemon
 - **`RADV_PERFTEST=gpl`** — cuts in-game shader compile stalls 30–60% on RDNA2+
 - **Mesa GL threading** is enabled for Wine/Proton where supported; native applications keep driver defaults to avoid global compatibility regressions
 - **`WINE_FULLSCREEN_FSR` and `DXVK_ASYNC` not set globally** — both caused flickering in OpenGL games (Project Zomboid). Set per-game in Steam launch options instead
