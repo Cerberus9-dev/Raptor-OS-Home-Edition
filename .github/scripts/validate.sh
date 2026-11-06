@@ -456,24 +456,26 @@ rm -rf "$wifi_test_dir"
 echo "Wi-Fi power-management contracts passed."
 
 echo "=== Checking conservative gaming defaults ==="
-assert_not_contains files/scripts/raptor-gaming/install.sh '@nClientDownloadEnableHTTP2PlatformLinux'
-assert_not_contains files/scripts/raptor-gaming/install.sh '@fDownloadRateImprovementToAddAnotherConnection'
-assert_not_contains files/scripts/raptor-gaming/install.sh '@cMaxFileSystemWriteBufferSizeBytes'
-assert_not_contains files/scripts/raptor-gaming/install.sh '@bEnableShaderPreCaching'
+assert_contains files/scripts/raptor-gaming/install.sh '@bEnableShaderPreCaching 1'
 assert_not_contains files/scripts/raptor-gaming/install.sh '@nClientDownloadEnableHTTP2PlatformLinux'
 assert_not_contains files/scripts/raptor-gaming/install.sh '@fDownloadRateImprovementToAddAnotherConnection'
 assert_not_contains files/scripts/raptor-gaming/install.sh '@cMaxFileSystemWriteBufferSizeBytes'
 assert_not_contains files/scripts/raptor-gaming/install.sh 'apply_gpu_optimisations=accept-responsibility'
 assert_not_contains files/scripts/raptor-gaming/install.sh 'amd_performance_level=high'
 assert_not_contains files/scripts/raptor-gaming/install.sh 'nv_powermizer_mode=1'
-echo "Conservative gaming defaults passed."
-
-echo "=== Checking gaming power defaults ==="
-assert_not_contains files/scripts/raptor-gaming/install.sh '@nClientDownloadEnableHTTP2PlatformLinux 0'
-assert_not_contains files/scripts/raptor-gaming/install.sh 'amd_performance_level=high'
-assert_not_contains files/scripts/raptor-gaming/install.sh 'nv_powermizer_mode=1'
 assert_not_contains files/scripts/raptor-gaming/install.sh 'ATTR{power/autosuspend}="-1"'
 assert_not_contains files/scripts/raptor-gaming/install.sh 'ATTR{power/control}="on"'
 assert_contains files/scripts/raptor-gaming/install.sh 'KERNEL=="uinput"'
 assert_contains files/scripts/raptor-gaming/install.sh 'ATTRS{name}=="Xbox*"'
-echo "Gaming power defaults passed."
+echo "Conservative gaming defaults passed."
+
+echo "=== Checking suspend/resume service ownership ==="
+assert_not_contains recipes/recipe.yml 'raptor-resume-trigger.service'
+assert_not_contains recipes/recipe.yml 'raptor-lid-open-fix.service'
+assert_not_contains recipes/recipe.yml 'raptor-cpugovernor.service'
+assert_contains files/scripts/raptor-hardware-fixes/install.sh "cat << 'EOF' > /usr/lib/systemd/system-sleep/raptor-resume"
+assert_contains files/scripts/raptor-hardware-fixes/install.sh 'post) rebind_touchpads'
+assert_not_contains files/system_files 'raptor-resume-trigger.service'
+assert_not_contains files/system_files 'raptor-lid-open-fix.service'
+assert_not_contains files/system_files 'raptor-cpugovernor.service'
+echo "Suspend/resume ownership checks passed."
