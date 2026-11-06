@@ -108,6 +108,8 @@ assert_not_contains files/scripts/raptor-wine/install.sh 'DEFAULT_RUNTIMES=(vcru
 assert_not_contains files/scripts/raptor-wine/install.sh 'export WINEESYNC='
 assert_not_contains files/scripts/raptor-wine/install.sh 'VKD3D_CONFIG='
 assert_contains files/scripts/raptor-hardware-fixes/install.sh 'system-alias Raptor OS Bluetooth'
+assert_contains files/scripts/raptor-hardware-fixes/install.sh 'for attempt in {1..10}; do'
+assert_contains files/scripts/raptor-hardware-fixes/install.sh 'No BlueZ controllers appeared; leaving adapter names unchanged.'
 assert_contains files/scripts/raptor-hardware-fixes/install.sh 'raptor-bt-name.service'
 assert_contains files/system_files/raptor-app-choice.sh 'ELECTRON_OZONE_PLATFORM_HINT=auto'
 
