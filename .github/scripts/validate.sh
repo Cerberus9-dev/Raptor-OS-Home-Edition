@@ -171,6 +171,18 @@ assert_contains README.md "Vulkan 1.3+"
 assert_contains README.md "optimization target under development"
 assert_contains changelog.md "v3.0.0 (Major Release"
 
+echo "=== Raptor Tasks installer and embedded Python validation ==="
+bash -n files/scripts/raptor-tasks/install.sh
+tasks_tmp="$(mktemp --suffix=.py)"
+awk "/^cat << 'PYEOF' > \/usr\/bin\/raptor-tasks$/ { inside=1; next } /^PYEOF$/ && inside { exit } inside { print }" files/scripts/raptor-tasks/install.sh > "$tasks_tmp"
+test -s "$tasks_tmp"
+python3 -c 'import ast, sys; ast.parse(open(sys.argv[1], encoding="utf-8").read())' "$tasks_tmp"
+grep -Fq 'Gtk.ShortcutController()' "$tasks_tmp"
+grep -Fq 'os.fsync(stream.fileno())' "$tasks_tmp"
+grep -Fq 'CONFIG_FILE.replace(backup)' "$tasks_tmp"
+grep -Fq 'set_placeholder(empty)' "$tasks_tmp"
+rm -f "$tasks_tmp"
+
 echo "All validations passed."
 
 echo "=== Checking v3.0.0 release integration ==="
