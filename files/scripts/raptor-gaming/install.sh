@@ -447,8 +447,9 @@ fi
 
 # ── Vesktop: system-level Flatpak overrides ────────────────────────────────────
 # Run on the build image so every user gets Wayland-native Vesktop out of the box.
-# Per-user memory flags (V8 heap cap, renderer limit) are written by
-# raptor-appconfig.sh on first login, since flatpak override --user is per-user.
+# No global V8 heap or renderer caps are applied. The per-user app
+# chooser keeps safe Wayland integration flags; Chromium manages its own
+# renderer and memory behavior.
 if command -v flatpak &>/dev/null; then
     flatpak override --system dev.vencord.Vesktop \
         --env=OZONE_PLATFORM=wayland \

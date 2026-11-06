@@ -6,6 +6,20 @@ A custom Bazzite-based Linux distribution built for gaming — automatic GPU opt
 
 > **Heavy W.I.P — Feedback appreciated!** This is **not** a live OS. It needs its own drive, replaces your current OS, or runs alongside it as a dual boot. Minimum 40–50 GB free for dual boot. Can be tested in a VM first.
 
+## Raptor OS philosophy
+
+Raptor OS is designed to deliver the reliability and gaming readiness of Bazzite while removing as much everyday Linux friction as practical. Linux is the foundation, not a skill users should have to learn before they can use their computer.
+
+- **GUI-first, terminal-optional:** common setup, updates, app installation, hardware controls, and recovery should be available through clear graphical tools. Terminal commands remain available for advanced users, not required for ordinary use.
+- **Stable by default:** preserve the atomic image/update model, keep rollback and recovery paths understandable, and prefer tested defaults over risky performance tweaks.
+- **Windows compatibility that feels native:** ordinary Windows applications use familiar Wine behavior; Proton/UMU is an optional game-focused path, not a replacement for Wine or a requirement to use Steam.
+- **Hardware should just work:** prioritize dependable Wi-Fi, Bluetooth, audio, graphics, controllers, printers, sleep/resume, and laptop power behavior. Never claim a fix is complete without testing it on real hardware.
+- **Performance without placebo tweaks:** optimize only where measurable, keep changes reversible, and never sacrifice core desktop services just to improve a benchmark.
+- **No forced ecosystem:** users choose their apps, browsers, chat clients, and workflows. Optional software stays optional, with clear install and removal paths.
+- **Honest compatibility and requirements:** document known limitations, distinguish tested support from targets, and do not promise that every Windows program or every low-spec device will work.
+
+These principles apply to both Home Edition and Security Edition. Each edition keeps its own purpose and security posture, but both should feel coherent, approachable, and dependable.
+
 ---
 
 ## System Requirements
@@ -158,11 +172,12 @@ The first-boot chooser offers the official Discord client, Vesktop, Equibop, and
 - **`WINE_FULLSCREEN_FSR` and `DXVK_ASYNC` not set globally** — both caused flickering in OpenGL games (Project Zomboid). Set per-game in Steam launch options instead
 
 ### Wine & Windows Apps
-- **`raptor-wine` launcher** — `.exe`/`.msi` files are bound to a managed launcher (double-click in Dolphin or right-click → **Run as Windows App**). First launch bootstraps the prefix (`wineboot`) and silently installs the common MSVC++ runtimes + Windows fonts (`vcrun2015`, `vcrun2019`, `corefonts`) — best-effort and retried on flaky networks. `--prefix NAME` for isolated prefixes, `--reset` for a clean slate, `--install-runtime dotnet48` for .NET Framework on demand
-- **Session defaults** (`/etc/environment.d/10-raptor-wine.conf`) — `WINEESYNC`/`WINEFSYNC` kernel synchronization (fsync with esync fallback), quiet debug logging (`WINEDEBUG=-all`), `winemenubuilder` disabled so prefixes don't litter the app menu
-- **File-descriptor ceiling raised** to 1,048,576 — esync-heavy games and large prefixes no longer hit "eventfd: Too many open files" crashes
-- **Wine Mono + Gecko pre-installed** (`wine-mono`, `mingw32/mingw64-wine-gecko`) — .NET and JavaScript-based program loaders/installers work without Wine stalling to download runtimes on first launch
-- **ProtonUp-Qt pre-installed** for managing Proton and Wine-GE runners; Bottles, Lutris and more optionally available from the firstboot app picker
+- **Normal Wine is the default:** use `wine program.exe`, `winecfg`, `wineboot`, `wineserver`, and `winetricks` as expected. The standard `~/.wine` prefix remains the default; no mandatory profile manager, wizard, storefront setup, or custom prefix workflow is imposed.
+- **Simple desktop integration:** opening a Windows executable can launch it with Wine, and MSI installers are passed to `wine msiexec /i`. KDE's context menu offers a direct **Open with Raptor Wine** action.
+- **Optional Proton for games:** **Run with Raptor Proton** uses UMU to launch Windows executables with Proton, its game-focused patches, and supported DXVK/VKD3D translation in the Steam Linux Runtime. The Steam client is not required. UMU may download its runtime and Proton components on first use. MSI installers remain on the normal Wine path (`wine msiexec /i installer.msi`); the Proton helper is for executable game launches.
+- **Keep the layers separate:** regular desktop applications stay on Wine by default; users choose Proton only when a game or application benefits from it. Existing Wine commands and user-supplied `WINEPREFIX` values remain usable.
+- **Useful components included:** Wine Mono, Gecko, and Winetricks are available for common Windows application dependencies. No global DLL overrides or forced esync/fsync settings are applied.
+- **Compatibility is program-specific:** anti-cheat, DRM, kernel drivers, unsupported APIs, and application-specific bugs can still prevent software from running. Raptor does not promise universal Windows compatibility.
 
 ### File Manager (Dolphin)
 - **Default file browser** — Dolphin, not Nautilus (removed). Folders and image types are bound via system-wide `/etc/xdg/mimeapps.list` (+ skel + login migration for existing users)

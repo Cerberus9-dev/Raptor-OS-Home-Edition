@@ -197,6 +197,50 @@ exit 1
 BT
 chmod +x /usr/lib/raptor/bt-recover
 
+# ── Bluetooth adapter identity ────────────────────────────────────────────────
+# Give BlueZ controllers a stable friendly alias so KDE does not expose the
+# kernel interface label (for example, hci0) as the adapter's display name.
+# This does not delete or rewrite paired-device records: duplicate device rows
+# can represent separate BLE/classic identities and must not be pruned blindly.
+cat << 'BTNAME' > /usr/lib/raptor/bt-name
+#!/bin/bash
+set -u
+command -v bluetoothctl >/dev/null 2>&1 || exit 0
+controllers=""
+# bluetooth.service can become active before the controller is enumerated.
+# Retry briefly instead of permanently marking this oneshot complete too early.
+for attempt in {1..10}; do
+    controllers="$(timeout 3 bluetoothctl list 2>/dev/null | awk '/^Controller / {print $2}')"
+    [[ -n "$controllers" ]] && break
+    sleep 2
+done
+[[ -n "$controllers" ]] || { echo "No BlueZ controllers appeared; systemd will retry later." >&2; exit 1; }
+while IFS= read -r mac; do
+    [[ "$mac" =~ ^([[:xdigit:]]{2}:){5}[[:xdigit:]]{2}$ ]] || continue
+    printf 'select %s\nsystem-alias Raptor OS Bluetooth\n' "$mac" |
+        timeout 8 bluetoothctl >/dev/null 2>&1 || true
+done <<< "$controllers"
+BTNAME
+chmod 0755 /usr/lib/raptor/bt-name
+
+cat << 'BTUNIT' > /usr/lib/systemd/system/raptor-bt-name.service
+[Unit]
+Description=Set a friendly Raptor OS Bluetooth adapter name
+After=bluetooth.service
+Wants=bluetooth.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/raptor/bt-name
+Restart=on-failure
+RestartSec=15
+
+[Install]
+WantedBy=multi-user.target
+BTUNIT
+systemctl enable raptor-bt-name.service 2>/dev/null || true
+
 # ── Mute / mic-mute LEDs: bind the kernel's LEDs to the audio mute state ─────
 cat << 'LEDS' > /usr/lib/raptor/leds-sync
 #!/bin/bash

@@ -6,6 +6,12 @@
 
 This is the consolidation release for more than two months of sustained Raptor OS overhaul work. The scope includes substantial changes across performance and memory management, gaming and GPU behavior, audio, Cortex, update reliability, hardware recovery, browser and chat-client choice, build validation, and the installation/distribution path. The intent is to ship the work as one coherent major update rather than scatter it across a long sequence of small version bumps.
 
+### Wine and Proton reliability
+
+- Kept the normal Wine installer independent of UMU availability: Wine and its KDE integration can still be installed even if the optional Proton launcher is unavailable. The Proton action now checks for UMU only when the user invokes it.
+- Corrected the Proton launcher's MSI handling. UMU accepts an executable as its launch target; passing `wine msiexec` as though UMU were a general Wine command wrapper was incorrect. MSI installers now produce a clear instruction to use standard Wine (`wine msiexec /i installer.msi`), while Proton remains available for executable game launches.
+- Added CI assertions to prevent the optional UMU dependency from blocking the normal Wine installer and to guard against reintroducing the invalid MSI invocation.
+
 ### Build reliability and one-time app integration
 
 - Fixed the one-time app installer gate: the image build stages Raptor Music and Shroudly only when requested, and each installer now detects its actual staged application payload instead of relying on a separate marker file that the BlueBuild files module did not deliver to the script stage.
@@ -1965,3 +1971,30 @@ This is the consolidation release for more than two months of sustained Raptor O
 - Discord, VSCodium, Heroic Games Launcher as Flatpaks
 - LibreOffice, Thunderbird, Kdenlive, GIMP
 - First boot service that automatically rebases to Raptor OS from stock Bazzite
+
+
+### Optional application catalogue
+
+- Added LocalSend for local-network file sharing, Gear Lever for managing AppImages, and Resources for system monitoring. These remain opt-in Flatpaks and add no idle background services.
+- First-boot chat-client installation uses per-user Flatpak operations consistently with the user-session service.
+
+### Windows compatibility: Raptor Wine
+
+- Fixed the optional Proton launcher to capture the executable path and forward remaining arguments correctly; an empty invocation now prints usage instead of attempting to launch an unset target.
+- Updated the user-facing V3.0 README to match the standard-Wine-first workflow and document the release-wide GUI-first, stability-first, hardware-reliability, and honest-compatibility principles.
+- Preserved the ordinary Wine workflow: `wine`, `winecfg`, `wineboot`, `wineserver`, and `winetricks` remain directly available, using Wine's standard `~/.wine` prefix unless the user chooses otherwise.
+- Added simple executable handling: opening `.exe` files launches them with Wine, while `.msi` installers are passed to `wine msiexec /i`. KDE's right-click menu offers direct Wine launching without a setup wizard or profile manager.
+- Added an optional Proton game action powered by UMU. Proton supplies its game-focused compatibility patches and supported DXVK/VKD3D graphics translation inside the Steam Linux Runtime, without requiring the Steam client.
+- UMU manages its normal default Proton prefix automatically; no per-game profile setup, storefront selection, or game ID entry is required for ordinary use. Users can still override the standard WINEPREFIX or optional UMU settings when needed.
+- Kept Wine Mono, Gecko, and Winetricks available for common Windows application dependencies. No global DLL overrides or forced synchronization settings are applied, avoiding needless regressions in desktop applications.
+- Windows compatibility varies by program; anti-cheat, DRM, kernel drivers, and unsupported Windows APIs may still prevent some titles from running.
+
+### Desktop app resource and Wayland tuning
+
+- Extended safe Electron Wayland backend selection to official Discord, Vesktop, Equibop, and GoofCord.
+- Removed restrictive forced V8 heap and renderer-process caps from Vesktop rather than risk breaking large servers, screen sharing, or voice/video calls.
+
+### Bluetooth adapter identity
+
+- Added a BlueZ startup helper that assigns detected controllers the friendly alias “Raptor OS Bluetooth”, avoiding raw interface names such as hci0 in the user-facing adapter identity.
+- Paired-device cache entries are deliberately preserved; automatic deletion could remove legitimate separate Bluetooth LE/classic identities.

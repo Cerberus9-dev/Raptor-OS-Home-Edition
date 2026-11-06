@@ -100,6 +100,40 @@ for marker in "cat << 'BRAVELAUNCHER'" "cat << 'TRIMMER'" 'echo "GAMING_READY'; 
     fi
 done
 
+echo "=== Checking normal Wine + optional Proton integration ==="
+assert_contains recipes/recipe.yml "- wine"
+assert_contains recipes/recipe.yml "- wine-mono"
+assert_contains recipes/recipe.yml "- mingw32-wine-gecko"
+assert_contains recipes/recipe.yml "- mingw64-wine-gecko"
+assert_contains recipes/recipe.yml "- winetricks"
+assert_contains recipes/recipe.yml "- umu-launcher"
+assert_contains files/scripts/raptor-wine/install.sh "exec wine"
+assert_contains files/scripts/raptor-wine/install.sh "exec umu-run"
+assert_contains files/scripts/raptor-wine/install.sh 'target="$1"'
+assert_not_contains files/scripts/raptor-wine/install.sh 'RAPTOR_WINE_ERROR: UMU is not installed'
+assert_contains files/scripts/raptor-wine/install.sh 'MSI installers should be run with standard Wine'
+assert_not_contains files/scripts/raptor-wine/install.sh 'exec umu-run wine msiexec'
+assert_contains files/scripts/raptor-wine/install.sh 'shift'
+assert_contains files/scripts/raptor-wine/install.sh 'Usage: raptor-wine-proton program.exe'
+assert_contains files/scripts/raptor-wine/install.sh "Exec=raptor-wine %f"
+assert_contains files/scripts/raptor-wine/install.sh "Exec=raptor-wine-proton %f"
+assert_not_contains files/scripts/raptor-wine/install.sh "zenity"
+assert_not_contains files/scripts/raptor-wine/install.sh "wineboot -u"
+assert_not_contains files/scripts/raptor-wine/install.sh "winetricks --unattended"
+assert_contains files/system_files/raptor-mimeapps.list "application/x-ms-dos-executable=raptor-wine.desktop"
+assert_contains files/system_files/raptor-mimeapps.list "application/x-msi=raptor-wine.desktop"
+assert_not_contains files/system_files/10-raptor-wine.conf "WINEESYNC=1"
+assert_not_contains files/system_files/10-raptor-wine.conf "WINEFSYNC=1"
+
+echo "=== Checking first-boot recovery contracts ==="
+assert_contains files/system_files/raptor-browser-choice.sh "browser choice deferred; it will retry on the next login"
+assert_contains files/system_files/raptor-chat-choice.sh "chat client choice deferred; it will retry on the next login"
+assert_contains files/system_files/raptor-app-choice.sh "app selection deferred; it will retry on the next login"
+assert_not_contains files/system_files/raptor-browser-choice.sh "Writing stamp to avoid loop"
+assert_not_contains files/system_files/raptor-chat-choice.sh "Writing stamp to avoid loop"
+assert_not_contains files/system_files/raptor-app-choice.sh "Writing stamp to avoid loop"
+assert_not_contains files/system_files/raptor-firstboot.service "SuccessExitStatus=0 1"
+
 echo "=== Checking Update Manager contracts ==="
 assert_contains files/scripts/raptor-update/install.sh "from queue import Queue, Empty"
 assert_contains files/scripts/raptor-update/install.sh 'flatpak", "update", "--user'
@@ -143,6 +177,15 @@ assert_contains files/scripts/raptor-gpu-profile/install.sh '_set_intel_gpu_powe
 assert_contains files/system_files/99-raptor-wireplumber-alsa.conf 'api.alsa.period-size            = 512'
 assert_contains files/system_files/raptor-chat-choice.sh 'Equibop'
 assert_contains files/system_files/raptor-chat-choice.sh 'GoofCord'
+assert_contains files/system_files/raptor-chat-choice.sh 'flatpak remote-add --user --if-not-exists flathub'
+assert_contains files/system_files/raptor-chat-choice.sh 'flatpak install --user -y --noninteractive flathub'
+assert_contains files/system_files/raptor-chat-choice.sh 'flatpak info --user'
+assert_contains files/system_files/raptor-app-choice.sh 'org.localsend.localsend_app'
+assert_contains files/system_files/raptor-app-choice.sh 'it.mijorus.gearlever'
+assert_contains files/system_files/raptor-app-choice.sh 'net.nokyan.Resources'
+assert_contains recipes/recipe.yml "raptor-bt-name.service"
+assert_contains files/scripts/raptor-hardware-fixes/install.sh "system-alias Raptor OS Bluetooth"
+assert_contains files/scripts/raptor-hardware-fixes/install.sh "Description=Set a friendly Raptor OS Bluetooth adapter name"
 assert_contains files/system_files/raptor-browser-choice.sh 'Zen Browser'
 assert_contains files/system_files/raptor-browser-choice.sh 'Floorp'
 assert_contains files/system_files/raptor-browser-choice.sh 'Waterfox'
