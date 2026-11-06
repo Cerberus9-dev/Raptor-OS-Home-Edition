@@ -88,9 +88,6 @@ modules:
       # staging marker is absent.
       - source: ../files/staging
         destination: /tmp/raptor-staging
-      # Explicit, non-empty gate file: keep it out of directory-glob handling.
-      - source: ../files/staging/include-one-time-apps
-        destination: /usr/share/raptor/include-one-time-apps
 
   # ── RPM packages ─────────────────────────────────────────────────────────
   # Must run BEFORE the rpm-ostree module below. The base image ships tuned-ppd,
