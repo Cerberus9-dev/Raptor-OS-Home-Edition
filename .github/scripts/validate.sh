@@ -218,3 +218,12 @@ assert_contains .github/workflows/build.yml '/usr/bin/shroudly'
 assert_not_contains files/scripts/shroudly-raptor/install.sh 'Terminal=true'
 assert_not_contains files/scripts/shroudly-raptor/install.sh 'systemctl enable'
 echo "All v3.0.0 release contracts passed."
+
+
+# Wi-Fi watchdog must bound NetworkManager calls and recover stalled activation safely.
+assert_contains files/scripts/raptor-hardware-fixes/install.sh 'flock -n 9 || exit 0'
+assert_contains files/scripts/raptor-hardware-fixes/install.sh 'timeout 25 nmcli -w 20 device connect'
+assert_contains files/scripts/raptor-hardware-fixes/install.sh 'wifi-busy-count-$dev'
+assert_contains files/scripts/raptor-hardware-fixes/install.sh 'activation remained stuck'
+assert_contains files/scripts/raptor-hardware-fixes/install.sh 'automatic driver reload skipped for safety'
+assert_not_contains files/scripts/raptor-hardware-fixes/install.sh 'known_in_range && level3 "$dev"'
