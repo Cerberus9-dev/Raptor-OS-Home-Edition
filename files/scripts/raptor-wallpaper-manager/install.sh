@@ -157,6 +157,41 @@ cat << 'SVGEOF' > /usr/share/wallpapers/RaptorOS/raptor-horizon.svg
 </svg>
 SVGEOF
 
+cat << 'SVGEOF' > /usr/share/wallpapers/RaptorOS/raptor-flightdeck.svg
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080">
+  <defs>
+    <linearGradient id="bg" x2="1" y2="1"><stop offset="0" stop-color="#080f18"/><stop offset="0.55" stop-color="#101e2b"/><stop offset="1" stop-color="#080e16"/></linearGradient>
+    <radialGradient id="glow"><stop offset="0" stop-color="#58b8e8" stop-opacity=".16"/><stop offset="1" stop-color="#58b8e8" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#bg)"/>
+  <circle cx="960" cy="510" r="560" fill="url(#glow)"/>
+  <g stroke="#47718b" stroke-width="1" opacity=".18">
+    <path d="M0 180H1920M0 360H1920M0 540H1920M0 720H1920M0 900H1920"/>
+    <path d="M160 0V1080M400 0V1080M640 0V1080M880 0V1080M1120 0V1080M1360 0V1080M1600 0V1080M1840 0V1080"/>
+  </g>
+  <g fill="none" stroke="#58b8e8" opacity=".5">
+    <circle cx="960" cy="520" r="340" stroke-width="1.5"/><circle cx="960" cy="520" r="270" stroke-dasharray="5 12"/><circle cx="960" cy="520" r="185" stroke-dasharray="2 10"/>
+    <path d="M960 130V910M570 520H1350" stroke-dasharray="3 12"/>
+  </g>
+  <g fill="none" stroke="#8bd4f1" stroke-width="3" stroke-linejoin="round" opacity=".9">
+    <path d="M960 300 L985 405 L1085 465 L1195 520 L1095 545 L1010 520 L990 655 L1030 725 L960 695 L890 725 L930 655 L910 520 L825 545 L725 520 L835 465 L935 405 Z"/>
+    <path d="M960 300V695M935 405L960 430L985 405M910 520L960 550L1010 520" opacity=".55"/>
+  </g>
+  <g fill="#d4e2ed" font-family="sans-serif" letter-spacing="5">
+    <text x="112" y="112" font-size="24" opacity=".9">RAPTOR OS / FLIGHT DECK</text>
+    <text x="112" y="151" font-size="13" opacity=".5">AEROSPACE DESKTOP ENVIRONMENT</text>
+    <text x="1808" y="112" font-size="16" text-anchor="end" opacity=".75">SYSTEMS NOMINAL</text>
+    <text x="1808" y="146" font-size="12" text-anchor="end" fill="#65c98f" opacity=".9">READY</text>
+    <text x="112" y="950" font-size="13" opacity=".55">NAV / ORIENTATION</text>
+    <text x="112" y="986" font-size="18" opacity=".9">N 37 14 / W 115 48</text>
+    <text x="1808" y="950" font-size="13" text-anchor="end" opacity=".55">FLIGHT SYSTEMS</text>
+    <text x="1808" y="986" font-size="18" text-anchor="end" opacity=".9">RAPTOR / V3</text>
+  </g>
+  <g stroke="#f5b85c" stroke-width="2" opacity=".65"><path d="M112 205h82m-82 8h46M1726 205h82m-46 8h46M112 860h82m-82 8h46M1726 860h82m-46 8h46"/></g>
+  <g fill="#9aabba" font-family="monospace" font-size="12" opacity=".5"><text x="960" y="190" text-anchor="middle">N</text><text x="960" y="875" text-anchor="middle">S</text><text x="560" y="525" text-anchor="middle">W</text><text x="1360" y="525" text-anchor="middle">E</text></g>
+</svg>
+SVGEOF
+
 echo "Bundled wallpapers written."
 
 # ── raptor-wallpaper Python app ────────────────────────────────────────────────
