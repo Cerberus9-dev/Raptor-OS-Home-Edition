@@ -183,6 +183,17 @@ grep -Fq 'CONFIG_FILE.replace(backup)' "$tasks_tmp"
 grep -Fq 'set_placeholder(empty)' "$tasks_tmp"
 rm -f "$tasks_tmp"
 
+echo "=== Raptor Wallpaper installer and embedded Python validation ==="
+bash -n files/scripts/raptor-wallpaper-manager/install.sh
+wallpaper_tmp="$(mktemp --suffix=.py)"
+awk "/^cat << 'PYEOF' > \/usr\/bin\/raptor-wallpaper$/ { inside=1; next } /^PYEOF$/ && inside { exit } inside { print }" files/scripts/raptor-wallpaper-manager/install.sh > "$wallpaper_tmp"
+test -s "$wallpaper_tmp"
+python3 -c 'import ast, sys; ast.parse(open(sys.argv[1], encoding="utf-8").read())' "$wallpaper_tmp"
+grep -Fq 'os.fsync(stream.fileno())' "$wallpaper_tmp"
+grep -Fq 'CONFIG_FILE.replace(backup)' "$wallpaper_tmp"
+grep -Fq 'if not os.path.isfile(image_path)' "$wallpaper_tmp"
+rm -f "$wallpaper_tmp"
+
 echo "All validations passed."
 
 echo "=== Checking v3.0.0 release integration ==="
