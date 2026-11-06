@@ -119,6 +119,15 @@ assert_contains files/system_files/raptor-mimeapps.list "application/x-msi=rapto
 assert_not_contains files/system_files/10-raptor-wine.conf "WINEESYNC=1"
 assert_not_contains files/system_files/10-raptor-wine.conf "WINEFSYNC=1"
 
+echo "=== Checking first-boot recovery contracts ==="
+assert_contains files/system_files/raptor-browser-choice.sh "browser choice deferred; it will retry on the next login"
+assert_contains files/system_files/raptor-chat-choice.sh "chat client choice deferred; it will retry on the next login"
+assert_contains files/system_files/raptor-app-choice.sh "app selection deferred; it will retry on the next login"
+assert_not_contains files/system_files/raptor-browser-choice.sh "Writing stamp to avoid loop"
+assert_not_contains files/system_files/raptor-chat-choice.sh "Writing stamp to avoid loop"
+assert_not_contains files/system_files/raptor-app-choice.sh "Writing stamp to avoid loop"
+assert_not_contains files/system_files/raptor-firstboot.service "SuccessExitStatus=0 1"
+
 echo "=== Checking Update Manager contracts ==="
 assert_contains files/scripts/raptor-update/install.sh "from queue import Queue, Empty"
 assert_contains files/scripts/raptor-update/install.sh 'flatpak", "update", "--user'
