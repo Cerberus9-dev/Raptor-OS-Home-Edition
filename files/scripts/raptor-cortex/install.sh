@@ -1219,14 +1219,59 @@ def get_gpu_usage(sys_root="/sys"):
     return None, None
 
 
+def get_gpu_memory():
+    """Return dedicated GPU memory usage for NVIDIA or AMD when exposed."""
+    # NVIDIA exposes per-adapter memory through nvidia-smi.
+    try:
+        r = subprocess.run(
+            ["nvidia-smi", "--query-gpu=memory.used,memory.total",
+             "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=2)
+        if r.returncode == 0:
+            rows = []
+            for index, line in enumerate(r.stdout.splitlines()):
+                fields = [part.strip() for part in line.split(",")]
+                if len(fields) >= 2 and all(x.isdigit() for x in fields[:2]):
+                    rows.append(f"GPU {index}: {int(fields[0])} / {int(fields[1])} MB")
+            if rows:
+                return "; ".join(rows)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+
+    # AMD exposes VRAM counters via the DRM device. Do not confuse system RAM
+    # used by an integrated GPU with dedicated VRAM.
+    try:
+        drm = "/sys/class/drm"
+        cards = sorted(x for x in os.listdir(drm) if re.fullmatch(r"card\\d+", x))
+        for card in cards:
+            dev = os.path.join(drm, card, "device")
+            used_path = os.path.join(dev, "mem_info_vram_used")
+            total_path = os.path.join(dev, "mem_info_vram_total")
+            try:
+                with open(used_path) as f:
+                    used = int(f.read().strip())
+                with open(total_path) as f:
+                    total = int(f.read().strip())
+                if total > 0:
+                    return f"{used // (1024 * 1024)} / {total // (1024 * 1024)} MB"
+            except (OSError, ValueError):
+                continue
+    except OSError:
+        pass
+    return None
+
+
 def get_gpu_summary():
-    """One line for the stats panel: 'Phoenix1 · 12% · 800 MHz'."""
+    """Show the detected adapter model and every metric the driver exposes."""
     busy, clock = get_gpu_usage()
     parts = [get_gpu_name()]
     if busy is not None:
-        parts.append(f"{busy}%")
+        parts.append(f"Load {busy}%")
     if clock is not None:
         parts.append(f"{clock} MHz")
+    memory = get_gpu_memory()
+    if memory:
+        parts.append(f"VRAM {memory}")
     return " · ".join(parts)
 
 
@@ -1720,7 +1765,8 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         self.gpu_temp_row.add_suffix(self.gpu_temp_label)
         stats_group.add(self.gpu_temp_row)
 
-        self.gpu_info_row = Adw.ActionRow(title="GPU")
+        self.gpu_info_row = Adw.ActionRow(title="Graphics Processor")
+        self.gpu_info_row.set_subtitle("Model, utilization, clock and dedicated memory when exposed by the driver")
         self.gpu_info_label = Gtk.Label(label="…")
         self.gpu_info_label.add_css_class("dim-label")
         self.gpu_info_label.set_wrap(True)
@@ -2698,7 +2744,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
             "cpu_t": (get_cpu_temp, None),
             "freq": (get_cpu_freq_mhz, None),
             "gpu_t": (get_gpu_temp, None),
-            "gpu_info": (get_gpu_summary, "GPU"),
+            "gpu_info": (get_gpu_summary, "Telemetry unavailable — check the graphics driver"),
             "fans": (get_fan_info, []),
         }
         busy = self.__dict__.setdefault("_stats_busy", set())
@@ -2793,7 +2839,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         if "fans" in d:
             fans = d["fans"]
             self.fan_label.set_text(
-                "\n".join(f"{n}: {t}" for n, t in fans) if fans else "No fan sensors detected")
+                "\n".join(f"{n}: {t}" for n, t in fans) if fans else "No readable fan sensor exposed by the firmware or driver")
 
         if "freq" in d:
             freq = d["freq"]
