@@ -33,6 +33,7 @@ Terminal=false
 Categories=System;Settings;
 StartupNotify=true
 DESKTOP
+command -v kbuildsycoca6 >/dev/null 2>&1 && kbuildsycoca6 --noincremental >/dev/null 2>&1 || true
 
 # ── Guard ─────────────────────────────────────────────────────────────────────
 if [[ -f "${STAMP_FILE}" && "${REOPEN}" -ne 1 ]]; then
