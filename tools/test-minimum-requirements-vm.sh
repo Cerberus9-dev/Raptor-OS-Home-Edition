@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Create a low-spec Raptor OS test VM using the locally built/downloaded ISO.
-# Default profile: 4 GiB RAM, 2 vCPUs, Nehalem CPU baseline, 64 GiB sparse disk.
+# Default profile: 4 GiB RAM and Intel Core i3-6100-class CPU (Skylake, 2C/4T).
 set -Eeuo pipefail
 
 RAM_MIB=4096
-VCPUS=2
-CPU_MODEL=Nehalem
+VCPUS=4
+CPU_MODEL=Skylake-Client
 DISK_GIB=64
 VM_NAME=raptor-os-minimum-spec
 ISO=
@@ -21,13 +21,14 @@ Creates and boots a UEFI QEMU/KVM virtual machine for minimum-spec testing.
 Options:
   --name NAME          VM name (default: raptor-os-minimum-spec)
   --ram-mib MIB        Guest memory in MiB (default: 4096)
-  --vcpus COUNT        Virtual CPU cores (default: 2)
-  --cpu-model MODEL    QEMU/libvirt CPU model (default: Nehalem)
+  --vcpus COUNT        Virtual CPUs/threads (default: 4)
+  --cpu-model MODEL    QEMU/libvirt CPU model (default: Skylake-Client)
   --disk-gib GIB       Sparse virtual disk size (default: 64)
   --help               Show this help
 
-The default CPU model is an older Intel baseline, not an exact emulation of
-every Core i3. VM performance depends on the host CPU and virtualization.
+The default CPU profile approximates an Intel Core i3-6100 (Skylake, 2 cores,
+4 threads). QEMU cannot accurately reproduce its 3.7 GHz clock, cache, memory
+controller, or integrated HD 530 graphics. VM performance depends on the host.
 USAGE
 }
 
@@ -104,7 +105,7 @@ cleanup_disk() {
 }
 trap cleanup_disk EXIT
 
-info "Creating VM: ${RAM_MIB} MiB RAM, ${VCPUS} vCPU(s), CPU model ${CPU_MODEL}"
+info "Creating VM: ${RAM_MIB} MiB RAM, ${VCPUS} threads (2 cores x 2 threads), CPU model ${CPU_MODEL}"
 virt-install \
   --connect "$CONNECT" \
   --name "$VM_NAME" \
@@ -131,7 +132,7 @@ VM created and started successfully.
 VM name:    $VM_NAME
 RAM:        ${RAM_MIB} MiB
 vCPUs:      $VCPUS
-CPU model:  $CPU_MODEL
+CPU model:  Intel Core i3-6100-class ($CPU_MODEL, 2 cores / 4 threads)
 Disk:       $DISK_PATH (${DISK_GIB} GiB, sparse)
 Installer:  $ISO
 
