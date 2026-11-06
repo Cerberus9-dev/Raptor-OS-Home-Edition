@@ -41,8 +41,7 @@ fi
 
 # ── Prerequisite: zenity must be available ────────────────────────────────────
 if ! command -v zenity &>/dev/null; then
-    err "zenity not found — cannot show browser dialog. Writing stamp to avoid loop."
-    mkdir -p "$(dirname "${STAMP_FILE}")" && touch "${STAMP_FILE}"
+    err "zenity not found — browser choice deferred; it will retry on the next login."
     exit 0
 fi
 
