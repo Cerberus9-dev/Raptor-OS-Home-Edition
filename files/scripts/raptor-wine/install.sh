@@ -1,216 +1,188 @@
 #!/bin/bash
-set -e
-
-# =============================================================================
-# Raptor OS — Wine application launcher
-# Managed Wine prefixes with auto-bootstrapped runtimes.
-#
-# WHY: double-clicking a Windows .exe in Dolphin used to fall into an
-# unconfigured ~/.wine prefix. First run never installed the MSVC++ runtime
-# DLLs that most "regular" Windows apps (installers, office tools, utilities)
-# require, so they crashed immediately or misbehaved — which is why games and
-# apps kept having to be forced through Steam/Proton instead.
-#
-# raptor-wine gives you:
-#   * a dedicated, managed prefix (default: ~/.local/share/raptor-wine/default)
-#   * first-run bootstrap: wineboot + silent install of vcrun2015, vcrun2019
-#     and corefonts via winetricks (best-effort — deferred not fatal if the
-#     download stalls, and retried on the next launch)
-#   * `--prefix NAME` for isolated prefixes, `--reset` for a clean slate
-#   * MIME + Dolphin right-click integration for .exe/.msi
-# =============================================================================
-
-# ── Windows app launcher ────────────────────────────────────────────────────
-cat << 'EOF' > /usr/bin/raptor-wine
-#!/bin/bash
-# raptor-wine — launch Windows apps with a managed, bootstrapped Wine prefix.
 set -euo pipefail
 
-DATA_DIR="$HOME/.local/share/raptor-wine"
-DEFAULT_RUNTIMES="vcrun2015 vcrun2019 corefonts d3dcompiler_47 dxvk"
-RUNTIME_LOG="$DATA_DIR/runtimes.log"
-WINETRICKS_CACHE="$HOME/.cache/winetricks"
+# Raptor Wine: regular Wine for desktop apps and UMU/Proton for games.
+
+cat <<'LAUNCHER' > /usr/bin/raptor-wine
+#!/usr/bin/env bash
+set -euo pipefail
+
+DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/raptor-wine"
+CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/winetricks"
+RUNTIME_TIMEOUT="${RAPTOR_WINE_RUNTIME_TIMEOUT:-300}"
+PREFIX_NAME="default"
+PREFIX_EXPLICIT=0
+RUNNER="auto"
+GAME_ID="${RAPTOR_WINE_GAME_ID:-umu-default}"
+STORE="${RAPTOR_WINE_STORE:-}"
+PROTON_VERSION="${RAPTOR_WINE_PROTONPATH:-}"
+RESET=0
+BOOTSTRAP=1
+INSTALL_RUNTIME=""
+DEBUG=0
 
 usage() {
-    cat <<'HELP'
-Usage: raptor-wine [OPTIONS] <program.exe|program.msi>
+  cat <<'HELP'
+Raptor Wine — Windows desktop apps and games, without requiring Steam.
 
-Run a Windows application with a managed Wine prefix. On first use the prefix
-is initialised and the common MSVC++ runtime DLLs / fonts are installed
-silently (best-effort; deferred if the download stalls, retried next launch).
+Usage:
+  raptor-wine [OPTIONS] <program.exe|program.msi> [arguments...]
+  raptor-wine [OPTIONS]                 (opens a desktop file picker)
+
+Runners:
+  --runner auto       Ask in the desktop UI; terminal defaults to Wine
+  --runner wine       Regular Wine for desktop applications
+  --runner proton     UMU + Proton for games and Proton-specific compatibility
 
 Options:
-  --prefix NAME        Use a dedicated prefix ~/.local/share/raptor-wine/NAME
-                       (default "default"). Keeps incompatible apps apart.
-  --reset              Delete the prefix first, then (re)launch <program>.
-  --install-runtime R  Install one winetricks runtime (e.g. dotnet48,
-                       vcrun2013, mf) into the prefix and exit.
-  --no-bootstrap       Skip prefix init + runtime install entirely.
-  -h, --help           Show this help.
+  --prefix NAME          Isolate this application's Wine prefix
+  --game-id ID           Optional UMU database ID (default: umu-default)
+  --store STORE          Optional storefront ID for UMU protonfixes
+  --proton-version PATH  Proton directory/name; defaults to UMU-Proton
+  --install-runtime VERB Install a Winetricks component in this prefix
+  --no-bootstrap         Skip Wine's common MSVC/font bootstrap
+  --reset                Recreate only the selected runner's prefix
+  --debug                Enable UMU/Proton diagnostic logging
+  -h, --help             Show this help
+
+UMU runs Proton with its expected Steam Linux Runtime, but does not require
+the Steam client or a Steam game library. First use downloads runtime files.
 HELP
 }
 
-PREFIX_NAME="default"
-RESET=0
-INSTALL_RUNTIME=""
-BOOTSTRAP=1
-
-while [ $# -gt 0 ]; do
-    case "$1" in
-        --prefix)         PREFIX_NAME="${2:-}"; shift 2 ;;
-        --reset)          RESET=1; shift ;;
-        --install-runtime) INSTALL_RUNTIME="${2:-}"; shift 2 ;;
-        --no-bootstrap)   BOOTSTRAP=0; shift ;;
-        -h|--help)        usage; exit 0 ;;
-        -*) echo "raptor-wine: unknown option $1" >&2; usage; exit 2 ;;
-        *) break ;;
-    esac
+while (($#)); do
+  case "$1" in
+    --runner) [[ $# -ge 2 ]] || { echo "raptor-wine: --runner needs auto, wine, or proton" >&2; exit 2; }; RUNNER="$2"; shift 2 ;;
+    --prefix) [[ $# -ge 2 && -n "$2" ]] || { echo "raptor-wine: --prefix needs a name" >&2; exit 2; }; PREFIX_NAME="$2"; PREFIX_EXPLICIT=1; shift 2 ;;
+    --game-id) [[ $# -ge 2 && -n "$2" ]] || { echo "raptor-wine: --game-id needs an ID" >&2; exit 2; }; GAME_ID="$2"; shift 2 ;;
+    --store) [[ $# -ge 2 && -n "$2" ]] || { echo "raptor-wine: --store needs a value" >&2; exit 2; }; STORE="$2"; shift 2 ;;
+    --proton-version) [[ $# -ge 2 && -n "$2" ]] || { echo "raptor-wine: --proton-version needs a path or version" >&2; exit 2; }; PROTON_VERSION="$2"; shift 2 ;;
+    --install-runtime) [[ $# -ge 2 && -n "$2" ]] || { echo "raptor-wine: --install-runtime needs a Winetricks verb" >&2; exit 2; }; INSTALL_RUNTIME="$2"; shift 2 ;;
+    --no-bootstrap) BOOTSTRAP=0; shift ;;
+    --reset) RESET=1; shift ;;
+    --debug) DEBUG=1; shift ;;
+    --) shift; break ;;
+    -h|--help) usage; exit 0 ;;
+    -*) echo "raptor-wine: unknown option $1" >&2; usage >&2; exit 2 ;;
+    *) break ;;
+  esac
 done
 
-[ -n "$PREFIX_NAME" ] || { echo "raptor-wine: --prefix needs a name" >&2; exit 2; }
-case "$PREFIX_NAME" in
-    *[!A-Za-z0-9._-]*|"") echo "raptor-wine: invalid prefix name '$PREFIX_NAME'" >&2; exit 2 ;;
-esac
+if (( PREFIX_EXPLICIT == 0 )) && [[ -n "${1:-}" && -n "$INSTALL_RUNTIME" ]]; then
+  :
+elif (( PREFIX_EXPLICIT == 0 )) && [[ -n "${1:-}" ]]; then
+  app_name="$(basename -- "$1")"
+  app_name="${app_name%.*}"
+  app_name="${app_name,,}"
+  PREFIX_NAME="$(printf '%s' "$app_name" | sed -E 's/[^a-z0-9._-]+/-/g; s/^[.-]+//; s/[.-]+$//')"
+  [[ -n "$PREFIX_NAME" ]] || PREFIX_NAME="default"
+fi
+[[ "$PREFIX_NAME" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "raptor-wine: invalid prefix name" >&2; exit 2; }
+[[ "$RUNNER" == auto || "$RUNNER" == wine || "$RUNNER" == proton ]] || { echo "raptor-wine: runner must be auto, wine, or proton" >&2; exit 2; }
 
-if [ -z "$INSTALL_RUNTIME" ] && [ $# -lt 1 ]; then
-    usage
+if [[ -z "$INSTALL_RUNTIME" && $# -eq 0 ]]; then
+  if command -v zenity >/dev/null 2>&1 && [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
+    selected_file="$(zenity --file-selection --title='Choose a Windows application or game' --file-filter='Windows programs (*.exe *.msi) | *.exe *.msi' 2>/dev/null)" || exit 0
+    set -- "$selected_file"
+  else
+    usage >&2
     exit 2
+  fi
 fi
 
-: "${WINE:=wine}"
+if [[ "$RUNNER" == auto ]]; then
+  if command -v zenity >/dev/null 2>&1 && [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
+    choice="$(zenity --list --radiolist --title='Raptor Wine' --text='Choose the compatibility mode for this Windows program.' --column='Use' --column='Runner' TRUE 'Wine — desktop application' FALSE 'Proton — Windows game / enhanced compatibility' --height=230 2>/dev/null)" || exit 0
+    case "$choice" in
+      'Proton — Windows game / enhanced compatibility') RUNNER=proton ;;
+      *) RUNNER=wine ;;
+    esac
+  else
+    RUNNER=wine
+  fi
+fi
 
-CMD_WINE="$WINE"
-case "$CMD_WINE" in
-    */*) ;;
-    *) CMD_WINE="$(command -v "$WINE" 2>/dev/null || echo wine)" ;;
-esac
-command -v wineboot >/dev/null 2>&1 || { echo "raptor-wine: wine not installed" >&2; exit 1; }
-
-PREFIX_PATH="$DATA_DIR/$PREFIX_NAME"
+PREFIX_PATH="$DATA_DIR/$RUNNER/$PREFIX_NAME"
+RUNTIME_LOG="$DATA_DIR/$RUNNER/$PREFIX_NAME.runtimes.log"
+RUNTIME_STAMP="$DATA_DIR/$RUNNER/$PREFIX_NAME.runtimes-done"
+mkdir -p "$DATA_DIR/$RUNNER" "$CACHE_DIR"
 export WINEPREFIX="$PREFIX_PATH"
 export WINEDEBUG="${WINEDEBUG:--all}"
-mkdir -p "$DATA_DIR"
 
-if [ "$RESET" = 1 ]; then
+if [[ "$RUNNER" == wine ]]; then
+  WINE_BIN="${WINE:-wine}"
+  command -v "$WINE_BIN" >/dev/null 2>&1 || { echo "raptor-wine: Wine is not installed" >&2; exit 1; }
+  CMD_WINE="$(command -v "$WINE_BIN")"
+  command -v wineboot >/dev/null 2>&1 || { echo "raptor-wine: wineboot is not installed" >&2; exit 1; }
+  if (( RESET )); then
     "$CMD_WINE" wineserver -k >/dev/null 2>&1 || true
-    rm -rf "$PREFIX_PATH"
-    rm -f "$DATA_DIR/$PREFIX_NAME.runtimes-done"
-    echo "raptor-wine: prefix '$PREFIX_NAME' wiped."
-fi
-
-# ── First-run bootstrap ──────────────────────────────────────────────────────
-if [ "$BOOTSTRAP" = 1 ] && [ ! -f "$PREFIX_PATH/system.reg" ]; then
-    echo "raptor-wine: initialising new prefix '$PREFIX_NAME' (one-time)…"
+    rm -rf -- "$PREFIX_PATH"
+    rm -f -- "$RUNTIME_STAMP"
+  fi
+  if [[ ! -s "$PREFIX_PATH/system.reg" ]]; then
     mkdir -p "$PREFIX_PATH"
-    wineboot >/dev/null 2>&1 || wineboot -u >/dev/null 2>&1 || true
-
-    # Install Wine Mono + Gecko for .NET/JavaScript apps (if available)
-    if command -v wine-mono-installer >/dev/null 2>&1; then
-        wine-mono-installer --prefix "$PREFIX_PATH" >/dev/null 2>&1 || true
-    fi
-    if command -v wine-gecko-installer >/dev/null 2>&1; then
-        wine-gecko-installer --prefix "$PREFIX_PATH" >/dev/null 2>&1 || true
-    fi
-fi
-
-# Ensure winetricks cache directory exists
-mkdir -p "$WINETRICKS_CACHE"
-
-# ── Best-effort runtime install ─────────────────────────────────────────────
-STAMP="$DATA_DIR/$PREFIX_NAME.runtimes-done"
-if [ -n "$INSTALL_RUNTIME" ]; then
-    if winetricks --unattended --quiet "$INSTALL_RUNTIME" >&2; then
-        case " $DEFAULT_RUNTIMES " in
-            *" $INSTALL_RUNTIME "*) touch "$STAMP" ;;
-        esac
-        echo "raptor-wine: runtime '$INSTALL_RUNTIME' installed."
-        exit 0
+    wineboot -u
+  fi
+  if (( BOOTSTRAP )) && [[ -z "$INSTALL_RUNTIME" && ! -f "$RUNTIME_STAMP" ]]; then
+    if command -v winetricks >/dev/null 2>&1; then
+      echo "raptor-wine: installing common desktop runtimes (one-time)..."
+      if timeout "$RUNTIME_TIMEOUT" winetricks --unattended --quiet vcrun2015 vcrun2019 corefonts >>"$RUNTIME_LOG" 2>&1; then
+        touch "$RUNTIME_STAMP"
+      else
+        echo "raptor-wine: runtime setup deferred; see $RUNTIME_LOG. The program will still be launched." >&2
+      fi
     else
-        echo "raptor-wine: installing '$INSTALL_RUNTIME' failed — check the network." >&2
-        echo "raptor-wine: on flaky connections retry; winetricks resumes from cache." >&2
-        exit 1
+      echo "raptor-wine: Winetricks unavailable; skipping optional runtime bootstrap." >&2
     fi
+  fi
+  if [[ -n "$INSTALL_RUNTIME" ]]; then
+    command -v winetricks >/dev/null 2>&1 || { echo "raptor-wine: Winetricks is not installed" >&2; exit 1; }
+    exec winetricks --unattended --quiet "$INSTALL_RUNTIME"
+  fi
+  if [[ "${1,,}" == *.msi ]]; then
+    installer="$1"; shift
+    exec "$CMD_WINE" msiexec /i "$installer" "$@"
+  fi
+  exec "$CMD_WINE" "$@"
 fi
 
-if [ "$BOOTSTRAP" = 1 ] && [ ! -f "$STAMP" ]; then
-    echo "raptor-wine: installing common Windows runtimes (one-time, may take a while)…"
-    if winetricks --unattended --quiet $DEFAULT_RUNTIMES >>"$RUNTIME_LOG" 2>&1; then
-        touch "$STAMP"
-        echo "raptor-wine: common runtimes installed."
-    else
-        echo "raptor-wine: runtime install deferred (download issue) — apps that need" >&2
-        echo "raptor-wine: MSVC runtime DLLs may fail until they're present. Retry with:" >&2
-        echo "raptor-wine:   raptor-wine --install-runtime vcrun2015" >&2
-        echo "raptor-wine:   raptor-wine --install-runtime vcrun2019" >&2
-    fi
+# Game runner: UMU supplies Proton's expected Steam Linux Runtime without
+# requiring the Steam client or Steam game library.
+command -v umu-run >/dev/null 2>&1 || { echo "raptor-wine: UMU launcher is missing; install the umu-launcher package." >&2; exit 1; }
+if (( RESET )); then
+  rm -rf -- "$PREFIX_PATH"
 fi
-
-# ── DXVK/VKD3D setup for the prefix ──────────────────────────────────────────
-# DXVK is installed via winetricks above; ensure the override is registered
-if [ "$BOOTSTRAP" = 1 ] && [ -f "$STAMP" ]; then
-    # The dxvk runtime installs d3d9, d3d10core, d3d11, dxgi overrides
-    # They should be set to native by winetricks, but verify:
-    "$CMD_WINE" reg add "HKEY_CURRENT_USER\\Software\\Wine\\DllOverrides" \
-        /v "d3d9" /t REG_SZ /d "native" /f >/dev/null 2>&1 || true
-    "$CMD_WINE" reg add "HKEY_CURRENT_USER\\Software\\Wine\\DllOverrides" \
-        /v "d3d10core" /t REG_SZ /d "native" /f >/dev/null 2>&1 || true
-    "$CMD_WINE" reg add "HKEY_CURRENT_USER\\Software\\Wine\\DllOverrides" \
-        /v "d3d11" /t REG_SZ /d "native" /f >/dev/null 2>&1 || true
-    "$CMD_WINE" reg add "HKEY_CURRENT_USER\\Software\\Wine\\DllOverrides" \
-        /v "dxgi" /t REG_SZ /d "native" /f >/dev/null 2>&1 || true
+export GAMEID="$GAME_ID"
+[[ -z "$STORE" ]] || export STORE
+[[ -z "$PROTON_VERSION" ]] || export PROTONPATH="$PROTON_VERSION"
+if (( DEBUG )); then export UMU_LOG=1; export PROTON_LOG=1; fi
+if [[ -n "$INSTALL_RUNTIME" ]]; then
+  exec umu-run winetricks "$INSTALL_RUNTIME"
 fi
-
-# ── Environment hardening ───────────────────────────────────────────────────
-# esync/fsync for better performance with esync-heavy games
-export WINEESYNC="${WINEESYNC:-1}"
-export WINEFSYNC="${WINEFSYNC:-1}"
-
-# Disable winemenubuilder to prevent polluting the app menu
-export WINEDLLOVERRIDES="${WINEDLLOVERRIDES:-winemenubuilder.exe=d}"
-
-# Force VA-API for hardware video decode
-export VKD3D_CONFIG="${VKD3D_CONFIG:-dxr11}"
-
-# ── ProtonUp-Qt integration ─────────────────────────────────────────────────
-# If the user has ProtonUp-Qt installed, we can use its Proton builds
-PROTONUP_DIR="$HOME/.local/share/protonup-qt/proton-ge-custom"
-if [ -d "$PROTONUP_DIR" ]; then
-    LATEST_PROTON=$(ls -1 "$PROTONUP_DIR" 2>/dev/null | sort -V | tail -1)
-    if [ -n "$LATEST_PROTON" ]; then
-        export STEAM_COMPAT_DATA_PATH="${STEAM_COMPAT_DATA_PATH:-$DATA_DIR/$PREFIX_NAME}"
-        export STEAM_COMPAT_CLIENT_INSTALL_PATH="${STEAM_COMPAT_CLIENT_INSTALL_PATH:-$HOME/.steam/steam}"
-        export WINEDLLOVERRIDES="${WINEDLLOVERRIDES};winemenubuilder.exe=d"
-    fi
+if [[ "${1,,}" == *.msi ]]; then
+  installer="$1"; shift
+  exec umu-run wine msiexec /i "$installer" "$@"
 fi
+exec umu-run "$@"
+LAUNCHER
+chmod 0755 /usr/bin/raptor-wine
 
-# ── Launch ──────────────────────────────────────────────────────────────────
-case "$1" in
-    *.msi|*.MSI) exec "$CMD_WINE" msiexec /i "$@" ;;
-    *)           exec "$CMD_WINE" "$@" ;;
-esac
-EOF
-chmod 755 /usr/bin/raptor-wine
-
-# ── .desktop + MIME binding (double-click in Dolphin) ─────────────────────────
-cat << 'EOF' > /usr/share/applications/raptor-wine.desktop
+cat <<'DESKTOP' > /usr/share/applications/raptor-wine.desktop
 [Desktop Entry]
 Type=Application
 Version=1.1
-Name=Windows Application (Raptor Wine)
-GenericName=Launch Windows app
-Comment=Run a Windows .exe/.msi in a managed Raptor Wine prefix
-Exec=raptor-wine %U
+Name=Raptor Wine
+GenericName=Windows application and game launcher
+Comment=Run Windows programs with Wine or Steam-independent Proton
+Exec=raptor-wine
 Icon=application-x-ms-dos-executable
 Terminal=false
-Categories=X-RaptorOS;System;Utility;
-MimeType=application/x-ms-dos-executable;application/x-msi;application/vnd.microsoft.portable-executable;application/x-msdownload;
-Keywords=wine;windows;exe;msi;proton;application;
-NoDisplay=true
-EOF
+Categories=System;Utility;Game;
+Keywords=wine;windows;exe;msi;proton;umu;game;application;
+DESKTOP
 
-# ── Dolphin right-click servicemenu ─────────────────────────────────────────
 mkdir -p /usr/share/kio/servicemenus
-cat << 'EOF' > /usr/share/kio/servicemenus/raptor-wine.desktop
+cat <<'SERVICE' > /usr/share/kio/servicemenus/raptor-wine.desktop
 [Desktop Entry]
 Type=Service
 X-KDE-ServiceTypes=KonqPopupMenu/Plugin
@@ -219,29 +191,14 @@ Actions=raptorWineRun;
 X-KDE-Priority=TopLevel
 
 [Desktop Action raptorWineRun]
-Name=Run as Windows App (Raptor Wine)
+Name=Run with Raptor Wine
 Icon=application-x-ms-dos-executable
-Exec=raptor-wine %f
-EOF
+Exec=raptor-wine --runner auto %f
+SERVICE
 
-# Refresh app / MIME caches so the new handlers show up immediately.
 update-desktop-database /usr/share/applications >/dev/null 2>&1 || true
-
-# ── Self-check ────────────────────────────────────────────────────────────────
-# A malformed heredoc here can install a truncated binary or a missing .desktop
-# entry, and Wine then never appears in the launcher with an empty build log.
-# Verify each artifact landed and is non-empty; fail the build if not.
-RAPTOR_EXPECTED_PAYLOAD="
-/usr/bin/raptor-wine
-/usr/share/applications/raptor-wine.desktop
-/usr/share/kio/servicemenus/raptor-wine.desktop
-"
-raptor_missing=""
-for raptor_f in $RAPTOR_EXPECTED_PAYLOAD; do
-    [ -s "$raptor_f" ] || raptor_missing="$raptor_missing $raptor_f"
+for required in /usr/bin/raptor-wine /usr/share/applications/raptor-wine.desktop /usr/share/kio/servicemenus/raptor-wine.desktop; do
+  [[ -s "$required" ]] || { echo "RAPTOR_WINE_PAYLOAD_MISSING:$required" >&2; exit 1; }
 done
-if [ -n "$raptor_missing" ]; then
-    echo "RAPTOR_WINE_PAYLOAD_MISSING:$raptor_missing" >&2
-    exit 1
-fi
-echo "RAPTOR_WINE_READY payload=$(echo $RAPTOR_EXPECTED_PAYLOAD | wc -w | tr -d ' ') files verified"
+bash -n /usr/bin/raptor-wine
+echo "RAPTOR_WINE_READY: Wine + UMU/Proton launcher installed"

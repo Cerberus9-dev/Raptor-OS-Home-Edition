@@ -41,37 +41,16 @@ fi
 # Previously lived in raptor-appconfig.sh + raptor-appconfig.service; merged
 # here to eliminate redundant files and service units.
 
-# Vesktop: write Chromium flags.txt to cap V8 heap and force Wayland-native
+# Vesktop: use native Wayland integration without unsafe global memory caps
 VESKTOP_CFG="${HOME}/.var/app/dev.vencord.Vesktop/config/vesktop"
 if flatpak info dev.vencord.Vesktop &>/dev/null 2>&1; then
     mkdir -p "${VESKTOP_CFG}"
+    # Keep stable Wayland integration only. Forced tiny V8 heaps and renderer
+    # caps can crash large servers/calls; backgrounding overrides can increase
+    # idle CPU and interfere with Chromium's normal resource throttling.
     cat > "${VESKTOP_CFG}/flags.txt" << 'VESKTOPFLAGS'
-# Raptor OS: Vesktop Chromium flags
-# Caps memory and forces Wayland-native rendering (avoids ~30 MB XWayland overhead).
-
 --ozone-platform=wayland
 --enable-wayland-ime
-
-# V8 old-gen heap: 256 MB (default ~1.4 GB on systems with free RAM)
---max-old-space-size=256
---js-flags=--max-old-space-size=256
-
-# Max 2 renderer processes (~80-120 MB each)
---renderer-process-limit=2
-
-# Share renderer processes across same-site origins
---process-per-site
-
-# Reduce CPU/memory for occluded/background windows
---disable-backgrounding-occluded-windows
---disable-renderer-backgrounding
-
-# Signal allocator to apply more aggressive GC pressure
---memory-model=low
-
-# VA-API hardware video decode (reduces CPU load in video calls/streams)
---enable-features=VaapiVideoDecoder,VaapiVideoEncoder
---disable-features=UseChromeOSDirectVideoDecoder,CrashpadWithBrowserLock
 VESKTOPFLAGS
 
     # Belt-and-suspenders: also set via flatpak user override (env vars are
@@ -83,6 +62,20 @@ VESKTOPFLAGS
     log "Vesktop: flags.txt and user Flatpak override applied."
 else
     log "Vesktop not installed — skipping Vesktop config."
+fi
+
+# ── Consistent Electron/Chromium Wayland integration for chat clients ─────────
+# Use Electron's automatic Wayland backend selection for each optional client.
+# Do not impose global V8 heap/renderer limits: these can break large servers,
+# voice/video calls, screen sharing, and accessibility features.
+if command -v flatpak >/dev/null 2>&1; then
+    for chat_app in com.discordapp.Discord dev.vencord.Vesktop org.equicord.equibop io.github.milkshiift.GoofCord; do
+        if flatpak info "$chat_app" >/dev/null 2>&1; then
+            flatpak override --user "$chat_app" \
+                --env=ELECTRON_OZONE_PLATFORM_HINT=auto \
+                >/dev/null 2>&1 || log "Could not apply Wayland hint to $chat_app"
+        fi
+    done
 fi
 
 # Firefox: copy skel user.js to any existing profiles that don't have one yet.
@@ -252,6 +245,9 @@ APP_CATALOGUE=(
     "Development|Neovim|rpm:neovim|Terminal editor - reboot required"
     "Development|C/C++ toolchain|rpm:gcc make cmake|GCC, Make, CMake - reboot required"
     # System & Utilities
+    "System & Utilities|LocalSend|org.localsend.localsend_app|Send files between nearby devices over your local network without cloud accounts"
+    "System & Utilities|Gear Lever|it.mijorus.gearlever|Manage AppImages, desktop entries and AppImage updates"
+    "System & Utilities|Resources|net.nokyan.Resources|Monitor CPU, memory, GPU, network, storage and running processes"
     "System & Utilities|Mission Center|io.missioncenter.MissionCenter|Windows-style Task Manager - processes, performance, startup"
     "System & Utilities|Warehouse|io.github.flattool.Warehouse|Manage and fully uninstall Flatpaks, including their data"
     "System & Utilities|Flatseal|com.github.tchx84.Flatseal|Flatpak permissions"

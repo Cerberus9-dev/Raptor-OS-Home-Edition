@@ -100,6 +100,28 @@ for marker in "cat << 'BRAVELAUNCHER'" "cat << 'TRIMMER'" 'echo "GAMING_READY'; 
     fi
 done
 
+echo "=== Checking Wine + Proton compatibility contracts ==="
+assert_contains recipes/recipe.yml "- umu-launcher"
+assert_contains files/scripts/raptor-wine/install.sh "command -v umu-run"
+assert_contains files/scripts/raptor-wine/install.sh "exec umu-run"
+assert_contains files/scripts/raptor-wine/install.sh "PREFIX_EXPLICIT=0"
+assert_contains files/scripts/raptor-wine/install.sh "app_name=\"$(basename -- \"$1\")\""
+assert_contains files/scripts/raptor-wine/install.sh 'RUNNER="auto"'
+assert_contains files/scripts/raptor-wine/install.sh 'RUNNER=proton'
+assert_contains files/scripts/raptor-wine/install.sh 'RUNNER=wine'
+assert_contains files/scripts/raptor-wine/install.sh 'export WINEPREFIX="$PREFIX_PATH"'
+assert_contains files/scripts/raptor-wine/install.sh 'exec umu-run winetricks'
+assert_not_contains files/scripts/raptor-wine/install.sh 'use Steam with Proton'
+assert_not_contains files/system_files/10-raptor-wine.conf 'WINEESYNC=1'
+assert_not_contains files/system_files/10-raptor-wine.conf 'WINEFSYNC=1'
+assert_contains files/scripts/raptor-hardware-fixes/install.sh 'system-alias Raptor OS Bluetooth'
+assert_contains files/scripts/raptor-hardware-fixes/install.sh 'for attempt in {1..10}; do'
+assert_contains files/scripts/raptor-hardware-fixes/install.sh 'No BlueZ controllers appeared; systemd will retry later.'
+assert_contains files/scripts/raptor-hardware-fixes/install.sh 'Restart=on-failure'
+assert_contains files/scripts/raptor-hardware-fixes/install.sh 'RestartSec=15'
+assert_contains files/scripts/raptor-hardware-fixes/install.sh 'raptor-bt-name.service'
+assert_contains files/system_files/raptor-app-choice.sh 'ELECTRON_OZONE_PLATFORM_HINT=auto'
+
 echo "=== Checking Update Manager contracts ==="
 assert_contains files/scripts/raptor-update/install.sh "from queue import Queue, Empty"
 assert_contains files/scripts/raptor-update/install.sh 'flatpak", "update", "--user'
@@ -143,6 +165,12 @@ assert_contains files/scripts/raptor-gpu-profile/install.sh '_set_intel_gpu_powe
 assert_contains files/system_files/99-raptor-wireplumber-alsa.conf 'api.alsa.period-size            = 512'
 assert_contains files/system_files/raptor-chat-choice.sh 'Equibop'
 assert_contains files/system_files/raptor-chat-choice.sh 'GoofCord'
+assert_contains files/system_files/raptor-chat-choice.sh 'flatpak remote-add --user --if-not-exists flathub'
+assert_contains files/system_files/raptor-chat-choice.sh 'flatpak install --user -y --noninteractive flathub'
+assert_contains files/system_files/raptor-chat-choice.sh 'flatpak info --user'
+assert_contains files/system_files/raptor-app-choice.sh 'org.localsend.localsend_app'
+assert_contains files/system_files/raptor-app-choice.sh 'it.mijorus.gearlever'
+assert_contains files/system_files/raptor-app-choice.sh 'net.nokyan.Resources'
 assert_contains files/system_files/raptor-browser-choice.sh 'Zen Browser'
 assert_contains files/system_files/raptor-browser-choice.sh 'Floorp'
 assert_contains files/system_files/raptor-browser-choice.sh 'Waterfox'

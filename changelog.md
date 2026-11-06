@@ -1965,3 +1965,28 @@ This is the consolidation release for more than two months of sustained Raptor O
 - Discord, VSCodium, Heroic Games Launcher as Flatpaks
 - LibreOffice, Thunderbird, Kdenlive, GIMP
 - First boot service that automatically rebases to Raptor OS from stock Bazzite
+
+
+### Optional application catalogue
+
+- Added LocalSend for local-network file sharing, Gear Lever for managing AppImages, and Resources for system monitoring. These remain opt-in Flatpaks and add no idle background services.
+- First-boot chat-client installation uses per-user Flatpak operations consistently with the user-session service.
+
+### Windows compatibility: Raptor Wine
+
+- Raptor Wine now offers regular Wine for Windows desktop applications and UMU-managed Proton for games or programs that benefit from Proton-specific compatibility.
+- UMU launches Proton with its expected Steam Linux Runtime without requiring the Steam client or a Steam game library. UMU manages the Proton/runtime downloads on first use.
+- The desktop launcher and KDE file-manager action let users choose Wine or Proton; terminal use defaults to Wine unless `--runner proton` is specified.
+- Wine and Proton use separate per-application prefixes. Optional controls include UMU game IDs, storefront fixes, Proton version selection, Winetricks runtime installation, and diagnostic logging.
+- Removed globally forced esync/fsync and DLL overrides so desktop Wine is not forced into game-specific settings and Proton can apply its own defaults.
+- Actual application/game compatibility and first-run UMU downloads still require testing on a built image; universal Windows compatibility is not claimed.
+
+### Desktop app resource and Wayland tuning
+
+- Extended safe Electron Wayland backend selection to official Discord, Vesktop, Equibop, and GoofCord.
+- Removed restrictive forced V8 heap and renderer-process caps from Vesktop rather than risk breaking large servers, screen sharing, or voice/video calls.
+
+### Bluetooth adapter identity
+
+- Added a BlueZ startup helper that assigns detected controllers the friendly alias “Raptor OS Bluetooth”, avoiding raw interface names such as hci0 in the user-facing adapter identity.
+- Paired-device cache entries are deliberately preserved; automatic deletion could remove legitimate separate Bluetooth LE/classic identities.
