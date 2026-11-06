@@ -21,8 +21,9 @@ ExecStart=/usr/bin/raptor-app-choice.sh
 RemainAfterExit=yes
 StandardOutput=journal
 StandardError=journal
-# zenity returns 1 on "Skip" — treat as success so the chain continues
-SuccessExitStatus=0 1
+# Choice scripts handle an intentional dialog dismissal as a successful skip.
+# Do not treat arbitrary exit status 1 as success: real script failures should
+# remain visible in the user journal instead of being silently masked.
 
 # ── Hardening: deliberately NOT applied here ────────────────────────────────
 # Unlike the other Raptor services, this one is not a good hardening
