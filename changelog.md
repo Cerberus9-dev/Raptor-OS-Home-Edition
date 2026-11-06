@@ -6,6 +6,12 @@
 
 This is the consolidation release for more than two months of sustained Raptor OS overhaul work. The scope includes substantial changes across performance and memory management, gaming and GPU behavior, audio, Cortex, update reliability, hardware recovery, browser and chat-client choice, build validation, and the installation/distribution path. The intent is to ship the work as one coherent major update rather than scatter it across a long sequence of small version bumps.
 
+### Wine and Proton reliability
+
+- Kept the normal Wine installer independent of UMU availability: Wine and its KDE integration can still be installed even if the optional Proton launcher is unavailable. The Proton action now checks for UMU only when the user invokes it.
+- Corrected the Proton launcher's MSI handling. UMU accepts an executable as its launch target; passing `wine msiexec` as though UMU were a general Wine command wrapper was incorrect. MSI installers now produce a clear instruction to use standard Wine (`wine msiexec /i installer.msi`), while Proton remains available for executable game launches.
+- Added CI assertions to prevent the optional UMU dependency from blocking the normal Wine installer and to guard against reintroducing the invalid MSI invocation.
+
 ### Build reliability and one-time app integration
 
 - Fixed the one-time app installer gate: the image build stages Raptor Music and Shroudly only when requested, and each installer now detects its actual staged application payload instead of relying on a separate marker file that the BlueBuild files module did not deliver to the script stage.
