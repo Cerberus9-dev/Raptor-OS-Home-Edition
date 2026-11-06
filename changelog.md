@@ -73,6 +73,7 @@ This is the consolidation release for more than two months of sustained Raptor O
 - Raptor Music and the original upstream Shroudly desktop app are built and staged during every image build. Their installers verify the actual staged payload and safely skip only when a local build intentionally omits CI-generated staging files.
 - The workflow verifies both applications inside the resulting GHCR image instead of relying on a one-time marker or a first-build-only integration lock.
 - Static validation and workflow linting now run before expensive Shroudly and Raptor Music dependency builds, so shell, embedded-Python, and repository-contract failures surface earlier.
+- Removed a stale validator assertion that still required LZ4 after the documented ZRAM switch to zstd; the current validator now checks the actual zstd configuration.
 - After image verification, CI reports the OCI virtual size, largest image layers, and installed filesystem usage. This provides a measurable baseline for future size reduction rather than guessing which dependencies are safe to remove.
 - The build workflow remains the update-image workflow: it pushes the OCI image to GHCR and does not create GitHub Releases or downloadable artifacts. ISO creation remains separate.
 
