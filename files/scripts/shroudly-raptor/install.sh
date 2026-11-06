@@ -7,9 +7,10 @@ set -euo pipefail
 STAGE_DIR="/tmp/raptor-staging/shroudly-app"
 APP_DIR="/opt/Shroudly"
 
-if [[ ! -f "/tmp/raptor-staging/include-one-time-apps" ]]; then
-    rm -rf "$STAGE_DIR"
-    echo "SHROUDLY_SKIP: one-time app payload was not requested."
+# CI stages this directory only for the one-time integration build. Ordinary
+# builds have no app payload and safely skip without relying on a marker file.
+if [[ ! -x "$STAGE_DIR/shroudly" || ! -s "$STAGE_DIR/resources/app.asar" ]]; then
+    echo "SHROUDLY_SKIP: no complete one-time Shroudly payload in this image build."
     exit 0
 fi
 
