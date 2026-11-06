@@ -11,6 +11,7 @@ This is the consolidation release for more than two months of sustained Raptor O
 - Refined the Raptor HUD palette from bright electric blue toward flight-deck navy, graphite, instrument cyan, caution amber, and operational green.
 - Extended the GTK3/GTK4 theme with consistent Adwaita cards, navigation sidebars, toolbars, status pages, and semantic status colors so first-party GTK apps inherit a more coherent aerospace interface.
 - Updated theme metadata and first-login service descriptions to identify the aviation-inspired Raptor OS visual system. The design stays restrained and readable rather than turning the desktop into a novelty cockpit.
+- Added a fifth bundled **Raptor Flight Deck** wallpaper: a dark aerospace grid, navigation/radar markings, and a clean top-down aircraft outline, available in Raptor Wallpaper without changing the user's selected background automatically.
 
 ### Cortex and GPU telemetry reliability
 
