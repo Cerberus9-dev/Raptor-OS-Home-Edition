@@ -206,8 +206,15 @@ cat << 'BTNAME' > /usr/lib/raptor/bt-name
 #!/bin/bash
 set -u
 command -v bluetoothctl >/dev/null 2>&1 || exit 0
-controllers="$(timeout 8 bluetoothctl list 2>/dev/null | awk '/^Controller / {print $2}')"
-[[ -n "$controllers" ]] || exit 0
+controllers=""
+# bluetooth.service can become active before the controller is enumerated.
+# Retry briefly instead of permanently marking this oneshot complete too early.
+for attempt in {1..10}; do
+    controllers="$(timeout 3 bluetoothctl list 2>/dev/null | awk '/^Controller / {print $2}')"
+    [[ -n "$controllers" ]] && break
+    sleep 2
+done
+[[ -n "$controllers" ]] || { echo "No BlueZ controllers appeared; leaving adapter names unchanged." >&2; exit 0; }
 while IFS= read -r mac; do
     [[ "$mac" =~ ^([[:xdigit:]]{2}:){5}[[:xdigit:]]{2}$ ]] || continue
     printf 'select %s\nsystem-alias Raptor OS Bluetooth\n' "$mac" |
