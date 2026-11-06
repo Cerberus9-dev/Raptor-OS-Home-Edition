@@ -6,13 +6,15 @@
 
 This is the consolidation release for more than two months of sustained Raptor OS overhaul work. The scope includes substantial changes across performance and memory management, gaming and GPU behavior, audio, Cortex, update reliability, hardware recovery, browser and chat-client choice, build validation, and the installation/distribution path. The intent is to ship the work as one coherent major update rather than scatter it across a long sequence of small version bumps.
 
+### Build reliability and one-time app integration
+
+- Fixed the one-time app installer gate: the image build stages Raptor Music and Shroudly only when requested, and each installer now detects its actual staged application payload instead of relying on a separate marker file that the BlueBuild files module did not deliver to the script stage.
+- Ordinary image builds remain app-payload-free and skip both optional installers. The one-time update build must still verify both applications and all required files inside the published GHCR image before consuming the internal integration lock.
+- The build workflow remains the update-image workflow: it pushes the OCI image to GHCR and does not create GitHub Releases or downloadable artifacts. ISO creation remains separate.
+
 ### Choice, compatibility, and distribution improvements
 
-### Optional application catalogue
-
-- Added LocalSend for direct local-network file sharing, Gear Lever for managing AppImages on the immutable desktop, and Resources for CPU, memory, GPU, network, storage, and process monitoring. All remain opt-in Flatpaks and add no idle background services to the base image.
-- First-boot chat-client installation now consistently uses the per-user Flatpak installation, matching the user-session service and avoiding unexpected system-wide installs or administrator prompts.
-
+- Added a QEMU/KVM minimum-spec VM test script and guide. Its default profile provisions 4 GiB RAM, an Intel Core i3-6100-class Skylake CPU profile (2 cores / 4 threads), UEFI, and a sparse 64 GiB disk for repeatable installer and desktop smoke testing. Clock speed, cache, integrated graphics, and physical-system performance are documented limitations of CPU virtualization.
 
 - Expanded the first-boot chat-client chooser beyond official Discord and Vesktop to include Equibop (Equicord) and GoofCord. All are optional downloads; none is silently preinstalled, and skipping remains supported.
 - Documented Meowcord accurately as a separate self-hosted, federated Discord-like service in very early alpha, not a desktop client that can be installed from the first-boot Flatpak chooser.
@@ -31,22 +33,6 @@ This is the consolidation release for more than two months of sustained Raptor O
 - The installers detect their actual staged application files rather than relying on a separate marker file, which the BlueBuild files module did not deliver to the script stage.
 - The internal `raptor-one-time-apps-consumed` tag locks integration only after the staged apps have been verified inside the successfully published GHCR image. Failed builds do not consume the one-time integration.
 - Generated application binaries are not tracked in the source tree. The build workflow remains an OCI update-image workflow and does not create GitHub Releases or downloadable artifacts; ISO creation remains separate.
-
-### Desktop app resource and Wayland tuning
-
-- Extended safe Electron Wayland backend selection to every optional chat client in the chooser: official Discord, Vesktop, Equibop, and GoofCord.
-- Removed fragile forced memory ceilings from Vesktop rather than imposing renderer/V8 limits that can break large servers, screen sharing, or voice/video calls. No game, audio, or networking services are disabled.
-- Kept Firefox's existing low-memory policy and Brave's hardware acceleration profile intact rather than layering on unverified flags or reducing browser functionality.
-
-### Bluetooth adapter identity
-
-- Added a BlueZ startup helper that assigns each detected controller the friendly alias “Raptor OS Bluetooth”, preventing the raw kernel interface name (such as `hci0`) from being used as the adapter's user-facing identity in KDE.
-- Paired-device cache entries are deliberately preserved. Automatically deleting apparent duplicates can remove legitimate separate Bluetooth LE/classic identities; this change avoids destructive cleanup.
-
-### Windows application compatibility and resource tuning
-
-- Raptor Wine is separated from game-focused Proton: ordinary Windows apps use isolated Wine prefixes with a one-time, best-effort bootstrap of common MSVC runtimes and core fonts. The bootstrap is bounded by a timeout, retries after download failures, and deliberately excludes DXVK/Direct3D gaming components. Additional Winetricks components remain opt-in; Steam Proton remains game-focused.
-- Removed Vesktop's restrictive forced V8 heap and renderer-process caps, plus background-throttling overrides that could increase idle CPU use or interfere with calls. Native Wayland integration remains enabled.
 
 ### Performance, audio, gaming, and update reliability
 
@@ -1979,3 +1965,28 @@ This is the consolidation release for more than two months of sustained Raptor O
 - Discord, VSCodium, Heroic Games Launcher as Flatpaks
 - LibreOffice, Thunderbird, Kdenlive, GIMP
 - First boot service that automatically rebases to Raptor OS from stock Bazzite
+
+
+### Optional application catalogue
+
+- Added LocalSend for local-network file sharing, Gear Lever for managing AppImages, and Resources for system monitoring. These remain opt-in Flatpaks and add no idle background services.
+- First-boot chat-client installation uses per-user Flatpak operations consistently with the user-session service.
+
+### Windows compatibility: Raptor Wine
+
+- Raptor Wine now offers regular Wine for Windows desktop applications and UMU-managed Proton for games or programs that benefit from Proton-specific compatibility.
+- UMU launches Proton with its expected Steam Linux Runtime without requiring the Steam client or a Steam game library. UMU manages the Proton/runtime downloads on first use.
+- The desktop launcher and KDE file-manager action let users choose Wine or Proton; terminal use defaults to Wine unless `--runner proton` is specified.
+- Wine and Proton use separate per-application prefixes. Optional controls include UMU game IDs, storefront fixes, Proton version selection, Winetricks runtime installation, and diagnostic logging.
+- Removed globally forced esync/fsync and DLL overrides so desktop Wine is not forced into game-specific settings and Proton can apply its own defaults.
+- Actual application/game compatibility and first-run UMU downloads still require testing on a built image; universal Windows compatibility is not claimed.
+
+### Desktop app resource and Wayland tuning
+
+- Extended safe Electron Wayland backend selection to official Discord, Vesktop, Equibop, and GoofCord.
+- Removed restrictive forced V8 heap and renderer-process caps from Vesktop rather than risk breaking large servers, screen sharing, or voice/video calls.
+
+### Bluetooth adapter identity
+
+- Added a BlueZ startup helper that assigns detected controllers the friendly alias “Raptor OS Bluetooth”, avoiding raw interface names such as hci0 in the user-facing adapter identity.
+- Paired-device cache entries are deliberately preserved; automatic deletion could remove legitimate separate Bluetooth LE/classic identities.
