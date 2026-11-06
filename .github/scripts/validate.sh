@@ -110,6 +110,9 @@ assert_contains recipes/recipe.yml "- umu-launcher"
 assert_contains files/scripts/raptor-wine/install.sh "exec wine"
 assert_contains files/scripts/raptor-wine/install.sh "exec umu-run"
 assert_contains files/scripts/raptor-wine/install.sh 'target="$1"'
+assert_not_contains files/scripts/raptor-wine/install.sh 'RAPTOR_WINE_ERROR: UMU is not installed'
+assert_contains files/scripts/raptor-wine/install.sh 'MSI installers should be run with standard Wine'
+assert_not_contains files/scripts/raptor-wine/install.sh 'exec umu-run wine msiexec'
 assert_contains files/scripts/raptor-wine/install.sh 'shift'
 assert_contains files/scripts/raptor-wine/install.sh 'Usage: raptor-wine-proton program.exe'
 assert_contains files/scripts/raptor-wine/install.sh "Exec=raptor-wine %f"
