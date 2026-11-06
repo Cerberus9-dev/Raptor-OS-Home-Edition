@@ -11,13 +11,32 @@ set -euo pipefail
 
 STAMP_FILE="${HOME}/.local/share/raptor/app-choice-done"
 LOG_TAG="raptor-app-choice"
+REOPEN=0
+[[ "${1:-}" == "--reopen" ]] && REOPEN=1
 
 log() { logger -t "${LOG_TAG}" -- "$*"; }
 err() { logger -t "${LOG_TAG}" -p user.err -- "$*"; }
 
+# Keep the catalogue available after first boot. The first-boot service runs
+# without arguments and is protected by the completion stamp; the desktop
+# launcher passes --reopen so users can install optional apps later.
+mkdir -p "${HOME}/.local/share/applications"
+cat > "${HOME}/.local/share/applications/raptor-app-picker.desktop" <<'DESKTOP'
+[Desktop Entry]
+Type=Application
+Name=Raptor App Picker
+GenericName=Optional Software
+Comment=Browse and install optional Raptor OS applications
+Exec=/usr/bin/raptor-app-choice.sh --reopen
+Icon=system-software-install
+Terminal=false
+Categories=System;Settings;
+StartupNotify=true
+DESKTOP
+
 # ── Guard ─────────────────────────────────────────────────────────────────────
-if [[ -f "${STAMP_FILE}" ]]; then
-    log "App selection already done — skipping."
+if [[ -f "${STAMP_FILE}" && "${REOPEN}" -ne 1 ]]; then
+    log "First-boot app selection already done — skipping."
     exit 0
 fi
 
@@ -122,6 +141,7 @@ APP_CATALOGUE=(
     "Communication|Mumble|info.mumble.Mumble|Low-latency open-source voice chat (VoIP)"
     "Communication|Jami|net.jami.Jami|Peer-to-peer calls and chat, no central server"
     "Communication|Fractal|org.gnome.Fractal|Matrix client for GNOME"
+    "Communication|KDE Connect|org.kde.kdeconnect|Connect Android phones and tablets to the desktop"
     "Communication|Thunderbird|org.mozilla.Thunderbird|Email and calendar"
     "Communication|Proton Mail Bridge|ch.protonmail.protonmail-bridge|Use Proton Mail in Thunderbird and other mail apps"
     # Productivity
@@ -294,7 +314,7 @@ SELECTED=$(
         --print-column=4 \
         --separator="|" \
         "${ZENITY_ARGS[@]}" \
-        --width=900 --height=650 \
+        --search-column=3 --width=1040 --height=720 \
         --ok-label="Install Selected" \
         --cancel-label="Skip — Install Nothing" \
         2>/dev/null
@@ -302,7 +322,7 @@ SELECTED=$(
 
 # ── Always write stamp so we never loop ───────────────────────────────────────
 mkdir -p "$(dirname "${STAMP_FILE}")"
-touch "${STAMP_FILE}"
+if [[ "${REOPEN}" -ne 1 ]]; then touch "${STAMP_FILE}"; fi
 
 if [[ -z "${SELECTED:-}" ]]; then
     log "App selection skipped or nothing selected."
