@@ -227,3 +227,22 @@ assert_contains files/scripts/raptor-hardware-fixes/install.sh 'wifi-busy-count-
 assert_contains files/scripts/raptor-hardware-fixes/install.sh 'activation remained stuck'
 assert_contains files/scripts/raptor-hardware-fixes/install.sh 'automatic driver reload skipped for safety'
 assert_not_contains files/scripts/raptor-hardware-fixes/install.sh 'known_in_range && level3 "$dev"'
+
+echo "=== Checking first-login welcome and hardware telemetry ==="
+assert_contains files/scripts/raptor-hardware-fixes/install.sh 'Welcome to Raptor OS Home'
+assert_contains files/scripts/raptor-hardware-fixes/install.sh 'bash -n /usr/bin/raptor-welcome.sh'
+assert_contains files/system_files/raptor-firstboot.service 'welcome-done'
+assert_contains files/system_files/raptor-firstboot.service 'ExecStart=/usr/bin/raptor-welcome.sh'
+assert_contains files/scripts/raptor-cortex/install.sh 'title="Graphics Processor"'
+assert_contains files/scripts/raptor-cortex/install.sh 'def get_gpu_memory():'
+assert_contains files/scripts/raptor-cortex/install.sh 'Telemetry unavailable — check the graphics driver'
+assert_contains files/scripts/raptor-cortex/install.sh 'def get_fan_info():'
+
+echo "=== Checking Dolphin and archive backends ==="
+assert_contains recipes/recipe.yml '      - ark'
+assert_contains recipes/recipe.yml '      - 7zip'
+assert_contains recipes/recipe.yml '      - unzip'
+assert_contains files/system_files/raptor-mimeapps.list 'application/x-zip-compressed=org.kde.ark.desktop'
+assert_contains files/system_files/raptor-mimeapps.list 'application/x-cbz=org.kde.ark.desktop'
+assert_contains files/scripts/raptor-dolphin-stability/install.sh 'command -v ark'
+assert_contains files/scripts/raptor-dolphin-stability/install.sh 'command -v unzip'
