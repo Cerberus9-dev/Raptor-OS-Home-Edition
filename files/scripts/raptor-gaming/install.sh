@@ -28,15 +28,8 @@ library-view-sorting=name
 library-view-sorting-ascending=true
 EOF
 
-# ── Steam ────────────────────────────────────────────────────────────�[...]
-mkdir -p /etc/skel/.steam/steam
-cat << 'EOF' > /etc/skel/.steam/steam/steam_dev.cfg
-# Preserve Steam's protocol and download defaults. HTTP/2 and extra
-# download connections are troubleshooting workarounds for specific networks,
-# not universal performance improvements.
-# Keep shader pre-caching enabled to reduce first-run shader stutter.
-@bEnableShaderPreCaching 1
-EOF
+# Steam retains its own defaults. Avoid globally forcing undocumented
+# download, HTTP/2, or shader-cache settings across different networks.
 
 # ── ulimits ───────────────────────────────────────────────────────────��[...]
 cat << 'EOF' > /etc/security/limits.d/raptor-gaming.conf
