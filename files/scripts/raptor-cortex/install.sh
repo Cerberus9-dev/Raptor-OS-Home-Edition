@@ -1232,7 +1232,8 @@ def get_gpu_usage(sys_root="/sys"):
                     if len(fields) >= 2:
                         load = int(fields[0]) if fields[0].isdigit() else None
                         clock = int(fields[1]) if fields[1].isdigit() else None
-                        rows.append((load, clock))
+                        if load is not None or clock is not None:
+                            rows.append((load, clock))
                 if rows:
                     return rows[0]
         except (OSError, subprocess.TimeoutExpired, ValueError):
