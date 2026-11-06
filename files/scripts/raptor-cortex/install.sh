@@ -1171,11 +1171,15 @@ def get_gpu_name():
 
 
 def get_gpu_usage(sys_root="/sys"):
-    """Return (busy_percent, clock_mhz) for the first GPU that reports them; either may be None."""
-    busy = clock = None
+    """Return utilization and clock for the best available hardware telemetry source.
+
+    Prefer NVIDIA's vendor interface when present, then AMD sysfs counters,
+    then Intel frequency telemetry. This avoids accidentally displaying the
+    integrated GPU's clock beside a discrete GPU's name on hybrid laptops.
+    """
     drm = os.path.join(sys_root, "class/drm")
     try:
-        cards = sorted(d for d in os.listdir(drm) if re.fullmatch(r"card\d+", d))
+        cards = sorted(d for d in os.listdir(drm) if re.fullmatch(r"card\\d+", d))
     except OSError:
         cards = []
 
@@ -1186,80 +1190,109 @@ def get_gpu_usage(sys_root="/sys"):
         except OSError:
             return None
 
+    amd_metrics = None
+    intel_metrics = None
     for card in cards:
         dev = os.path.join(drm, card, "device")
-        b = rd(os.path.join(dev, "gpu_busy_percent"))                      # AMD
-        if b is not None and b.isdigit():
-            busy = int(b)
-        sclk = rd(os.path.join(dev, "pp_dpm_sclk"))                        # AMD: line marked with '*'
-        if sclk:
-            for line in sclk.splitlines():
-                m = re.search(r"(\d+)\s*[Mm][Hh][Zz]\s*\*", line)
-                if m:
-                    clock = int(m.group(1))
-        if clock is None:                                                  # Intel
+        vendor = (rd(os.path.join(dev, "vendor")) or "").lower()
+        if vendor == "0x1002" and amd_metrics is None:
+            busy = rd(os.path.join(dev, "gpu_busy_percent"))
+            clock = None
+            sclk = rd(os.path.join(dev, "pp_dpm_sclk"))
+            if sclk:
+                for line in sclk.splitlines():
+                    m = re.search(r"(\\d+)\\s*[Mm][Hh][Zz]\\s*\\*", line)
+                    if m:
+                        clock = int(m.group(1))
+                        break
+            amd_metrics = (
+                int(busy) if busy and busy.isdigit() else None,
+                clock,
+            )
+        elif vendor == "0x8086" and intel_metrics is None:
+            clock = None
             for rel in ("gt_cur_freq_mhz", "gt/gt0/rps_cur_freq_mhz"):
-                v = rd(os.path.join(drm, card, rel))
-                if v and v.isdigit():
-                    clock = int(v)
+                value = rd(os.path.join(dev, rel))
+                if value and value.isdigit():
+                    clock = int(value)
                     break
-        if busy is not None or clock is not None:
-            return busy, clock
-    if sys_root == "/sys":                                                 # NVIDIA
+            if clock is not None:
+                intel_metrics = (None, clock)
+
+    if sys_root == "/sys":
         try:
             r = subprocess.run(
                 ["nvidia-smi", "--query-gpu=utilization.gpu,clocks.gr",
                  "--format=csv,noheader,nounits"],
                 capture_output=True, text=True, timeout=2)
             if r.returncode == 0:
-                a, b = [x.strip() for x in r.stdout.splitlines()[0].split(",")[:2]]
-                return int(a), int(b)
-        except Exception:
+                rows = []
+                for line in r.stdout.splitlines():
+                    fields = [x.strip() for x in line.split(",")]
+                    if len(fields) >= 2:
+                        load = int(fields[0]) if fields[0].isdigit() else None
+                        clock = int(fields[1]) if fields[1].isdigit() else None
+                        rows.append((load, clock))
+                if rows:
+                    return rows[0]
+        except (OSError, subprocess.TimeoutExpired, ValueError):
             pass
+
+    if amd_metrics and any(value is not None for value in amd_metrics):
+        return amd_metrics
+    if intel_metrics:
+        return intel_metrics
     return None, None
 
 
 def get_gpu_memory():
-    """Return dedicated GPU memory usage for NVIDIA or AMD when exposed."""
-    # NVIDIA exposes per-adapter memory through nvidia-smi.
+    """Return VRAM usage for every supported discrete adapter with exposed counters."""
+    rows = []
+
+    # NVIDIA exposes one row per adapter through nvidia-smi.
     try:
         r = subprocess.run(
             ["nvidia-smi", "--query-gpu=memory.used,memory.total",
              "--format=csv,noheader,nounits"],
             capture_output=True, text=True, timeout=2)
         if r.returncode == 0:
-            rows = []
             for index, line in enumerate(r.stdout.splitlines()):
                 fields = [part.strip() for part in line.split(",")]
                 if len(fields) >= 2 and all(x.isdigit() for x in fields[:2]):
-                    rows.append(f"GPU {index}: {int(fields[0])} / {int(fields[1])} MB")
-            if rows:
-                return "; ".join(rows)
+                    rows.append(
+                        f"NVIDIA GPU {index}: {int(fields[0])} / {int(fields[1])} MB"
+                    )
     except (OSError, subprocess.TimeoutExpired):
         pass
 
-    # AMD exposes VRAM counters via the DRM device. Do not confuse system RAM
-    # used by an integrated GPU with dedicated VRAM.
+    # AMD's dedicated VRAM counters are present only on devices that expose
+    # them. Check the PCI vendor ID so unrelated DRM devices are never read
+    # as AMD VRAM, and keep all AMD adapters instead of stopping at card0.
     try:
         drm = "/sys/class/drm"
-        cards = sorted(x for x in os.listdir(drm) if re.fullmatch(r"card\d+", x))
+        cards = sorted(x for x in os.listdir(drm) if re.fullmatch(r"card\\d+", x))
         for card in cards:
             dev = os.path.join(drm, card, "device")
-            used_path = os.path.join(dev, "mem_info_vram_used")
-            total_path = os.path.join(dev, "mem_info_vram_total")
             try:
-                with open(used_path) as f:
+                with open(os.path.join(dev, "vendor")) as f:
+                    vendor = f.read().strip().lower()
+                if vendor != "0x1002":
+                    continue
+                with open(os.path.join(dev, "mem_info_vram_used")) as f:
                     used = int(f.read().strip())
-                with open(total_path) as f:
+                with open(os.path.join(dev, "mem_info_vram_total")) as f:
                     total = int(f.read().strip())
                 if total > 0:
-                    return f"{used // (1024 * 1024)} / {total // (1024 * 1024)} MB"
+                    rows.append(
+                        f"AMD {card}: {used // (1024 * 1024)} / "
+                        f"{total // (1024 * 1024)} MB"
+                    )
             except (OSError, ValueError):
                 continue
     except OSError:
         pass
-    return None
 
+    return "; ".join(rows) if rows else None
 
 def get_gpu_summary():
     """Show the detected adapter model and every metric the driver exposes."""
