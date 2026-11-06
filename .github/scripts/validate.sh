@@ -227,3 +227,16 @@ assert_contains files/scripts/raptor-hardware-fixes/install.sh 'wifi-busy-count-
 assert_contains files/scripts/raptor-hardware-fixes/install.sh 'activation remained stuck'
 assert_contains files/scripts/raptor-hardware-fixes/install.sh 'automatic driver reload skipped for safety'
 assert_not_contains files/scripts/raptor-hardware-fixes/install.sh 'known_in_range && level3 "$dev"'
+
+echo "=== Checking first-login welcome dialog ==="
+assert_contains files/scripts/raptor-hardware-fixes/install.sh 'Welcome to Raptor OS Home'
+assert_contains files/scripts/raptor-hardware-fixes/install.sh 'zenity --text-info'
+assert_contains files/scripts/raptor-hardware-fixes/install.sh 'bash -n /usr/bin/raptor-welcome.sh'
+assert_contains files/system_files/raptor-firstboot.service 'welcome-done'
+assert_contains files/system_files/raptor-firstboot.service 'ExecStart=/usr/bin/raptor-welcome.sh'
+
+echo "=== Checking broad GPU compatibility defaults ==="
+assert_not_contains files/scripts/raptor-gpu-profile/install.sh 'RADV_PERFTEST=gpl'
+assert_not_contains files/scripts/raptor-gpu-profile/install.sh 'MESA_LOADER_DRIVER_OVERRIDE=iris'
+assert_not_contains files/scripts/raptor-gpu-profile/install.sh 'VKD3D_FEATURE_LEVEL=12_2'
+assert_not_contains files/scripts/raptor-gpu-profile/install.sh 'VKD3D_FEATURE_LEVEL=12_1'
