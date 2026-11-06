@@ -192,7 +192,7 @@ The first-boot chooser offers the official Discord client, Vesktop, Equibop, and
 - **Game Mode** avoids repeatedly rewriting CPU policy or performing disruptive memory operations at game launch
 
 ### Memory & Low-RAM Tuning
-- **ZRAM** — LZ4 compression, sized to `min(RAM/2, 8 GB)`, priority 100, `discard` enabled; LZ4 favors lower CPU overhead on older low-power processors. Zswap is not layered on top of ZRAM: zswap is a compressed cache in front of a separate backing swap device, and stacking it with compressed ZRAM can waste CPU on double compression. A zswap profile should only be considered for systems with real disk-backed swap and measured benefit.
+- **ZRAM** — standard-level zstd compression, logical capacity `min(RAM, 8 GiB)`, priority 100, and `discard` enabled. The configured maximum is virtual capacity, not RAM reserved at boot; physical memory is consumed only as compressed pages are stored. zstd can improve compression ratio versus LZ4 but uses more CPU, so real low-power-device behavior still needs benchmarking. Zswap is not stacked on top of ZRAM: it requires a separate backing swap device and should only be considered when measurements show a benefit.
 - **Baloo** — filename-only indexing with full-text content indexing disabled and a reduced worker count
 - **Cortex One-Click Boost** — applies the Performance power profile, pauses configured optional indexers, and requests bounded memory reclaim only under pressure
 - **No blanket cache flushes, routine OOM-score changes or forced compaction** as a supposed memory booster
