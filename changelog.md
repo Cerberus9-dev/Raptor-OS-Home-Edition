@@ -26,7 +26,7 @@ This is the consolidation release for more than two months of sustained Raptor O
 
 ### Raptor Tasks and Wallpaper usability polish
 
-- Raptor Tasks now has live text search, an Open/Completed status filter, category filtering, a compact open/completed/total summary, and active-first alphabetical ordering.
+- Raptor Tasks now has live text search, an Open/Completed status filter, category filtering, a compact open/completed/total summary, active-first alphabetical ordering, and separate helpful empty states for a genuinely empty list versus filters with no matches.
 - Recolored the Tasks and Wallpaper application icons to match the aviation-inspired flight-deck navy and instrument-cyan palette.
 - Raptor Wallpaper now includes a larger selected-image preview, the selected filename, live gallery search, and a useful no-results state.
 - Fixed both apps' JSON writers to append a real newline rather than a literal backslash-n sequence, so files saved by the apps remain valid JSON on the next launch.
