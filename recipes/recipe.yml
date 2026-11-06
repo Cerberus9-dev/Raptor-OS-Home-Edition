@@ -209,6 +209,7 @@ modules:
         - raptor-powerprofile.service
         - raptor-resume-trigger.service
         - raptor-lid-open-fix.service
+        - raptor-bt-name.service
     user:
       enabled:
         - raptor-firstboot.service
