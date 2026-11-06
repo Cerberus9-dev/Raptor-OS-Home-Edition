@@ -117,7 +117,7 @@ A one-time **Welcome to Raptor OS Home** dialog introduces the Raptor app suite 
 
 ---
 
-## Raptor Cortex — Performance & Memory Manager
+## Raptor Cortex\n\nCortex is organized into Overview, Graphics, Games, Optimize, and Settings tabs. GPU and fan telemetry is shown only when the hardware driver exposes it; fan controls remain with firmware and supported kernel interfaces. Memory compression uses standard zstd-backed ZRAM by default, with conservative sizing.\n\n — Performance & Memory Manager
 
 GTK4/Adwaita app with Power Saving / Balanced / Performance modes. **power-profiles-daemon is the sole owner of CPU governor, boost, EPP, frequency and firmware power policy**, keeping KDE Powerdevil's battery slider functional. Cortex applies separate device-level tuning (such as PCIe/NVMe where supported) and reports failures instead of silently claiming success.
 
