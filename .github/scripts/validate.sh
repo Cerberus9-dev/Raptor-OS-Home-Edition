@@ -464,3 +464,14 @@ assert_not_contains files/scripts/raptor-gaming/install.sh 'apply_gpu_optimisati
 assert_not_contains files/scripts/raptor-gaming/install.sh 'amd_performance_level=high'
 assert_not_contains files/scripts/raptor-gaming/install.sh 'nv_powermizer_mode=1'
 echo "Conservative gaming defaults passed."
+
+echo "=== Checking gaming power defaults ==="
+assert_contains files/scripts/raptor-gaming/install.sh '@bEnableShaderPreCaching 1'
+assert_not_contains files/scripts/raptor-gaming/install.sh '@nClientDownloadEnableHTTP2PlatformLinux 0'
+assert_not_contains files/scripts/raptor-gaming/install.sh 'amd_performance_level=high'
+assert_not_contains files/scripts/raptor-gaming/install.sh 'nv_powermizer_mode=1'
+assert_not_contains files/scripts/raptor-gaming/install.sh 'ATTR{power/autosuspend}="-1"'
+assert_not_contains files/scripts/raptor-gaming/install.sh 'ATTR{power/control}="on"'
+assert_contains files/scripts/raptor-gaming/install.sh 'KERNEL=="uinput"'
+assert_contains files/scripts/raptor-gaming/install.sh 'ATTRS{name}=="Xbox*"'
+echo "Gaming power defaults passed."
