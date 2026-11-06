@@ -258,6 +258,14 @@ jobs:
           '
           echo "Published image contains both complete app payloads."
 
+          echo "=== OCI image size (uncompressed virtual size) ==="
+          docker image inspect --format='{{.Size}}' "$IMAGE_REF" | awk '{printf "Virtual image size: %.2f GiB\\n", $1 / 1073741824}'
+          echo "=== Largest image layers ==="
+          docker history --no-trunc --format='{{.Size}} {{.CreatedBy}}' "$IMAGE_REF" | head -n 12
+          echo "=== Installed filesystem usage ==="
+          docker run --rm --entrypoint /bin/bash "$IMAGE_REF" -lc \
+            'du -x -B1 -s /usr /opt /var 2>/dev/null | sort -nr | head -n 12 || true'
+
   # Runs only when the build fails. GitHub's raw job logs are awkward to get at,
   # so this reads the failed job's log on the runner and posts the first real
   # error, with context, as an annotation. It shows on the run page and is
