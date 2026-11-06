@@ -36,6 +36,12 @@ Raptor OS uses a restrained aerospace / flight-deck visual language across the d
 
 ---
 
+## Boot-time behavior
+
+Raptor keeps the GPU profile detection needed before the desktop session, but its hardware probes are bounded so a missing PCI utility or an unresponsive NVIDIA driver cannot hold the display manager indefinitely. Detection reuses one PCI inventory instead of rescanning repeatedly. Redundant readiness-only services are not enabled on the normal boot path; Power Profiles Daemon remains the single owner of CPU and firmware power policy.
+
+Raptor intentionally does not depend on `systemd-udev-settle.service` for boot ordering. Upstream systemd discourages making the entire boot wait for every device event; device-specific services should wait only for the hardware they actually need.
+
 ## Build verification
 
 The image workflow derives the verification tag from the recipe's `image-version` and the event ref, matching BlueBuild's version-suffixed tags (for example, pull-request images use `pr-N-VERSION`). It then pulls that exact image and verifies the installed Raptor Music and Shroudly payloads. The installers also fall back to the build's mounted source-files tree if the temporary staging copy is not visible between BlueBuild modules.
