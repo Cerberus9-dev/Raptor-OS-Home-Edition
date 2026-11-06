@@ -21,6 +21,65 @@ set -euo pipefail
 
 mkdir -p /usr/lib/raptor /usr/lib/systemd/system-sleep /usr/lib/modprobe.d
 
+# ── One-time first-login welcome ─────────────────────────────────────────────
+cat > /usr/bin/raptor-welcome.sh <<'WELCOME'
+#!/usr/bin/env bash
+set -euo pipefail
+
+STATE_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/raptor"
+STAMP="$STATE_DIR/welcome-done"
+[[ -e "$STAMP" ]] && exit 0
+mkdir -p "$STATE_DIR"
+
+if ! command -v zenity >/dev/null 2>&1; then
+    logger -t raptor-welcome "zenity unavailable; skipping welcome dialog" 2>/dev/null || true
+    touch "$STAMP"
+    exit 0
+fi
+
+RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}"
+WELCOME_FILE="$(mktemp "$RUNTIME_DIR/raptor-welcome.XXXXXX")"
+trap 'rm -f "$WELCOME_FILE"' EXIT
+cat > "$WELCOME_FILE" <<'WELCOME_TEXT'
+WELCOME TO RAPTOR OS HOME
+
+A more welcoming, capable desktop — built to make your computer feel like yours again.
+
+THE RAPTOR OS APP SUITE
+
+• Raptor Cortex — understand your hardware, monitor system health, and choose
+  power/performance behavior without digging through terminal commands.
+
+• Raptor Update Manager — check for system and application updates in one place.
+
+• Raptor Wallpaper — browse and apply wallpapers from a simple gallery.
+
+• Raptor Music — manage and play your local music library and playlists.
+
+• Shroudly — privacy and connection controls. Features are user-controlled;
+  nothing is silently enabled on your behalf.
+
+• Raptor Wine — run many Windows applications through the familiar Wine workflow.
+  Compatibility varies by application; some games and protected software may not run.
+
+YOUR COMPUTER, YOUR CHOICES
+
+Raptor OS aims to be lightweight, stable, and understandable. Optional apps are
+offered during setup instead of forcing a large software collection onto every PC.
+
+Close or continue whenever you are ready. This welcome screen appears only once
+for this user. The setup choices that follow can be skipped and revisited later.
+WELCOME_TEXT
+
+zenity --text-info --title="Welcome to Raptor OS Home" \
+    --filename="$WELCOME_FILE" --width=760 --height=620 \
+    --ok-label="Continue" || true
+touch "$STAMP"
+WELCOME
+chmod 0755 /usr/bin/raptor-welcome.sh
+bash -n /usr/bin/raptor-welcome.sh
+
+
 # ── Wi-Fi: escalating reconnect (resume | watch | force) ─────────────────────
 cat << 'WIFI' > /usr/lib/raptor/wifi-recover
 #!/bin/bash
