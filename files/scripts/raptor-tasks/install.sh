@@ -76,7 +76,7 @@ def save_tasks(tasks):
     try:
         with temporary.open("w", encoding="utf-8") as stream:
             json.dump([task.to_dict() for task in tasks], stream, indent=2, ensure_ascii=False)
-            stream.write("\\n")
+            stream.write("\n")
             stream.flush()
             os.fsync(stream.fileno())
         temporary.replace(CONFIG_FILE)
@@ -152,6 +152,8 @@ class RaptorTasksWindow(Adw.ApplicationWindow):
         self.tasks = load_tasks()
         self._filtered_tasks = list(self.tasks)
         self._current_category = "All"
+        self._current_status = "All"
+        self._search_text = ""
 
         self._build_ui()
         self._refresh_list()
@@ -172,6 +174,15 @@ class RaptorTasksWindow(Adw.ApplicationWindow):
         self.cat_combo.connect("changed", self._on_category_changed)
         hb.pack_start(self.cat_combo)
 
+        # Status filter
+        self.status_combo = Gtk.ComboBoxText()
+        for status in ("All", "Open", "Completed"):
+            self.status_combo.append(status, status)
+        self.status_combo.set_active_id("All")
+        self.status_combo.set_tooltip_text("Filter by task status")
+        self.status_combo.connect("changed", self._on_status_changed)
+        hb.pack_start(self.status_combo)
+
         # Add task button
         add_btn = Gtk.Button(icon_name="list-add-symbolic")
         add_btn.add_css_class("flat")
@@ -183,9 +194,27 @@ class RaptorTasksWindow(Adw.ApplicationWindow):
         self.toast_overlay.set_vexpand(True)
         root.append(self.toast_overlay)
 
+        body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        self.toast_overlay.set_child(body)
+
+        self.summary_label = Gtk.Label(xalign=0)
+        self.summary_label.add_css_class("dim-label")
+        self.summary_label.set_margin_start(16)
+        self.summary_label.set_margin_end(16)
+        self.summary_label.set_margin_top(8)
+        self.summary_label.set_margin_bottom(4)
+        body.append(self.summary_label)
+
+        self.search_entry = Gtk.SearchEntry()
+        self.search_entry.set_placeholder_text("Search tasks…")
+        self.search_entry.set_margin_start(12)
+        self.search_entry.set_margin_end(12)
+        self.search_entry.connect("search-changed", self._on_search_changed)
+        body.append(self.search_entry)
+
         scroll = Gtk.ScrolledWindow()
         scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
-        self.toast_overlay.set_child(scroll)
+        body.append(scroll)
 
         self.list_box = Gtk.ListBox()
         self.list_box.set_selection_mode(Gtk.SelectionMode.NONE)
@@ -215,6 +244,14 @@ class RaptorTasksWindow(Adw.ApplicationWindow):
         self._current_category = combo.get_active_id() or "All"
         self._refresh_list()
 
+    def _on_status_changed(self, combo):
+        self._current_status = combo.get_active_id() or "All"
+        self._refresh_list()
+
+    def _on_search_changed(self, entry):
+        self._search_text = entry.get_text().strip().casefold()
+        self._refresh_list()
+
     def _refresh_list(self):
         # Remove all rows
         child = self.list_box.get_first_child()
@@ -223,11 +260,28 @@ class RaptorTasksWindow(Adw.ApplicationWindow):
             self.list_box.remove(child)
             child = next_child
 
-        # Filter and add
+        # Keep active tasks prominent; apply category, status, and text filters.
+        visible = []
         for task in self.tasks:
-            if self._current_category == "All" or task.category == self._current_category:
-                row = TaskRow(task, self._on_toggle, self._on_delete, self._on_edit)
-                self.list_box.append(row)
+            if self._current_category != "All" and task.category != self._current_category:
+                continue
+            if self._current_status == "Open" and task.done:
+                continue
+            if self._current_status == "Completed" and not task.done:
+                continue
+            if self._search_text and self._search_text not in (task.text + " " + task.category).casefold():
+                continue
+            visible.append(task)
+
+        visible.sort(key=lambda task: (task.done, str(task.text).casefold()))
+        completed = sum(1 for task in self.tasks if task.done)
+        total = len(self.tasks)
+        self.summary_label.set_text(
+            f"{total - completed} open   •   {completed} completed   •   {total} total"
+        )
+        for task in visible:
+            row = TaskRow(task, self._on_toggle, self._on_delete, self._on_edit)
+            self.list_box.append(row)
 
     def _on_add_clicked(self, *_):
         dialog = TaskEditDialog(self, task=None, on_save=self._on_task_saved)
