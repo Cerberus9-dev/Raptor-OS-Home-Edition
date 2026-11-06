@@ -41,37 +41,16 @@ fi
 # Previously lived in raptor-appconfig.sh + raptor-appconfig.service; merged
 # here to eliminate redundant files and service units.
 
-# Vesktop: write Chromium flags.txt to cap V8 heap and force Wayland-native
+# Vesktop: use native Wayland integration without unsafe global memory caps
 VESKTOP_CFG="${HOME}/.var/app/dev.vencord.Vesktop/config/vesktop"
 if flatpak info dev.vencord.Vesktop &>/dev/null 2>&1; then
     mkdir -p "${VESKTOP_CFG}"
+    # Keep stable Wayland integration only. Forced tiny V8 heaps and renderer
+    # caps can crash large servers/calls; backgrounding overrides can increase
+    # idle CPU and interfere with Chromium's normal resource throttling.
     cat > "${VESKTOP_CFG}/flags.txt" << 'VESKTOPFLAGS'
-# Raptor OS: Vesktop Chromium flags
-# Caps memory and forces Wayland-native rendering (avoids ~30 MB XWayland overhead).
-
 --ozone-platform=wayland
 --enable-wayland-ime
-
-# V8 old-gen heap: 256 MB (default ~1.4 GB on systems with free RAM)
---max-old-space-size=256
---js-flags=--max-old-space-size=256
-
-# Max 2 renderer processes (~80-120 MB each)
---renderer-process-limit=2
-
-# Share renderer processes across same-site origins
---process-per-site
-
-# Reduce CPU/memory for occluded/background windows
---disable-backgrounding-occluded-windows
---disable-renderer-backgrounding
-
-# Signal allocator to apply more aggressive GC pressure
---memory-model=low
-
-# VA-API hardware video decode (reduces CPU load in video calls/streams)
---enable-features=VaapiVideoDecoder,VaapiVideoEncoder
---disable-features=UseChromeOSDirectVideoDecoder,CrashpadWithBrowserLock
 VESKTOPFLAGS
 
     # Belt-and-suspenders: also set via flatpak user override (env vars are
