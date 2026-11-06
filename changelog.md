@@ -27,10 +27,10 @@ This is the consolidation release for more than two months of sustained Raptor O
 
 ### One-time app integration
 
-- A release marker opts the first successful v3.0.0 main-branch image build into the one-time Raptor Music and original upstream Shroudly Linux desktop payloads. Pull requests build and test both apps without staging them; unrelated pushes and scheduled rebuilds skip the one-time payloads.
-- A permanent Git tag, `raptor-one-time-apps-consumed`, locks the integration only after that image has been successfully built and pushed. Later builds cannot rebuild or reinstall this app.
-- The Raptor Music installer requires the one-time staging marker. Without it, they remove stale staged app binaries and skip installation. Generated binaries are no longer tracked in the source tree.
-- A maintainer-only manual dispatch remains as a recovery fallback; end users never need to run GitHub Actions. The one-time integration is not consumed by a failed image build.
+- The update-image workflow stages Raptor Music and the original upstream Shroudly Linux desktop payload only when the explicit one-time integration option is enabled. Pull requests build and test the apps without staging them; ordinary pushes and scheduled rebuilds skip the payload.
+- The installers detect their actual staged application files rather than relying on a separate marker file, which the BlueBuild files module did not deliver to the script stage.
+- The internal `raptor-one-time-apps-consumed` tag locks integration only after the staged apps have been verified inside the successfully published GHCR image. Failed builds do not consume the one-time integration.
+- Generated application binaries are not tracked in the source tree. The build workflow remains an OCI update-image workflow and does not create GitHub Releases or downloadable artifacts; ISO creation remains separate.
 
 ### Performance, audio, gaming, and update reliability
 
