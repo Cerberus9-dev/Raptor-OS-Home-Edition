@@ -17,6 +17,15 @@ This is the consolidation release for more than two months of sustained Raptor O
 - Added a one-time **Welcome to Raptor OS Home** dialog before the existing browser, chat, and optional-app choices. It explains the Raptor app suite in plain language and can be dismissed without blocking setup.
 - The completion stamp is stored per user under the XDG data directory, so the welcome screen does not repeat after dismissal. If the dialog dependency is unavailable, setup continues rather than trapping the user.
 
+### Raptor Wallpaper reliability
+
+- Wallpaper settings now use atomic writes, preventing interrupted saves from truncating the previous selection and fit mode.
+- Invalid settings are preserved to a separate recovery file instead of being silently discarded.
+- Gallery scanning tolerates inaccessible folders and files that disappear during enumeration instead of aborting the whole picker.
+- Both the GUI and Dolphin's direct-apply path reject missing files and unsupported extensions before asking Plasma to apply them.
+- The app now reports when the wallpaper was applied but its preference could not be saved.
+- CI extracts and parses the embedded Python app and checks the recovery, atomic-write, and input-validation paths.
+
 ### Raptor Tasks reliability and usability
 
 - Fixed the Ctrl+N shortcut by registering it through a GTK ShortcutController rather than calling a nonexistent window shortcut helper.
