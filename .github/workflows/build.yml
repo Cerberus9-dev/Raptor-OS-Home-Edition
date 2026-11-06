@@ -250,6 +250,15 @@ jobs:
             files/staging/shroudly-app/resources/app.asar >/dev/null
           echo "Verified both app payloads and added them to the BlueBuild context."
 
+          # BlueBuild's Git-backed files context is created from HEAD, not the
+          # runner's uncommitted index. Commit generated payloads locally so
+          # the files module receives the marker and both app trees. This
+          # commit exists only on the ephemeral Actions runner; it is never
+          # pushed and does not alter the repository branch.
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit --no-verify -m "ci: include one-time app payload in image context"
+
       - name: Build and push image
         uses: blue-build/github-action@v1
         with:
