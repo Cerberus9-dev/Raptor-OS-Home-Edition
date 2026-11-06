@@ -36,6 +36,10 @@ Raptor OS uses a restrained aerospace / flight-deck visual language across the d
 
 ---
 
+## Wi-Fi power management
+
+NetworkManager keeps its normal Wi-Fi power-saving and scan-MAC privacy defaults. Raptor Cortex → Settings → Wi-Fi Compatibility provides an opt-in **Disable Wi-Fi power saving** switch for adapters that exhibit reconnect failures or latency spikes with 802.11 power saving. The workaround is not enabled globally because it can reduce laptop battery life. Reconnect to Wi-Fi after changing the setting.
+
 ## Boot-time behavior
 
 Raptor keeps the GPU profile detection needed before the desktop session, but its hardware probes are bounded so a missing PCI utility or an unresponsive NVIDIA driver cannot hold the display manager indefinitely. Detection reuses one PCI inventory instead of rescanning repeatedly. Redundant readiness-only services are not enabled on the normal boot path; Power Profiles Daemon remains the single owner of CPU and firmware power policy.
