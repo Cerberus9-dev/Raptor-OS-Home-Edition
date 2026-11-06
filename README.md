@@ -20,6 +20,10 @@ Raptor OS is designed to deliver the reliability and gaming readiness of Bazzite
 
 These principles apply to both Home Edition and Security Edition. Each edition keeps its own purpose and security posture, but both should feel coherent, approachable, and dependable.
 
+### First-party app experience
+
+Raptor Tasks includes category and status filters, live search, task counts, and persistent local task storage. Raptor Wallpaper provides a searchable gallery, a large selected-image preview, display-fit controls, bundled Raptor artwork, and direct application from Dolphin. Both follow the shared aviation-inspired visual system.
+
 ### Aviation-inspired visual identity
 
 Raptor OS uses a restrained aerospace / flight-deck visual language across the desktop: deep instrument-panel navy, graphite surfaces, instrument-cyan focus accents, amber caution states, and green operational/success indicators. The Raptor HUD applies the matching KDE, GTK, and Qt/Kvantum styling, with clearer Adwaita cards, navigation surfaces, and status treatments. The aim is a modern aircraft systems aesthetic—not a literal cockpit simulator: keep controls readable, status colors meaningful, animations restrained, and everyday desktop workflows familiar.
