@@ -228,7 +228,7 @@ jobs:
           REF_NAME: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          IMAGE_VERSION="$(sed -nE 's/^image-version:[[:space:]]*([^[:space:]#]+).*/\\1/p' recipes/recipe.yml | head -n1)"
+          IMAGE_VERSION="$(sed -nE 's/^image-version:[[:space:]]*([^[:space:]#]+).*/\1/p' recipes/recipe.yml | head -n1)"
           if [[ -z "$IMAGE_VERSION" ]]; then
             echo "::error::Could not read image-version from recipes/recipe.yml"
             exit 1
@@ -243,7 +243,8 @@ jobs:
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
             IMAGE_TAG="pr-$PR_NUMBER-$IMAGE_VERSION_SUFFIX"
           else
-            IMAGE_TAG="${REF_NAME//\\//_}-$IMAGE_VERSION_SUFFIX"
+            REF_TAG="$(printf '%s' "$REF_NAME" | tr '/' '_')"
+            IMAGE_TAG="${REF_TAG}-$IMAGE_VERSION_SUFFIX"
           fi
           echo "Verifying BlueBuild image tag: $IMAGE_TAG"
           IMAGE_REF="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/raptor-os:$IMAGE_TAG"
