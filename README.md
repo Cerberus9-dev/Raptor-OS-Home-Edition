@@ -20,6 +20,12 @@ Raptor OS is designed to deliver the reliability and gaming readiness of Bazzite
 
 These principles apply to both Home Edition and Security Edition. Each edition keeps its own purpose and security posture, but both should feel coherent, approachable, and dependable.
 
+### Recovery and lock-screen customization
+
+Raptor Update Manager exposes the previous OSTree deployment as a guarded rollback action when a previous deployment is available. It stages the rollback and leaves the restart to the user; it does not claim to restore Flatpak versions, personal files, or every user-level setting. The previous deployment remains the recovery target provided by the underlying atomic update system.
+
+Raptor Wallpaper can apply the selected image independently to the desktop or KDE Plasma lock screen. Lock-screen changes are stored in the user's Plasma configuration and take effect the next time the lock screen is shown. The standard KDE Screen Locking settings remain available for timeout, resume-lock, and other security behavior.
+
 ### First-party app experience
 
 Raptor Tasks includes category and status filters, live search, task counts, and persistent local task storage. Raptor Wallpaper provides a searchable gallery, a large selected-image preview, display-fit controls, bundled Raptor artwork, and direct application from Dolphin. Both follow the shared aviation-inspired visual system.
