@@ -46,7 +46,7 @@ NetworkManager keeps its normal Wi-Fi power-saving and scan-MAC privacy defaults
 
 ## Boot-time behavior
 
-Raptor keeps the GPU profile detection needed before the desktop session, but its hardware probes are bounded so a missing PCI utility or an unresponsive NVIDIA driver cannot hold the display manager indefinitely. Detection reuses one PCI inventory instead of rescanning repeatedly. Redundant readiness-only services are not enabled on the normal boot path; Power Profiles Daemon remains the single owner of CPU and firmware power policy.
+Raptor keeps the GPU profile detection needed before the desktop session, but its hardware probes are bounded so a missing PCI utility or an unresponsive NVIDIA driver cannot hold the display manager indefinitely. Detection reuses one PCI inventory instead of rescanning repeatedly. Redundant readiness-only services are not enabled on the normal boot path; Power Profiles Daemon remains the single owner of CPU and firmware power policy. Suspend/resume recovery is handled by one systemd-sleep hook that performs touchpad reinitialization and schedules Wi-Fi/Bluetooth recovery after resume. Redundant target-bound sleep units and a marker-only resume service were removed so they cannot add unnecessary work to suspend transitions.
 
 Raptor intentionally does not depend on `systemd-udev-settle.service` for boot ordering. Upstream systemd discourages making the entire boot wait for every device event; device-specific services should wait only for the hardware they actually need.
 
