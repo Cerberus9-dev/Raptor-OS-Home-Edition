@@ -39,7 +39,7 @@ This is the consolidation release for more than two months of sustained Raptor O
 
 ### Windows application compatibility and resource tuning
 
-- Raptor Wine is being separated from game-focused Proton: ordinary Windows apps use clean, isolated Wine prefixes without automatically downloading DXVK, Direct3D components, or a large Winetricks bundle. Optional Winetricks components are explicit; Steam Proton remains game-focused.
+- Raptor Wine is separated from game-focused Proton: ordinary Windows apps use isolated Wine prefixes with a one-time, best-effort bootstrap of common MSVC runtimes and core fonts. The bootstrap is bounded by a timeout, retries after download failures, and deliberately excludes DXVK/Direct3D gaming components. Additional Winetricks components remain opt-in; Steam Proton remains game-focused.
 - Removed Vesktop's restrictive forced V8 heap and renderer-process caps, plus background-throttling overrides that could increase idle CPU use or interfere with calls. Native Wayland integration remains enabled.
 
 ### Performance, audio, gaming, and update reliability
