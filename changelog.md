@@ -1974,6 +1974,8 @@ This is the consolidation release for more than two months of sustained Raptor O
 
 ### Windows compatibility: Raptor Wine
 
+- Fixed the optional Proton launcher to capture the executable path and forward remaining arguments correctly; an empty invocation now prints usage instead of attempting to launch an unset target.
+- Updated the user-facing V3.0 README to match the standard-Wine-first workflow and document the release-wide GUI-first, stability-first, hardware-reliability, and honest-compatibility principles.
 - Preserved the ordinary Wine workflow: `wine`, `winecfg`, `wineboot`, `wineserver`, and `winetricks` remain directly available, using Wine's standard `~/.wine` prefix unless the user chooses otherwise.
 - Added simple executable handling: opening `.exe` files launches them with Wine, while `.msi` installers are passed to `wine msiexec /i`. KDE's right-click menu offers direct Wine launching without a setup wizard or profile manager.
 - Added an optional Proton game action powered by UMU. Proton supplies its game-focused compatibility patches and supported DXVK/VKD3D graphics translation inside the Steam Linux Runtime, without requiring the Steam client.
