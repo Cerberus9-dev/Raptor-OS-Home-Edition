@@ -8,6 +8,8 @@ This is the consolidation release for more than two months of sustained Raptor O
 
 ### Choice, compatibility, and distribution improvements
 
+- Added a QEMU/KVM minimum-spec VM test script and guide. Its default profile provisions 4 GiB RAM, two virtual CPUs, a Nehalem-era Intel CPU feature baseline, UEFI, and a sparse 64 GiB disk for repeatable installer and desktop smoke testing; it is explicitly documented as an approximation rather than an exact physical Core i3 benchmark.
+
 - Expanded the first-boot chat-client chooser beyond official Discord and Vesktop to include Equibop (Equicord) and GoofCord. All are optional downloads; none is silently preinstalled, and skipping remains supported.
 - Documented Meowcord accurately as a separate self-hosted, federated Discord-like service in very early alpha, not a desktop client that can be installed from the first-boot Flatpak chooser.
 - Browser choice now documents the full optional catalogue: Firefox, Brave, Zen Browser, Floorp, Waterfox, Chromium, Chrome, and Edge. The image remains browser-minimal by default.
