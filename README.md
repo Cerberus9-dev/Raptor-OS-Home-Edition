@@ -36,6 +36,10 @@ Raptor OS uses a restrained aerospace / flight-deck visual language across the d
 
 ---
 
+## Gaming and power defaults
+
+Steam shader pre-caching remains enabled, while download protocol and storage tuning stay at Steam's defaults. GameMode does not force vendor-specific GPU power states globally. Controller access rules remain available, but USB autosuspend is left to the kernel by default to avoid unnecessary idle power draw; device-specific workarounds should be applied only when a reproducible issue calls for them.
+
 ## Wi-Fi power management
 
 NetworkManager keeps its normal Wi-Fi power-saving and scan-MAC privacy defaults. Raptor Cortex → Settings → Wi-Fi Compatibility provides an opt-in **Disable Wi-Fi power saving** switch for adapters that exhibit reconnect failures or latency spikes with 802.11 power saving. The workaround is not enabled globally because it can reduce laptop battery life. Reconnect to Wi-Fi after changing the setting.
