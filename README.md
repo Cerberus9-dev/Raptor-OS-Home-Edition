@@ -28,7 +28,7 @@ Raptor Wallpaper can apply the selected image independently to the desktop or KD
 
 ### First-party app experience
 
-Raptor Tasks includes category and status filters, live search, task counts, and persistent local task storage. Raptor Wallpaper provides a searchable gallery, a large selected-image preview, display-fit controls, bundled Raptor artwork, and direct application from Dolphin. Both follow the shared aviation-inspired visual system.
+Raptor Tasks includes category and status filters, live search, task counts, and persistent local task storage. Raptor Wallpaper provides a searchable gallery, a large selected-image preview, display-fit controls, bundled Raptor artwork, and direct application from Dolphin. Raptor Music is a local-first music library with searchable track metadata, playlists, a playback queue, and a persistent player dock. Its layout takes cues from modern streaming apps without copying Spotify's branding. Online streaming catalogs and recommendation feeds are not yet implemented. These apps share the aviation-inspired Raptor visual system.
 
 ### Aviation-inspired visual identity
 
