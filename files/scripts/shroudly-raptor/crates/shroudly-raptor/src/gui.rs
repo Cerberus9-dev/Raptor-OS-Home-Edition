@@ -52,8 +52,8 @@ slint::slint! {
             Rectangle {
                 background: #142638;
                 border-radius: 12px;
-                padding: 18px;
                 VerticalLayout {
+                    padding: 18px;
                     spacing: 8px;
                     Text {
                         text: "LIVE APPLICATION DETECTION";
@@ -83,8 +83,8 @@ slint::slint! {
             Rectangle {
                 background: #19212d;
                 border-radius: 10px;
-                padding: 16px;
                 VerticalLayout {
+                    padding: 16px;
                     spacing: 8px;
                     Text {
                         text: "NETWORK STATUS";
