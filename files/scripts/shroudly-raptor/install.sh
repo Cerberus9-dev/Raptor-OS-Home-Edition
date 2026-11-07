@@ -1,77 +1,56 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Install the original, pinned upstream Shroudly Electron application.
-# CI builds and stages this application into every Raptor OS image. No service or
-# autostart entry is created; users start Shroudly explicitly from the menu.
-STAGE_DIR="/tmp/raptor-staging/shroudly-app"
-APP_DIR="/usr/lib/raptor/shroudly"
-
-# The source files bind mount remains available to BlueBuild script modules.
-# Use it as a fallback if the files module's destination copy is not present.
-if [[ ! -x "$STAGE_DIR/shroudly" && -x "/tmp/files/staging/shroudly-app/shroudly" ]]; then
-    STAGE_DIR="/tmp/files/staging/shroudly-app"
+# Install the Raptor-customized Shroudly desktop application built by CI.
+STAGED_BIN="/tmp/raptor-staging/raptor-shroudly"
+if [[ ! -x "$STAGED_BIN" && -x "/tmp/files/staging/raptor-shroudly" ]]; then
+    STAGED_BIN="/tmp/files/staging/raptor-shroudly"
 fi
 
-# CI stages this directory for every image build. Local builds without a staged
-# CI payload safely skip without relying on a marker file.
-if [[ ! -x "$STAGE_DIR/shroudly" || ! -s "$STAGE_DIR/resources/app.asar" ]]; then
-    echo "SHROUDLY_SKIP: no complete Shroudly payload in this image build."
-    exit 0
+if [[ ! -x "$STAGED_BIN" ]]; then
+    echo "RAPTOR_SHROUDLY_SKIP: custom application payload was not staged." >&2
+    exit 1
 fi
 
-APP_BIN="$STAGE_DIR/shroudly"
-CORE_BIN="$STAGE_DIR/resources/app.asar.unpacked/electron/tools/core/linux-x64/shroudly-core"
-ADV_BIN="$STAGE_DIR/resources/app.asar.unpacked/electron/tools/core/linux-x64/shroudly-core-adv"
-POLICY="$STAGE_DIR/me.codeshare.shroudly.policy"
-ICON="$STAGE_DIR/shroudly.png"
-LICENSE="$STAGE_DIR/LICENSE"
+install -Dm0755 "$STAGED_BIN" /usr/bin/raptor-shroudly
+install -d /usr/share/applications /usr/share/icons/hicolor/scalable/apps
 
-for required in "$APP_BIN" "$CORE_BIN" "$ADV_BIN" "$POLICY" "$ICON" "$LICENSE"; do
-    if [[ ! -s "$required" ]]; then
-        echo "SHROUDLY_INSTALL_ERROR: required upstream payload missing: $required" >&2
-        exit 1
-    fi
-done
-
-install -d "$APP_DIR"
-cp -a "$STAGE_DIR/." "$APP_DIR/"
-chmod 0755 "$APP_DIR/shroudly" "$APP_DIR/resources/app.asar.unpacked/electron/tools/core/linux-x64/shroudly-core" "$APP_DIR/resources/app.asar.unpacked/electron/tools/core/linux-x64/shroudly-core-adv"
-# Keep the Electron executable beside its resources: Electron resolves
-# resources/app.asar relative to its own executable. /opt is redirected to
-# /var/opt on Fedora Atomic and is not committed to the immutable image, so
-# install the complete app under /usr/lib instead. /usr/bin gets a small wrapper.
-cat > /usr/bin/shroudly <<'EOF'
-#!/usr/bin/bash
-exec /usr/lib/raptor/shroudly/shroudly "$@"
-EOF
-chmod 0755 /usr/bin/shroudly
-
-install -Dm644 "$APP_DIR/me.codeshare.shroudly.policy" /usr/share/polkit-1/actions/me.codeshare.shroudly.policy
-install -Dm644 "$APP_DIR/shroudly.png" /usr/share/icons/hicolor/256x256/apps/shroudly.png
-
-cat > /usr/share/applications/shroudly.desktop <<'EOF'
+cat > /usr/share/applications/raptor-shroudly.desktop <<'DESKTOP'
 [Desktop Entry]
 Version=1.0
 Type=Application
-Name=Shroudly
-GenericName=Connection Privacy
-Comment=Local proxy and connection privacy controls
-Exec=/usr/bin/shroudly
-Icon=shroudly
+Name=Raptor Shroudly
+GenericName=Application Compatibility Monitor
+Comment=Raptor OS application detection and compatibility dashboard
+Exec=/usr/bin/raptor-shroudly
+Icon=raptor-shroudly
 Terminal=false
-Categories=Network;Utility;
-Keywords=shroudly;proxy;privacy;connection;
+Categories=X-RaptorOS;Utility;System;
+Keywords=raptor;shroudly;gaming;compatibility;applications;network;
 StartupNotify=true
-EOF
+DESKTOP
+
+cat > /usr/share/icons/hicolor/scalable/apps/raptor-shroudly.svg <<'SVG'
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8bd4f1"/>
+      <stop offset="1" stop-color="#17466b"/>
+    </linearGradient>
+  </defs>
+  <circle cx="32" cy="32" r="30" fill="#0b1420"/>
+  <circle cx="32" cy="32" r="24" fill="none" stroke="url(#g)" stroke-width="3"/>
+  <path d="M20 24h24v18H20z" rx="3" fill="none" stroke="#d9efff" stroke-width="2.5"/>
+  <path d="M25 31h14M25 36h9" stroke="#8bd4f1" stroke-width="2.5" stroke-linecap="round"/>
+  <circle cx="44" cy="20" r="5" fill="#8bd4f1"/>
+</svg>
+SVG
 
 command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache /usr/share/icons/hicolor 2>/dev/null || true
 command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database /usr/share/applications 2>/dev/null || true
 
-for required in /usr/bin/shroudly /usr/share/applications/shroudly.desktop /usr/share/polkit-1/actions/me.codeshare.shroudly.policy /usr/share/icons/hicolor/256x256/apps/shroudly.png "$APP_DIR/resources/app.asar" "$CORE_BIN" "$ADV_BIN"; do
-    [[ -s "$required" ]] || { echo "SHROUDLY_INSTALL_ERROR: installed file missing: $required" >&2; exit 1; }
+for required in /usr/bin/raptor-shroudly /usr/share/applications/raptor-shroudly.desktop /usr/share/icons/hicolor/scalable/apps/raptor-shroudly.svg; do
+    [[ -s "$required" ]] || { echo "RAPTOR_SHROUDLY_PAYLOAD_MISSING:$required" >&2; exit 1; }
 done
 
-[[ -f /usr/bin/shroudly && -x /usr/bin/shroudly ]] || { echo "SHROUDLY_INSTALL_ERROR: launcher is not executable at /usr/bin/shroudly" >&2; exit 1; }
-echo "SHROUDLY_READY: original upstream desktop app, Electron resources, and Linux engines installed under /usr/lib."
-echo "No background service or autostart entry was enabled."
+echo "RAPTOR_SHROUDLY_READY: custom Raptor application, launcher, desktop entry and icon installed."
