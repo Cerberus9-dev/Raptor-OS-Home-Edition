@@ -207,7 +207,9 @@ The first-boot chooser offers the official Discord client, Vesktop, Equibop, and
 
 ## Raptor Shroudly
 
-**Original upstream application, built into every Raptor OS image.** CI builds the pinned Shroudly Linux desktop app and packages its normal and Advanced-mode engines, desktop entry, icon, and polkit action. It does not enable autostart or change proxy settings during installation; users launch it and choose when to activate protection. The transitional Rust monitor prototype is not packaged. Upstream MIT attribution: **umutxyp / Codeshare Technology Ltd**.
+**The custom Raptor OS application, built into every Raptor OS image.** Raptor Shroudly is a native desktop dashboard that detects supported game clients and applications without freezing or modifying them. It is built from the Rust source in `files/scripts/shroudly-raptor`, packaged with its own Raptor-branded launcher and icon, and verified inside each published image.
+
+The current dashboard provides local application detection. Its network-routing and per-app traffic-steering engine is not yet enabled; it does not claim that a proxy or protection mode is active. The custom implementation is inspired by the original Shroudly project by **umutxyp / Codeshare Technology Ltd**; upstream is not substituted for the Raptor app.
 
 
 ---
