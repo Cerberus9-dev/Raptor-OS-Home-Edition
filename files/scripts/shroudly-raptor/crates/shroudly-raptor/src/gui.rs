@@ -8,7 +8,7 @@ slint::slint! {
         title: "Raptor Shroudly";
         width: 820px;
         height: 600px;
-        background: #0b1420;
+        background: rgb(11, 20, 32);
 
         in-out property <string> detected_apps: "Scanning…";
         in-out property <string> detected_count: "0 applications detected";
@@ -22,7 +22,7 @@ slint::slint! {
                 spacing: 12px;
                 Text {
                     text: "RAPTOR / SHROUDLY";
-                    color: #8bd4f1;
+                    color: rgb(139, 212, 241);
                     font-size: 26px;
                     font-weight: 700;
                     vertical-alignment: center;
@@ -30,7 +30,7 @@ slint::slint! {
                 Rectangle { horizontal-stretch: 1; }
                 Text {
                     text: "V3 • HOME";
-                    color: #8093a8;
+                    color: rgb(128, 147, 168);
                     font-size: 12px;
                     vertical-alignment: center;
                 }
@@ -38,38 +38,38 @@ slint::slint! {
 
             Text {
                 text: "Application compatibility dashboard";
-                color: #f0f5fa;
+                color: rgb(240, 245, 250);
                 font-size: 21px;
                 font-weight: 600;
             }
             Text {
                 text: "Raptor Shroudly is the Raptor-customized application monitor. It identifies supported game clients and desktop apps without suspending or modifying them.";
-                color: #b5c4d3;
+                color: rgb(181, 196, 211);
                 font-size: 14px;
                 wrap: word-wrap;
             }
 
             Rectangle {
-                background: #142638;
+                background: rgb(20, 38, 56);
                 border-radius: 12px;
                 VerticalLayout {
                     padding: 18px;
                     spacing: 8px;
                     Text {
                         text: "LIVE APPLICATION DETECTION";
-                        color: #8bd4f1;
+                        color: rgb(139, 212, 241);
                         font-size: 12px;
                         font-weight: 700;
                     }
                     Text {
                         text: root.detected_count;
-                        color: #f0f5fa;
+                        color: rgb(240, 245, 250);
                         font-size: 22px;
                         font-weight: 600;
                     }
                     Text {
                         text: root.detected_apps;
-                        color: #c8d7e6;
+                        color: rgb(200, 215, 230);
                         font-size: 14px;
                         wrap: word-wrap;
                     }
@@ -81,26 +81,26 @@ slint::slint! {
             }
 
             Rectangle {
-                background: #19212d;
+                background: rgb(25, 33, 45);
                 border-radius: 10px;
                 VerticalLayout {
                     padding: 16px;
                     spacing: 8px;
                     Text {
                         text: "NETWORK STATUS";
-                        color: #8bd4f1;
+                        color: rgb(139, 212, 241);
                         font-size: 12px;
                         font-weight: 700;
                     }
                     Text {
                         text: "Traffic routing is not enabled in this build.";
-                        color: #f0f5fa;
+                        color: rgb(240, 245, 250);
                         font-size: 16px;
                         font-weight: 600;
                     }
                     Text {
                         text: "No proxy, tunnel, firewall rule, or packet redirection is activated. App detection is informational only; network protection controls will appear here when the Raptor routing engine is implemented and tested.";
-                        color: #b5c4d3;
+                        color: rgb(181, 196, 211);
                         font-size: 13px;
                         wrap: word-wrap;
                     }
@@ -110,7 +110,7 @@ slint::slint! {
             Rectangle { vertical-stretch: 1; }
             Text {
                 text: "Raptor OS • Local-first • No background service";
-                color: #71859a;
+                color: rgb(113, 133, 154);
                 font-size: 11px;
             }
         }
