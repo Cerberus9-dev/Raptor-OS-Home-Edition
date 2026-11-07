@@ -29,7 +29,7 @@ StandardError=journal
 #
 #   ProtectKernelTunables                — NOT SET: writes GPU power state
 #     directly to /sys/class/drm/*/device/* (DPM level, power profile mode)
-#     and calls sysctl --system, which needs /proc/sys write access.
+#     
 #
 # What's left below is still meaningfully tightened without touching any of
 # the paths this service actually needs.

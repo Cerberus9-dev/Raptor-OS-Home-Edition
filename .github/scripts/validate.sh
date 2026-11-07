@@ -76,8 +76,6 @@ assert_not_contains() {
 }
 
 echo "=== Checking power-profile and Cortex contracts ==="
-assert_contains files/system_files/raptor-powerprofile.service "ExecStart=/usr/bin/powerprofilesctl get"
-assert_not_contains files/system_files/raptor-powerprofile.service "powerprofilesctl set balanced"
 assert_contains recipes/recipe.yml "- power-profiles-daemon.service"
 assert_contains files/scripts/raptor-cortex/install.sh "def _sync_external_power_mode"
 assert_contains files/scripts/raptor-cortex/install.sh "def _do_one_click_boost"
@@ -85,7 +83,7 @@ assert_contains files/scripts/raptor-cortex/install.sh "ACTUAL_PROFILE"
 assert_contains files/scripts/raptor-cortex/install.sh '"drkonqi"'
 
 echo "=== Checking memory, audio and browser contracts ==="
-assert_contains files/system_files/zram-generator.conf "compression-algorithm = lz4"
+# ZRAM defaults are validated below against the current zstd configuration.
 assert_contains files/system_files/99-raptor-wireplumber-alsa.conf "resample.quality                = 10"
 assert_contains files/scripts/raptor-gaming/install.sh "org.mozilla.firefox/.mozilla/firefox"
 assert_contains files/scripts/raptor-gaming/install.sh "flatpak run com.brave.Browser"
@@ -129,6 +127,12 @@ echo "=== Checking first-boot recovery contracts ==="
 assert_contains files/system_files/raptor-browser-choice.sh "browser choice deferred; it will retry on the next login"
 assert_contains files/system_files/raptor-chat-choice.sh "chat client choice deferred; it will retry on the next login"
 assert_contains files/system_files/raptor-app-choice.sh "app selection deferred; it will retry on the next login"
+bash -n files/system_files/raptor-app-choice.sh
+assert_contains files/system_files/raptor-app-choice.sh 'Exec=/usr/bin/raptor-app-choice.sh --reopen'
+assert_contains files/system_files/raptor-app-choice.sh 'if [[ -f "${STAMP_FILE}" && "${REOPEN}" -ne 1 ]]'
+assert_contains files/system_files/raptor-app-choice.sh 'if [[ "${REOPEN}" -ne 1 ]]; then touch "${STAMP_FILE}"; fi'
+assert_contains files/system_files/raptor-app-choice.sh '--search-column=3'
+assert_contains files/system_files/raptor-app-choice.sh 'org.kde.kdeconnect'
 assert_not_contains files/system_files/raptor-browser-choice.sh "Writing stamp to avoid loop"
 assert_not_contains files/system_files/raptor-chat-choice.sh "Writing stamp to avoid loop"
 assert_not_contains files/system_files/raptor-app-choice.sh "Writing stamp to avoid loop"
@@ -147,10 +151,12 @@ assert_contains files/scripts/raptor-update/install.sh "timeout=3 * 60 * 60"
 assert_contains files/scripts/raptor-update/install.sh "timeout=900"
 assert_contains files/scripts/raptor-update/install.sh 'rpm-ostree upgrade 2>&1 | tee "$out"'
 assert_contains files/scripts/raptor-update/install.sh "_stop_process_group(helper)"
-assert_contains .github/workflows/build.yml "steps.one_time_apps.outputs.include == 'true' || github.event_name == 'pull_request'"
 assert_contains .github/workflows/build.yml 'cargo build --release --workspace --manifest-path files/scripts/raptor-music/Cargo.toml'
 assert_contains .github/workflows/build.yml 'cargo test --workspace --manifest-path files/scripts/raptor-music/Cargo.toml'
-assert_contains .github/workflows/build.yml 'PR validation only: built Raptor Music without staging it into the image.'
+assert_contains .github/workflows/build.yml 'test -x files/staging/raptor-music'
+assert_contains .github/workflows/build.yml 'test -x files/staging/shroudly-app/shroudly'
+assert_contains .github/workflows/build.yml 'Verify both apps inside the published image'
+assert_not_contains .github/workflows/build.yml 'PR validation only: built Raptor Music without staging it into the image.'
 assert_not_contains files/scripts/raptor-update/install.sh "for line in user_proc.stdout"
 assert_not_contains files/scripts/raptor-update/install.sh "for line in fp_proc.stdout"
 
@@ -161,14 +167,46 @@ assert_contains .github/workflows/build-iso.yml "mkksiso --ks"
 assert_contains README.md "Intel Core i5-8250U"
 assert_contains README.md "Vulkan 1.3+"
 assert_contains README.md "optimization target under development"
-assert_contains changelog.md "v3.0.0 (Major Release — planned)"
+assert_contains changelog.md "v3.0.0 (Major Release"
+
+echo "=== Raptor Tasks installer and embedded Python validation ==="
+bash -n files/scripts/raptor-tasks/install.sh
+tasks_tmp="$(mktemp --suffix=.py)"
+awk "/^cat << 'PYEOF' > \/usr\/bin\/raptor-tasks$/ { inside=1; next } /^PYEOF$/ && inside { exit } inside { print }" files/scripts/raptor-tasks/install.sh > "$tasks_tmp"
+test -s "$tasks_tmp"
+python3 -c 'import ast, sys; ast.parse(open(sys.argv[1], encoding="utf-8").read())' "$tasks_tmp"
+grep -Fq 'Gtk.ShortcutController()' "$tasks_tmp"
+grep -Fq 'os.fsync(stream.fileno())' "$tasks_tmp"
+grep -Fq 'CONFIG_FILE.replace(backup)' "$tasks_tmp"
+grep -Fq 'set_placeholder(self.empty_page)' "$tasks_tmp"
+grep -Fq 'Search tasks' "$tasks_tmp"
+grep -Fq 'self.status_combo' "$tasks_tmp"
+grep -Fq 'No matching tasks' "$tasks_tmp"
+grep -Fq 'return False' "$tasks_tmp"
+grep -Fq 'if self._on_save(saved) is not False:' "$tasks_tmp"
+grep -Fq 'stream.write("\n")' "$tasks_tmp"
+rm -f "$tasks_tmp"
+
+echo "=== Raptor Wallpaper installer and embedded Python validation ==="
+bash -n files/scripts/raptor-wallpaper-manager/install.sh
+wallpaper_tmp="$(mktemp --suffix=.py)"
+awk "/^cat << 'PYEOF' > \/usr\/bin\/raptor-wallpaper$/ { inside=1; next } /^PYEOF$/ && inside { exit } inside { print }" files/scripts/raptor-wallpaper-manager/install.sh > "$wallpaper_tmp"
+test -s "$wallpaper_tmp"
+python3 -c 'import ast, sys; ast.parse(open(sys.argv[1], encoding="utf-8").read())' "$wallpaper_tmp"
+grep -Fq 'os.fsync(stream.fileno())' "$wallpaper_tmp"
+grep -Fq 'CONFIG_FILE.replace(backup)' "$wallpaper_tmp"
+grep -Fq 'if not os.path.isfile(image_path)' "$wallpaper_tmp"
+grep -Fq 'Search wallpapers' "$wallpaper_tmp"
+grep -Fq 'self.preview.set_filename' "$wallpaper_tmp"
+grep -Fq 'selected_path = self._selected_path' "$wallpaper_tmp"
+grep -Fq 'Choose a supported image file' "$wallpaper_tmp"
+grep -Fq 'stream.write("\n")' "$wallpaper_tmp"
+rm -f "$wallpaper_tmp"
 
 echo "All validations passed."
 
 echo "=== Checking v3.0.0 release integration ==="
 assert_contains .github/workflows/build.yml 'REF_NAME: ${{ github.ref_name }}'
-assert_contains .github/workflows/build.yml 'raptor-one-time-apps-consumed'
-assert_contains .github/one-time-apps-v3.0.0 'first successful'
 assert_contains files/scripts/raptor-cortex/install.sh 'auto|on)'
 assert_contains files/scripts/raptor-cortex/install.sh '/sys/class/nvme/nvme*/power/control'
 assert_not_contains files/scripts/raptor-cortex/install.sh '_apply_nvme_power      min_power'
@@ -202,15 +240,15 @@ assert_contains .github/workflows/build.yml 'test -x dist/linux-unpacked/shroudl
 assert_contains .github/workflows/build.yml '../../../staging/shroudly-app'
 assert_contains recipes/recipe.yml 'shroudly-raptor/install.sh'
 assert_contains recipes/recipe.yml 'mesa-libgbm'
-assert_contains files/scripts/shroudly-raptor/install.sh '/opt/Shroudly'
+assert_contains files/scripts/shroudly-raptor/install.sh '/usr/lib/raptor/shroudly'
+assert_contains files/scripts/shroudly-raptor/install.sh 'exec /usr/lib/raptor/shroudly/shroudly'
 assert_contains files/scripts/shroudly-raptor/install.sh 'shroudly-core-adv'
 assert_contains files/scripts/shroudly-raptor/install.sh 'me.codeshare.shroudly.policy'
 assert_contains files/scripts/shroudly-raptor/install.sh 'SHROUDLY_READY'
-assert_contains files/scripts/shroudly-raptor/install.sh 'no complete one-time Shroudly payload in this image build'
-assert_contains files/scripts/raptor-music/install.sh 'no one-time Raptor Music payload in this image build'
+assert_contains files/scripts/shroudly-raptor/install.sh 'no complete Shroudly payload in this image build'
+assert_contains files/scripts/raptor-music/install.sh 'no Raptor Music payload in this image build'
 assert_contains files/scripts/raptor-music/install.sh 'RAPTOR_MUSIC_PAYLOAD_MISSING'
 assert_contains .github/workflows/build.yml 'git add -f -- files/staging'
-assert_contains .github/workflows/build.yml 'RECOVERY_RUN'
 assert_contains .github/workflows/build.yml 'Verify both apps inside the published image'
 assert_contains .github/workflows/build.yml 'docker run --rm --entrypoint /bin/bash'
 assert_contains .github/workflows/build.yml '/usr/bin/raptor-music'
@@ -227,16 +265,219 @@ assert_contains files/scripts/raptor-hardware-fixes/install.sh 'wifi-busy-count-
 assert_contains files/scripts/raptor-hardware-fixes/install.sh 'activation remained stuck'
 assert_contains files/scripts/raptor-hardware-fixes/install.sh 'automatic driver reload skipped for safety'
 assert_not_contains files/scripts/raptor-hardware-fixes/install.sh 'known_in_range && level3 "$dev"'
+assert_contains files/scripts/raptor-hardware-fixes/install.sh 'nmcli_status() { timeout 5 nmcli'
+assert_contains files/scripts/raptor-hardware-fixes/install.sh 'count++ < 8'
+assert_contains files/scripts/raptor-hardware-fixes/install.sh 'timeout 10 modprobe'
+assert_not_contains files/scripts/raptor-hardware-fixes/install.sh 'nmcli radio wifi 2>/dev/null'
+assert_not_contains files/scripts/raptor-hardware-fixes/install.sh 'nmcli device set "$d" autoconnect yes 2>/dev/null'
 
-echo "=== Checking first-login welcome dialog ==="
+echo "=== Checking first-login welcome and hardware telemetry ==="
 assert_contains files/scripts/raptor-hardware-fixes/install.sh 'Welcome to Raptor OS Home'
-assert_contains files/scripts/raptor-hardware-fixes/install.sh 'zenity --text-info'
 assert_contains files/scripts/raptor-hardware-fixes/install.sh 'bash -n /usr/bin/raptor-welcome.sh'
 assert_contains files/system_files/raptor-firstboot.service 'welcome-done'
 assert_contains files/system_files/raptor-firstboot.service 'ExecStart=/usr/bin/raptor-welcome.sh'
+assert_contains files/scripts/raptor-cortex/install.sh 'title="Graphics Processor"'
+assert_contains files/scripts/raptor-cortex/install.sh 'def get_gpu_memory():'
+assert_contains files/scripts/raptor-cortex/install.sh 'Telemetry unavailable — check the graphics driver'
+assert_contains files/scripts/raptor-cortex/install.sh 'def get_fan_info():'
+assert_contains files/scripts/raptor-cortex/install.sh 'vendor == "0x1002"'
+assert_contains files/scripts/raptor-cortex/install.sh 'vendor == "0x8086"'
+assert_contains files/scripts/raptor-cortex/install.sh 'NVIDIA GPU {index}'
+echo "=== Shell syntax: Raptor Cortex installer ==="
+bash -n files/scripts/raptor-cortex/install.sh
+echo "=== Python syntax: embedded Raptor Cortex application ==="
+cortex_tmp="$(mktemp --suffix=.py)"
+awk "/^cat << 'PYEOF' > \\/usr\\/bin\\/raptor-cortex$/ { inside=1; next } /^PYEOF$/ && inside { exit } inside { print }" files/scripts/raptor-cortex/install.sh > "$cortex_tmp"
+test -s "$cortex_tmp"
+python3 -c 'import ast, sys; ast.parse(open(sys.argv[1], encoding="utf-8").read())' "$cortex_tmp"
+rm -f "$cortex_tmp"
 
-echo "=== Checking broad GPU compatibility defaults ==="
-assert_not_contains files/scripts/raptor-gpu-profile/install.sh 'RADV_PERFTEST=gpl'
+
+echo "=== Checking Dolphin and archive backends ==="
+assert_contains recipes/recipe.yml '      - ark'
+assert_contains recipes/recipe.yml '      - 7zip'
+assert_contains recipes/recipe.yml '      - unzip'
+assert_contains files/system_files/raptor-mimeapps.list 'application/x-zip-compressed=org.kde.ark.desktop'
+assert_contains files/system_files/raptor-mimeapps.list 'application/x-cbz=org.kde.ark.desktop'
+assert_contains files/system_files/raptor-mimeapps.list 'application/x-zstd=org.kde.ark.desktop'
+assert_contains files/system_files/raptor-mimeapps.list 'application/x-cpio=org.kde.ark.desktop'
+assert_contains files/system_files/raptor-mimeapps.list 'application/vnd.ms-cab-compressed=org.kde.ark.desktop'
+
+assert_contains files/scripts/raptor-dolphin-stability/install.sh 'command -v ark'
+assert_contains files/scripts/raptor-dolphin-stability/install.sh 'command -v unzip'
+assert_contains files/scripts/raptor-dolphin-stability/install.sh 'set -euo pipefail'
+echo "=== Shell syntax: archive stability installer ==="
+bash -n files/scripts/raptor-dolphin-stability/install.sh
+assert_contains files/scripts/raptor-dolphin-stability/install.sh 'raptor-ark-extract.desktop'
+assert_contains files/scripts/raptor-dolphin-stability/install.sh 'ark --batch --autodestination --autosubfolder %F'
+assert_contains files/scripts/raptor-dolphin-stability/install.sh 'ark --batch --dialog %F'
+assert_contains files/scripts/raptor-dolphin-stability/install.sh 'ark --add %F'
+assert_contains files/scripts/raptor-dolphin-stability/install.sh 'chmod 0755 "$SERVICE_MENU_DIR/raptor-ark-create.desktop"'
+
+
+echo "=== Checking Cortex multi-page control center ==="
+assert_contains files/scripts/raptor-cortex/install.sh 'Adw.ViewStack()'
+assert_contains files/scripts/raptor-cortex/install.sh 'add_page("overview", "Overview")'
+assert_contains files/scripts/raptor-cortex/install.sh 'add_page("graphics", "Graphics")'
+assert_contains files/scripts/raptor-cortex/install.sh 'title="GPU telemetry"'
+assert_contains files/scripts/raptor-cortex/install.sh 'graphics_content.append(gpu_telemetry_group)'
+assert_contains files/scripts/raptor-cortex/install.sh 'gpu_telemetry_group.add(self.gpu_info_row)'
+
+assert_contains files/scripts/raptor-cortex/install.sh 'add_page("games", "Games")'
+assert_contains files/scripts/raptor-cortex/install.sh 'add_page("optimize", "Optimize")'
+assert_contains files/scripts/raptor-cortex/install.sh 'add_page("settings", "Settings")'
+assert_contains files/scripts/raptor-cortex/install.sh 'GLib.timeout_add_seconds(8, self._refresh_stats)'
+
+echo "=== Checking memory compression defaults ==="
+assert_contains files/system_files/zram-generator.conf 'zram-size = min(ram, 8192)'
+assert_contains files/system_files/zram-generator.conf 'compression-algorithm = zstd'
+assert_not_contains files/system_files/zram-generator.conf 'compression-algorithm = lz4'
+
+
+echo "=== Raptor Update Manager rollback and lock-screen validation ==="
+bash -n files/scripts/raptor-update/install.sh
+update_tmp="$(mktemp --suffix=.py)"
+awk "/^cat << 'PYEOF' > \/usr\/bin\/raptor-update$/ { inside=1; next } /^PYEOF$/ && inside { exit } inside { print }" files/scripts/raptor-update/install.sh > "$update_tmp"
+test -s "$update_tmp"
+python3 -c 'import ast, sys; ast.parse(open(sys.argv[1], encoding="utf-8").read())' "$update_tmp"
+grep -Fq 'ROLLBACK_HELPER       = "/usr/lib/raptor/rollback-helper"' "$update_tmp"
+grep -Fq 'def on_rollback_clicked(self, _btn):' "$update_tmp"
+grep -Fq 'def _run_rollback(self):' "$update_tmp"
+grep -Fq 'GLib.idle_add(self.rollback_btn.set_sensitive, available)' "$update_tmp"
+grep -Fq 'no automatic restart was performed.' "$update_tmp"
+rm -f "$update_tmp"
+assert_contains files/scripts/raptor-update/install.sh 'cat << '\''EOF'\'' > /usr/lib/raptor/rollback-helper'
+assert_contains files/scripts/raptor-update/install.sh 'rpm-ostree rollback'
+assert_contains files/scripts/raptor-update/install.sh 'ROLLBACK_ACTION'
+assert_contains files/scripts/raptor-update/install.sh 'io.github.cerberus9dev.raptorupdate.rollback'
+assert_contains files/scripts/raptor-update/install.sh '/usr/lib/raptor/rollback-helper'
+assert_contains files/scripts/raptor-wallpaper-manager/install.sh 'def apply_lockscreen_wallpaper(image_path):'
+assert_contains files/scripts/raptor-wallpaper-manager/install.sh 'kwriteconfig6'
+assert_contains files/scripts/raptor-wallpaper-manager/install.sh 'WallpaperPlugin'
+assert_contains files/scripts/raptor-wallpaper-manager/install.sh 'PreviewImage'
+assert_contains files/scripts/raptor-wallpaper-manager/install.sh 'Apply to Lock Screen'
+assert_contains files/scripts/raptor-wallpaper-manager/install.sh 'import shutil'
+echo "Raptor recovery and lock-screen contracts passed."
+
+echo "=== Checking GPU vendor-safe defaults ==="
+assert_contains files/scripts/raptor-gpu-profile/install.sh 'NVAPI_VAR="PROTON_ENABLE_NVAPI=1"'
+assert_not_contains files/scripts/raptor-gpu-profile/install.sh 'AMD_VULKAN_ICD=RADV'
 assert_not_contains files/scripts/raptor-gpu-profile/install.sh 'MESA_LOADER_DRIVER_OVERRIDE=iris'
-assert_not_contains files/scripts/raptor-gpu-profile/install.sh 'VKD3D_FEATURE_LEVEL=12_2'
-assert_not_contains files/scripts/raptor-gpu-profile/install.sh 'VKD3D_FEATURE_LEVEL=12_1'
+assert_not_contains files/scripts/raptor-gpu-profile/install.sh 'VKD3D_CONFIG='
+assert_not_contains files/scripts/raptor-gpu-profile/install.sh 'VKD3D_FEATURE_LEVEL='
+assert_not_contains files/scripts/raptor-gpu-profile/install.sh 'RADV_PERFTEST=gpl'
+assert_not_contains files/scripts/raptor-gpu-profile/install.sh '__GL_SHADER_DISK_CACHE_SKIP_CLEANUP=1'
+assert_not_contains files/scripts/raptor-gpu-profile/install.sh '__GL_THREADED_OPTIMIZATIONS='
+echo "GPU vendor-safe defaults passed."
+
+echo "=== Checking CI image tag and generated app payload staging ==="
+assert_contains .github/workflows/build.yml 'IMAGE_VERSION_SUFFIX="${IMAGE_VERSION##*-}"'
+assert_contains .github/workflows/build.yml 'IMAGE_TAG="pr-$PR_NUMBER-$IMAGE_VERSION_SUFFIX"'
+assert_contains .github/workflows/build.yml 'REF_TAG="$(printf '\''%s'\'' "$REF_NAME" | tr '\''/'\'' '\''_'\'')"'
+assert_contains .github/workflows/build.yml 'IMAGE_TAG="${REF_TAG}-$IMAGE_VERSION_SUFFIX"'
+assert_contains files/scripts/raptor-music/install.sh 'if [[ ! -x "$SRC_BIN" && -x "/tmp/files/staging/raptor-music" ]]; then'
+assert_contains files/scripts/shroudly-raptor/install.sh 'if [[ ! -x "$STAGE_DIR/shroudly" && -x "/tmp/files/staging/shroudly-app/shroudly" ]]; then'
+assert_contains files/scripts/raptor-music/install.sh 'STAGE_DIR="/tmp/files/staging"'
+assert_contains files/scripts/shroudly-raptor/install.sh 'STAGE_DIR="/tmp/files/staging/shroudly-app"'
+echo "Image tagging and payload staging contracts passed."
+
+echo "=== Checking boot-time GPU detection safety ==="
+gpu_tmp="$(mktemp --suffix=.sh)"
+awk "/^cat << 'DETECT' > \/usr\/lib\/raptor\/gpu-detect.sh$/ { inside=1; next } /^DETECT$/ && inside { exit } inside { print }" files/scripts/raptor-gpu-profile/install.sh > "$gpu_tmp"
+test -s "$gpu_tmp"
+bash -n "$gpu_tmp"
+grep -Fq 'GPU_PCI_INFO="$(timeout 3s lspci -nn' "$gpu_tmp"
+grep -Fq 'timeout 3s lspci -v' "$gpu_tmp"
+grep -Fq 'timeout 3s nvidia-smi' "$gpu_tmp"
+grep -Fq 'timeout 2s loginctl list-users' "$gpu_tmp"
+if grep -Fq 'sysctl --system' "$gpu_tmp"; then
+  echo "GPU profile must not re-run the global sysctl loader during boot" >&2
+  exit 1
+fi
+rm -f "$gpu_tmp"
+echo "Boot-time GPU detection contracts passed."
+
+echo "=== Checking embedded Raptor Cortex Python ==="
+cortex_tmp="$(mktemp --suffix=.py)"
+awk "/^cat << 'PYEOF' > \/usr\/bin\/raptor-cortex$/ { inside=1; next } /^PYEOF$/ && inside { exit } inside { print }" files/scripts/raptor-cortex/install.sh > "$cortex_tmp"
+test -s "$cortex_tmp"
+python3 -c 'import ast, sys; ast.parse(open(sys.argv[1], encoding="utf-8").read())' "$cortex_tmp"
+rm -f "$cortex_tmp"
+
+echo "=== Checking boot ordering for known latency traps ==="
+if grep -R -n 'systemd-udev-settle\.service' recipes files/system_files files/scripts; then
+  echo "Do not add a global udev-settle dependency to the boot path" >&2
+  exit 1
+fi
+assert_contains recipes/recipe.yml "- power-profiles-daemon.service"
+assert_not_contains recipes/recipe.yml 'raptor-powerprofile.service'
+assert_not_contains recipes/recipe.yml 'raptor-ensure-services.service'
+test ! -e files/system_files/raptor-powerprofile.service
+test ! -e files/system_files/raptor-ensure-services.service
+assert_contains files/scripts/raptor-gpu-profile/install.sh 'GPU_PCI_INFO="$(timeout 3s lspci -nn'
+echo "Boot latency regression checks passed."
+
+echo "=== Checking user-controlled Wi-Fi power management ==="
+assert_not_contains files/system_files/91-raptor-network.conf 'wifi.powersave=2'
+assert_not_contains files/system_files/91-raptor-network.conf 'wifi.scan-rand-mac-address=no'
+assert_contains files/scripts/raptor-cortex/install.sh 'wifi-powersave)'
+assert_contains files/scripts/raptor-cortex/install.sh 'Disable Wi-Fi power saving'
+assert_contains files/scripts/raptor-cortex/install.sh '91-raptor-wifi-powersave.conf'
+assert_contains files/scripts/raptor-cortex/install.sh 'NetworkManager default'
+wifi_helper_tmp="$(mktemp --suffix=.sh)"
+awk "/^cat << 'EOF' > \/usr\/lib\/raptor\/cortex-helper$/ { inside=1; next } /^EOF$/ && inside { exit } inside { print }" files/scripts/raptor-cortex/install.sh > "$wifi_helper_tmp"
+test -s "$wifi_helper_tmp"
+bash -n "$wifi_helper_tmp"
+grep -Fq "printf '[connection]" "$wifi_helper_tmp"
+wifi_test_dir="$(mktemp -d)"
+mkdir -p "$wifi_test_dir/bin"
+cat > "$wifi_test_dir/bin/nmcli" <<'NMCLI'
+#!/bin/sh
+exit "${RAPTOR_TEST_NMCLI_EXIT:-0}"
+NMCLI
+chmod +x "$wifi_test_dir/bin/nmcli"
+export PATH="$wifi_test_dir/bin:$PATH"
+export RAPTOR_NM_CONF_DIR="$wifi_test_dir/conf"
+export RAPTOR_TEST_NMCLI_EXIT=0
+bash "$wifi_helper_tmp" wifi-powersave disable
+wifi_conf="$RAPTOR_NM_CONF_DIR/91-raptor-wifi-powersave.conf"
+grep -Fxq '[connection]' "$wifi_conf"
+grep -Fxq 'wifi.powersave=2' "$wifi_conf"
+bash "$wifi_helper_tmp" wifi-powersave default
+test ! -e "$wifi_conf"
+printf '[connection]\nwifi.powersave=3\n' > "$wifi_conf"
+export RAPTOR_TEST_NMCLI_EXIT=1
+if bash "$wifi_helper_tmp" wifi-powersave disable; then
+  echo "Wi-Fi helper unexpectedly succeeded when NetworkManager reload failed" >&2
+  exit 1
+fi
+grep -Fxq 'wifi.powersave=3' "$wifi_conf"
+unset RAPTOR_NM_CONF_DIR RAPTOR_TEST_NMCLI_EXIT
+rm -f "$wifi_helper_tmp"
+rm -rf "$wifi_test_dir"
+echo "Wi-Fi power-management contracts passed."
+
+echo "=== Checking conservative gaming defaults ==="
+assert_not_contains files/scripts/raptor-gaming/install.sh '@bEnableShaderPreCaching'
+assert_not_contains files/scripts/raptor-gaming/install.sh '@nClientDownloadEnableHTTP2PlatformLinux'
+assert_not_contains files/scripts/raptor-gaming/install.sh '@fDownloadRateImprovementToAddAnotherConnection'
+assert_not_contains files/scripts/raptor-gaming/install.sh '@cMaxFileSystemWriteBufferSizeBytes'
+assert_not_contains files/scripts/raptor-gaming/install.sh 'apply_gpu_optimisations=accept-responsibility'
+assert_not_contains files/scripts/raptor-gaming/install.sh 'amd_performance_level=high'
+assert_not_contains files/scripts/raptor-gaming/install.sh 'nv_powermizer_mode=1'
+assert_not_contains files/scripts/raptor-gaming/install.sh 'ATTR{power/autosuspend}="-1"'
+assert_not_contains files/scripts/raptor-gaming/install.sh 'ATTR{power/control}="on"'
+assert_contains files/scripts/raptor-gaming/install.sh 'KERNEL=="uinput"'
+assert_contains files/scripts/raptor-gaming/install.sh 'ATTRS{name}=="Xbox*"'
+echo "Conservative gaming defaults passed."
+
+echo "=== Checking suspend/resume service ownership ==="
+assert_not_contains recipes/recipe.yml 'raptor-resume-trigger.service'
+assert_not_contains recipes/recipe.yml 'raptor-lid-open-fix.service'
+assert_not_contains recipes/recipe.yml 'raptor-cpugovernor.service'
+assert_contains files/scripts/raptor-hardware-fixes/install.sh "cat << 'EOF' > /usr/lib/systemd/system-sleep/raptor-resume"
+assert_contains files/scripts/raptor-hardware-fixes/install.sh 'post) rebind_touchpads'
+test ! -e files/system_files/raptor-resume-trigger.service
+test ! -e files/system_files/raptor-lid-open-fix.service
+test ! -e files/system_files/raptor-cpugovernor.service
+echo "Suspend/resume ownership checks passed."

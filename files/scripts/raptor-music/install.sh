@@ -1,19 +1,26 @@
 #!/bin/bash
 set -euo pipefail
 
-# Raptor Music: install the prebuilt desktop binary shipped by CI.
+# Raptor Music: install the desktop binary built and staged by CI for every image build.
 # The binary is built from ../../raptor-music and staged into files/staging/
-# by .github/workflows/build.yml, then copied to /tmp/raptor-staging by the
-# recipe's files module. Local builds that did not stage a binary are skipped
+# by .github/workflows/build.yml on every image build, then copied to
+# /tmp/raptor-staging by the recipe's files module. Local builds without a binary are skipped
 # with a warning instead of failing the whole image build.
 
 STAGE_DIR="/tmp/raptor-staging"
 SRC_BIN="${STAGE_DIR}/raptor-music"
 
-# CI stages this executable only for the one-time integration build. Ordinary
-# builds contain no binary and safely skip; no separate marker file is needed.
+# BlueBuild's files module exposes the source tree at /tmp/files during script
+# modules. Fall back to that bind mount if its destination copy is unavailable.
+if [[ ! -x "$SRC_BIN" && -x "/tmp/files/staging/raptor-music" ]]; then
+    STAGE_DIR="/tmp/files/staging"
+    SRC_BIN="${STAGE_DIR}/raptor-music"
+fi
+
+# CI stages this executable for every image build. Local builds without a binary
+# safely skip; no separate marker file is needed.
 if [[ ! -x "$SRC_BIN" ]]; then
-    echo "RAPTOR_MUSIC_SKIP: no one-time Raptor Music payload in this image build."
+    echo "RAPTOR_MUSIC_SKIP: no Raptor Music payload in this image build."
     exit 0
 fi
 BIN_DEST="/usr/bin/raptor-music"

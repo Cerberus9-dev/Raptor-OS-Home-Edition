@@ -1,5 +1,5 @@
 #!/bin/bash
-set -oue pipefail
+set -euo pipefail
 
 # ═════════════════════════════════════════════════════════════════════════════
 # Raptor OS — Dolphin stability hardening (archive selection freeze/crash)
@@ -25,7 +25,9 @@ set -oue pipefail
 # 495145). We therefore also drop kfilemetadata's archive + AppImage extractors
 # (AppImage is an ISO-level reader too), so selecting a .zip can never read the
 # file's contents for metadata again. Ark keeps its own kerfuffle engine, so
-# opening archives still works.
+# opening archives still works. The image explicitly installs Ark, 7-Zip and
+# Info-ZIP unzip, and maps common ZIP MIME aliases to Ark so opening an archive
+# from the desktop does not route it back into Dolphin (KDE bug 528054).
 #
 # KFileItemAction + kfilemetadata plugins can't be turned off through KPlugin
 # config, so we drop the plugin .so (+ metadata .json) files from the image at
@@ -58,7 +60,19 @@ for dir in "${PLUGIN_DIRS[@]}"; do
     done
 done
 
-echo "raptor-dolphin-stability: disabled Ark context-menu archive actions (${removed} files removed)."
+if ! command -v ark >/dev/null 2>&1; then
+    echo "raptor-dolphin-stability: Ark is required for the configured archive associations" >&2
+    exit 1
+fi
+if ! command -v unzip >/dev/null 2>&1; then
+    echo "raptor-dolphin-stability: unzip backend is missing" >&2
+    exit 1
+fi
+
+echo "raptor-dolphin-stability: applied targeted Ark context-menu workaround (${removed} plugin files removed); Ark and unzip are available."
+
+# Ark is the dedicated archive application. Keep its executable and MIME handlers
+# available even when the known slow context-menu plugins are disabled.
 
 # ── In-process archive metadata extractors (KFileMetaData) ──────────────────
 # Name varies across distros (kfilemetadata_archiveextractor.so vs bare
@@ -82,3 +96,56 @@ done
 if [[ "${removed}" -gt 0 ]]; then
     echo "raptor-dolphin-stability: archive metadata reading disabled (${removed} total files removed)."
 fi
+
+
+# ── Raptor-owned KIO service menus ──────────────────────────────────────────
+# Replace the removed upstream Ark context-menu plugins with small service
+# entries that call Ark's documented CLI directly. This keeps archive actions
+# available without loading the per-selection MIME-scanning plugins.
+SERVICE_MENU_DIR=/usr/share/kio/servicemenus
+install -d "$SERVICE_MENU_DIR"
+
+cat > "$SERVICE_MENU_DIR/raptor-ark-extract.desktop" <<'ARK_EXTRACT'
+[Desktop Entry]
+Type=Service
+Name=Raptor Archive
+Icon=ark
+TryExec=ark
+X-KDE-Submenu=Raptor Archive
+X-KDE-Protocols=file
+X-KDE-RequiredNumberOfUrls=1
+MimeType=application/zip;application/x-zip;application/x-zip-compressed;application/x-tar;application/x-compressed-tar;application/x-7z-compressed;application/x-rar;application/vnd.rar;application/x-rar-compressed;application/x-bzip;application/x-bzip2;application/x-bzip-compressed-tar;application/gzip;application/x-gzip;application/x-xz;application/x-lzma;application/x-lzip;application/x-zstd;application/zstd;application/x-cpio;application/x-archive;application/x-iso9660-image;application/x-cd-image;application/vnd.ms-cab-compressed;application/x-rpm;application/vnd.debian.binary-package;application/java-archive;application/x-cbz;application/x-cbr;application/vnd.comicbook+zip;application/vnd.comicbook-rar;
+Actions=extractHere;extractTo;
+
+[Desktop Action extractHere]
+Name=Extract Here (into a folder)
+Icon=ark
+Exec=ark --batch --autodestination --autosubfolder %F
+
+[Desktop Action extractTo]
+Name=Extract To…
+Icon=ark
+Exec=ark --batch --dialog %F
+ARK_EXTRACT
+chmod 0755 "$SERVICE_MENU_DIR/raptor-ark-extract.desktop"
+
+cat > "$SERVICE_MENU_DIR/raptor-ark-create.desktop" <<'ARK_CREATE'
+[Desktop Entry]
+Type=Service
+Name=Raptor Archive
+Icon=ark
+TryExec=ark
+X-KDE-Submenu=Raptor Archive
+X-KDE-Protocols=file
+X-KDE-MinNumberOfUrls=1
+MimeType=application/*;audio/*;font/*;image/*;inode/directory;message/*;model/*;multipart/*;text/*;video/*;x-content/*;
+Actions=createArchive;
+
+[Desktop Action createArchive]
+Name=Create Archive…
+Icon=ark
+Exec=ark --add %F
+ARK_CREATE
+chmod 0755 "$SERVICE_MENU_DIR/raptor-ark-create.desktop"
+
+echo "raptor-dolphin-stability: installed Raptor-owned Ark extract/create context actions."

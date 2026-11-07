@@ -17,16 +17,6 @@ modules:
       # login session (needed for GUI dialogs and correct env on Wayland).
       - source: ../files/system_files/raptor-firstboot.service
         destination: /usr/lib/systemd/user/raptor-firstboot.service
-      - source: ../files/system_files/raptor-ensure-services.service
-        destination: /usr/lib/systemd/system/raptor-ensure-services.service
-      - source: ../files/system_files/raptor-resume-trigger.service
-        destination: /usr/lib/systemd/system/raptor-resume-trigger.service
-      - source: ../files/system_files/raptor-lid-open-fix.service
-        destination: /usr/lib/systemd/system/raptor-lid-open-fix.service
-      - source: ../files/system_files/raptor-cpugovernor.service
-        destination: /usr/lib/systemd/system/raptor-cpugovernor.service
-      - source: ../files/system_files/raptor-powerprofile.service
-        destination: /usr/lib/systemd/system/raptor-powerprofile.service
       - source: ../files/system_files/raptor-app-choice.sh
         destination: /usr/bin/raptor-app-choice.sh
       - source: ../files/system_files/raptor-browser-choice.sh
@@ -82,10 +72,9 @@ modules:
         destination: /etc/systemd/system.conf.d/10-raptor-nofile.conf
       - source: ../files/system_files/raptor-nofile.conf
         destination: /etc/systemd/user.conf.d/10-raptor-nofile.conf
-      # ── Prebuilt one-time application payloads ────────────────────────
-      # CI builds Raptor Music and the original upstream Shroudly desktop app
-      # into files/staging/. Installers skip these apps when the one-time
-      # staging marker is absent.
+      # ── CI-built Raptor application payloads ─────────────────────────
+      # CI builds and stages Raptor Music and upstream Shroudly for every image.
+      # Local builds without those generated payloads safely skip their installers.
       - source: ../files/staging
         destination: /tmp/raptor-staging
 
@@ -103,7 +92,9 @@ modules:
       # System utilities
       - fastfetch
       - htop
-      - p7zip
+      - ark
+      - 7zip
+      - unzip
       - curl
       - wget
       - jq
@@ -204,11 +195,7 @@ modules:
         # the provider explicitly enabled instead of relying on a transient
         # Wants= relationship from the initial-profile unit.
         - power-profiles-daemon.service
-        - raptor-ensure-services.service
         - raptor-gpu-profile.service
-        - raptor-powerprofile.service
-        - raptor-resume-trigger.service
-        - raptor-lid-open-fix.service
         - raptor-bt-name.service
     user:
       enabled:

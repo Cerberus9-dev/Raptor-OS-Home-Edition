@@ -1,27 +1,175 @@
 # Changelog
 
+## V3.0 reliability follow-up — suspend/resume and CI regression cleanup
+- Removed the obsolete readiness-only CPU governor and power-profile units, plus the inactive service-health checker. Power Profiles Daemon is the sole CPU/firmware policy owner; the removed units only queried or rechecked service state and did not provide useful behavior.
+- Removed the unused unit files from the image recipe entirely rather than merely leaving them disabled, reducing installed systemd clutter and preventing accidental activation by future dependencies.
+
+
+- Removed the unused resume-marker service, redundant lid-open unit, and inactive CPU-governor compatibility unit. Suspend/resume recovery is already handled by the single systemd-sleep hook; target-bound units could run at the wrong point in the suspend transition and add avoidable delay.
+- Kept touchpad rebind and asynchronous Wi-Fi/Bluetooth recovery in the existing post-resume hook, avoiding duplicate recovery paths.
+- Corrected a contradictory gaming validator: Steam's shader pre-caching setting is left untouched, and CI now asserts that no global setting overrides it while risky Steam/GameMode tweaks stay absent.
+- Added regression checks to ensure removed service units are not reintroduced into the image recipe.
+
+## V3.0 reliability follow-up — conservative gaming defaults
+
+- Removed forced Steam HTTP/2, extra-connection, and write-buffer settings from the system-wide Steam template. They are network-specific troubleshooting knobs, not universal performance wins; Steam's shader pre-caching setting is left at its own default.
+- Removed GameMode's global AMD high-performance and NVIDIA maximum-performance GPU overrides. Upstream explicitly labels GPU optimisations as an at-your-own-risk operation and notes that they change hardware performance levels; Raptor now leaves GPU policy to the driver and user-selected system power profile.
+- Added quality-gate assertions preventing these risky global overrides from silently returning.
+
+
 ## [Unreleased]
 
 ### v3.0.0 (Major Release)
 
 This is the consolidation release for more than two months of sustained Raptor OS overhaul work. The scope includes substantial changes across performance and memory management, gaming and GPU behavior, audio, Cortex, update reliability, hardware recovery, browser and chat-client choice, build validation, and the installation/distribution path. The intent is to ship the work as one coherent major update rather than scatter it across a long sequence of small version bumps.
 
-### First-login welcome experience
+### Boot-time hardware detection and service cleanup
+- Removed blanket USB autosuspend disable rules for HID, Bluetooth and USB audio devices; controller permissions remain, but idle power behavior stays with the kernel unless a device-specific issue requires a workaround.
 
-- Added a one-time **Welcome to Raptor OS Home** dialog before the existing browser, chat, and optional-app choices. It introduces the Raptor app suite in plain language and can be dismissed without blocking setup.
-- The welcome-complete stamp is stored per user under the XDG data directory; closing the window counts as a valid dismissal and prevents repeated prompts.
+- Removed global Steam HTTP/2, multi-connection, write-buffer, and shader-cache overrides. These undocumented per-client settings can regress downloads or cache behavior on some systems; Steam now retains its own defaults, with troubleshooting guidance kept in the README.
+- Moved Wi-Fi power-save handling from a forced global override to an opt-in Raptor Cortex setting. NetworkManager defaults and scan-MAC randomization are preserved for battery life and privacy; users with adapter-specific reconnect/latency problems can disable 802.11 power saving from the GUI.
+- Added a bounded privileged helper that atomically updates the NetworkManager override, reloads configuration, restores the previous file on reload failure, and tells users to reconnect for the active connection to adopt the change.
 
-### Legacy and hybrid GPU compatibility
+- Added CI coverage for the embedded Python application entry points, including Raptor Cortex, so malformed Python cannot hide inside an otherwise valid shell installer.
+- Added a regression guard against introducing a global `systemd-udev-settle.service` dependency, which has been reported to add substantial boot latency and is discouraged by systemd.
 
-- Removed forced Intel iris driver selection so older Intel graphics can use the Mesa driver appropriate to their generation.
-- Removed global RADV experimental tuning and forced VKD3D feature-level/ray-tracing settings. Driver defaults now decide which Vulkan and DirectX features are available, avoiding unsupported settings on older AMD and NVIDIA hardware.
-- GPU power controls remain conditional on the relevant sysfs or vendor tools being present; unsupported controls are left unchanged.
+
+- GPU detection now performs one bounded PCI display-device probe instead of repeatedly invoking `lspci`; the optional verbose AMD iGPU probe is also bounded.
+- NVIDIA power queries and changes have time limits and safely tolerate an unavailable or unresponsive driver utility instead of holding the boot-critical service indefinitely.
+- Corrected hybrid-GPU classification so an Intel iGPU does not automatically cause a separate AMD adapter to be classified as an AMD iGPU.
+- Removed the redundant Raptor power-profile readiness check from the enabled boot services. Power Profiles Daemon itself remains enabled and owns the selected profile; the extra unit only queried it.
+- Kept the optional service-health checker installed but removed it from the default boot path. It only re-checked services already ordered by systemd and offered no user-facing recovery.
+- Removed the redundant global `sysctl --system` reload from GPU detection; systemd-sysctl already loads the static Raptor sysctl file during normal boot.
+
+### Image build and app-payload verification fixes
+
+- Corrected post-build verification to use BlueBuild's actual version-suffixed image tags. The previous verifier attempted `pr-N`/ `latest`, while the build published `pr-N-VERSION` and branch-version tags, causing a false-negative after a successful image build.
+- Raptor Music and Shroudly installers now fall back to the source-files bind mount when the temporary staging destination is not visible to a later script module. This addresses a real build log where both installers skipped despite the workflow having built and staged their payloads.
+- Added regression assertions for tag derivation and both payload fallback paths.
+
+### GPU compatibility and resource safety
+
+- Removed forced AMD Vulkan ICD selection and forced Intel Mesa driver overrides so Mesa/Vulkan can select the supported driver for each device and hybrid-GPU configuration.
+- Removed forced VKD3D feature levels and DXR feature flags. Unsupported capabilities must not be advertised to games by a global environment override.
+- Limited Proton NVAPI enablement to NVIDIA hardware rather than applying it to AMD and Intel systems.
+- Removed experimental RADV performance flags and NVIDIA threaded-optimization overrides from global profiles; removed the setting that disabled NVIDIA shader-cache cleanup to avoid unbounded cache growth.
+- Added CI assertions to prevent these cross-vendor overrides from returning unnoticed.
+
+### Steam behavior and gaming troubleshooting
+
+- Added evidence-based Steam troubleshooting guidance for sluggish Big Picture/web views, shader pre-caching, and download rates constrained by CPU decompression or storage writes.
+- Kept Steam's network compatibility flags out of universal defaults: HTTP/2 workarounds are reported for some affected Linux configurations, but Valve marked the original broad issue as solved. Per-machine diagnosis is safer than imposing undocumented client behavior on every installation.
+- Documented the Bazzite-reported GPU-accelerated web-view toggle as a reversible troubleshooting option, including its reported NVIDIA menu-rendering caveat.
+
+### Recovery and lock-screen controls
+
+- Added a guarded **Roll Back System** action to Raptor Update Manager. It appears only when rpm-ostree reports a valid current deployment and a previous deployment, confirms before acting, verifies the deployment list again in the privileged helper, and stages `rpm-ostree rollback` without forcing an immediate reboot.
+- Added explicit recovery messaging that distinguishes an OSTree system rollback from Flatpak updates and user-home configuration; the rollback does not promise to restore those independent data stores.
+- Raptor Wallpaper can now apply the selected image to the KDE Plasma lock screen independently of the desktop background. It selects the supported `org.kde.image` wallpaper plugin and writes both the image and preview entries through `kwriteconfig6`, with bounded subprocess calls and visible error reporting.
+- Expanded CI contracts to syntax-check the update manager, parse its embedded Python, and verify the rollback and lock-screen integration points.
+
+### Continuous quality gate
+
+- Added a lightweight GitHub Actions quality workflow that runs on every push and pull request, independent of path filters. It checks every Actions workflow with actionlint, runs the repository's application/integration validator, and syntax-checks every tracked shell script.
+- The full image workflow remains responsible for image-build and published-image verification; the new quality gate provides faster feedback for documentation-only, workflow-only, and application-only commits too.
+
+### Aviation-inspired desktop identity
+
+- Refined the Raptor HUD palette from bright electric blue toward flight-deck navy, graphite, instrument cyan, caution amber, and operational green.
+- Extended the GTK3/GTK4 theme with consistent Adwaita cards, navigation sidebars, toolbars, status pages, and semantic status colors so first-party GTK apps inherit a more coherent aerospace interface.
+- Updated theme metadata and first-login service descriptions to identify the aviation-inspired Raptor OS visual system. The design stays restrained and readable rather than turning the desktop into a novelty cockpit.
+- Added a fifth bundled **Raptor Flight Deck** wallpaper: a dark aerospace grid, navigation/radar markings, and a clean top-down aircraft outline, available in Raptor Wallpaper without changing the user's selected background automatically.
+
+### Cortex and GPU telemetry reliability
+
+- GPU telemetry now checks PCI vendor IDs before reading AMD or Intel sysfs counters, prefers NVIDIA's own telemetry on hybrid systems, and reports VRAM for all exposed NVIDIA/AMD adapters rather than accidentally treating the first DRM card as the discrete GPU.
+- Moved GPU temperature, model/load/clock/VRAM readings, and read-only fan sensors into Cortex's Graphics tab beside the GPU profile controls, keeping the Overview focused on system memory and CPU health.
+- CI now extracts and byte-compiles the embedded Cortex Python application, and validates the archive installer shell syntax before the image build.
+
+### First-login welcome and application tour
+
+- Added a one-time **Welcome to Raptor OS Home** dialog before the existing browser, chat, and optional-app choices. It explains the Raptor app suite in plain language and can be dismissed without blocking setup.
+- The completion stamp is stored per user under the XDG data directory, so the welcome screen does not repeat after dismissal. If the dialog dependency is unavailable, setup continues rather than trapping the user.
+
+### Raptor Tasks and Wallpaper usability polish
+
+- Raptor Tasks now has live text search, an Open/Completed status filter, category filtering, a compact open/completed/total summary, active-first alphabetical ordering, and separate helpful empty states for a genuinely empty list versus filters with no matches.
+- Recolored the Tasks and Wallpaper application icons to match the aviation-inspired flight-deck navy and instrument-cyan palette.
+- Raptor Wallpaper now includes a larger selected-image preview, the selected filename, live gallery search, and a useful no-results state.
+- Fixed both apps' JSON writers to append a real newline rather than a literal backslash-n sequence, so files saved by the apps remain valid JSON on the next launch.
+- Restored the `apply_wallpaper` function docstring to its proper position before executable statements.
+- Task editing now stays open when a save fails, allowing the user to correct the problem and retry instead of losing the draft.
+- Wallpaper file selection now rejects unsupported or inaccessible paths, avoids duplicate gallery cards, and captures the chosen image/fit mode before applying so a later click cannot change the in-flight operation.
+
+### Raptor Wallpaper reliability
+
+- Wallpaper settings now use atomic writes, preventing interrupted saves from truncating the previous selection and fit mode.
+- Invalid settings are preserved to a separate recovery file instead of being silently discarded.
+- Gallery scanning tolerates inaccessible folders and files that disappear during enumeration instead of aborting the whole picker.
+- Both the GUI and Dolphin's direct-apply path reject missing files and unsupported extensions before asking Plasma to apply them.
+- The app now reports when the wallpaper was applied but its preference could not be saved.
+- CI extracts and parses the embedded Python app and checks the recovery, atomic-write, and input-validation paths.
+
+### Raptor Tasks reliability and usability
+
+- Fixed the Ctrl+N shortcut by registering it through a GTK ShortcutController rather than calling a nonexistent window shortcut helper.
+- Added a native empty-state panel so a new task list explains how to get started instead of presenting a blank window.
+- Task storage now writes to a temporary file, flushes it to disk, and atomically replaces the previous JSON file. Failed writes leave the previous file intact and surface a toast instead of silently losing changes.
+- Damaged or invalid task data is preserved under a separate `.corrupt` backup name instead of being silently interpreted as an empty list and overwritten on the next save.
+- Editing uses a working copy so an unsuccessful save does not mutate the existing in-memory task.
+- Added CI extraction and Python AST validation for the embedded Tasks application, plus checks for its shortcut controller, atomic persistence, corruption preservation, and empty state.
+
+### App picker usability and everyday integration
+
+- Made the optional-app catalogue reusable after first boot: the first-run service still respects its one-time completion stamp, while the new **Raptor App Picker** application-menu entry opens the catalogue on demand without changing that stamp.
+- Added in-dialog type-to-search and increased the picker window size so the existing large catalogue is easier to browse on common laptop displays.
+- Added KDE Connect as an optional Flatpak for Android-to-desktop notifications, file sharing, clipboard integration, and device controls. It remains opt-in and adds no default background service.
+- Updated the README to describe the real post-first-boot installation path rather than implying every catalogue item is available through Discover.
+
+### Dolphin and archive reliability
+- Corrected the archive-hardening installer so its logging/comment block is valid shell rather than embedding literal `\\n` text in the command; the CI validator now runs `bash -n` against this installer.
+
+- Made Ark, 7-Zip and Info-ZIP unzip explicit image dependencies instead of relying on incidental base-image packages.
+- Routed additional ZIP MIME aliases to Ark, including archives opened from outside Dolphin, avoiding the reported Bazzite behavior where an externally opened ZIP is sent back to Dolphin as a folder.
+- Expanded Ark defaults to common bzip2/gzip/xz/zstd, cpio, ISO, CAB, RPM/DEB, Java archive, and comic-book archive MIME types so supported formats open in the archive manager instead of being misrouted to Dolphin.
+- Restored common Dolphin archive actions through Raptor-owned KIO service menus: Extract Here, Extract To, and Create Archive call Ark's documented batch/add interfaces directly. The slow upstream per-selection plugins stay disabled; drag-and-drop extraction remains unavailable.
+- Kept the existing conservative Dolphin safeguards: archive content metadata extraction and the slow archive context-menu plugins remain disabled to avoid known selection/context-menu hangs. This intentionally trades those context-menu entries for responsiveness; archive opening remains through Ark.
+- Added image-build checks that Ark and unzip are present. This does not claim to fix every upstream Ark extraction or multi-volume ZIP bug.
+
+### Cortex control-center redesign
+
+- Reorganized Raptor Cortex into dedicated Overview, Graphics, Games, Optimize, and Settings tabs using the native libadwaita ViewStack/ViewSwitcher controls.
+- Increased the window's usable desktop layout and reduced routine sensor polling from every five seconds to every eight seconds to lower background wakeups on low-power systems.
+- GPU telemetry shows model, utilization, clock and dedicated VRAM where supported; fan reporting remains read-only and only shows sensors exposed by hardware/firmware.
+
+### Memory compression and low-memory behavior
+
+- Updated ZRAM to use standard zstd compression and a maximum size of up to the installed physical RAM, capped at 8 GiB. This favors compression efficiency while keeping CPU cost bounded by the default zstd level.
+- Kept ZRAM rather than enabling Zswap globally. Zswap requires a correctly configured backing swap device and has different failure/performance tradeoffs; forum reports show both ZRAM and Zswap can cause stalls when poorly sized. A blanket switch would be an unsafe guess.
+
+### Dolphin and Ark reliability
+
+- Retained the targeted workaround for known archive metadata/context-menu stalls while keeping Ark as the dedicated archive opener and 7-Zip/unzip backends installed.
+- Documented the limitation: context-menu compress/extract actions may be absent while the upstream plugin issue persists; archive opening remains available through Ark.
+
+### Cortex GPU and fan telemetry
+
+- Expanded the Graphics Processor row to show the detected adapter model, utilization, active clock, and dedicated VRAM when the kernel/vendor driver exposes those values.
+- Changed the generic fallback from the unhelpful label “GPU” to an explicit telemetry-unavailable message.
+- Kept fan reporting read-only. RPM/percentage appears only when hwmon or NVIDIA driver sensors expose it; systems without readable fan sensors receive a clear firmware/driver limitation instead of fabricated values.
+
+### Memory compression decision
+
+- The current image configuration uses standard-level zstd ZRAM with logical capacity `min(RAM, 8 GiB)`. The logical limit is not preallocated at boot; physical memory is consumed as compressed pages are stored.
+- zstd trades additional CPU work for a better compression ratio than LZ4 on many workloads. That tradeoff is documented rather than presented as a universal win; weak CPUs and sustained memory pressure still need real-device benchmarking.
+- Did not stack zswap on top of ZRAM: zswap requires a separate backing swap device and can add CPU cost when layered over another compressed swap device. A disk-backed zswap profile requires separate benchmarking before it becomes an optional mode.
 
 ### Wi-Fi connection reliability
 
 - Fixed a watchdog logic error that treated NetworkManager's connecting/configuring states as healthy forever, allowing stalled Wi-Fi activation to evade recovery indefinitely.
 - Added a per-adapter stalled-activation counter, a three-minute grace period, and a serialized recovery lock so timer and resume recovery cannot fight each other.
 - Bounded NetworkManager CLI operations to prevent a stuck D-Bus request from holding the recovery helper open indefinitely.
+- Bounded radio-state, saved-profile, scan, and autoconnect queries individually; saved-network inspection is capped to eight profiles, and explicit driver reload commands have time limits so recovery cannot wait forever on one helper call.
 - Removed automatic Wi-Fi driver reload from background/watch/resume recovery. Recovery now stops after a bounded radio reset and reports the failure; driver reload remains available only through explicit force recovery.
 - Preserved saved connection profiles and credentials; the watchdog does not delete networks or alter their security settings.
 
@@ -31,10 +179,13 @@ This is the consolidation release for more than two months of sustained Raptor O
 - Corrected the Proton launcher's MSI handling. UMU accepts an executable as its launch target; passing `wine msiexec` as though UMU were a general Wine command wrapper was incorrect. MSI installers now produce a clear instruction to use standard Wine (`wine msiexec /i installer.msi`), while Proton remains available for executable game launches.
 - Added CI assertions to prevent the optional UMU dependency from blocking the normal Wine installer and to guard against reintroducing the invalid MSI invocation.
 
-### Build reliability and one-time app integration
+### Build reliability and persistent app integration
 
-- Fixed the one-time app installer gate: the image build stages Raptor Music and Shroudly only when requested, and each installer now detects its actual staged application payload instead of relying on a separate marker file that the BlueBuild files module did not deliver to the script stage.
-- Ordinary image builds remain app-payload-free and skip both optional installers. The one-time update build must still verify both applications and all required files inside the published GHCR image before consuming the internal integration lock.
+- Raptor Music and the original upstream Shroudly desktop app are built and staged during every image build. Their installers verify the actual staged payload and safely skip only when a local build intentionally omits CI-generated staging files.
+- The workflow verifies both applications inside the resulting GHCR image instead of relying on a one-time marker or a first-build-only integration lock.
+- Static validation and workflow linting now run before expensive Shroudly and Raptor Music dependency builds, so shell, embedded-Python, and repository-contract failures surface earlier.
+- Removed a stale validator assertion that still required LZ4 after the documented ZRAM switch to zstd; the current validator now checks the actual zstd configuration.
+- After image verification, CI reports the OCI virtual size, largest image layers, and installed filesystem usage. This provides a measurable baseline for future size reduction rather than guessing which dependencies are safe to remove.
 - The build workflow remains the update-image workflow: it pushes the OCI image to GHCR and does not create GitHub Releases or downloadable artifacts. ISO creation remains separate.
 
 ### Choice, compatibility, and distribution improvements
@@ -2017,3 +2168,13 @@ This is the consolidation release for more than two months of sustained Raptor O
 
 - Added a BlueZ startup helper that assigns detected controllers the friendly alias “Raptor OS Bluetooth”, avoiding raw interface names such as hci0 in the user-facing adapter identity.
 - Paired-device cache entries are deliberately preserved; automatic deletion could remove legitimate separate Bluetooth LE/classic identities.
+
+
+### App picker additions
+- Added **Flameshot** as an optional screenshot capture and annotation tool.
+- Added **Save Desktop** as an optional desktop-configuration backup and restore tool.
+- Both remain opt-in Flatpaks; neither adds a default background service or increases the base image footprint.
+
+
+### Raptor app visual consistency
+- Aligned the Raptor Cortex, Raptor Wallpaper, and Raptor Update Manager application icons with the Raptor green-on-graphite identity. App glyphs remain distinct while sharing a consistent accent palette.

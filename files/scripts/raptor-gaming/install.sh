@@ -28,18 +28,8 @@ library-view-sorting=name
 library-view-sorting-ascending=true
 EOF
 
-# ── Steam ────────────────────────────────────────────────────────────�[...]
-mkdir -p /etc/skel/.steam/steam
-cat << 'EOF' > /etc/skel/.steam/steam/steam_dev.cfg
-# Disable HTTP/2 (causes stalled downloads on many routers)
-@nClientDownloadEnableHTTP2PlatformLinux 0
-# More aggressive multi-connection download
-@fDownloadRateImprovementToAddAnotherConnection 1.0
-# Larger disk write buffer
-@cMaxFileSystemWriteBufferSizeBytes 4194304
-# Keep Steam shader pre-caching enabled to reduce first-run shader stutter
-@bEnableShaderPreCaching 1
-EOF
+# Steam retains its own defaults. Avoid globally forcing undocumented
+# download, HTTP/2, or shader-cache settings across different networks.
 
 # ── ulimits ───────────────────────────────────────────────────────────��[...]
 cat << 'EOF' > /etc/security/limits.d/raptor-gaming.conf
@@ -722,11 +712,10 @@ inhibit_screensaver=1
 whitelist=
 blacklist=
 
-[gpu]
-# Standard driver power profiles only; no clock offsets or overclocking.
-apply_gpu_optimisations=accept-responsibility
-amd_performance_level=high
-nv_powermizer_mode=1
+# No global GameMode GPU performance/clock overrides. Feral warns that
+# enabling GPU optimisations is an at-your-own-risk operation and may change
+# hardware performance levels. Raptor leaves GPU policy to the vendor driver
+# and desktop power profile rather than forcing it for every game.
 
 [cpu]
 # Let the kernel scheduler manage affinity and heterogeneous cores.
@@ -780,32 +769,9 @@ GAMEDOC
 
 # ── Input device udev rules ───────────────────────────────────────────────────
 cat << 'INPUTRULES' > /usr/lib/udev/rules.d/61-raptor-input.rules
-# Disable USB autosuspend for all HID input devices (mice, keyboards, pads).
-# Autosuspend saves ~0.5 W but causes 16-500 ms input latency spikes on wake.
-ACTION=="add", SUBSYSTEM=="usb", DRIVERS=="usbhid", \
-    ATTR{power/autosuspend}="-1"
-
-# Disable USB autosuspend for Bluetooth adapters (btusb driver). This is a
-# SEPARATE device from any HID rule above — a Bluetooth mouse/keyboard talks
-# to the OS through this adapter, not as its own USB HID node, so the usbhid
-# rule above never protected it. Applying autosuspend to a Bluetooth adapter
-# is a known way to leave it unresponsive after its next suspend cycle,
-# breaking every Bluetooth input device connected through it until a manual
-# USB reset or reboot. This affects internal laptop Bluetooth chips too —
-# most enumerate as USB devices even though they're physically built in.
-ACTION=="add", SUBSYSTEM=="usb", DRIVERS=="btusb", \
-    ATTR{power/control}="on", \
-    ATTR{power/autosuspend}="-1"
-
-# Disable USB autosuspend for USB audio devices (snd-usb-audio driver).
-# Wireless headset/gaming dongles almost always enumerate as USB audio
-# regardless of the RF protocol used internally — this covers those in
-# addition to any wired USB DAC/audio interface. Autosuspend mid-stream on
-# a USB audio device is a well-known cause of crackling and audio dropouts.
-ACTION=="add", SUBSYSTEM=="usb", DRIVERS=="snd-usb-audio", \
-    ATTR{power/control}="on", \
-    ATTR{power/autosuspend}="-1"
-
+# Preserve kernel USB autosuspend defaults. Blanket autosuspend disable rules
+# can increase idle power draw on laptops; apply device-specific workarounds
+# only when a reproducible controller, Bluetooth or audio issue requires one.
 # uinput: allow user-space to create virtual devices (antimicro, xpadneo, etc.)
 KERNEL=="uinput", SUBSYSTEM=="misc", \
     OPTIONS+="static_node=uinput", TAG+="uaccess", TAG+="udev-acl", \

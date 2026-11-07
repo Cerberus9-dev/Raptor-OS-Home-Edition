@@ -42,20 +42,52 @@ class Task:
 CATEGORIES = ["Personal", "Work", "Gaming", "Shopping", "Ideas", "Other"]
 
 def load_tasks():
+    if not CONFIG_FILE.exists():
+        return []
     try:
-        with open(CONFIG_FILE) as f:
-            data = json.load(f)
-        return [Task.from_dict(t) for t in data]
-    except Exception:
+        with CONFIG_FILE.open(encoding="utf-8") as stream:
+            data = json.load(stream)
+        if not isinstance(data, list):
+            raise ValueError("task file root must be a list")
+        tasks = []
+        for item in data:
+            if not isinstance(item, dict) or not isinstance(item.get("text"), str):
+                raise ValueError("invalid task entry")
+            tasks.append(Task.from_dict(item))
+        return tasks
+    except (OSError, ValueError, TypeError, KeyError, json.JSONDecodeError) as exc:
+        # Never silently treat a damaged file as an empty list: that could
+        # overwrite a user's tasks on the next save.
+        backup = CONFIG_FILE.with_suffix(".json.corrupt")
+        suffix = 1
+        while backup.exists():
+            backup = CONFIG_FILE.with_suffix(f".json.corrupt.{suffix}")
+            suffix += 1
+        try:
+            CONFIG_FILE.replace(backup)
+            print(f"[raptor-tasks] unreadable task data preserved at {backup}: {exc}", file=sys.stderr)
+        except OSError as backup_error:
+            print(f"[raptor-tasks] could not read task data ({exc}) or preserve it ({backup_error})", file=sys.stderr)
         return []
 
 def save_tasks(tasks):
+    CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    temporary = CONFIG_FILE.with_suffix(".json.tmp")
     try:
-        CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
-        with open(CONFIG_FILE, "w") as f:
-            json.dump([t.to_dict() for t in tasks], f, indent=2)
-    except Exception as e:
-        print(f"[raptor-tasks] could not save: {e}", file=sys.stderr)
+        with temporary.open("w", encoding="utf-8") as stream:
+            json.dump([task.to_dict() for task in tasks], stream, indent=2, ensure_ascii=False)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        temporary.replace(CONFIG_FILE)
+        return True
+    except OSError as exc:
+        try:
+            temporary.unlink(missing_ok=True)
+        except OSError:
+            pass
+        print(f"[raptor-tasks] could not save: {exc}", file=sys.stderr)
+        return False
 
 
 class TaskRow(Adw.ActionRow):
@@ -120,6 +152,8 @@ class RaptorTasksWindow(Adw.ApplicationWindow):
         self.tasks = load_tasks()
         self._filtered_tasks = list(self.tasks)
         self._current_category = "All"
+        self._current_status = "All"
+        self._search_text = ""
 
         self._build_ui()
         self._refresh_list()
@@ -140,6 +174,15 @@ class RaptorTasksWindow(Adw.ApplicationWindow):
         self.cat_combo.connect("changed", self._on_category_changed)
         hb.pack_start(self.cat_combo)
 
+        # Status filter
+        self.status_combo = Gtk.ComboBoxText()
+        for status in ("All", "Open", "Completed"):
+            self.status_combo.append(status, status)
+        self.status_combo.set_active_id("All")
+        self.status_combo.set_tooltip_text("Filter by task status")
+        self.status_combo.connect("changed", self._on_status_changed)
+        hb.pack_start(self.status_combo)
+
         # Add task button
         add_btn = Gtk.Button(icon_name="list-add-symbolic")
         add_btn.add_css_class("flat")
@@ -151,12 +194,37 @@ class RaptorTasksWindow(Adw.ApplicationWindow):
         self.toast_overlay.set_vexpand(True)
         root.append(self.toast_overlay)
 
+        body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        self.toast_overlay.set_child(body)
+
+        self.summary_label = Gtk.Label(xalign=0)
+        self.summary_label.add_css_class("dim-label")
+        self.summary_label.set_margin_start(16)
+        self.summary_label.set_margin_end(16)
+        self.summary_label.set_margin_top(8)
+        self.summary_label.set_margin_bottom(4)
+        body.append(self.summary_label)
+
+        self.search_entry = Gtk.SearchEntry()
+        self.search_entry.set_placeholder_text("Search tasks…")
+        self.search_entry.set_margin_start(12)
+        self.search_entry.set_margin_end(12)
+        self.search_entry.connect("search-changed", self._on_search_changed)
+        body.append(self.search_entry)
+
         scroll = Gtk.ScrolledWindow()
         scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
-        self.toast_overlay.set_child(scroll)
+        body.append(scroll)
 
         self.list_box = Gtk.ListBox()
         self.list_box.set_selection_mode(Gtk.SelectionMode.NONE)
+        self.list_box.add_css_class("boxed-list")
+        empty = Adw.StatusPage()
+        empty.set_icon_name("view-list-symbolic")
+        empty.set_title("No tasks yet")
+        empty.set_description("Add a task to start organizing your day.")
+        self.empty_page = empty
+        self.list_box.set_placeholder(self.empty_page)
         scroll.set_child(self.list_box)
 
         # Keyboard shortcuts
@@ -168,10 +236,21 @@ class RaptorTasksWindow(Adw.ApplicationWindow):
             Gtk.ShortcutTrigger.parse_string("<Ctrl>n"),
             Gtk.CallbackAction.new(self._on_add_clicked, None)
         )
-        self.add_shortcut(shortcut)
+        controller = Gtk.ShortcutController()
+        controller.set_scope(Gtk.ShortcutScope.LOCAL)
+        controller.add_shortcut(shortcut)
+        self.add_controller(controller)
 
     def _on_category_changed(self, combo):
         self._current_category = combo.get_active_id() or "All"
+        self._refresh_list()
+
+    def _on_status_changed(self, combo):
+        self._current_status = combo.get_active_id() or "All"
+        self._refresh_list()
+
+    def _on_search_changed(self, entry):
+        self._search_text = entry.get_text().strip().casefold()
         self._refresh_list()
 
     def _refresh_list(self):
@@ -182,11 +261,34 @@ class RaptorTasksWindow(Adw.ApplicationWindow):
             self.list_box.remove(child)
             child = next_child
 
-        # Filter and add
+        # Keep active tasks prominent; apply category, status, and text filters.
+        visible = []
         for task in self.tasks:
-            if self._current_category == "All" or task.category == self._current_category:
-                row = TaskRow(task, self._on_toggle, self._on_delete, self._on_edit)
-                self.list_box.append(row)
+            if self._current_category != "All" and task.category != self._current_category:
+                continue
+            if self._current_status == "Open" and task.done:
+                continue
+            if self._current_status == "Completed" and not task.done:
+                continue
+            if self._search_text and self._search_text not in (task.text + " " + task.category).casefold():
+                continue
+            visible.append(task)
+
+        visible.sort(key=lambda task: (task.done, str(task.text).casefold()))
+        completed = sum(1 for task in self.tasks if task.done)
+        total = len(self.tasks)
+        self.summary_label.set_text(
+            f"{total - completed} open   •   {completed} completed   •   {total} total"
+        )
+        if total == 0:
+            self.empty_page.set_title("No tasks yet")
+            self.empty_page.set_description("Add a task to start organizing your day.")
+        elif not visible:
+            self.empty_page.set_title("No matching tasks")
+            self.empty_page.set_description("Try another search or change the category/status filters.")
+        for task in visible:
+            row = TaskRow(task, self._on_toggle, self._on_delete, self._on_edit)
+            self.list_box.append(row)
 
     def _on_add_clicked(self, *_):
         dialog = TaskEditDialog(self, task=None, on_save=self._on_task_saved)
@@ -198,13 +300,20 @@ class RaptorTasksWindow(Adw.ApplicationWindow):
 
     def _on_toggle(self, row):
         row.task.done = not row.task.done
-        save_tasks(self.tasks)
+        if not save_tasks(self.tasks):
+            row.task.done = not row.task.done
+            self._toast("Couldn't save changes — check file permissions")
+            return
         self._refresh_list()
         self._toast("Task " + ("completed" if row.task.done else "reopened"))
 
     def _on_delete(self, row):
+        previous = list(self.tasks)
         self.tasks = [t for t in self.tasks if t.id != row.task.id]
-        save_tasks(self.tasks)
+        if not save_tasks(self.tasks):
+            self.tasks = previous
+            self._toast("Couldn't save changes — task was not deleted")
+            return
         self._refresh_list()
         self._toast("Task deleted")
 
@@ -214,8 +323,11 @@ class RaptorTasksWindow(Adw.ApplicationWindow):
             self.tasks[existing] = task
         else:
             self.tasks.append(task)
-        save_tasks(self.tasks)
+        if not save_tasks(self.tasks):
+            self._toast("Couldn't save task — check file permissions")
+            return False
         self._refresh_list()
+        return True
 
     def _toast(self, msg):
         toast = Adw.Toast.new(msg)
@@ -228,7 +340,9 @@ class TaskEditDialog(Adw.Window):   # not Adw.Dialog: that has no transient_for/
         super().__init__(transient_for=parent, modal=True)
         self._on_save = on_save
         self._editing = task is not None
-        self._task = task
+        # Edit a working copy. If the atomic save fails, the in-memory task
+        # remains unchanged and the user can retry without losing old values.
+        self._task = Task(task.text, task.category, task.done, task.id) if task else None
         self.set_title("Edit Task" if self._editing else "New Task")
         self.set_default_size(400, 280)
         self._build_ui()
@@ -288,8 +402,8 @@ class TaskEditDialog(Adw.Window):   # not Adw.Dialog: that has no transient_for/
             saved = self._task
         else:
             saved = Task(text, category)
-        self._on_save(saved)
-        self.close()
+        if self._on_save(saved) is not False:
+            self.close()
 
 
 class RaptorTasksApp(Adw.Application):
@@ -334,18 +448,18 @@ cat << 'SVGEOF' > /usr/share/icons/hicolor/scalable/apps/raptor-tasks.svg
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <defs>
     <radialGradient id="bg" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#059669"/>
-      <stop offset="100%" stop-color="#047857"/>
+      <stop offset="0%" stop-color="#203d52"/>
+      <stop offset="100%" stop-color="#0b1118"/>
     </radialGradient>
   </defs>
   <circle cx="32" cy="32" r="30" fill="url(#bg)"/>
-  <circle cx="32" cy="32" r="24" fill="none" stroke="#6ee7b7" stroke-width="1.5"
+  <circle cx="32" cy="32" r="24" fill="none" stroke="#8bd4f1" stroke-width="1.5"
           stroke-dasharray="12 4" stroke-linecap="round"/>
-  <rect x="16" y="18" width="32" height="28" rx="2" fill="none" stroke="#6ee7b7" stroke-width="2"/>
-  <line x1="20" y1="28" x2="44" y2="28" stroke="#6ee7b7" stroke-width="2" stroke-linecap="round"/>
-  <line x1="20" y1="34" x2="36" y2="34" stroke="#6ee7b7" stroke-width="2" stroke-linecap="round"/>
-  <line x1="20" y1="40" x2="32" y2="40" stroke="#6ee7b7" stroke-width="2" stroke-linecap="round"/>
-  <circle cx="48" cy="16" r="8" fill="#f59e0b"/>
+  <rect x="16" y="18" width="32" height="28" rx="2" fill="none" stroke="#8bd4f1" stroke-width="2"/>
+  <line x1="20" y1="28" x2="44" y2="28" stroke="#8bd4f1" stroke-width="2" stroke-linecap="round"/>
+  <line x1="20" y1="34" x2="36" y2="34" stroke="#8bd4f1" stroke-width="2" stroke-linecap="round"/>
+  <line x1="20" y1="40" x2="32" y2="40" stroke="#8bd4f1" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="48" cy="16" r="8" fill="#f5b85c"/>
   <line x1="48" y1="12" x2="48" y2="20" stroke="white" stroke-width="2" stroke-linecap="round"/>
   <line x1="44" y1="16" x2="52" y2="16" stroke="white" stroke-width="2" stroke-linecap="round"/>
 </svg>

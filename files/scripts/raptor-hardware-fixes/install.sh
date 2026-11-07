@@ -21,6 +21,65 @@ set -euo pipefail
 
 mkdir -p /usr/lib/raptor /usr/lib/systemd/system-sleep /usr/lib/modprobe.d
 
+# ── One-time first-login welcome ─────────────────────────────────────────────
+cat > /usr/bin/raptor-welcome.sh <<'WELCOME'
+#!/usr/bin/env bash
+set -euo pipefail
+
+STATE_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/raptor"
+STAMP="$STATE_DIR/welcome-done"
+[[ -e "$STAMP" ]] && exit 0
+mkdir -p "$STATE_DIR"
+
+if ! command -v zenity >/dev/null 2>&1; then
+    logger -t raptor-welcome "zenity unavailable; skipping welcome dialog" 2>/dev/null || true
+    touch "$STAMP"
+    exit 0
+fi
+
+RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}"
+WELCOME_FILE="$(mktemp "$RUNTIME_DIR/raptor-welcome.XXXXXX")"
+trap 'rm -f "$WELCOME_FILE"' EXIT
+cat > "$WELCOME_FILE" <<'WELCOME_TEXT'
+WELCOME TO RAPTOR OS HOME
+
+A more welcoming, capable desktop — built to make your computer feel like yours again.
+
+THE RAPTOR OS APP SUITE
+
+• Raptor Cortex — understand your hardware, monitor system health, and choose
+  power/performance behavior without digging through terminal commands.
+
+• Raptor Update Manager — check for system and application updates in one place.
+
+• Raptor Wallpaper — browse and apply wallpapers from a simple gallery.
+
+• Raptor Music — manage and play your local music library and playlists.
+
+• Shroudly — privacy and connection controls. Features are user-controlled;
+  nothing is silently enabled on your behalf.
+
+• Raptor Wine — run many Windows applications through the familiar Wine workflow.
+  Compatibility varies by application; some games and protected software may not run.
+
+YOUR COMPUTER, YOUR CHOICES
+
+Raptor OS aims to be lightweight, stable, and understandable. Optional apps are
+offered during setup instead of forcing a large software collection onto every PC.
+
+Close or continue whenever you are ready. This welcome screen appears only once
+for this user. The setup choices that follow can be skipped and revisited later.
+WELCOME_TEXT
+
+zenity --text-info --title="Welcome to Raptor OS Home" \
+    --filename="$WELCOME_FILE" --width=760 --height=620 \
+    --ok-label="Continue" || true
+touch "$STAMP"
+WELCOME
+chmod 0755 /usr/bin/raptor-welcome.sh
+bash -n /usr/bin/raptor-welcome.sh
+
+
 # ── Wi-Fi: escalating reconnect (resume | watch | force) ─────────────────────
 cat << 'WIFI' > /usr/lib/raptor/wifi-recover
 #!/bin/bash
@@ -38,30 +97,30 @@ flock -n 9 || exit 0
 nmcli_status() { timeout 5 nmcli "$@" 2>/dev/null; }
 nmcli_status general status >/dev/null || exit 0          # NetworkManager not running
 wifi_devs()  { timeout 5 nmcli -t -f DEVICE,TYPE device 2>/dev/null | awk -F: '$2=="wifi"{print $1}'; }
-dev_state()  { timeout 5 nmcli -t -g GENERAL.STATE device show "$1" 2>/dev/null | head -1; }
+dev_state()  { timeout 5 nmcli -t -g GENERAL.STATE device show "$1" 2>/dev/null | sed -n '1p'; }
 connected()  { [[ "$(dev_state "$1")" == 100* ]]; }
 busy()       { local s; s="$(dev_state "$1")"; [[ "$s" =~ ^(40|50|60|70|80|90)\  ]]; }
-have_profiles() { nmcli -t -f TYPE connection show 2>/dev/null | grep -q '^802-11-wireless$'; }
+have_profiles() { nmcli_status -t -f TYPE connection show | grep -q '^802-11-wireless$'; }
 wait_for()   { local d="$1" t="$2"; while (( t > 0 )); do connected "$d" && return 0; sleep 1; t=$((t-1)); done; return 1; }
 known_in_range() {
     local known scan
-    known="$(timeout 8 nmcli -t -f NAME,TYPE connection show 2>/dev/null | awk -F: '$2=="802-11-wireless"{print $1}' |
-             while read -r n; do timeout 5 nmcli -g 802-11-wireless.ssid connection show "$n" 2>/dev/null; done)"
+    known="$(timeout 8 nmcli -t -f NAME,TYPE connection show 2>/dev/null | awk -F: '$2=="802-11-wireless" && count++ < 8 {print $1}' |
+             while read -r n; do timeout 2 nmcli -g 802-11-wireless.ssid connection show "$n" 2>/dev/null; done)"
     scan="$(timeout 12 nmcli -t -f SSID device wifi list 2>/dev/null | sed 's/\\:/:/g')"
     [[ -n "$known" && -n "$scan" ]] && grep -Fxqf <(printf '%s\n' "$known") <(printf '%s\n' "$scan")
 }
-scan_empty() { [[ -z "$(nmcli -t -f SSID device wifi list 2>/dev/null | tr -d '[:space:]')" ]]; }
+scan_empty() { [[ -z "$(timeout 12 nmcli -t -f SSID device wifi list 2>/dev/null | tr -d '[:space:]')" ]]; }
 
 level1() {  # make sure autoconnect is allowed, then ask NM to connect
     local d="$1"; log "L1: re-enable autoconnect and connect $d"
-    nmcli device set "$d" autoconnect yes 2>/dev/null || true
+    nmcli_status device set "$d" autoconnect yes || true
     timeout 25 nmcli -w 20 device connect "$d" >/dev/null 2>&1 || true
     wait_for "$d" 5
 }
 level2() {  # power-cycle the radio
     local d="$1"; log "L2: power-cycling the Wi-Fi radio ($d)"
-    timeout 8 nmcli radio wifi off 2>/dev/null || true; sleep 2; timeout 8 nmcli radio wifi on 2>/dev/null || true; sleep 3
-    nmcli device set "$d" autoconnect yes 2>/dev/null || true
+    timeout 8 nmcli radio wifi off 2>/dev/null || true; sleep 2; nmcli_status radio wifi on || true; sleep 3
+    nmcli_status device set "$d" autoconnect yes || true
     wait_for "$d" 25
 }
 level3() {  # reload the driver
@@ -70,13 +129,13 @@ level3() {  # reload the driver
     [[ -n "$drv" && "$drv" != "." && "$drv" != "/" ]] || { log "L3: cannot determine driver for $d"; return 1; }
     log "L3: reloading Wi-Fi driver $drv"
     case "$drv" in
-        iwlwifi) modprobe -r iwlmvm iwlmld iwlwifi 2>/dev/null; sleep 2; modprobe iwlwifi 2>/dev/null ;;
-        *)       modprobe -r "$drv" 2>/dev/null; sleep 2; modprobe "$drv" 2>/dev/null ;;
+        iwlwifi) timeout 10 modprobe -r iwlmvm iwlmld iwlwifi 2>/dev/null; sleep 2; timeout 10 modprobe iwlwifi 2>/dev/null ;;
+        *)       timeout 10 modprobe -r "$drv" 2>/dev/null; sleep 2; timeout 10 modprobe "$drv" 2>/dev/null ;;
     esac
     local i=0; until [[ -n "$(wifi_devs)" ]] || (( i++ >= 15 )); do sleep 1; done
     sleep 3
-    for nd in $(wifi_devs); do nmcli device set "$nd" autoconnect yes 2>/dev/null || true; done
-    d="$(wifi_devs | head -1)"; [[ -n "$d" ]] && wait_for "$d" 30
+    for nd in $(wifi_devs); do nmcli_status device set "$nd" autoconnect yes || true; done
+    d="$(wifi_devs | sed -n '1p')"; [[ -n "$d" ]] && wait_for "$d" 30
 }
 
 # Escalate only when there is evidence Wi-Fi SHOULD be working: a known network is
@@ -121,13 +180,13 @@ fi
 for dev in $(wifi_devs); do
     case "$MODE" in
         force)
-            nmcli radio wifi on 2>/dev/null || true
+            nmcli_status radio wifi on || true
             connected "$dev" && { log "force: $dev already connected"; continue; }
             recover force "$dev" && log "force: $dev reconnected" || log "force: $dev still not connected"
             ;;
         resume)
             have_profiles || continue
-            [[ "$(nmcli radio wifi 2>/dev/null)" == enabled ]] || continue   # user turned Wi-Fi off
+            [[ "$(nmcli_status radio wifi)" == enabled ]] || continue   # user turned Wi-Fi off
             [[ "$(cat "$STATE_DIR/wifi-was-connected" 2>/dev/null)" == yes ]] || {
                 log "resume: Wi-Fi was not connected before suspend, not touching it"; continue; }
             sleep 8                                  # give NetworkManager its normal chance
@@ -142,7 +201,7 @@ for dev in $(wifi_devs); do
             ;;
         watch)
             have_profiles || { echo 0 > "$COUNT_FILE"; continue; }
-            [[ "$(nmcli radio wifi 2>/dev/null)" == enabled ]] || { echo 0 > "$COUNT_FILE"; continue; }
+            [[ "$(nmcli_status radio wifi)" == enabled ]] || { echo 0 > "$COUNT_FILE"; continue; }
             if connected "$dev"; then
                 touch "$STATE_DIR/wifi-ever-connected"
                 echo 0 > "$COUNT_FILE"
@@ -386,78 +445,6 @@ esac
 exit 0
 EOF
 chmod +x /usr/lib/systemd/system-sleep/raptor-resume
-
-
-# ── First-login welcome dialog ────────────────────────────────────────────────
-# A single, dismissible introduction shown once per user.
-cat > /usr/bin/raptor-welcome.sh <<'WELCOME'
-#!/usr/bin/env bash
-set -euo pipefail
-
-STATE_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/raptor"
-STAMP="$STATE_DIR/welcome-done"
-[[ -e "$STAMP" ]] && exit 0
-
-mkdir -p "$STATE_DIR"
-if ! command -v zenity >/dev/null 2>&1; then
-    logger -t raptor-welcome "zenity is unavailable; skipping welcome dialog" 2>/dev/null || true
-    touch "$STAMP"
-    exit 0
-fi
-
-RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}"
-WELCOME_FILE="$(mktemp "$RUNTIME_DIR/raptor-welcome.XXXXXX")"
-trap 'rm -f "$WELCOME_FILE"' EXIT
-
-cat > "$WELCOME_FILE" <<'WELCOME_TEXT'
-WELCOME TO RAPTOR OS HOME
-
-A more welcoming, capable Linux desktop — built to make your computer feel like yours again.
-
-THE RAPTOR OS APP SUITE
-
-• Raptor Cortex
-  Performance, memory, graphics, and power controls in one place. Choose balanced,
-  power-saving, or performance behavior without juggling terminal commands.
-
-• Raptor Update Manager
-  Check for system and application updates through a straightforward desktop workflow.
-
-• Raptor Wallpaper
-  Browse and apply wallpapers without digging through desktop settings.
-
-• Raptor Music
-  A local music player for your own audio library and playlists.
-
-• Shroudly
-  Connection privacy controls. Nothing is activated automatically; you decide when
-  to use its features.
-
-• Raptor Wine
-  Run many Windows applications using the familiar Wine workflow. Compatibility
-  varies by application, and some games or software may still have restrictions.
-
-YOUR COMPUTER, YOUR CHOICES
-
-Raptor OS aims to be lightweight, stable, and understandable. Optional browsers,
-chat clients, and applications are offered during setup rather than forcing a large
-collection of software onto every installation.
-
-You can close this window at any time. The welcome screen appears only once for
-this user. The setup choices that follow can be skipped and revisited later.
-WELCOME_TEXT
-
-# Closing the window is a valid dismissal; do not trap the user in a welcome loop.
-zenity --text-info \
-    --title="Welcome to Raptor OS Home" \
-    --filename="$WELCOME_FILE" \
-    --width=760 --height=620 \
-    --ok-label="Continue" || true
-
-touch "$STAMP"
-WELCOME
-chmod 0755 /usr/bin/raptor-welcome.sh
-bash -n /usr/bin/raptor-welcome.sh
 
 # ── Timer: Wi-Fi watchdog + LED binding after boot ───────────────────────────
 cat << 'EOF' > /usr/lib/systemd/system/raptor-hardware.service

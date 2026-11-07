@@ -19,25 +19,25 @@ cat << 'SVGEOF' > /usr/share/icons/hicolor/scalable/apps/raptor-cortex.svg
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <defs>
     <radialGradient id="bg" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#7c3aed"/>
-      <stop offset="100%" stop-color="#4c1d95"/>
+      <stop offset="0%" stop-color="#33ff33"/>
+      <stop offset="100%" stop-color="#07170b"/>
     </radialGradient>
     <radialGradient id="core" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#c4b5fd"/>
-      <stop offset="100%" stop-color="#7c3aed"/>
+      <stop offset="0%" stop-color="#c8ffd0"/>
+      <stop offset="100%" stop-color="#33ff33"/>
     </radialGradient>
   </defs>
   <circle cx="32" cy="32" r="30" fill="url(#bg)"/>
-  <circle cx="32" cy="32" r="24" fill="none" stroke="#a78bfa" stroke-width="1.5"
+  <circle cx="32" cy="32" r="24" fill="none" stroke="#69e886" stroke-width="1.5"
           stroke-dasharray="12 4" stroke-linecap="round"/>
-  <line x1="32" y1="10" x2="32" y2="18" stroke="#c4b5fd" stroke-width="2" stroke-linecap="round"/>
-  <line x1="32" y1="46" x2="32" y2="54" stroke="#c4b5fd" stroke-width="2" stroke-linecap="round"/>
-  <line x1="10" y1="32" x2="18" y2="32" stroke="#c4b5fd" stroke-width="2" stroke-linecap="round"/>
-  <line x1="46" y1="32" x2="54" y2="32" stroke="#c4b5fd" stroke-width="2" stroke-linecap="round"/>
-  <line x1="16.7" y1="16.7" x2="22.4" y2="22.4" stroke="#c4b5fd" stroke-width="1.5" stroke-linecap="round"/>
-  <line x1="41.6" y1="41.6" x2="47.3" y2="47.3" stroke="#c4b5fd" stroke-width="1.5" stroke-linecap="round"/>
-  <line x1="47.3" y1="16.7" x2="41.6" y2="22.4" stroke="#c4b5fd" stroke-width="1.5" stroke-linecap="round"/>
-  <line x1="22.4" y1="41.6" x2="16.7" y2="47.3" stroke="#c4b5fd" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="32" y1="10" x2="32" y2="18" stroke="#c8ffd0" stroke-width="2" stroke-linecap="round"/>
+  <line x1="32" y1="46" x2="32" y2="54" stroke="#c8ffd0" stroke-width="2" stroke-linecap="round"/>
+  <line x1="10" y1="32" x2="18" y2="32" stroke="#c8ffd0" stroke-width="2" stroke-linecap="round"/>
+  <line x1="46" y1="32" x2="54" y2="32" stroke="#c8ffd0" stroke-width="2" stroke-linecap="round"/>
+  <line x1="16.7" y1="16.7" x2="22.4" y2="22.4" stroke="#c8ffd0" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="41.6" y1="41.6" x2="47.3" y2="47.3" stroke="#c8ffd0" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="47.3" y1="16.7" x2="41.6" y2="22.4" stroke="#c8ffd0" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="22.4" y1="41.6" x2="16.7" y2="47.3" stroke="#c8ffd0" stroke-width="1.5" stroke-linecap="round"/>
   <circle cx="32" cy="32" r="9" fill="url(#core)"/>
   <path d="M 29 26 L 35 26 L 33 31 L 36 31 L 29 40 L 31 33 L 28 33 Z"
         fill="white" opacity="0.95"/>
@@ -366,11 +366,11 @@ case "$ACTION" in
                 # only the radio hardware powers down during idle periods.
                 _apply_net_runtime_pm auto
 
-                # Wi-Fi / Bluetooth power save is deliberately NOT forced on here.
-                # 802.11 power save and Bluetooth sniff/park modes cause missed
-                # reconnects, dropped links and dead adapters after resume on many
-                # laptops. NetworkManager owns Wi-Fi power save (wifi.powersave=2 in
-                # 91-raptor-network.conf) and BlueZ owns Bluetooth link policy.
+                # NetworkManager's normal Wi-Fi power-save default is retained.
+                # Users with adapter-specific reconnect/latency problems can opt in
+                # to disabling it from Settings → Wi-Fi Compatibility. That workaround
+                # is not forced globally because it can reduce laptop battery life.
+                # BlueZ continues to own Bluetooth link policy.
 
                 # Display backlight is deliberately NOT touched here. This used to write
                 # 50% of max straight into /sys/class/backlight every time the mode was
@@ -484,6 +484,50 @@ case "$ACTION" in
         ;;
 
     # ── Background restoration after gaming ────────────────────────────────
+    wifi-powersave)
+        # Adapter-specific compatibility workaround. Keep upstream power-save
+        # and scan-MAC defaults unless the user explicitly opts out in Cortex.
+        MODE="${2:-}"
+        CONF_DIR="${RAPTOR_NM_CONF_DIR:-/etc/NetworkManager/conf.d}"
+        CONF="$CONF_DIR/91-raptor-wifi-powersave.conf"
+        BACKUP="$(mktemp)"
+        HAD_CONFIG=0
+        if [ -f "$CONF" ]; then
+            cp -a "$CONF" "$BACKUP"
+            HAD_CONFIG=1
+        fi
+        case "$MODE" in
+            disable)
+                install -d -m 0755 "$CONF_DIR"
+                TMP_CONF="$(mktemp "$CONF_DIR/.raptor-wifi-powersave.XXXXXX")"
+                printf '[connection]\nwifi.powersave=2\n' > "$TMP_CONF"
+                chmod 0644 "$TMP_CONF"
+                mv -f "$TMP_CONF" "$CONF"
+                ;;
+            default)
+                rm -f "$CONF"
+                ;;
+            *)
+                rm -f "$BACKUP"
+                echo "Usage: cortex-helper wifi-powersave <disable|default>" >&2
+                exit 2
+                ;;
+        esac
+        if ! timeout 10s nmcli general reload conf; then
+            if [ "$HAD_CONFIG" = "1" ]; then
+                mv -f "$BACKUP" "$CONF"
+            else
+                rm -f "$CONF"
+            fi
+            timeout 10s nmcli general reload conf >/dev/null 2>&1 || true
+            rm -f "$BACKUP"
+            echo "NetworkManager could not reload its configuration; previous setting restored." >&2
+            exit 1
+        fi
+        rm -f "$BACKUP"
+        echo "Wi-Fi power-save preference saved. Reconnect to Wi-Fi for the active connection to adopt it."
+        ;;
+
     restore-background)
         # A mode switch at boot must not send SIGCONT to unrelated processes.
         # Only restore work if this session actually entered Game Mode.
@@ -1171,8 +1215,12 @@ def get_gpu_name():
 
 
 def get_gpu_usage(sys_root="/sys"):
-    """Return (busy_percent, clock_mhz) for the first GPU that reports them; either may be None."""
-    busy = clock = None
+    """Return utilization and clock for the best available hardware telemetry source.
+
+    Prefer NVIDIA's vendor interface when present, then AMD sysfs counters,
+    then Intel frequency telemetry. This avoids accidentally displaying the
+    integrated GPU's clock beside a discrete GPU's name on hybrid laptops.
+    """
     drm = os.path.join(sys_root, "class/drm")
     try:
         cards = sorted(d for d in os.listdir(drm) if re.fullmatch(r"card\d+", d))
@@ -1186,47 +1234,122 @@ def get_gpu_usage(sys_root="/sys"):
         except OSError:
             return None
 
+    amd_metrics = None
+    intel_metrics = None
     for card in cards:
         dev = os.path.join(drm, card, "device")
-        b = rd(os.path.join(dev, "gpu_busy_percent"))                      # AMD
-        if b is not None and b.isdigit():
-            busy = int(b)
-        sclk = rd(os.path.join(dev, "pp_dpm_sclk"))                        # AMD: line marked with '*'
-        if sclk:
-            for line in sclk.splitlines():
-                m = re.search(r"(\d+)\s*[Mm][Hh][Zz]\s*\*", line)
-                if m:
-                    clock = int(m.group(1))
-        if clock is None:                                                  # Intel
+        vendor = (rd(os.path.join(dev, "vendor")) or "").lower()
+        if vendor == "0x1002" and amd_metrics is None:
+            busy = rd(os.path.join(dev, "gpu_busy_percent"))
+            clock = None
+            sclk = rd(os.path.join(dev, "pp_dpm_sclk"))
+            if sclk:
+                for line in sclk.splitlines():
+                    m = re.search(r"(\d+)\s*[Mm][Hh][Zz]\s*\*", line)
+                    if m:
+                        clock = int(m.group(1))
+                        break
+            amd_metrics = (
+                int(busy) if busy and busy.isdigit() else None,
+                clock,
+            )
+        elif vendor == "0x8086" and intel_metrics is None:
+            clock = None
             for rel in ("gt_cur_freq_mhz", "gt/gt0/rps_cur_freq_mhz"):
-                v = rd(os.path.join(drm, card, rel))
-                if v and v.isdigit():
-                    clock = int(v)
+                value = rd(os.path.join(dev, rel))
+                if value and value.isdigit():
+                    clock = int(value)
                     break
-        if busy is not None or clock is not None:
-            return busy, clock
-    if sys_root == "/sys":                                                 # NVIDIA
+            if clock is not None:
+                intel_metrics = (None, clock)
+
+    if sys_root == "/sys":
         try:
             r = subprocess.run(
                 ["nvidia-smi", "--query-gpu=utilization.gpu,clocks.gr",
                  "--format=csv,noheader,nounits"],
                 capture_output=True, text=True, timeout=2)
             if r.returncode == 0:
-                a, b = [x.strip() for x in r.stdout.splitlines()[0].split(",")[:2]]
-                return int(a), int(b)
-        except Exception:
+                rows = []
+                for line in r.stdout.splitlines():
+                    fields = [x.strip() for x in line.split(",")]
+                    if len(fields) >= 2:
+                        load = int(fields[0]) if fields[0].isdigit() else None
+                        clock = int(fields[1]) if fields[1].isdigit() else None
+                        if load is not None or clock is not None:
+                            rows.append((load, clock))
+                if rows:
+                    return rows[0]
+        except (OSError, subprocess.TimeoutExpired, ValueError):
             pass
+
+    if amd_metrics and any(value is not None for value in amd_metrics):
+        return amd_metrics
+    if intel_metrics:
+        return intel_metrics
     return None, None
 
 
+def get_gpu_memory():
+    """Return VRAM usage for every supported discrete adapter with exposed counters."""
+    rows = []
+
+    # NVIDIA exposes one row per adapter through nvidia-smi.
+    try:
+        r = subprocess.run(
+            ["nvidia-smi", "--query-gpu=memory.used,memory.total",
+             "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=2)
+        if r.returncode == 0:
+            for index, line in enumerate(r.stdout.splitlines()):
+                fields = [part.strip() for part in line.split(",")]
+                if len(fields) >= 2 and all(x.isdigit() for x in fields[:2]):
+                    rows.append(
+                        f"NVIDIA GPU {index}: {int(fields[0])} / {int(fields[1])} MB"
+                    )
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+
+    # AMD's dedicated VRAM counters are present only on devices that expose
+    # them. Check the PCI vendor ID so unrelated DRM devices are never read
+    # as AMD VRAM, and keep all AMD adapters instead of stopping at card0.
+    try:
+        drm = "/sys/class/drm"
+        cards = sorted(x for x in os.listdir(drm) if re.fullmatch(r"card\d+", x))
+        for card in cards:
+            dev = os.path.join(drm, card, "device")
+            try:
+                with open(os.path.join(dev, "vendor")) as f:
+                    vendor = f.read().strip().lower()
+                if vendor != "0x1002":
+                    continue
+                with open(os.path.join(dev, "mem_info_vram_used")) as f:
+                    used = int(f.read().strip())
+                with open(os.path.join(dev, "mem_info_vram_total")) as f:
+                    total = int(f.read().strip())
+                if total > 0:
+                    rows.append(
+                        f"AMD {card}: {used // (1024 * 1024)} / "
+                        f"{total // (1024 * 1024)} MB"
+                    )
+            except (OSError, ValueError):
+                continue
+    except OSError:
+        pass
+
+    return "; ".join(rows) if rows else None
+
 def get_gpu_summary():
-    """One line for the stats panel: 'Phoenix1 · 12% · 800 MHz'."""
+    """Show the detected adapter model and every metric the driver exposes."""
     busy, clock = get_gpu_usage()
     parts = [get_gpu_name()]
     if busy is not None:
-        parts.append(f"{busy}%")
+        parts.append(f"Load {busy}%")
     if clock is not None:
         parts.append(f"{clock} MHz")
+    memory = get_gpu_memory()
+    if memory:
+        parts.append(f"VRAM {memory}")
     return " · ".join(parts)
 
 
@@ -1633,7 +1756,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.set_title("Raptor Cortex")
-        self.set_default_size(700, 940)
+        self.set_default_size(1040, 760)
         self._running = False
         self._suspended_now = []
         self._cortex_patterns = load_cortex_config()
@@ -1644,31 +1767,49 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         self._mode_btns = {}
         self._toast_overlay = None
         self._build_ui()
-        GLib.timeout_add_seconds(5, self._refresh_stats)
+        GLib.timeout_add_seconds(8, self._refresh_stats)
         # First reading happens after the window is on screen (on a worker thread).
         GLib.idle_add(lambda: (self._refresh_stats(), False)[1])
 
     def _build_ui(self):
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.set_content(root)
-        root.append(Adw.HeaderBar())
 
-        # Toast overlay wraps the scrollable content
+        # A real multi-page control center: overview, graphics, games,
+        # optimization and settings. ViewStack keeps each page lightweight and
+        # avoids one extremely long preferences screen.
+        self._view_stack = Adw.ViewStack()
+        self._view_stack.set_vexpand(True)
+        switcher = Adw.ViewSwitcher()
+        switcher.set_stack(self._view_stack)
+        switcher.set_policy(Adw.ViewSwitcherPolicy.WIDE)
+        header = Adw.HeaderBar()
+        header.set_title_widget(switcher)
+        root.append(header)
+
         self._toast_overlay = Adw.ToastOverlay()
         self._toast_overlay.set_vexpand(True)
         root.append(self._toast_overlay)
+        self._toast_overlay.set_child(self._view_stack)
 
-        scroll = Gtk.ScrolledWindow()
-        scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
-        scroll.set_vexpand(True)
-        self._toast_overlay.set_child(scroll)
+        def add_page(name, title):
+            page_scroll = Gtk.ScrolledWindow()
+            page_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+            page_scroll.set_vexpand(True)
+            page_content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+            page_content.set_margin_top(20)
+            page_content.set_margin_bottom(20)
+            page_content.set_margin_start(20)
+            page_content.set_margin_end(20)
+            page_scroll.set_child(page_content)
+            self._view_stack.add_titled(page_scroll, name, title)
+            return page_content
 
-        content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
-        content.set_margin_top(20)
-        content.set_margin_bottom(20)
-        content.set_margin_start(20)
-        content.set_margin_end(20)
-        scroll.set_child(content)
+        content = add_page("overview", "Overview")
+        graphics_content = add_page("graphics", "Graphics")
+        games_content = add_page("games", "Games")
+        memory_content = add_page("optimize", "Optimize")
+        settings_content = add_page("settings", "Settings")
 
         self.mode_banner = Adw.Banner()
         self.mode_banner.set_revealed(True)
@@ -1677,6 +1818,11 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
 
         stats_group = Adw.PreferencesGroup(title="System Memory")
         content.append(stats_group)
+
+        gpu_telemetry_group = Adw.PreferencesGroup(
+            title="GPU telemetry",
+            description="Live readings from the graphics driver. Unsupported sensors are simply omitted.")
+        graphics_content.append(gpu_telemetry_group)
 
         ram_row = Adw.ActionRow(title="RAM Usage")
         self.ram_bar = Gtk.LevelBar()
@@ -1718,15 +1864,16 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         self.gpu_temp_label = Gtk.Label(label="…")
         self.gpu_temp_label.add_css_class("dim-label")
         self.gpu_temp_row.add_suffix(self.gpu_temp_label)
-        stats_group.add(self.gpu_temp_row)
+        gpu_telemetry_group.add(self.gpu_temp_row)
 
-        self.gpu_info_row = Adw.ActionRow(title="GPU")
+        self.gpu_info_row = Adw.ActionRow(title="Graphics Processor")
+        self.gpu_info_row.set_subtitle("Model, utilization, clock and dedicated memory when exposed by the driver")
         self.gpu_info_label = Gtk.Label(label="…")
         self.gpu_info_label.add_css_class("dim-label")
         self.gpu_info_label.set_wrap(True)
         self.gpu_info_label.set_justify(Gtk.Justification.RIGHT)
         self.gpu_info_row.add_suffix(self.gpu_info_label)
-        stats_group.add(self.gpu_info_row)
+        gpu_telemetry_group.add(self.gpu_info_row)
 
         # Read-only fan information — Cortex never writes fan speed or curves.
         self.fan_row = Adw.ActionRow(title="Fans")
@@ -1736,7 +1883,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         self.fan_label.set_wrap(True)
         self.fan_label.set_justify(Gtk.Justification.RIGHT)
         self.fan_row.add_suffix(self.fan_label)
-        stats_group.add(self.fan_row)
+        gpu_telemetry_group.add(self.fan_row)
 
         self.cpu_freq_row = Adw.ActionRow(title="CPU Frequency")
         self.cpu_freq_label = Gtk.Label(label="…")
@@ -1823,7 +1970,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
                 self._gfx_rows[key] = (row, check)
             self._refresh_gpu_profile()
 
-        content.append(gfx_group)
+        graphics_content.append(gfx_group)
 
         # ── Game Library ─────────────────────────────────────────────────────────
         # The primary, front-and-centre feature: add a game once, then launch
@@ -1833,7 +1980,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         game_group = Adw.PreferencesGroup(title="Game Library")
         game_group.set_description(
             "Launch a game from here to boost automatically and monitor it live.")
-        content.append(game_group)
+        games_content.append(game_group)
         self._game_group = game_group
         self._game_rows = {}       # game id -> (Adw.ActionRow, monitor_labels dict)
         self._active_monitor = None  # ProcessMonitor for the currently-running tracked game
@@ -1871,7 +2018,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         opts_group = Adw.PreferencesGroup(title="Optimize Memory")
         opts_group.set_description(
             "Quick Optimize covers the common case. Advanced options are available below if you want finer control.")
-        content.append(opts_group)
+        memory_content.append(opts_group)
 
         # Quick Optimize — pressure-aware and deliberately non-disruptive
         quick_row = Adw.ActionRow(title="One-Click Boost")
@@ -1908,7 +2055,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         cortex_group = Adw.PreferencesGroup(title="Raptor Cortex — Game Mode")
         cortex_group.set_description(
             "Selected services are suspended when any game launches and resumed when it exits.")
-        content.append(cortex_group)
+        games_content.append(cortex_group)
 
         self._service_switches = {}
         for name, pattern in ALL_SERVICES:
@@ -1922,7 +2069,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
 
         self.result_group = Adw.PreferencesGroup(title="Last Optimization")
         self.result_group.set_visible(False)
-        content.append(self.result_group)
+        memory_content.append(self.result_group)
 
         self.result_row = Adw.ActionRow()
         self.result_row.set_title("Freed")
@@ -1933,7 +2080,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
 
         self.sus_group = Adw.PreferencesGroup(title="Currently Suspended")
         self.sus_group.set_visible(False)
-        content.append(self.sus_group)
+        games_content.append(self.sus_group)
 
         self.sus_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         self.sus_group.add(self.sus_box)
@@ -1979,7 +2126,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         persist_group = Adw.PreferencesGroup(title="Persistent Settings")
         persist_group.set_description(
             "These settings survive reboots and are applied automatically.")
-        content.append(persist_group)
+        settings_content.append(persist_group)
 
         self.boot_mode_row = Adw.SwitchRow()
         self.boot_mode_row.set_title("Apply selected mode on every boot")
@@ -1997,12 +2144,27 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         self.auto_restore_row.connect("notify::active", self._on_setting_toggle, "auto_restore_after_game")
         persist_group.add(self.auto_restore_row)
 
+        # ── Network compatibility ──────────────────────────────────────────────
+        network_group = Adw.PreferencesGroup(title="Wi-Fi Compatibility")
+        network_group.set_description(
+            "Leave adapter power management at its normal default unless a specific Wi-Fi adapter has reconnect or latency problems.")
+        settings_content.append(network_group)
+
+        self.wifi_powersave_row = Adw.SwitchRow()
+        self.wifi_powersave_row.set_title("Disable Wi-Fi power saving")
+        self.wifi_powersave_row.set_subtitle(
+            "Compatibility workaround for affected adapters. May reduce battery life; reconnect to Wi-Fi after changing.")
+        self.wifi_powersave_row.set_active(
+            os.path.isfile("/etc/NetworkManager/conf.d/91-raptor-wifi-powersave.conf"))
+        self.wifi_powersave_row.connect("notify::active", self._on_wifi_powersave_toggle)
+        network_group.add(self.wifi_powersave_row)
+
         # ── Scheduled Cleanup ─────────────────────────────────────────────────
         sched_group = Adw.PreferencesGroup(title="Scheduled Memory Cleanup")
         sched_group.set_description(
             "Automatically run memory optimization in the background on a timer. "
             "Useful for long gaming sessions where browser memory grows over time.")
-        content.append(sched_group)
+        settings_content.append(sched_group)
 
         self.sched_enable_row = Adw.SwitchRow()
         self.sched_enable_row.set_title("Enable scheduled cleanup")
@@ -2031,7 +2193,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
 
         btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
         btn_box.set_halign(Gtk.Align.CENTER)
-        content.append(btn_box)
+        memory_content.append(btn_box)
 
         self.run_btn = Gtk.Button(label="Quick Optimize")
         self.run_btn.add_css_class("suggested-action")
@@ -2221,6 +2383,37 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         threading.Thread(
             target=save_persistent_settings, args=(self._settings,), daemon=True
         ).start()
+
+    def _on_wifi_powersave_toggle(self, row, _param):
+        if getattr(self, "_wifi_powersave_busy", False):
+            return
+        active = row.get_active()
+        row.set_sensitive(False)
+        self._wifi_powersave_busy = True
+
+        def worker():
+            mode = "disable" if active else "default"
+            proc = run_cortex_helper("wifi-powersave", mode, timeout=15)
+            if proc.returncode == 0:
+                message = ("Wi-Fi power saving disabled. Reconnect to apply; battery life may decrease."
+                           if active else "Wi-Fi power saving returned to the NetworkManager default.")
+                GLib.idle_add(self._finish_wifi_powersave_toggle, row, active, True, message)
+            else:
+                detail = (proc.stderr or proc.stdout or "Unknown error").strip()
+                GLib.idle_add(self._finish_wifi_powersave_toggle, row, active, False,
+                              "Could not change Wi-Fi power saving: " + detail[:220])
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _finish_wifi_powersave_toggle(self, row, active, ok, message):
+        row.set_sensitive(True)
+        self._wifi_powersave_busy = False
+        if not ok:
+            self._wifi_powersave_busy = True
+            row.set_active(not active)
+            self._wifi_powersave_busy = False
+        self._show_toast(message)
+        return False
 
     # ── Scheduled Cleanup handlers ─────────────────────────────────────────────
 
@@ -2698,7 +2891,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
             "cpu_t": (get_cpu_temp, None),
             "freq": (get_cpu_freq_mhz, None),
             "gpu_t": (get_gpu_temp, None),
-            "gpu_info": (get_gpu_summary, "GPU"),
+            "gpu_info": (get_gpu_summary, "Telemetry unavailable — check the graphics driver"),
             "fans": (get_fan_info, []),
         }
         busy = self.__dict__.setdefault("_stats_busy", set())
@@ -2793,7 +2986,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         if "fans" in d:
             fans = d["fans"]
             self.fan_label.set_text(
-                "\n".join(f"{n}: {t}" for n, t in fans) if fans else "No fan sensors detected")
+                "\n".join(f"{n}: {t}" for n, t in fans) if fans else "No readable fan sensor exposed by the firmware or driver")
 
         if "freq" in d:
             freq = d["freq"]

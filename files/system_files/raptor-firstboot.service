@@ -1,5 +1,5 @@
 [Unit]
-Description=Raptor OS First-Boot Setup Dialogs
+Description=Raptor OS Welcome and First-Boot Setup
 # Wait for Plasma shell to be running — GUI dialogs need it
 After=plasma-plasmashell.service
 # XDG_RUNTIME_DIR is set in every Wayland AND X11 user session
@@ -15,7 +15,7 @@ ConditionPathExists=|!%h/.local/share/raptor/app-choice-done
 [Service]
 Type=oneshot
 # Each script checks its own stamp and exits 0 immediately if already done,
-# so it is safe to call the welcome and setup dialogs on every login until complete.
+# so it is safe to call all dialogs on every login until all are complete.
 ExecStart=/usr/bin/raptor-welcome.sh
 ExecStart=/usr/bin/raptor-browser-choice.sh
 ExecStart=/usr/bin/raptor-chat-choice.sh
@@ -32,8 +32,8 @@ StandardError=journal
 # candidate — the scripts it runs need broad access that most sandboxing
 # directives would break outright. All three ExecStart lines run under the
 # same service unit, so hardening has to accommodate the most permissive of
-# them (raptor-app-choice.sh's sudo requirement) even though the other two
-# scripts alone wouldn't need it:
+# them (raptor-app-choice.sh's sudo requirement) even though the welcome and
+# browser/chat scripts alone wouldn't need it:
 #
 #   NoNewPrivileges  — NOT SET: raptor-app-choice.sh calls `sudo rpm-ostree
 #     install` for a handful of optional packages (gcc/make/cmake, gh,

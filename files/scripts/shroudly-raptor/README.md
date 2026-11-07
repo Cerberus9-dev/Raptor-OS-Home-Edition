@@ -9,9 +9,9 @@ Raptor OS packages the original upstream **Shroudly** Linux desktop application 
 
 ## v3.0.0 integration
 
-The first successful v3.0.0 main-branch image build fetches the pinned submodule, installs the Node dependencies, runs the upstream core tests and verification build, compiles the Linux Advanced-mode engine, and packages the original Electron desktop app. The image installer stages the app under `/opt/Shroudly`, installs the upstream polkit policy and icon, and adds a desktop entry.
+The first successful v3.0.0 main-branch image build fetches the pinned submodule, installs the Node dependencies, runs the upstream core tests and verification build, compiles the Linux Advanced-mode engine, and packages the original Electron desktop app. The image installer stages the complete Electron app and its resources under `/usr/lib/raptor/shroudly` (inside the immutable image), installs a `/usr/bin/shroudly` wrapper that launches the adjacent Electron executable, and adds the upstream polkit policy, icon, and desktop entry. `/opt` is intentionally avoided because Fedora Atomic redirects it to mutable `/var/opt`, which is not included in the committed image.
 
-The integration is deliberately one-time. Pull requests build and test the app but do not stage it into the image. The first successful v3.0.0 main-branch image build stages it alongside Raptor Music and creates the permanent `raptor-one-time-apps-consumed` tag only after the image is successfully built and pushed. Later image builds skip both payloads.
+The integration is repeatable: every image build fetches the pinned upstream source, builds and tests the application, and includes the complete Shroudly payload alongside Raptor Music. The final image verification checks the launcher, Electron `app.asar`, unpacked Linux engines, desktop entry, policy, and icon.
 
 Installation does not enable a background service, login autostart, or automatically change the system proxy. Shroudly starts only when the user launches it; proxy/protection modes remain user-controlled and Advanced mode requests administrator authorization through the upstream polkit action.
 

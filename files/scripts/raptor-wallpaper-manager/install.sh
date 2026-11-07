@@ -157,6 +157,41 @@ cat << 'SVGEOF' > /usr/share/wallpapers/RaptorOS/raptor-horizon.svg
 </svg>
 SVGEOF
 
+cat << 'SVGEOF' > /usr/share/wallpapers/RaptorOS/raptor-flightdeck.svg
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080">
+  <defs>
+    <linearGradient id="bg" x2="1" y2="1"><stop offset="0" stop-color="#080f18"/><stop offset="0.55" stop-color="#101e2b"/><stop offset="1" stop-color="#080e16"/></linearGradient>
+    <radialGradient id="glow"><stop offset="0" stop-color="#58b8e8" stop-opacity=".16"/><stop offset="1" stop-color="#58b8e8" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#bg)"/>
+  <circle cx="960" cy="510" r="560" fill="url(#glow)"/>
+  <g stroke="#47718b" stroke-width="1" opacity=".18">
+    <path d="M0 180H1920M0 360H1920M0 540H1920M0 720H1920M0 900H1920"/>
+    <path d="M160 0V1080M400 0V1080M640 0V1080M880 0V1080M1120 0V1080M1360 0V1080M1600 0V1080M1840 0V1080"/>
+  </g>
+  <g fill="none" stroke="#58b8e8" opacity=".5">
+    <circle cx="960" cy="520" r="340" stroke-width="1.5"/><circle cx="960" cy="520" r="270" stroke-dasharray="5 12"/><circle cx="960" cy="520" r="185" stroke-dasharray="2 10"/>
+    <path d="M960 130V910M570 520H1350" stroke-dasharray="3 12"/>
+  </g>
+  <g fill="none" stroke="#8bd4f1" stroke-width="3" stroke-linejoin="round" opacity=".9">
+    <path d="M960 300 L985 405 L1085 465 L1195 520 L1095 545 L1010 520 L990 655 L1030 725 L960 695 L890 725 L930 655 L910 520 L825 545 L725 520 L835 465 L935 405 Z"/>
+    <path d="M960 300V695M935 405L960 430L985 405M910 520L960 550L1010 520" opacity=".55"/>
+  </g>
+  <g fill="#d4e2ed" font-family="sans-serif" letter-spacing="5">
+    <text x="112" y="112" font-size="24" opacity=".9">RAPTOR OS / FLIGHT DECK</text>
+    <text x="112" y="151" font-size="13" opacity=".5">AEROSPACE DESKTOP ENVIRONMENT</text>
+    <text x="1808" y="112" font-size="16" text-anchor="end" opacity=".75">SYSTEMS NOMINAL</text>
+    <text x="1808" y="146" font-size="12" text-anchor="end" fill="#65c98f" opacity=".9">READY</text>
+    <text x="112" y="950" font-size="13" opacity=".55">NAV / ORIENTATION</text>
+    <text x="112" y="986" font-size="18" opacity=".9">N 37 14 / W 115 48</text>
+    <text x="1808" y="950" font-size="13" text-anchor="end" opacity=".55">FLIGHT SYSTEMS</text>
+    <text x="1808" y="986" font-size="18" text-anchor="end" opacity=".9">RAPTOR / V3</text>
+  </g>
+  <g stroke="#f5b85c" stroke-width="2" opacity=".65"><path d="M112 205h82m-82 8h46M1726 205h82m-46 8h46M112 860h82m-82 8h46M1726 860h82m-46 8h46"/></g>
+  <g fill="#9aabba" font-family="monospace" font-size="12" opacity=".5"><text x="960" y="190" text-anchor="middle">N</text><text x="960" y="875" text-anchor="middle">S</text><text x="560" y="525" text-anchor="middle">W</text><text x="1360" y="525" text-anchor="middle">E</text></g>
+</svg>
+SVGEOF
+
 echo "Bundled wallpapers written."
 
 # ── raptor-wallpaper Python app ────────────────────────────────────────────────
@@ -175,6 +210,7 @@ import os
 import subprocess
 import sys
 import threading
+import shutil
 from pathlib import Path
 
 CONFIG_FILE = Path.home() / ".config" / "raptor-wallpaper.json"
@@ -193,21 +229,52 @@ FILL_MODES = [
 
 def load_config() -> dict:
     defaults = {"image": None, "fill_mode": 0}
+    if not CONFIG_FILE.exists():
+        return defaults
     try:
-        with open(CONFIG_FILE) as f:
-            defaults.update(json.load(f))
-    except Exception:
-        pass
+        with CONFIG_FILE.open(encoding="utf-8") as stream:
+            stored = json.load(stream)
+        if not isinstance(stored, dict):
+            raise ValueError("wallpaper settings must be a JSON object")
+        image = stored.get("image")
+        mode = stored.get("fill_mode", 0)
+        if image is not None and not isinstance(image, str):
+            raise ValueError("saved wallpaper path is invalid")
+        if not isinstance(mode, int) or mode not in {value for _, value in FILL_MODES}:
+            raise ValueError("saved wallpaper fit mode is invalid")
+        defaults.update({"image": image, "fill_mode": mode})
+    except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
+        backup = CONFIG_FILE.with_suffix(".json.corrupt")
+        suffix = 1
+        while backup.exists():
+            backup = CONFIG_FILE.with_suffix(f".json.corrupt.{suffix}")
+            suffix += 1
+        try:
+            CONFIG_FILE.replace(backup)
+            print(f"[raptor-wallpaper] invalid settings preserved at {backup}: {exc}", file=sys.stderr)
+        except OSError as backup_error:
+            print(f"[raptor-wallpaper] could not read settings ({exc}) or preserve them ({backup_error})", file=sys.stderr)
     return defaults
 
 
-def save_config(cfg: dict):
+def save_config(cfg: dict) -> bool:
+    CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    temporary = CONFIG_FILE.with_suffix(".json.tmp")
     try:
-        CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
-        with open(CONFIG_FILE, "w") as f:
-            json.dump(cfg, f, indent=2)
-    except Exception as e:
-        print(f"[raptor-wallpaper] could not save config: {e}", file=sys.stderr)
+        with temporary.open("w", encoding="utf-8") as stream:
+            json.dump(cfg, stream, indent=2)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        temporary.replace(CONFIG_FILE)
+        return True
+    except OSError as exc:
+        try:
+            temporary.unlink(missing_ok=True)
+        except OSError:
+            pass
+        print(f"[raptor-wallpaper] could not save config: {exc}", file=sys.stderr)
+        return False
 
 
 def scan_gallery_images():
@@ -215,20 +282,23 @@ def scan_gallery_images():
     ~/Pictures/Wallpapers, most-recently-modified first within each group."""
     images = []
 
-    if BUNDLED_DIR.is_dir():
-        images.extend(sorted(
-            p for p in BUNDLED_DIR.iterdir()
-            if p.suffix.lower() in IMAGE_EXTS
-        ))
-
-    for folder in (Path.home() / "Pictures", Path.home() / "Pictures" / "Wallpapers"):
-        if folder.is_dir():
-            found = sorted(
-                (p for p in folder.iterdir() if p.suffix.lower() in IMAGE_EXTS),
-                key=lambda p: p.stat().st_mtime,
-                reverse=True,
-            )
-            images.extend(found)
+    folders = (BUNDLED_DIR, Path.home() / "Pictures", Path.home() / "Pictures" / "Wallpapers")
+    for index, folder in enumerate(folders):
+        if not folder.is_dir():
+            continue
+        try:
+            candidates = [p for p in folder.iterdir() if p.is_file() and p.suffix.lower() in IMAGE_EXTS]
+            if index == 0:
+                images.extend(sorted(candidates))
+            else:
+                def modified(path):
+                    try:
+                        return path.stat().st_mtime
+                    except OSError:
+                        return 0
+                images.extend(sorted(candidates, key=modified, reverse=True))
+        except OSError as exc:
+            print(f"[raptor-wallpaper] cannot scan {folder}: {exc}", file=sys.stderr)
 
     seen = set()
     unique = []
@@ -240,11 +310,47 @@ def scan_gallery_images():
     return unique
 
 
+def apply_lockscreen_wallpaper(image_path):
+    """Set the Plasma lock-screen image without changing the desktop wallpaper."""
+    path = Path(image_path).expanduser()
+    if not path.is_file() or path.suffix.lower() not in IMAGE_EXTS:
+        return False, "Choose an existing supported image file"
+    writer = shutil.which("kwriteconfig6")
+    if not writer:
+        return False, "KDE configuration utility kwriteconfig6 is unavailable"
+    base = [
+        writer, "--file", "kscreenlockerrc",
+        "--group", "Greeter", "--group", "Wallpaper",
+        "--group", "org.kde.image", "--group", "General",
+    ]
+    try:
+        plugin = subprocess.run(
+            [writer, "--file", "kscreenlockerrc", "--group", "Greeter",
+             "--key", "WallpaperPlugin", "org.kde.image"],
+            capture_output=True, text=True, timeout=10,
+        )
+        if plugin.returncode != 0:
+            return False, plugin.stderr.strip() or "Could not configure the lock-screen image plugin"
+        for key in ("Image", "PreviewImage"):
+            result = subprocess.run(
+                base + ["--key", key, str(path)],
+                capture_output=True, text=True, timeout=10,
+            )
+            if result.returncode != 0:
+                return False, result.stderr.strip() or f"Could not save lock-screen {key}"
+        return True, "Lock-screen wallpaper saved. Lock the screen again to see the change."
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return False, f"Could not update lock-screen settings: {exc}"
+
+
 def apply_wallpaper(image_path, fill_mode):
     """Apply the wallpaper via KDE's scripting bridge (sets both Image and
     FillMode together). Falls back to plasma-apply-wallpaperimage — which
     sets the image only, with whatever fill mode Plasma currently has — if
     the scripting bridge is unavailable for any reason."""
+    image_path = os.path.abspath(os.fspath(image_path))
+    if not os.path.isfile(image_path) or Path(image_path).suffix.lower() not in IMAGE_EXTS:
+        return False, "Select an existing supported image file"
     # The path is embedded in a JavaScript string that Plasma evaluates, and in
     # a URL. Both must be escaped: a filename containing a quote, backslash, '#'
     # or '%' used to break the script (or inject into it) and fail silently.
@@ -341,6 +447,7 @@ class RaptorWallpaperWindow(Adw.ApplicationWindow):
         self._selected_path = self._cfg.get("image")
         self._fill_mode = self._cfg.get("fill_mode", 0)
         self._cards = []
+        self._search_text = ""
 
         self._build_ui()
         self._populate_gallery()
@@ -374,8 +481,18 @@ class RaptorWallpaperWindow(Adw.ApplicationWindow):
         scroll.set_child(content)
 
         gallery_label = Gtk.Label(label="Choose a wallpaper", xalign=0)
-        gallery_label.add_css_class("title-3")
+        gallery_label.add_css_class("title-2")
         content.append(gallery_label)
+
+        self.preview = Gtk.Picture()
+        self.preview.set_content_fit(Gtk.ContentFit.CONTAIN)
+        self.preview.set_size_request(-1, 190)
+        self.preview.add_css_class("card")
+        content.append(self.preview)
+
+        self.selected_label = Gtk.Label(label="No wallpaper selected", xalign=0)
+        self.selected_label.add_css_class("heading")
+        content.append(self.selected_label)
 
         subtitle = Gtk.Label(
             label="Click any thumbnail to preview it, then Apply below. "
@@ -390,9 +507,20 @@ class RaptorWallpaperWindow(Adw.ApplicationWindow):
         self.flow_box.set_max_children_per_line(4)
         self.flow_box.set_min_children_per_line(2)
         self.flow_box.set_selection_mode(Gtk.SelectionMode.NONE)
+        self.flow_box.set_filter_func(self._filter_wallpaper_card)
+        empty = Adw.StatusPage()
+        empty.set_icon_name("image-missing-symbolic")
+        empty.set_title("No matching wallpapers")
+        empty.set_description("Try a different search or browse for an image.")
+        self.flow_box.set_placeholder(empty)
         self.flow_box.set_row_spacing(12)
         self.flow_box.set_column_spacing(12)
         content.append(self.flow_box)
+
+        self.gallery_search = Gtk.SearchEntry()
+        self.gallery_search.set_placeholder_text("Search wallpapers…")
+        self.gallery_search.connect("search-changed", self._on_gallery_search_changed)
+        content.insert_child_after(self.gallery_search, subtitle)
 
         options_group = Adw.PreferencesGroup(title="Display Options")
         content.append(options_group)
@@ -414,11 +542,17 @@ class RaptorWallpaperWindow(Adw.ApplicationWindow):
         btn_box.set_margin_top(4)
         content.append(btn_box)
 
-        self.apply_btn = Gtk.Button(label="Apply Wallpaper")
+        self.apply_btn = Gtk.Button(label="Apply Desktop Wallpaper")
         self.apply_btn.add_css_class("suggested-action")
         self.apply_btn.add_css_class("pill")
         self.apply_btn.connect("clicked", self._on_apply_clicked)
         btn_box.append(self.apply_btn)
+
+        self.lock_btn = Gtk.Button(label="Apply to Lock Screen")
+        self.lock_btn.add_css_class("pill")
+        self.lock_btn.set_tooltip_text("Use the selected image for the KDE lock screen without changing the desktop wallpaper")
+        self.lock_btn.connect("clicked", self._on_lock_clicked)
+        btn_box.append(self.lock_btn)
 
         self.spinner = Gtk.Spinner()
         btn_box.append(self.spinner)
@@ -441,6 +575,18 @@ class RaptorWallpaperWindow(Adw.ApplicationWindow):
             self.get_display(), css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
         )
 
+    def _on_gallery_search_changed(self, entry):
+        self._search_text = entry.get_text().strip().casefold()
+        self.flow_box.invalidate_filter()
+
+    def _filter_wallpaper_card(self, child):
+        card = child.get_child()
+        if not card:
+            return False
+        if not self._search_text:
+            return True
+        return self._search_text in card.image_path.name.casefold()
+
     def _populate_gallery(self):
         for image_path in scan_gallery_images():
             self._add_card(image_path)
@@ -460,6 +606,8 @@ class RaptorWallpaperWindow(Adw.ApplicationWindow):
         for c in self._cards:
             c.set_selected(c is card)
         self._selected_path = str(card.image_path)
+        self.preview.set_filename(self._selected_path)
+        self.selected_label.set_text(card.image_path.name)
 
     def _on_browse_clicked(self, _btn):
         dialog = Gtk.FileChooserDialog(
@@ -487,12 +635,22 @@ class RaptorWallpaperWindow(Adw.ApplicationWindow):
     def _on_file_chosen(self, dialog, response):
         if response == Gtk.ResponseType.OK:
             file = dialog.get_file()
-            if file:
-                path = Path(file.get_path())
-                card = WallpaperCard(path, self._on_card_selected)
-                self.flow_box.prepend(card)
-                self._cards.insert(0, card)
-                self._select_card(card)
+            raw_path = file.get_path() if file else None
+            if not raw_path:
+                self._toast("That image location cannot be opened")
+            else:
+                path = Path(raw_path)
+                if not path.is_file() or path.suffix.lower() not in IMAGE_EXTS:
+                    self._toast("Choose a supported image file")
+                else:
+                    existing = next((card for card in self._cards if card.image_path.resolve() == path.resolve()), None)
+                    if existing:
+                        self._select_card(existing)
+                    else:
+                        card = WallpaperCard(path, self._on_card_selected)
+                        self.flow_box.prepend(card)
+                        self._cards.insert(0, card)
+                        self._select_card(card)
         dialog.close()
 
     def _on_fill_mode_changed(self, row, _param):
@@ -505,13 +663,15 @@ class RaptorWallpaperWindow(Adw.ApplicationWindow):
             self._toast("Select a wallpaper first")
             return
 
+        selected_path = self._selected_path
+        fill_mode = self._fill_mode
         self.apply_btn.set_sensitive(False)
         self.spinner.start()
 
         def worker():
-            ok, msg = apply_wallpaper(self._selected_path, self._fill_mode)
-            if ok:
-                save_config({"image": self._selected_path, "fill_mode": self._fill_mode})
+            ok, msg = apply_wallpaper(selected_path, fill_mode)
+            if ok and not save_config({"image": selected_path, "fill_mode": fill_mode}):
+                msg += " (settings could not be saved)"
             GLib.idle_add(self._on_apply_done, ok, msg)
 
         threading.Thread(target=worker, daemon=True).start()
@@ -519,6 +679,28 @@ class RaptorWallpaperWindow(Adw.ApplicationWindow):
     def _on_apply_done(self, ok, msg):
         self.spinner.stop()
         self.apply_btn.set_sensitive(True)
+        self.lock_btn.set_sensitive(True)
+        self._toast(msg)
+
+    def _on_lock_clicked(self, _btn):
+        if not self._selected_path or not Path(self._selected_path).is_file():
+            self._toast("Select an existing wallpaper first")
+            return
+        selected_path = self._selected_path
+        self.apply_btn.set_sensitive(False)
+        self.lock_btn.set_sensitive(False)
+        self.spinner.start()
+
+        def worker():
+            ok, msg = apply_lockscreen_wallpaper(selected_path)
+            GLib.idle_add(self._on_lock_done, ok, msg)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_lock_done(self, ok, msg):
+        self.spinner.stop()
+        self.apply_btn.set_sensitive(True)
+        self.lock_btn.set_sensitive(True)
         self._toast(msg)
 
     def _toast(self, msg):
@@ -546,8 +728,8 @@ def main():
         image_path = os.path.abspath(sys.argv[2])
         cfg = load_config()
         ok, msg = apply_wallpaper(image_path, cfg.get("fill_mode", 0))
-        if ok:
-            save_config({"image": image_path, "fill_mode": cfg.get("fill_mode", 0)})
+        if ok and not save_config({"image": image_path, "fill_mode": cfg.get("fill_mode", 0)}):
+            msg += " (settings could not be saved)"
         print(msg)
         sys.exit(0 if ok else 1)
 
@@ -588,25 +770,25 @@ cat << 'SVGEOF' > /usr/share/icons/hicolor/scalable/apps/raptor-wallpaper.svg
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <defs>
     <radialGradient id="bg" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#7c3aed"/>
-      <stop offset="100%" stop-color="#4c1d95"/>
+      <stop offset="0%" stop-color="#58b8e8"/>
+      <stop offset="100%" stop-color="#0b1118"/>
     </radialGradient>
   </defs>
   <circle cx="32" cy="32" r="30" fill="url(#bg)"/>
-  <circle cx="32" cy="32" r="24" fill="none" stroke="#a78bfa" stroke-width="1.5"
+  <circle cx="32" cy="32" r="24" fill="none" stroke="#8bd4f1" stroke-width="1.5"
           stroke-dasharray="12 4" stroke-linecap="round"/>
-  <line x1="32" y1="10" x2="32" y2="18" stroke="#c4b5fd" stroke-width="2" stroke-linecap="round"/>
-  <line x1="32" y1="46" x2="32" y2="54" stroke="#c4b5fd" stroke-width="2" stroke-linecap="round"/>
-  <line x1="10" y1="32" x2="18" y2="32" stroke="#c4b5fd" stroke-width="2" stroke-linecap="round"/>
-  <line x1="46" y1="32" x2="54" y2="32" stroke="#c4b5fd" stroke-width="2" stroke-linecap="round"/>
-  <line x1="16.7" y1="16.7" x2="22.4" y2="22.4" stroke="#c4b5fd" stroke-width="1.5" stroke-linecap="round"/>
-  <line x1="41.6" y1="41.6" x2="47.3" y2="47.3" stroke="#c4b5fd" stroke-width="1.5" stroke-linecap="round"/>
-  <line x1="47.3" y1="16.7" x2="41.6" y2="22.4" stroke="#c4b5fd" stroke-width="1.5" stroke-linecap="round"/>
-  <line x1="22.4" y1="41.6" x2="16.7" y2="47.3" stroke="#c4b5fd" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="32" y1="10" x2="32" y2="18" stroke="#d4e2ed" stroke-width="2" stroke-linecap="round"/>
+  <line x1="32" y1="46" x2="32" y2="54" stroke="#d4e2ed" stroke-width="2" stroke-linecap="round"/>
+  <line x1="10" y1="32" x2="18" y2="32" stroke="#d4e2ed" stroke-width="2" stroke-linecap="round"/>
+  <line x1="46" y1="32" x2="54" y2="32" stroke="#d4e2ed" stroke-width="2" stroke-linecap="round"/>
+  <line x1="16.7" y1="16.7" x2="22.4" y2="22.4" stroke="#d4e2ed" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="41.6" y1="41.6" x2="47.3" y2="47.3" stroke="#d4e2ed" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="47.3" y1="16.7" x2="41.6" y2="22.4" stroke="#d4e2ed" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="22.4" y1="41.6" x2="16.7" y2="47.3" stroke="#d4e2ed" stroke-width="1.5" stroke-linecap="round"/>
   <rect x="21" y="22" width="22" height="20" rx="2" fill="white" opacity="0.95"/>
   <rect x="23.5" y="24.5" width="17" height="15" fill="url(#bg)"/>
-  <circle cx="35.5" cy="28.5" r="2.2" fill="#c4b5fd"/>
-  <path d="M 23.5 39.5 L 29 32 L 33 36 L 37 30 L 40.5 39.5 Z" fill="#c4b5fd"/>
+  <circle cx="35.5" cy="28.5" r="2.2" fill="#d4e2ed"/>
+  <path d="M 23.5 39.5 L 29 32 L 33 36 L 37 30 L 40.5 39.5 Z" fill="#d4e2ed"/>
 </svg>
 SVGEOF
 
