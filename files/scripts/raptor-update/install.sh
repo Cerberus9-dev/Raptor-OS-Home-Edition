@@ -177,184 +177,64 @@ chmod +x /usr/lib/raptor/update-helper
 
 cat << 'EOF' > /usr/lib/raptor/check-helper
 #!/bin/bash
-# Refresh rpm-ostree's remote metadata and cache the result *in the current
-# deployment's cached-update field*, which `rpm-ostree status --json` then
-# reports. Without this step the field stays empty (or stale) and the GUI
-# answers "no updates" even when a new base image push exists.
+# Reliable OCI-aware update detection.
 #
-# Every attempt is time-bounded so the GUI's update check can NEVER hang
-# forever on a stalled network — the worst case is a bounded run of timed-out
-# attempts with a clear message (which the GUI streams live into its console).
+# rpm-ostree upgrade --check can report "no update" on container-native
+# images even while a normal upgrade finds a newer image. This is an upstream
+# limitation of the check-only path. Resolve the same transaction as a normal
+# upgrade, but use --download-only so Check never creates a deployment,
+# changes the boot default, or reboots. --unchanged-exit-77 distinguishes the
+# no-update case from a successfully resolved/downloaded update.
 #
-# How `rpm-ostree upgrade --check` reports a *successful* check varies between
-# builds and platforms: some signal a clean "nothing new" with exit 77 (KDE
-# Discover's backend), others with exit 0 (container-native and rpm-md builds,
-# see coreos/rpm-ostree #4891). A bare numeric code is therefore never trusted
-# on its own — a printed verdict ("No updates available." or "AvailableUpdate:")
-# is ground truth, and only genuinely failed or timed-out attempts are retried.
-#
-# Even that verdict is NOT enough on container-native images (Bazzite /
-# BlueBuild): rpm-ostree can print "No updates available." while a new image
-# was just pushed (coreos/rpm-ostree #1579, #4891, #4711). When the check
-# completes without announcing an update we therefore cross-verify the *booted
-# image digest* against the digest the remote tag resolves to right now — the
-# same ground truth ublue-update uses. A mismatch means a new image exists.
-# Budgets are overridable so the retry/timeout paths can be exercised in
-# seconds instead of the 7+ real-world minutes. The defaults below are the
-# shipped values; nothing in the OS sets these.
-MAX_ATTEMPTS="${RAPTOR_CHECK_MAX_ATTEMPTS:-3}"
-ATTEMPT_TIMEOUT="${RAPTOR_CHECK_ATTEMPT_TIMEOUT:-150}"  # seconds per metadata pull
-RETRY_SLEEP="${RAPTOR_CHECK_RETRY_SLEEP:-5}"           # seconds between attempts
+# A check can therefore download the image layers (reusing the cache when
+# possible). The Update button subsequently runs the ordinary upgrade command
+# to create the pending deployment.
+MAX_ATTEMPTS="${RAPTOR_CHECK_MAX_ATTEMPTS:-2}"
+ATTEMPT_TIMEOUT="${RAPTOR_CHECK_ATTEMPT_TIMEOUT:-900}"  # image downloads may be large
+RETRY_SLEEP="${RAPTOR_CHECK_RETRY_SLEEP:-5}"
 
-echo "Raptor OS Update Check — starting metadata refresh"
-
-# Connectivity probe (best-effort; don't fail if unreachable, the rpm-ostree
-# attempt will surface the real error)
-if curl -sf --connect-timeout 5 https://ghcr.io/ >/dev/null 2>&1; then
-    echo "Connectivity to ghcr.io OK."
-else
-    echo "WARNING: no reachable connectivity to ghcr.io yet — refresh may fail."
-fi
-
-# Prints "AvailableUpdate:" (and exits 0) when the registry tag now points at
-# a digest different from the one the system is booted on. Silent no-op (exit
-# 0) when the machine is not container-native, when a prerequisite is missing,
-# or when the comparison cannot be made — the rpm-ostree verdict stands then.
-registry_cross_check() {
-    command -v skopeo >/dev/null 2>&1 || { echo "NOTE: registry digest cross-check skipped (skopeo not installed)."; return 0; }
-    command -v jq     >/dev/null 2>&1 || { echo "NOTE: registry digest cross-check skipped (jq not installed)."; return 0; }
-
-    local json origin ref local_digest host path tag aw remote_digest tmp
-
-    json="$(timeout 60 rpm-ostree status --json 2>/dev/null)" || { echo "Registry cross-check: status --json failed — skipped."; return 0; }
-    [ -n "$json" ] || { echo "Registry cross-check: empty status — skipped."; return 0; }
-
-    origin="$(printf '%s' "$json" | jq -r '.deployments[0].origin // empty')"
-    [ -n "$origin" ] || { echo "Registry cross-check: no deployment origin — skipped."; return 0; }
-
-    # Classic (non-container) refs like "fedora:fedora/42/x86_64/kinoite" are
-    # answered reliably by rpm-ostree itself — nothing to cross-check.
-    case "$origin" in
-        ostree-image-signed:docker://*|ostree-unverified-image:docker://*)
-            ref="${origin#*docker://}" ;;
-        ostree-image-signed:registry:*|ostree-unverified-image:registry:*|ostree-unverified-registry:*)
-            ref="${origin#*registry:}" ;;
-        ostree-image-signed:*|ostree-unverified-image:*)
-            ref="${origin#*:}" ;;
-        *) return 0 ;;
-    esac
-    ref="${ref%@sha256:*}"  # drop a digest pin; compare against the moving tag
-
-    local_digest="$(printf '%s' "$json" | jq -r \
-        '.deployments[0]["container-image-reference-digest"]
-         // .deployments[0]["base-commit-meta"]["ostree.manifest-digest"]
-         // empty')"
-    [ -n "$local_digest" ] || { echo "Registry cross-check: no local image digest — skipped."; return 0; }
-
-    host="${ref%%/*}"
-    path="${ref#*/}"
-    if [[ "$path" == *":"* ]]; then
-        tag="${path##*:}"
-        path="${path%:*}"
-    else
-        tag="latest"
-    fi
-
-    case "$(uname -m)" in
-        x86_64)  aw="amd64" ;;
-        aarch64) aw="arm64" ;;
-        armv7hl) aw="arm" ;;
-        *)       aw="$(uname -m)" ;;
-    esac
-
-    tmp="$(mktemp)"
-    remote_digest=""
-    # Registry pull works on a raw manifest-list: pick the entry for OUR arch
-    # (filtering out cosign attestation entries via mediaType), so the digest
-    # is comparable with the per-arch digest rpm-ostree recorded locally.
-    if timeout 45 skopeo inspect --raw "docker://${host}/${path}:${tag}" >"$tmp" 2>/dev/null; then
-        if jq -e '.manifests' "$tmp" >/dev/null 2>&1; then
-            remote_digest="$(jq -r --arg a "$aw" \
-                '.manifests[] |
-                 select(.platform.os == "linux" and .platform.architecture == $a) |
-                 select((.mediaType // "") | test("oci.image.manifest|distribution.manifest")) |
-                 .digest // empty' "$tmp" | head -n 1)"
-        else
-            remote_digest="$(timeout 45 skopeo inspect --format '{{.Digest}}' \
-                "docker://${host}/${path}:${tag}" 2>/dev/null)"
-        fi
-    fi
-    rm -f "$tmp"
-
-    if [ -z "$remote_digest" ]; then
-        echo "Registry cross-check: could not resolve ${host}/${path}:${tag} — skipped."
-        return 0
-    fi
-
-    if [ "$remote_digest" != "$local_digest" ]; then
-        echo "──────────────────────────────────────────────"
-        echo "New image available:"
-        echo "  booted ${local_digest}"
-        echo "  remote ${remote_digest}"
-        echo "AvailableUpdate:"
-        echo "  A new Raptor OS image was pushed to ${host}/${path}:${tag}."
-        return 0
-    fi
-    echo "Registry digest matches the booted image — no new image pushed."
-    return 0
-}
-
-verdict=0  # 1 once *any* check attempt completed cleanly
+echo "Raptor OS Update Check — resolving the real upgrade transaction"
 for try in $(seq 1 "${MAX_ATTEMPTS}"); do
-    echo "── Metadata refresh attempt ${try}/${MAX_ATTEMPTS} ──"
-    # rpm-ostree owns its transaction lock. Do not remove lock files: a busy
-    # response means another operation is active, and the safe response is retry.
-    # Stream the check output live to the GUI (tee) while keeping a copy for
-    # the verdict check; PIPESTATUS[0] is timeout/rpm-ostree's real exit code.
+    echo "── Update resolution attempt ${try}/${MAX_ATTEMPTS} ──"
     out="$(mktemp)"
-    timeout "${ATTEMPT_TIMEOUT}" rpm-ostree upgrade --check 2>&1 | tee "$out"
+    timeout "${ATTEMPT_TIMEOUT}" rpm-ostree upgrade --download-only --unchanged-exit-77 2>&1 | tee "$out"
     rc=${PIPESTATUS[0]}
 
-    # An explicit update announcement is unambiguous — report it immediately.
-    if grep -qiE "AvailableUpdate|Available update" "$out"; then
+    if [ "$rc" -eq 77 ]; then
         rm -f "$out"
+        echo "No upgrade available."
         exit 0
     fi
 
-    # "No updates available." means the check *ran* — but on container-native
-    # images this verdict cannot be trusted (see header), so finish cleanly and
-    # let the registry cross-check confirm it. NotFound-free + rc 0/77 counts
-    # the same way (bare codes alone are never treated as "update present").
-    if grep -qiE "no updates? available|no upgrade available" "$out"; then
+    if [ "$rc" -eq 0 ]; then
+        if grep -qiE "no updates? available|no upgrade available" "$out"; then
+            rm -f "$out"
+            echo "No upgrade available."
+            exit 0
+        fi
         rm -f "$out"
-        verdict=1
-        break
-    fi
-    rm -f "$out"
-
-    if [ "$rc" -eq 0 ] || [ "$rc" -eq 77 ]; then
-        verdict=1
-        break
+        echo "Update image resolved and downloaded; no deployment was created."
+        echo "AvailableUpdate:"
+        echo "A system update is available. Select Update & Reboot to stage it."
+        exit 0
     fi
 
     if [ "$rc" -eq 124 ]; then
-        echo "Metadata refresh timed out after ${ATTEMPT_TIMEOUT} s — retrying…"
+        echo "Update resolution timed out after ${ATTEMPT_TIMEOUT} seconds."
     else
-        echo "Metadata refresh did not complete (exit ${rc}) — retrying…"
+        echo "Update resolution failed (exit ${rc})."
     fi
-    sleep "${RETRY_SLEEP}"
+    tail -n 8 "$out" || true
+    rm -f "$out"
+
+    if [ "$try" -lt "$MAX_ATTEMPTS" ]; then
+        echo "Retrying in ${RETRY_SLEEP} seconds…"
+        sleep "$RETRY_SLEEP"
+    fi
 done
 
-if [ "$verdict" -eq 0 ]; then
-    echo "Could not refresh remote metadata after ${MAX_ATTEMPTS} attempts."
-    echo "Check your connection, then try again."
-    exit 1
-fi
-
-# Check completed without announcing an update — confirm against the registry
-# so a fresh image push is never missed on container-native systems.
-registry_cross_check
-exit 0
+echo "Could not resolve the update transaction. No deployment was changed."
+exit 1
 EOF
 chmod +x /usr/lib/raptor/check-helper
 
@@ -477,7 +357,7 @@ SUDOERS_FILE          = "/etc/sudoers.d/raptor-update"
 # bounds itself to 3 × 150 s attempts + back-off, so this always outlives it —
 # the outer bound is a safety net so a stuck network can never hang the GUI
 # forever, and the helper output is streamed live meanwhile.
-CHECK_TIMEOUT         = 660
+CHECK_TIMEOUT         = 1860
 
 # Comprehensive ANSI/VT100 escape sequence stripper:
 #   CSI  ESC [ <params> <letter>
@@ -537,7 +417,7 @@ def _local_update_signal():
         # cached-update is a bool on older rpm-ostree and a dict on newer.
         for deployment in deployments:
             if deployment.get("cached-update"):
-                return True, "A system update is available."
+                return True, "A system update is available; its image is downloaded."
         # A staged-but-not-booted deployment: the newest deployment (index 0)
         # is not the one currently booted, so a newer base image is already
         # on disk — only a reboot is missing.
