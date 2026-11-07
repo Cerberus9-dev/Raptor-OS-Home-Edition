@@ -234,7 +234,7 @@ assert_contains .github/workflows/build.yml 'Build and test custom Raptor Shroud
 assert_contains .github/workflows/build.yml 'cargo build --release --workspace --manifest-path files/scripts/shroudly-raptor/Cargo.toml'
 assert_contains .github/workflows/build.yml 'cargo test --workspace --manifest-path files/scripts/shroudly-raptor/Cargo.toml'
 assert_contains .github/workflows/build.yml 'files/staging/raptor-shroudly'
-assert_contains .github/workflows/build.yml 'Verify both custom Raptor app payloads'
+assert_contains .github/workflows/build.yml 'Verify both apps inside the published image'
 assert_contains .github/workflows/build.yml '/usr/bin/raptor-shroudly'
 assert_contains files/scripts/shroudly-raptor/crates/shroudly-raptor/Cargo.toml 'slint = "1.5"'
 assert_contains files/scripts/shroudly-raptor/crates/shroudly-raptor/src/gui.rs 'RAPTOR / SHROUDLY'
