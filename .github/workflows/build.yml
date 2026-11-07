@@ -95,13 +95,6 @@ jobs:
           chmod +x .github/scripts/validate.sh
           .github/scripts/validate.sh
 
-      - name: Build and test custom Raptor Shroudly
-        run: |
-          cargo build --release --workspace --manifest-path files/scripts/shroudly-raptor/Cargo.toml
-          cargo test --workspace --manifest-path files/scripts/shroudly-raptor/Cargo.toml
-          install -Dm755 files/scripts/shroudly-raptor/target/release/shroudly-raptor files/staging/raptor-shroudly
-          test -x files/staging/raptor-shroudly
-
 
       - name: Check signing secret
         if: github.event_name != 'pull_request'
@@ -155,6 +148,13 @@ jobs:
 
       - name: Test Raptor Music workspace
         run: cargo test --workspace --manifest-path files/scripts/raptor-music/Cargo.toml
+
+      - name: Build and test custom Raptor Shroudly
+        run: |
+          cargo build --release --workspace --manifest-path files/scripts/shroudly-raptor/Cargo.toml
+          cargo test --workspace --manifest-path files/scripts/shroudly-raptor/Cargo.toml
+          install -Dm755 files/scripts/shroudly-raptor/target/release/shroudly-raptor files/staging/raptor-shroudly
+          test -x files/staging/raptor-shroudly
 
       - name: Verify and include Raptor app payloads in the image context
         run: |
