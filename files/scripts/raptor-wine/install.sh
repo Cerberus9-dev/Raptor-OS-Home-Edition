@@ -100,6 +100,94 @@ esac
 PROTON
 chmod 0755 /usr/bin/raptor-wine-proton
 
+# Desktop launches must not block Dolphin/Plasma while Wine creates its first
+# prefix or UMU downloads its runtime/Proton distribution. Keep terminal use
+# synchronous; these wrappers are only for file-manager/application launches.
+cat <<'LAUNCH' > /usr/lib/raptor/launch-windows-app
+#!/usr/bin/env bash
+set -euo pipefail
+mode="${1:-wine}"
+shift || true
+if [[ $# -lt 1 || ! -f "$1" ]]; then
+  echo "Raptor ${mode}: select an existing Windows executable." >&2
+  command -v notify-send >/dev/null 2>&1 && notify-send --app-name="Raptor OS" "Windows app not started" "The selected executable could not be found."
+  exit 2
+fi
+target="$1"
+shift
+state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/raptor"
+mkdir -p "$state_dir"
+chmod 700 "$state_dir"
+stamp="$(date +%Y%m%d-%H%M%S)"
+log="$state_dir/${mode}-${stamp}-$.log"
+case "$mode" in
+  wine) command=(/usr/bin/raptor-wine "$target" "$@"); label="Raptor Wine" ;;
+  proton) command=(/usr/bin/raptor-wine-proton "$target" "$@"); label="Raptor Proton" ;;
+  *) echo "Unknown Raptor compatibility mode: $mode" >&2; exit 2 ;;
+esac
+# Detach from the file manager. Capture every diagnostic and notify only if
+# startup/application execution returns a failure status.
+(
+  set +e
+  "${command[@]}" >>"$log" 2>&1
+  status=$?
+  if (( status != 0 )); then
+    printf '\nRaptor launcher exit status: %s\n' "$status" >>"$log"
+    if command -v notify-send >/dev/null 2>&1; then
+      notify-send --app-name="Raptor OS" --urgency=critical "$label could not start" "Exit code $status. See $log"
+    fi
+  fi
+) </dev/null >/dev/null 2>&1 &
+exit 0
+LAUNCH
+chmod 0755 /usr/lib/raptor/launch-windows-app
+
+cat <<'OPENWINE' > /usr/bin/raptor-wine-open
+#!/usr/bin/env bash
+exec /usr/lib/raptor/launch-windows-app wine "$@"
+OPENWINE
+cat <<'OPENPROTON' > /usr/bin/raptor-proton-open
+#!/usr/bin/env bash
+exec /usr/lib/raptor/launch-windows-app proton "$@"
+OPENPROTON
+chmod 0755 /usr/bin/raptor-wine-open /usr/bin/raptor-proton-open
+
+cat <<'ASSOC' > /usr/bin/raptor-wine-associations
+#!/usr/bin/env bash
+set -euo pipefail
+command -v xdg-mime >/dev/null 2>&1 || exit 0
+# Repair stale Protontricks associations from earlier images, but preserve a
+# different handler if the user deliberately chose one (for example Bottles).
+for mime in \
+  application/x-ms-dos-executable \
+  application/vnd.microsoft.portable-executable \
+  application/x-msdownload \
+  application/x-msi; do
+  current="$(xdg-mime query default "$mime" 2>/dev/null || true)"
+  case "${current,,}" in
+    ""|*protontricks*)
+      xdg-mime default raptor-wine.desktop "$mime" >/dev/null 2>&1 || true
+      ;;
+  esac
+done
+command -v kbuildsycoca6 >/dev/null 2>&1 && kbuildsycoca6 --noincremental >/dev/null 2>&1 || true
+ASSOC
+chmod 0755 /usr/bin/raptor-wine-associations
+
+cat <<'UNIT' > /usr/lib/systemd/user/raptor-wine-associations.service
+[Unit]
+Description=Set Raptor Wine as the default Windows executable handler
+After=plasma-plasmashell.service
+PartOf=graphical-session.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/raptor-wine-associations
+
+[Install]
+WantedBy=graphical-session.target
+UNIT
+
 cat <<'DESKTOP' > /usr/share/applications/raptor-wine.desktop
 [Desktop Entry]
 Type=Application
@@ -107,7 +195,7 @@ Version=1.1
 Name=Open with Raptor Wine
 GenericName=Windows program
 Comment=Run Windows applications with standard Wine
-Exec=raptor-wine %f
+Exec=raptor-wine-open %f
 Icon=application-x-ms-dos-executable
 Terminal=false
 NoDisplay=true
@@ -121,7 +209,7 @@ Version=1.1
 Name=Run with Raptor Proton
 GenericName=Windows game
 Comment=Run a Windows game with Proton and UMU
-Exec=raptor-wine-proton %f
+Exec=raptor-proton-open %f
 Icon=applications-games
 Terminal=false
 NoDisplay=true
@@ -150,9 +238,13 @@ SERVICE
 
 update-desktop-database /usr/share/applications >/dev/null 2>&1 || true
 
-for required in /usr/bin/raptor-wine /usr/bin/raptor-wine-proton /usr/share/applications/raptor-wine.desktop /usr/share/applications/raptor-wine-proton.desktop /usr/share/kio/servicemenus/raptor-wine.desktop; do
+for required in /usr/bin/raptor-wine /usr/bin/raptor-wine-proton /usr/bin/raptor-wine-open /usr/bin/raptor-proton-open /usr/lib/raptor/launch-windows-app /usr/bin/raptor-wine-associations /usr/lib/systemd/user/raptor-wine-associations.service /usr/share/applications/raptor-wine.desktop /usr/share/applications/raptor-wine-proton.desktop /usr/share/kio/servicemenus/raptor-wine.desktop; do
   [[ -s "$required" ]] || { echo "RAPTOR_WINE_PAYLOAD_MISSING:$required" >&2; exit 1; }
 done
 bash -n /usr/bin/raptor-wine
 bash -n /usr/bin/raptor-wine-proton
+bash -n /usr/lib/raptor/launch-windows-app
+bash -n /usr/bin/raptor-wine-open
+bash -n /usr/bin/raptor-proton-open
+bash -n /usr/bin/raptor-wine-associations
 echo "RAPTOR_WINE_READY: standard Wine workflow plus optional per-game Proton integration"
