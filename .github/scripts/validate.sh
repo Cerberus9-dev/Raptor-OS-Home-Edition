@@ -373,8 +373,9 @@ echo "GPU vendor-safe defaults passed."
 echo "=== Checking CI image tag and generated app payload staging ==="
 assert_contains .github/workflows/build.yml 'IMAGE_VERSION_SUFFIX="${IMAGE_VERSION##*-}"'
 assert_contains .github/workflows/build.yml 'IMAGE_TAG="pr-$PR_NUMBER-$IMAGE_VERSION_SUFFIX"'
-assert_contains .github/workflows/build.yml 'REF_TAG="$(printf '\''%s'\'' "$REF_NAME" | tr '\''/'\'' '\''_'\'')"'
-assert_contains .github/workflows/build.yml 'IMAGE_TAG="${REF_TAG}-$IMAGE_VERSION_SUFFIX"'
+assert_contains .github/workflows/build.yml 'IMAGE_TAG="${GITHUB_SHA:0:7}-$IMAGE_VERSION_SUFFIX"'
+assert_contains .github/workflows/build.yml 'BlueBuild publishes the short commit-SHA tag for push,'
+assert_not_contains .github/workflows/build.yml 'IMAGE_TAG="${REF_TAG}-$IMAGE_VERSION_SUFFIX"'
 assert_contains files/scripts/raptor-music/install.sh 'if [[ ! -x "$SRC_BIN" && -x "/tmp/files/staging/raptor-music" ]]; then'
 assert_contains files/scripts/shroudly-raptor/install.sh 'if [[ ! -x "$STAGE_DIR/shroudly" && -x "/tmp/files/staging/shroudly-app/shroudly" ]]; then'
 assert_contains files/scripts/raptor-music/install.sh 'STAGE_DIR="/tmp/files/staging"'
