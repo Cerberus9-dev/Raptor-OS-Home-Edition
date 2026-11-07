@@ -166,7 +166,7 @@ for mime in \
   current="$(xdg-mime query default "$mime" 2>/dev/null || true)"
   case "${current,,}" in
     ""|*protontricks*)
-      xdg-mime default raptor-wine.desktop "$mime" >/dev/null 2>&1 || true
+      xdg-mime default raptor-wine-open.desktop "$mime" >/dev/null 2>&1 || true
       ;;
   esac
 done
@@ -188,34 +188,68 @@ ExecStart=/usr/bin/raptor-wine-associations
 WantedBy=graphical-session.target
 UNIT
 
-cat <<'DESKTOP' > /usr/share/applications/raptor-wine.desktop
+cat <<'MANAGER' > /usr/bin/raptor-wine-manager
+#!/usr/bin/env bash
+set -euo pipefail
+command -v kdialog >/dev/null 2>&1 || { echo 'KDialog is required.' >&2; exit 1; }
+file="$(kdialog --getopenfilename "$HOME" 'Windows programs (*.exe *.msi *.com *.bat)' --title 'Choose a Windows program')" || exit 0
+[[ -n "$file" ]] || exit 0
+exec /usr/bin/raptor-wine-open "$file"
+MANAGER
+cat <<'MANAGER' > /usr/bin/raptor-proton-manager
+#!/usr/bin/env bash
+set -euo pipefail
+command -v kdialog >/dev/null 2>&1 || { echo 'KDialog is required.' >&2; exit 1; }
+file="$(kdialog --getopenfilename "$HOME" 'Windows programs (*.exe *.com *.bat)' --title 'Choose a Windows game or program')" || exit 0
+[[ -n "$file" ]] || exit 0
+exec /usr/bin/raptor-proton-open "$file"
+MANAGER
+chmod 0755 /usr/bin/raptor-wine-manager /usr/bin/raptor-proton-manager
+cat <<'DESKTOP' > /usr/share/applications/raptor-wine-manager.desktop
+[Desktop Entry]
+Type=Application
+Version=1.1
+Name=Raptor Wine
+GenericName=Windows application compatibility
+Comment=Choose and run a Windows application with Wine
+Exec=raptor-wine-manager
+Icon=application-x-ms-dos-executable
+Terminal=false
+Categories=System;Utility;
+DESKTOP
+cat <<'PROTONDESKTOP' > /usr/share/applications/raptor-proton-manager.desktop
+[Desktop Entry]
+Type=Application
+Version=1.1
+Name=Raptor Proton
+GenericName=Windows game compatibility
+Comment=Choose and run a Windows game with Proton
+Exec=raptor-proton-manager
+Icon=applications-games
+Terminal=false
+Categories=Game;Utility;
+PROTONDESKTOP
+cat <<'OPENHANDLER' > /usr/share/applications/raptor-wine-open.desktop
 [Desktop Entry]
 Type=Application
 Version=1.1
 Name=Open with Raptor Wine
-GenericName=Windows program
-Comment=Run Windows applications with standard Wine
 Exec=raptor-wine-open %f
 Icon=application-x-ms-dos-executable
 Terminal=false
 NoDisplay=true
 MimeType=application/x-ms-dos-executable;application/x-msi;application/vnd.microsoft.portable-executable;application/x-msdownload;
-DESKTOP
-
-cat <<'PROTONDESKTOP' > /usr/share/applications/raptor-wine-proton.desktop
+OPENHANDLER
+cat <<'PROTONHANDLER' > /usr/share/applications/raptor-proton-open.desktop
 [Desktop Entry]
 Type=Application
 Version=1.1
 Name=Run with Raptor Proton
-GenericName=Windows game
-Comment=Run a Windows game with Proton and UMU
 Exec=raptor-proton-open %f
 Icon=applications-games
 Terminal=false
 NoDisplay=true
-MimeType=application/x-ms-dos-executable;application/vnd.microsoft.portable-executable;application/x-msdownload;
-PROTONDESKTOP
-
+PROTONHANDLER
 mkdir -p /usr/share/kio/servicemenus
 cat <<'SERVICE' > /usr/share/kio/servicemenus/raptor-wine.desktop
 [Desktop Entry]
@@ -228,17 +262,17 @@ X-KDE-Priority=TopLevel
 [Desktop Action raptorWineRun]
 Name=Open with Raptor Wine
 Icon=application-x-ms-dos-executable
-Exec=raptor-wine %f
+Exec=raptor-wine-open %f
 
 [Desktop Action raptorProtonRun]
 Name=Run with Raptor Proton (games)
 Icon=applications-games
-Exec=raptor-wine-proton %f
+Exec=raptor-proton-open %f
 SERVICE
 
 update-desktop-database /usr/share/applications >/dev/null 2>&1 || true
 
-for required in /usr/bin/raptor-wine /usr/bin/raptor-wine-proton /usr/bin/raptor-wine-open /usr/bin/raptor-proton-open /usr/lib/raptor/launch-windows-app /usr/bin/raptor-wine-associations /usr/lib/systemd/user/raptor-wine-associations.service /usr/share/applications/raptor-wine.desktop /usr/share/applications/raptor-wine-proton.desktop /usr/share/kio/servicemenus/raptor-wine.desktop; do
+for required in /usr/bin/raptor-wine /usr/bin/raptor-wine-proton /usr/bin/raptor-wine-open /usr/bin/raptor-proton-open /usr/lib/raptor/launch-windows-app /usr/bin/raptor-wine-associations /usr/lib/systemd/user/raptor-wine-associations.service /usr/share/applications/raptor-wine-manager.desktop /usr/share/applications/raptor-proton-manager.desktop /usr/share/applications/raptor-wine-open.desktop /usr/share/applications/raptor-proton-open.desktop /usr/share/kio/servicemenus/raptor-wine.desktop; do
   [[ -s "$required" ]] || { echo "RAPTOR_WINE_PAYLOAD_MISSING:$required" >&2; exit 1; }
 done
 bash -n /usr/bin/raptor-wine
@@ -247,4 +281,6 @@ bash -n /usr/lib/raptor/launch-windows-app
 bash -n /usr/bin/raptor-wine-open
 bash -n /usr/bin/raptor-proton-open
 bash -n /usr/bin/raptor-wine-associations
+bash -n /usr/bin/raptor-wine-manager
+bash -n /usr/bin/raptor-proton-manager
 echo "RAPTOR_WINE_READY: standard Wine workflow plus optional per-game Proton integration"
