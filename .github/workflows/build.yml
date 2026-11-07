@@ -108,12 +108,13 @@ jobs:
 
       - name: Free disk space
         run: |
-          sudo rm -rf \
-            /usr/share/dotnet \
-            /usr/local/lib/android \
-            /opt/ghc \
-            /usr/local/share/boost \
-            "$AGENT_TOOLSDIRECTORY"
+          set -euo pipefail
+          # Keep this cleanup bounded: recursively deleting the full hosted
+          # toolcache can stall before compilation even begins. Remove only
+          # large optional SDK directories, and cap the cleanup time.
+          timeout 90s sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost || {
+            echo "::warning::Optional SDK cleanup timed out; continuing with the runner's remaining free space."
+          }
           df -h
 
       - name: Cache Raptor Music workspace
