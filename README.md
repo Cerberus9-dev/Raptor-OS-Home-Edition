@@ -28,7 +28,7 @@ Raptor Wallpaper can apply the selected image independently to the desktop or KD
 
 ### First-party app experience
 
-Raptor Tasks includes category and status filters, live search, task counts, and persistent local task storage. Raptor Wallpaper provides a searchable gallery, a large selected-image preview, display-fit controls, bundled Raptor artwork, and direct application from Dolphin. Both follow the shared aviation-inspired visual system.
+Raptor Tasks includes category and status filters, live search, task counts, and persistent local task storage. Raptor Wallpaper provides a searchable gallery, a large selected-image preview, display-fit controls, bundled Raptor artwork, and direct application from Dolphin. Raptor Music is a local-first music library with searchable track metadata, playlists, a playback queue, and a persistent player dock. Its layout takes cues from modern streaming apps without copying Spotify's branding. Online streaming catalogs and recommendation feeds are not yet implemented. These apps share the aviation-inspired Raptor visual system.
 
 ### Aviation-inspired visual identity
 
@@ -207,7 +207,9 @@ The first-boot chooser offers the official Discord client, Vesktop, Equibop, and
 
 ## Raptor Shroudly
 
-**Original upstream application, built into every Raptor OS image.** CI builds the pinned Shroudly Linux desktop app and packages its normal and Advanced-mode engines, desktop entry, icon, and polkit action. It does not enable autostart or change proxy settings during installation; users launch it and choose when to activate protection. The transitional Rust monitor prototype is not packaged. Upstream MIT attribution: **umutxyp / Codeshare Technology Ltd**.
+**The custom Raptor OS application, built into every Raptor OS image.** Raptor Shroudly is a native desktop dashboard that detects supported game clients and applications without freezing or modifying them. It is built from the Rust source in `files/scripts/shroudly-raptor`, packaged with its own Raptor-branded launcher and icon, and verified inside each published image.
+
+The current dashboard provides local application detection. Its network-routing and per-app traffic-steering engine is not yet enabled; it does not claim that a proxy or protection mode is active. The custom implementation is inspired by the original Shroudly project by **umutxyp / Codeshare Technology Ltd**; upstream is not substituted for the Raptor app.
 
 
 ---

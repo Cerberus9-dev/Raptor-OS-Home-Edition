@@ -1,16 +1,36 @@
-# Raptor Music (v0.2.17)
+# Raptor Music
 
-Rust workspace for the Raptor music player.
+Raptor Music is a local-first desktop music library and player built with Rust, SQLite, Symphonia/CPAL and Slint. Its interface is designed around familiar music-app workflows while retaining a distinct Raptor visual identity.
 
-- `raptor-core`: shared models, player events, capabilities
-- `raptor-library`: SQLite library, queue and persisted state
-- `raptor-audio`: decoding, resampling, channel conversion, playback worker
-- `raptor-desktop`: Slint desktop app
+## Desktop experience
 
+- A persistent navigation and library sidebar.
+- A searchable track collection matching title, artist and album metadata.
+- Playlist creation, selection, track assignment and queue loading.
+- A dedicated upcoming-queue panel with selection and removal.
+- Persistent now-playing controls, progress display, seek, previous/next and stop.
+- A folder picker that scans supported local audio formats and imports metadata into the local SQLite library.
+
+The interface is Spotify-inspired in its information architecture and ease of browsing, not a copy of Spotify's branding or artwork.
+
+## Current service boundary
+
+The current catalog is the user's imported local music. It does not yet provide a hosted global streaming catalog or online discovery feed. Streaming providers require supported APIs, authentication and rights-compatible playback; Raptor Music must not pretend it can search or play those catalogs until each integration is implemented and tested.
+
+Raptor Music remains local-first: no ads, subscription requirement, tracking, or always-on background server. Existing local files remain under the user's control.
+
+## Workspace
+
+- `raptor-core`: shared track models, playback events and capabilities
+- `raptor-library`: SQLite library, playlists, queue and persisted state
+- `raptor-audio`: decoding, resampling, channel conversion and playback worker
+- `raptor-desktop`: Slint desktop application
+
+```sh
+cargo build --workspace
+cargo test --workspace
 ```
-cargo build --workspace && cargo test --workspace
-```
 
-## Image integration lifecycle
+## Image integration
 
-Raptor Music is staged only for the first successful v3.0.0 image build on `main`, when the release marker is present. Pull requests, unrelated pushes, and scheduled rebuilds skip the app. A maintainer-only manual dispatch remains as a recovery fallback. The lock tag `raptor-one-time-apps-consumed` is created only after the image is successfully built and pushed. Its installer refuses to install without the one-time staging marker.
+CI builds and tests the workspace on every image build, stages the desktop executable, and verifies the launcher, desktop entry and icon inside the published Raptor OS image.

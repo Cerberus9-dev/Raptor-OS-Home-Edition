@@ -1,5 +1,11 @@
 # Changelog
 
+### Raptor application suite corrections
+
+- **Raptor Shroudly:** package the custom Rust/Slint Raptor application rather than the upstream Electron desktop app. The image now installs a dedicated Raptor-branded launcher, desktop entry and icon, and CI verifies those exact artifacts in the published image. The dashboard reports local app detection honestly; network routing remains disabled until its engine is implemented and tested.
+- **Welcome screen:** identify Raptor Shroudly and explain Raptor Proton as the optional Proton/UMU path for games, distinct from standard Wine for everyday Windows applications.
+
+
 ## V3.0 reliability follow-up — suspend/resume and CI regression cleanup
 - Removed the obsolete readiness-only CPU governor and power-profile units, plus the inactive service-health checker. Power Profiles Daemon is the sole CPU/firmware policy owner; the removed units only queried or rechecked service state and did not provide useful behavior.
 - Removed the unused unit files from the image recipe entirely rather than merely leaving them disabled, reducing installed systemd clutter and preventing accidental activation by future dependencies.

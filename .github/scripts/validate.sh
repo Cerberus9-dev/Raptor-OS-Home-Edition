@@ -113,13 +113,21 @@ assert_contains files/scripts/raptor-wine/install.sh 'MSI installers should be r
 assert_not_contains files/scripts/raptor-wine/install.sh 'exec umu-run wine msiexec'
 assert_contains files/scripts/raptor-wine/install.sh 'shift'
 assert_contains files/scripts/raptor-wine/install.sh 'Usage: raptor-wine-proton program.exe'
-assert_contains files/scripts/raptor-wine/install.sh "Exec=raptor-wine %f"
-assert_contains files/scripts/raptor-wine/install.sh "Exec=raptor-wine-proton %f"
+# Visible app-menu entries launch a file picker; hidden desktop handlers own MIME opens.
+assert_contains files/scripts/raptor-wine/install.sh 'Exec=raptor-wine-manager'
+assert_contains files/scripts/raptor-wine/install.sh 'Exec=raptor-proton-manager'
+assert_contains files/scripts/raptor-wine/install.sh 'Exec=raptor-proton-prefix-manager'
+assert_contains files/scripts/raptor-wine/install.sh 'Exec=raptor-wine-open %f'
+assert_contains files/scripts/raptor-wine/install.sh 'Exec=raptor-proton-open %f'
+assert_contains files/scripts/raptor-wine/install.sh 'protontricks-launch --appid'
+assert_contains files/scripts/raptor-wine/install.sh 'raptor-proton-prefix-open'
+assert_contains files/scripts/raptor-wine/install.sh 'raptor-wine-associations'
+assert_contains files/scripts/raptor-wine/install.sh 'NoDisplay=true'
 assert_not_contains files/scripts/raptor-wine/install.sh "zenity"
 assert_not_contains files/scripts/raptor-wine/install.sh "wineboot -u"
 assert_not_contains files/scripts/raptor-wine/install.sh "winetricks --unattended"
-assert_contains files/system_files/raptor-mimeapps.list "application/x-ms-dos-executable=raptor-wine.desktop"
-assert_contains files/system_files/raptor-mimeapps.list "application/x-msi=raptor-wine.desktop"
+assert_contains files/system_files/raptor-mimeapps.list "application/x-ms-dos-executable=raptor-wine-open.desktop"
+assert_contains files/system_files/raptor-mimeapps.list "application/x-msi=raptor-wine-open.desktop"
 assert_not_contains files/system_files/10-raptor-wine.conf "WINEESYNC=1"
 assert_not_contains files/system_files/10-raptor-wine.conf "WINEFSYNC=1"
 
@@ -154,7 +162,7 @@ assert_contains files/scripts/raptor-update/install.sh "_stop_process_group(help
 assert_contains .github/workflows/build.yml 'cargo build --release --workspace --manifest-path files/scripts/raptor-music/Cargo.toml'
 assert_contains .github/workflows/build.yml 'cargo test --workspace --manifest-path files/scripts/raptor-music/Cargo.toml'
 assert_contains .github/workflows/build.yml 'test -x files/staging/raptor-music'
-assert_contains .github/workflows/build.yml 'test -x files/staging/shroudly-app/shroudly'
+assert_contains .github/workflows/build.yml 'test -x files/staging/raptor-shroudly'
 assert_contains .github/workflows/build.yml 'Verify both apps inside the published image'
 assert_not_contains .github/workflows/build.yml 'PR validation only: built Raptor Music without staging it into the image.'
 assert_not_contains files/scripts/raptor-update/install.sh "for line in user_proc.stdout"
@@ -229,33 +237,33 @@ assert_contains files/system_files/raptor-browser-choice.sh 'Floorp'
 assert_contains files/system_files/raptor-browser-choice.sh 'Waterfox'
 assert_not_contains files/system_files/raptor-browser-choice.sh 'Helium'
 
-echo "=== Checking original upstream Shroudly v3.0.0 integration ==="
-assert_contains .github/workflows/build.yml 'git submodule update --init --depth 1 files/scripts/shroudly-raptor/upstream'
-assert_contains .github/workflows/build.yml 'npm ci'
-assert_contains .github/workflows/build.yml 'npm run test:core'
-assert_contains .github/workflows/build.yml 'npm run verify'
-assert_contains .github/workflows/build.yml 'npm run build:core:advanced'
-assert_contains .github/workflows/build.yml 'npx electron-builder --linux dir --publish never'
-assert_contains .github/workflows/build.yml 'test -x dist/linux-unpacked/shroudly'
-assert_contains .github/workflows/build.yml '../../../staging/shroudly-app'
-assert_contains recipes/recipe.yml 'shroudly-raptor/install.sh'
-assert_contains recipes/recipe.yml 'mesa-libgbm'
-assert_contains files/scripts/shroudly-raptor/install.sh '/usr/lib/raptor/shroudly'
-assert_contains files/scripts/shroudly-raptor/install.sh 'exec /usr/lib/raptor/shroudly/shroudly'
-assert_contains files/scripts/shroudly-raptor/install.sh 'shroudly-core-adv'
-assert_contains files/scripts/shroudly-raptor/install.sh 'me.codeshare.shroudly.policy'
-assert_contains files/scripts/shroudly-raptor/install.sh 'SHROUDLY_READY'
-assert_contains files/scripts/shroudly-raptor/install.sh 'no complete Shroudly payload in this image build'
-assert_contains files/scripts/raptor-music/install.sh 'no Raptor Music payload in this image build'
+echo "=== Checking custom Raptor Shroudly integration ==="
+assert_contains .github/workflows/build.yml 'Build and test custom Raptor Shroudly'
+assert_contains .github/workflows/build.yml 'cargo build --release --workspace --manifest-path files/scripts/shroudly-raptor/Cargo.toml'
+assert_contains .github/workflows/build.yml 'cargo test --workspace --manifest-path files/scripts/shroudly-raptor/Cargo.toml'
+assert_contains .github/workflows/build.yml 'files/staging/raptor-shroudly'
+assert_contains .github/workflows/build.yml 'Verify both apps inside the published image'
+assert_contains .github/workflows/build.yml '/usr/bin/raptor-shroudly'
+assert_contains files/scripts/shroudly-raptor/crates/shroudly-raptor/Cargo.toml 'slint = "1.5"'
+assert_contains files/scripts/shroudly-raptor/crates/shroudly-raptor/src/gui.rs 'RAPTOR / SHROUDLY'
+assert_contains files/scripts/shroudly-raptor/crates/shroudly-raptor/src/gui.rs 'Traffic routing is not enabled in this build.'
+assert_contains files/scripts/shroudly-raptor/install.sh '/usr/bin/raptor-shroudly'
+assert_contains files/scripts/shroudly-raptor/install.sh 'Name=Raptor Shroudly'
+assert_contains files/scripts/shroudly-raptor/install.sh 'raptor-shroudly.svg'
+assert_contains files/scripts/shroudly-raptor/README.md 'not the upstream Electron desktop app'
+assert_contains files/scripts/shroudly-raptor/README.md 'network routing'
+assert_contains files/scripts/raptor-hardware-fixes/install.sh 'Raptor Proton'
+assert_contains files/scripts/raptor-hardware-fixes/install.sh 'standard Wine'
 assert_contains files/scripts/raptor-music/install.sh 'RAPTOR_MUSIC_PAYLOAD_MISSING'
 assert_contains .github/workflows/build.yml 'git add -f -- files/staging'
 assert_contains .github/workflows/build.yml 'Verify both apps inside the published image'
-assert_contains .github/workflows/build.yml 'docker run --rm --entrypoint /bin/bash'
 assert_contains .github/workflows/build.yml '/usr/bin/raptor-music'
-assert_contains .github/workflows/build.yml '/usr/bin/shroudly'
-assert_not_contains files/scripts/shroudly-raptor/install.sh 'Terminal=true'
+assert_contains .github/workflows/build.yml '/usr/bin/raptor-shroudly'
+assert_not_contains .github/workflows/build.yml 'npm ci'
+assert_not_contains .github/workflows/build.yml 'files/staging/shroudly-app'
+assert_not_contains files/scripts/shroudly-raptor/install.sh 'Name=Shroudly'
 assert_not_contains files/scripts/shroudly-raptor/install.sh 'systemctl enable'
-echo "All v3.0.0 release contracts passed."
+echo "All custom Raptor app release contracts passed."
 
 
 # Wi-Fi watchdog must bound NetworkManager calls and recover stalled activation safely.
@@ -377,9 +385,9 @@ assert_contains .github/workflows/build.yml 'IMAGE_TAG="${GITHUB_SHA:0:7}-$IMAGE
 assert_contains .github/workflows/build.yml 'BlueBuild publishes the short commit-SHA tag for push,'
 assert_not_contains .github/workflows/build.yml 'IMAGE_TAG="${REF_TAG}-$IMAGE_VERSION_SUFFIX"'
 assert_contains files/scripts/raptor-music/install.sh 'if [[ ! -x "$SRC_BIN" && -x "/tmp/files/staging/raptor-music" ]]; then'
-assert_contains files/scripts/shroudly-raptor/install.sh 'if [[ ! -x "$STAGE_DIR/shroudly" && -x "/tmp/files/staging/shroudly-app/shroudly" ]]; then'
+assert_contains files/scripts/shroudly-raptor/install.sh 'if [[ ! -x "$STAGED_BIN" && -x "/tmp/files/staging/raptor-shroudly" ]]; then'
 assert_contains files/scripts/raptor-music/install.sh 'STAGE_DIR="/tmp/files/staging"'
-assert_contains files/scripts/shroudly-raptor/install.sh 'STAGE_DIR="/tmp/files/staging/shroudly-app"'
+assert_contains files/scripts/shroudly-raptor/install.sh 'STAGED_BIN="/tmp/files/staging/raptor-shroudly"'
 echo "Image tagging and payload staging contracts passed."
 
 echo "=== Checking boot-time GPU detection safety ==="

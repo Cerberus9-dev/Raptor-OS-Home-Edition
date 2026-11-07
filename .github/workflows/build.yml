@@ -95,36 +95,6 @@ jobs:
           chmod +x .github/scripts/validate.sh
           .github/scripts/validate.sh
 
-      - name: Fetch pinned upstream Shroudly source
-        run: git submodule update --init --depth 1 files/scripts/shroudly-raptor/upstream
-
-      - name: Set up Node.js for upstream Shroudly
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: files/scripts/shroudly-raptor/upstream/package-lock.json
-
-      - name: Install and verify upstream Shroudly
-        working-directory: files/scripts/shroudly-raptor/upstream
-        run: |
-          npm ci
-          npm run test:core
-          npm run verify
-          npm run build:core:advanced
-          npx electron-builder --linux dir --publish never
-          test -x dist/linux-unpacked/shroudly
-          test -x dist/linux-unpacked/resources/app.asar.unpacked/electron/tools/core/linux-x64/shroudly-core
-          test -x dist/linux-unpacked/resources/app.asar.unpacked/electron/tools/core/linux-x64/shroudly-core-adv
-
-      - name: Stage original Shroudly desktop app
-        working-directory: files/scripts/shroudly-raptor/upstream
-        run: |
-          install -d ../../../staging/shroudly-app
-          cp -a dist/linux-unpacked/. ../../../staging/shroudly-app/
-          install -Dm644 LICENSE ../../../staging/shroudly-app/LICENSE
-          install -Dm644 scripts/linux/me.codeshare.shroudly.policy ../../../staging/shroudly-app/me.codeshare.shroudly.policy
-          install -Dm644 public/icon.png ../../../staging/shroudly-app/shroudly.png
 
       - name: Check signing secret
         if: github.event_name != 'pull_request'
@@ -138,12 +108,13 @@ jobs:
 
       - name: Free disk space
         run: |
-          sudo rm -rf \
-            /usr/share/dotnet \
-            /usr/local/lib/android \
-            /opt/ghc \
-            /usr/local/share/boost \
-            "$AGENT_TOOLSDIRECTORY"
+          set -euo pipefail
+          # Keep this cleanup bounded: recursively deleting the full hosted
+          # toolcache can stall before compilation even begins. Remove only
+          # large optional SDK directories, and cap the cleanup time.
+          timeout 90s sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost || {
+            echo "::warning::Optional SDK cleanup timed out; continuing with the runner's remaining free space."
+          }
           df -h
 
       - name: Cache Raptor Music workspace
@@ -179,26 +150,26 @@ jobs:
       - name: Test Raptor Music workspace
         run: cargo test --workspace --manifest-path files/scripts/raptor-music/Cargo.toml
 
+      - name: Build and test custom Raptor Shroudly
+        run: |
+          cargo build --release --workspace --manifest-path files/scripts/shroudly-raptor/Cargo.toml
+          cargo test --workspace --manifest-path files/scripts/shroudly-raptor/Cargo.toml
+          install -Dm755 files/scripts/shroudly-raptor/target/release/shroudly-raptor files/staging/raptor-shroudly
+          test -x files/staging/raptor-shroudly
+
       - name: Verify and include Raptor app payloads in the image context
         run: |
           set -euo pipefail
           test -x files/staging/raptor-music
-          test -x files/staging/shroudly-app/shroudly
-          test -s files/staging/shroudly-app/resources/app.asar
-          test -x files/staging/shroudly-app/resources/app.asar.unpacked/electron/tools/core/linux-x64/shroudly-core
-          test -x files/staging/shroudly-app/resources/app.asar.unpacked/electron/tools/core/linux-x64/shroudly-core-adv
-          test -s files/staging/shroudly-app/me.codeshare.shroudly.policy
-          test -s files/staging/shroudly-app/shroudly.png
-          test -s files/staging/shroudly-app/LICENSE
+          test -x files/staging/raptor-shroudly
 
           # Force-add generated, gitignored staging files so Git-backed
-          # build contexts retain the two app payloads.
+          # build contexts retain both custom Raptor application binaries.
           git add -f -- files/staging
           git ls-files --error-unmatch \
             files/staging/raptor-music \
-            files/staging/shroudly-app/shroudly \
-            files/staging/shroudly-app/resources/app.asar >/dev/null
-          echo "Verified both app payloads and added them to the BlueBuild context."
+            files/staging/raptor-shroudly >/dev/null
+          echo "Verified both custom Raptor app binaries and added them to the BlueBuild context."
 
           # BlueBuild's Git-backed files context is created from HEAD, not the
           # runner's uncommitted index. Commit generated payloads locally so
@@ -269,15 +240,11 @@ jobs:
             check_file x /usr/bin/raptor-music
             check_file s /usr/share/applications/raptor-music.desktop
             check_file s /usr/share/icons/hicolor/scalable/apps/raptor-music.svg
-            check_file x /usr/bin/shroudly
-            check_file s /usr/share/applications/shroudly.desktop
-            check_file s /usr/lib/raptor/shroudly/resources/app.asar
-            check_file x /usr/lib/raptor/shroudly/resources/app.asar.unpacked/electron/tools/core/linux-x64/shroudly-core
-            check_file x /usr/lib/raptor/shroudly/resources/app.asar.unpacked/electron/tools/core/linux-x64/shroudly-core-adv
-            check_file s /usr/share/polkit-1/actions/me.codeshare.shroudly.policy
-            check_file s /usr/share/icons/hicolor/256x256/apps/shroudly.png
+            check_file x /usr/bin/raptor-shroudly
+            check_file s /usr/share/applications/raptor-shroudly.desktop
+            check_file s /usr/share/icons/hicolor/scalable/apps/raptor-shroudly.svg
           '
-          echo "Published image contains both complete app payloads."
+          echo "Published image contains both custom Raptor app payloads."
 
           echo "=== OCI image size (uncompressed virtual size) ==="
           docker image inspect --format='{{.Size}}' "$IMAGE_REF" | awk '{printf "Virtual image size: %.2f GiB\n", $1 / 1073741824}'

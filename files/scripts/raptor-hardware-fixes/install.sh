@@ -56,11 +56,15 @@ THE RAPTOR OS APP SUITE
 
 • Raptor Music — manage and play your local music library and playlists.
 
-• Shroudly — privacy and connection controls. Features are user-controlled;
-  nothing is silently enabled on your behalf.
+• Raptor Shroudly — the custom Raptor OS application-compatibility dashboard.
+  It detects supported game clients and desktop apps without suspending them.
+  Network routing is not active in this build; no traffic is silently redirected.
 
-• Raptor Wine — run many Windows applications through the familiar Wine workflow.
-  Compatibility varies by application; some games and protected software may not run.
+• Raptor Wine — run Windows applications with the familiar Wine workflow.
+
+• Raptor Proton — optional Proton-powered compatibility for Windows games.
+  It uses UMU/Proton outside the Steam client; normal Windows applications
+  should continue to use standard Wine. Some games and protected software may not run.
 
 YOUR COMPUTER, YOUR CHOICES
 
