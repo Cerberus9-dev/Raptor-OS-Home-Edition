@@ -200,6 +200,7 @@ modules:
     user:
       enabled:
         - raptor-firstboot.service
+        - raptor-wine-associations.service
         - gamemoded.service
 
   # Configure signature verification for the signed OCI image and installer.
