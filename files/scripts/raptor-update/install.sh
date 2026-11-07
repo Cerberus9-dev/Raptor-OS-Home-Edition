@@ -429,41 +429,21 @@ def _local_update_signal():
 
 
 def check_for_updates(emit=None):
-    """Check rpm-ostree for a pending deployment upgrade.
+    """Resolve the real rpm-ostree update transaction without staging it.
 
-    The `cached-update` field in `rpm-ostree status --json` only becomes
-    populated after a check has actually run (via `rpm-ostree upgrade --check`
-    or the rpm-ostreed-automatic timer). Reading it on its own never triggers
-    that, so the resolver first runs the privileged check-helper to refresh
-    remote metadata + cache the result, then inspects the check output and
-    status --json and combines five independent signals:
+    The check-only rpm-ostree path is unreliable on some OCI/container-native
+    images: it can report no update while a normal upgrade finds one. The
+    privileged check-helper therefore runs
+    `rpm-ostree upgrade --download-only --unchanged-exit-77`. This follows
+    the same image resolution as a normal upgrade and may download image
+    layers, but it does not create a deployment, change the boot default, or
+    reboot. Exit 77 means no update; exit 0 means the update was resolved and
+    downloaded. The Update button then runs the normal upgrade command to
+    stage the pending deployment.
 
-      1. an explicit "AvailableUpdate:" line in the check output
-      2. a populated `cached-update` field (bool on old rpm-ostree, dict on new)
-      3. a *staged* deployment that has not been booted yet — the base image
-         was already upgraded elsewhere, only a reboot is missing
-      4. a registry digest cross-check: on a clean (non-update) check the
-         helper compares the booted image's digest against the remote tag's
-         digest (coreos/rpm-ostree #4891 — `--check` can wrongly answer
-         "no updates" on container-native images) and prints "AvailableUpdate:"
-         again when the tag moved, so a fresh image push is never hidden
-      5. a failed refresh surfacing as an error instead of a silent
-         "up to date" — but only after checking the local signals, so a
-         refresh failure can never hide an update that is already on disk
-
-    `emit(line)` is called from this thread for every line of helper output as
-    it arrives, so the GUI can stream the refresh progress live instead of
-    showing a frozen spinner. The whole helper invocation is bounded: the
-    check-helper itself caps at 3 × 150 s attempts, plus CHECK_TIMEOUT here as
-    a hard wall-clock ceiling, plus a select() loop that can never hang on a
-    stalled pipe.
-
-    This stays correct across traditional and container-native (Bazzite-style)
-    base images, either of which can lag the other on one signal alone.
-    Note: rpm-ostree `--check` reports a clean run as either exit 0 or exit 77
-    depending on the build — both are success codes, and check-helper exits 0
-    whenever a verdict ("No updates available." / "AvailableUpdate:") proves
-    the check completed, so a "no update" result is never a refresh failure.
+    The GUI streams helper output live and applies a hard wall-clock timeout.
+    Local cached-update and staged-deployment signals are still checked so a
+    refresh failure cannot hide an update already known to rpm-ostree.
 
     Returns (has_update: bool, message: str)."""
     refresh_out = ""
@@ -547,7 +527,7 @@ def check_for_updates(emit=None):
 
     # 1) Explicit announcement in the check output ("AvailableUpdate:").
     if re.search(r"(?mi)^\s*Available\s*Update\s*:", refresh_out):
-        return True, "A system update is available."
+        return True, "A system update is available; its image is downloaded."
 
     # 2) + 3) local signals: cached-update flag / staged-but-not-booted.
     local_has, local_msg = _local_update_signal()
