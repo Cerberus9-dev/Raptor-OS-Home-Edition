@@ -113,13 +113,21 @@ assert_contains files/scripts/raptor-wine/install.sh 'MSI installers should be r
 assert_not_contains files/scripts/raptor-wine/install.sh 'exec umu-run wine msiexec'
 assert_contains files/scripts/raptor-wine/install.sh 'shift'
 assert_contains files/scripts/raptor-wine/install.sh 'Usage: raptor-wine-proton program.exe'
-assert_contains files/scripts/raptor-wine/install.sh "Exec=raptor-wine %f"
-assert_contains files/scripts/raptor-wine/install.sh "Exec=raptor-wine-proton %f"
+# Visible app-menu entries launch a file picker; hidden desktop handlers own MIME opens.
+assert_contains files/scripts/raptor-wine/install.sh 'Exec=raptor-wine-manager'
+assert_contains files/scripts/raptor-wine/install.sh 'Exec=raptor-proton-manager'
+assert_contains files/scripts/raptor-wine/install.sh 'Exec=raptor-proton-prefix-manager'
+assert_contains files/scripts/raptor-wine/install.sh 'Exec=raptor-wine-open %f'
+assert_contains files/scripts/raptor-wine/install.sh 'Exec=raptor-proton-open %f'
+assert_contains files/scripts/raptor-wine/install.sh 'protontricks-launch --appid'
+assert_contains files/scripts/raptor-wine/install.sh 'raptor-proton-prefix-open'
+assert_contains files/scripts/raptor-wine/install.sh 'raptor-wine-associations'
+assert_contains files/scripts/raptor-wine/install.sh 'NoDisplay=true'
 assert_not_contains files/scripts/raptor-wine/install.sh "zenity"
 assert_not_contains files/scripts/raptor-wine/install.sh "wineboot -u"
 assert_not_contains files/scripts/raptor-wine/install.sh "winetricks --unattended"
-assert_contains files/system_files/raptor-mimeapps.list "application/x-ms-dos-executable=raptor-wine.desktop"
-assert_contains files/system_files/raptor-mimeapps.list "application/x-msi=raptor-wine.desktop"
+assert_contains files/system_files/raptor-mimeapps.list "application/x-ms-dos-executable=raptor-wine-open.desktop"
+assert_contains files/system_files/raptor-mimeapps.list "application/x-msi=raptor-wine-open.desktop"
 assert_not_contains files/system_files/10-raptor-wine.conf "WINEESYNC=1"
 assert_not_contains files/system_files/10-raptor-wine.conf "WINEFSYNC=1"
 
