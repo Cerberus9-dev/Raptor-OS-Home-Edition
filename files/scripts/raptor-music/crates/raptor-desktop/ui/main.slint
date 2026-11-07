@@ -15,9 +15,9 @@ export struct PlaylistData {
 
 export component MainWindow inherits Window {
     title: "Raptor Music";
-    width: 900px;
-    height: 620px;
-    background: #0f141c;
+    width: 1180px;
+    height: 760px;
+    background: #0b1118;
 
     in-out property <[TrackData]> track_list: [];
     in-out property <[TrackData]> queue_list: [];
@@ -28,13 +28,13 @@ export component MainWindow inherits Window {
     in-out property <string> search_query: "";
     in-out property <int> selected_queue_index: -1;
     in-out property <int> playing_queue_index: -1;
-    in-out property <string> current_track_title: "Not Playing";
-    in-out property <string> current_track_artist: "";
+    in-out property <string> current_track_title: "Choose something to play";
+    in-out property <string> current_track_artist: "Your music, your library";
     in-out property <string> progress_label: "0:00 / 0:00";
     in-out property <float> duration_secs: 0;
     in-out property <float> playback_position_secs: 0;
     in-out property <bool> is_seeking: false;
-    in-out property <string> player_state_label: "Idle";
+    in-out property <string> player_state_label: "Ready";
 
     callback scan_directory_clicked();
     callback track_selected(int);
@@ -53,229 +53,398 @@ export component MainWindow inherits Window {
     callback stop_clicked();
 
     VerticalLayout {
-        padding: 16px;
-        spacing: 12px;
+        spacing: 0px;
 
-        // ── Header ───────────────────────────────────────────────────────
-        HorizontalLayout {
-            spacing: 12px;
-            Text {
-                text: "Raptor Music";
-                font-size: 24px;
-                font-weight: 700;
-                color: #5ab0ff;
-                vertical-alignment: center;
-            }
-            Rectangle { horizontal-stretch: 1; }
-            Text {
-                text: root.player_state_label;
-                color: #9aa7b8;
-                font-size: 13px;
-                vertical-alignment: center;
+        // Top application bar
+        Rectangle {
+            background: #101a25;
+            height: 66px;
+            HorizontalLayout {
+                padding-left: 24px;
+                padding-right: 24px;
+                spacing: 14px;
+                Text {
+                    text: "RAPTOR";
+                    color: #8bd4f1;
+                    font-size: 13px;
+                    font-weight: 800;
+                    vertical-alignment: center;
+                }
+                Text {
+                    text: "MUSIC";
+                    color: #f3f7fb;
+                    font-size: 21px;
+                    font-weight: 700;
+                    vertical-alignment: center;
+                }
+                Rectangle { horizontal-stretch: 1; }
+                Text {
+                    text: root.player_state_label;
+                    color: #9bb0c2;
+                    font-size: 12px;
+                    vertical-alignment: center;
+                }
+                Button {
+                    text: "Add music folder";
+                    clicked => { root.scan_directory_clicked(); }
+                }
             }
         }
 
-        // ── Library + queue ──────────────────────────────────────────────
+        // Main navigation, collection and queue
         HorizontalLayout {
-            spacing: 16px;
+            spacing: 0px;
             vertical-stretch: 1;
 
-            VerticalLayout {
-                horizontal-stretch: 3;
-                vertical-stretch: 1;
-                spacing: 6px;
-
-                Text { text: "Library"; font-weight: 700; color: #c7d2e0; font-size: 15px; }
-
-                Rectangle {
-                    height: 34px;
-                    background: #202a38;
-                    border-radius: 4px;
-                    TextInput {
-                        x: 9px;
-                        y: 0px;
-                        width: parent.width - 18px;
-                        height: parent.height;
-                        text <=> root.search_query;
-                        color: #e6edf6;
-                        font-size: 13px;
-                        vertical-alignment: center;
-                        edited => { root.search_changed(self.text); }
+            // Navigation and playlists
+            Rectangle {
+                width: 226px;
+                background: #0e1721;
+                VerticalLayout {
+                    padding: 18px;
+                    spacing: 12px;
+                    Text {
+                        text: "YOUR SPACE";
+                        color: #71879b;
+                        font-size: 11px;
+                        font-weight: 700;
                     }
-                }
-
-                ListView {
-                    vertical-stretch: 1;
-
-                    for t[index] in root.track_list : Rectangle {
-                        height: 46px;
-                        border-radius: 4px;
-                        background: index == root.selected_track_index ? #24405f : transparent;
-
-                        HorizontalLayout {
-                            padding-left: 10px;
-                            padding-right: 10px;
-                            spacing: 10px;
-
-                            Text {
-                                text: t.title;
-                                color: #e6edf6;
-                                font-size: 14px;
-                                vertical-alignment: center;
-                                horizontal-stretch: 1;
-                                overflow: elide;
-                            }
-                            Text {
-                                text: t.artist;
-                                color: #9aa7b8;
-                                font-size: 12px;
-                                vertical-alignment: center;
-                                width: 130px;
-                                overflow: elide;
-                            }
-                            Text {
-                                text: t.album;
-                                color: #9aa7b8;
-                                font-size: 12px;
-                                vertical-alignment: center;
-                                width: 130px;
-                                overflow: elide;
-                            }
-                            Text {
-                                text: t.duration;
-                                color: #9aa7b8;
-                                font-size: 12px;
-                                vertical-alignment: center;
-                                width: 56px;
-                            }
+                    Text {
+                        text: "Home";
+                        color: #eaf3fa;
+                        font-size: 15px;
+                        font-weight: 700;
+                    }
+                    Text {
+                        text: "Search your music";
+                        color: #9bb0c2;
+                        font-size: 14px;
+                    }
+                    Rectangle { height: 1px; background: #263544; }
+                    HorizontalLayout {
+                        Text {
+                            text: "Your Library";
+                            color: #eaf3fa;
+                            font-size: 14px;
+                            font-weight: 700;
+                            vertical-alignment: center;
                         }
-
-                        TouchArea {
-                            clicked => { root.track_selected(index); }
+                        Rectangle { horizontal-stretch: 1; }
+                        Text {
+                            text: "♫";
+                            color: #8bd4f1;
+                            font-size: 18px;
                         }
                     }
-                }
-
-                Button {
-                    text: "Add Selected to Queue";
-                    clicked => { root.add_to_queue_clicked(); }
+                    Text {
+                        text: "Playlists";
+                        color: #71879b;
+                        font-size: 11px;
+                        font-weight: 700;
+                    }
+                    HorizontalLayout {
+                        height: 34px;
+                        spacing: 5px;
+                        Rectangle {
+                            background: #1b2937;
+                            border-radius: 5px;
+                            horizontal-stretch: 1;
+                            TextInput {
+                                x: 8px;
+                                y: 0px;
+                                width: parent.width - 16px;
+                                height: parent.height;
+                                text <=> root.new_playlist_name;
+                                color: #eaf3fa;
+                                font-size: 12px;
+                                vertical-alignment: center;
+                            }
+                        }
+                        Button {
+                            text: "+";
+                            clicked => { root.create_playlist_clicked(); }
+                        }
+                    }
+                    ListView {
+                        vertical-stretch: 1;
+                        for p[index] in root.playlist_list : Rectangle {
+                            height: 38px;
+                            border-radius: 5px;
+                            background: index == root.selected_playlist_index ? #203b4c : transparent;
+                            Text {
+                                text: p.name;
+                                color: index == root.selected_playlist_index ? #a9e4fa : #b3c2cf;
+                                x: 9px;
+                                width: parent.width - 18px;
+                                vertical-alignment: center;
+                                overflow: elide;
+                                font-size: 13px;
+                            }
+                            TouchArea { clicked => { root.playlist_selected(index); } }
+                        }
+                    }
+                    Button {
+                        text: "Add selected track";
+                        clicked => { root.add_to_playlist_clicked(); }
+                    }
+                    Button {
+                        text: "Play selected playlist";
+                        clicked => { root.load_playlist_clicked(); }
+                    }
                 }
             }
 
-            VerticalLayout {
-                horizontal-stretch: 2;
-                vertical-stretch: 1;
-                spacing: 6px;
+            // Main library surface
+            Rectangle {
+                background: #111c28;
+                horizontal-stretch: 1;
+                VerticalLayout {
+                    padding: 24px;
+                    spacing: 16px;
 
-                Text { text: "Playlists"; font-weight: 700; color: #c7d2e0; font-size: 15px; }
-                HorizontalLayout {
-                    height: 32px;
-                    spacing: 6px;
+                    Text {
+                        text: "Good listening.";
+                        color: #f3f7fb;
+                        font-size: 29px;
+                        font-weight: 700;
+                    }
+                    Text {
+                        text: "Browse your collection, find a track, and build your next queue.";
+                        color: #9bb0c2;
+                        font-size: 13px;
+                    }
+
                     Rectangle {
-                        background: #202a38;
-                        border-radius: 4px;
-                        horizontal-stretch: 1;
-                        TextInput {
-                            x: 6px;
-                            y: 0px;
-                            width: parent.width - 12px;
-                            height: parent.height;
-                            text <=> root.new_playlist_name;
-                            color: #e6edf6;
-                            font-size: 12px;
-                            vertical-alignment: center;
-                        }
-                    }
-                    Button { text: "Create"; clicked => { root.create_playlist_clicked(); } }
-                }
-                ListView {
-                    height: 104px;
-                    for p[index] in root.playlist_list : Rectangle {
-                        height: 32px;
-                        border-radius: 4px;
-                        background: index == root.selected_playlist_index ? #24405f : transparent;
-                        Text {
-                            text: p.name;
-                            color: #e6edf6;
-                            vertical-alignment: center;
-                            x: 8px;
-                            width: parent.width - 16px;
-                            overflow: elide;
-                        }
-                        TouchArea { clicked => { root.playlist_selected(index); } }
-                    }
-                }
-                HorizontalLayout {
-                    spacing: 6px;
-                    Button { text: "Add Track"; clicked => { root.add_to_playlist_clicked(); } }
-                    Button { text: "Load Queue"; clicked => { root.load_playlist_clicked(); } }
-                }
-
-                Text { text: "Playback Queue"; font-weight: 700; color: #c7d2e0; font-size: 15px; }
-
-                ListView {
-                    vertical-stretch: 1;
-
-                    for t[index] in root.queue_list : Rectangle {
-                        height: 46px;
-                        border-radius: 4px;
-                        background: index == root.playing_queue_index ? #1f4d3a : (index == root.selected_queue_index ? #24405f : transparent);
-
+                        height: 44px;
+                        background: #1d2b39;
+                        border-radius: 8px;
                         HorizontalLayout {
-                            padding-left: 10px;
-                            padding-right: 10px;
-                            spacing: 10px;
-
+                            padding-left: 12px;
+                            padding-right: 12px;
+                            spacing: 8px;
                             Text {
-                                text: t.title;
-                                color: #e6edf6;
+                                text: "⌕";
+                                color: #8bd4f1;
+                                font-size: 20px;
+                                vertical-alignment: center;
+                            }
+                            TextInput {
+                                text <=> root.search_query;
+                                color: #f3f7fb;
                                 font-size: 14px;
                                 vertical-alignment: center;
                                 horizontal-stretch: 1;
-                                overflow: elide;
-                            }
-                            Text {
-                                text: t.artist;
-                                color: #9aa7b8;
-                                font-size: 12px;
-                                vertical-alignment: center;
-                                width: 110px;
-                                overflow: elide;
-                            }
-                            Text {
-                                text: t.duration;
-                                color: #9aa7b8;
-                                font-size: 12px;
-                                vertical-alignment: center;
-                                width: 56px;
+                                edited => { root.search_changed(self.text); }
                             }
                         }
+                    }
 
-                        TouchArea {
-                            clicked => { root.queue_selected(index); }
+                    HorizontalLayout {
+                        Text {
+                            text: "Your tracks";
+                            color: #f3f7fb;
+                            font-size: 18px;
+                            font-weight: 700;
+                            vertical-alignment: center;
+                        }
+                        Rectangle { horizontal-stretch: 1; }
+                        Text {
+                            text: "Select a track, then add it to your queue";
+                            color: #71879b;
+                            font-size: 11px;
+                            vertical-alignment: center;
+                        }
+                    }
+
+                    // Column headings
+                    HorizontalLayout {
+                        padding-left: 12px;
+                        padding-right: 12px;
+                        height: 28px;
+                        Text { text: "#"; color: #71879b; width: 28px; font-size: 11px; }
+                        Text { text: "TITLE"; color: #71879b; horizontal-stretch: 1; font-size: 11px; }
+                        Text { text: "ALBUM"; color: #71879b; width: 150px; font-size: 11px; }
+                        Text { text: "TIME"; color: #71879b; width: 52px; font-size: 11px; }
+                    }
+
+                    ListView {
+                        vertical-stretch: 1;
+                        for t[index] in root.track_list : Rectangle {
+                            height: 52px;
+                            border-radius: 6px;
+                            background: index == root.selected_track_index ? #1e3b4e : (index % 2 == 0 ? #142230 : transparent);
+                            HorizontalLayout {
+                                padding-left: 12px;
+                                padding-right: 12px;
+                                spacing: 10px;
+                                Text {
+                                    text: "${index + 1}";
+                                    color: #7f96a9;
+                                    width: 28px;
+                                    vertical-alignment: center;
+                                    font-size: 12px;
+                                }
+                                VerticalLayout {
+                                    horizontal-stretch: 1;
+                                    spacing: 1px;
+                                    Text {
+                                        text: t.title;
+                                        color: #edf5fb;
+                                        font-size: 13px;
+                                        vertical-alignment: center;
+                                        overflow: elide;
+                                    }
+                                    Text {
+                                        text: t.artist;
+                                        color: #91a5b7;
+                                        font-size: 11px;
+                                        vertical-alignment: center;
+                                        overflow: elide;
+                                    }
+                                }
+                                Text {
+                                    text: t.album;
+                                    color: #91a5b7;
+                                    width: 150px;
+                                    vertical-alignment: center;
+                                    font-size: 11px;
+                                    overflow: elide;
+                                }
+                                Text {
+                                    text: t.duration;
+                                    color: #91a5b7;
+                                    width: 52px;
+                                    vertical-alignment: center;
+                                    font-size: 11px;
+                                }
+                            }
+                            TouchArea { clicked => { root.track_selected(index); } }
+                        }
+                    }
+
+                    HorizontalLayout {
+                        spacing: 8px;
+                        Button {
+                            text: "Add to queue";
+                            clicked => { root.add_to_queue_clicked(); }
+                        }
+                        Button {
+                            text: "Scan music folder";
+                            clicked => { root.scan_directory_clicked(); }
                         }
                     }
                 }
-                Button { text: "Remove Selected"; clicked => { root.remove_queue_clicked(); } }
+            }
+
+            // Queue sidebar
+            Rectangle {
+                width: 268px;
+                background: #0e1721;
+                VerticalLayout {
+                    padding: 16px;
+                    spacing: 10px;
+                    Text {
+                        text: "Up next";
+                        color: #f3f7fb;
+                        font-size: 18px;
+                        font-weight: 700;
+                    }
+                    Text {
+                        text: "Your playback queue";
+                        color: #71879b;
+                        font-size: 11px;
+                    }
+                    ListView {
+                        vertical-stretch: 1;
+                        for t[index] in root.queue_list : Rectangle {
+                            height: 52px;
+                            border-radius: 5px;
+                            background: index == root.playing_queue_index ? #173c35 : (index == root.selected_queue_index ? #203b4c : transparent);
+                            VerticalLayout {
+                                padding-left: 8px;
+                                padding-right: 8px;
+                                spacing: 2px;
+                                Text {
+                                    text: t.title;
+                                    color: #edf5fb;
+                                    font-size: 12px;
+                                    vertical-alignment: center;
+                                    overflow: elide;
+                                }
+                                Text {
+                                    text: t.artist;
+                                    color: #91a5b7;
+                                    font-size: 10px;
+                                    overflow: elide;
+                                }
+                            }
+                            TouchArea { clicked => { root.queue_selected(index); } }
+                        }
+                    }
+                    Button {
+                        text: "Remove from queue";
+                        clicked => { root.remove_queue_clicked(); }
+                    }
+                }
             }
         }
 
-        // ── Now playing + controls ───────────────────────────────────────
+        // Persistent player dock
         Rectangle {
-            background: #1a2230;
-            border-radius: 8px;
-            height: 92px;
-
+            height: 116px;
+            background: #172432;
             HorizontalLayout {
-                padding: 12px;
-                spacing: 12px;
+                padding: 16px 22px;
+                spacing: 18px;
+
+                Rectangle {
+                    width: 68px;
+                    height: 68px;
+                    border-radius: 8px;
+                    background: #24485c;
+                    Text {
+                        text: "♫";
+                        color: #a9e4fa;
+                        font-size: 36px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+
+                VerticalLayout {
+                    width: 230px;
+                    spacing: 3px;
+                    Text {
+                        text: root.current_track_title;
+                        color: #f3f7fb;
+                        font-size: 14px;
+                        font-weight: 700;
+                        overflow: elide;
+                    }
+                    Text {
+                        text: root.current_track_artist;
+                        color: #9bb0c2;
+                        font-size: 12px;
+                        overflow: elide;
+                    }
+                    Text {
+                        text: root.player_state_label;
+                        color: #8bd4f1;
+                        font-size: 10px;
+                    }
+                }
 
                 VerticalLayout {
                     horizontal-stretch: 1;
-                    spacing: 2px;
-                    Text { text: root.current_track_title; font-size: 16px; font-weight: 700; color: #ffffff; }
-                    Text { text: root.current_track_artist; font-size: 13px; color: #cccccc; }
-                    Text { text: root.progress_label; font-size: 12px; color: #5ab0ff; }
+                    spacing: 4px;
+                    HorizontalLayout {
+                        alignment: center;
+                        spacing: 12px;
+                        Button { text: "Previous"; clicked => { root.previous_clicked(); } }
+                        Button { text: "Play / Pause"; clicked => { root.play_clicked(); } }
+                        Button { text: "Next"; clicked => { root.next_clicked(); } }
+                        Button { text: "Stop"; clicked => { root.stop_clicked(); } }
+                    }
                     Slider {
                         minimum: 0;
                         maximum: root.duration_secs;
@@ -284,21 +453,19 @@ export component MainWindow inherits Window {
                         horizontal-stretch: 1;
                         changed(value) => { root.is_seeking = true; }
                     }
-                    Button {
-                        text: "Seek";
-                        enabled: root.duration_secs > 0;
-                        clicked => {
-                            root.is_seeking = false;
-                            root.seek_clicked(root.playback_position_secs);
+                    HorizontalLayout {
+                        Text { text: root.progress_label; color: #91a5b7; font-size: 10px; }
+                        Rectangle { horizontal-stretch: 1; }
+                        Button {
+                            text: "Seek";
+                            enabled: root.duration_secs > 0;
+                            clicked => {
+                                root.is_seeking = false;
+                                root.seek_clicked(root.playback_position_secs);
+                            }
                         }
                     }
                 }
-
-                Button { text: "Scan Folder"; clicked => { root.scan_directory_clicked(); } }
-                Button { text: "Previous"; clicked => { root.previous_clicked(); } }
-                Button { text: "Play / Pause"; clicked => { root.play_clicked(); } }
-                Button { text: "Next"; clicked => { root.next_clicked(); } }
-                Button { text: "Stop"; clicked => { root.stop_clicked(); } }
             }
         }
     }
