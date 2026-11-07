@@ -243,10 +243,13 @@ jobs:
             exit 1
           fi
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            # BlueBuild uses a PR-number tag for pull-request builds.
             IMAGE_TAG="pr-$PR_NUMBER-$IMAGE_VERSION_SUFFIX"
           else
-            REF_TAG="$(printf '%s' "$REF_NAME" | tr '/' '_')"
-            IMAGE_TAG="${REF_TAG}-$IMAGE_VERSION_SUFFIX"
+            # BlueBuild publishes the short commit-SHA tag for push,
+            # workflow_dispatch, and schedule builds. It does not publish
+            # a branch-name tag such as main-44.
+            IMAGE_TAG="${GITHUB_SHA:0:7}-$IMAGE_VERSION_SUFFIX"
           fi
           echo "Verifying BlueBuild image tag: $IMAGE_TAG"
           IMAGE_REF="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/raptor-os:$IMAGE_TAG"
