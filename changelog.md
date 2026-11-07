@@ -19,7 +19,7 @@
 
 ## [Unreleased]
 
-### v3.0.0 (Major Release — planned)
+### v3.0.0 (Major Release)
 
 This is the consolidation release for more than two months of sustained Raptor OS overhaul work. The scope includes substantial changes across performance and memory management, gaming and GPU behavior, audio, Cortex, update reliability, hardware recovery, browser and chat-client choice, build validation, and the installation/distribution path. The intent is to ship the work as one coherent major update rather than scatter it across a long sequence of small version bumps.
 
