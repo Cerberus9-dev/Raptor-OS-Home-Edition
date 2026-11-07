@@ -152,7 +152,7 @@ assert_contains files/scripts/raptor-update/install.sh 'flatpak", "update", "--u
 assert_contains files/scripts/raptor-update/install.sh "trap restore_wifi_power_save EXIT"
 assert_contains files/scripts/raptor-update/install.sh "UPDATE_MANAGER_SHELL_SYNTAX_ERROR"
 assert_contains files/scripts/raptor-update/install.sh "def stream_process"
-assert_contains files/scripts/raptor-update/install.sh "CHECK_TIMEOUT         = 660"
+assert_contains files/scripts/raptor-update/install.sh "CHECK_TIMEOUT         = 1860"
 assert_contains files/scripts/raptor-update/install.sh "start_new_session=True"
 assert_contains files/scripts/raptor-update/install.sh "os.killpg"
 assert_contains files/scripts/raptor-update/install.sh "timeout=3 * 60 * 60"
