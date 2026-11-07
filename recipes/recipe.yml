@@ -73,7 +73,7 @@ modules:
       - source: ../files/system_files/raptor-nofile.conf
         destination: /etc/systemd/user.conf.d/10-raptor-nofile.conf
       # ── CI-built Raptor application payloads ─────────────────────────
-      # CI builds and stages Raptor Music and upstream Shroudly for every image.
+      # CI builds and stages Raptor Music and custom Raptor Shroudly for every image.
       # Local builds without those generated payloads safely skip their installers.
       - source: ../files/staging
         destination: /tmp/raptor-staging
@@ -104,7 +104,7 @@ modules:
       - liberation-fonts
       - power-profiles-daemon
 
-      # Original Shroudly Electron runtime libraries (optional one-time app).
+      # Desktop runtime libraries used by the Raptor application suite.
       - gtk3
       - libnotify
       - nss
