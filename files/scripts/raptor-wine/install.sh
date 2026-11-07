@@ -119,7 +119,7 @@ state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/raptor"
 mkdir -p "$state_dir"
 chmod 700 "$state_dir"
 stamp="$(date +%Y%m%d-%H%M%S)"
-log="$state_dir/${mode}-${stamp}-$.log"
+log="$state_dir/${mode}-${stamp}-$$.log"
 case "$mode" in
   wine) command=(/usr/bin/raptor-wine "$target" "$@"); label="Raptor Wine" ;;
   proton) command=(/usr/bin/raptor-wine-proton "$target" "$@"); label="Raptor Proton" ;;
