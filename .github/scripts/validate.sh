@@ -154,7 +154,7 @@ assert_contains files/scripts/raptor-update/install.sh "_stop_process_group(help
 assert_contains .github/workflows/build.yml 'cargo build --release --workspace --manifest-path files/scripts/raptor-music/Cargo.toml'
 assert_contains .github/workflows/build.yml 'cargo test --workspace --manifest-path files/scripts/raptor-music/Cargo.toml'
 assert_contains .github/workflows/build.yml 'test -x files/staging/raptor-music'
-assert_contains .github/workflows/build.yml 'test -x files/staging/shroudly-app/shroudly'
+assert_contains .github/workflows/build.yml 'test -x files/staging/raptor-shroudly'
 assert_contains .github/workflows/build.yml 'Verify both apps inside the published image'
 assert_not_contains .github/workflows/build.yml 'PR validation only: built Raptor Music without staging it into the image.'
 assert_not_contains files/scripts/raptor-update/install.sh "for line in user_proc.stdout"
@@ -377,9 +377,9 @@ assert_contains .github/workflows/build.yml 'IMAGE_TAG="${GITHUB_SHA:0:7}-$IMAGE
 assert_contains .github/workflows/build.yml 'BlueBuild publishes the short commit-SHA tag for push,'
 assert_not_contains .github/workflows/build.yml 'IMAGE_TAG="${REF_TAG}-$IMAGE_VERSION_SUFFIX"'
 assert_contains files/scripts/raptor-music/install.sh 'if [[ ! -x "$SRC_BIN" && -x "/tmp/files/staging/raptor-music" ]]; then'
-assert_contains files/scripts/shroudly-raptor/install.sh 'if [[ ! -x "$STAGE_DIR/shroudly" && -x "/tmp/files/staging/shroudly-app/shroudly" ]]; then'
+assert_contains files/scripts/shroudly-raptor/install.sh 'if [[ ! -x "$STAGED_BIN" && -x "/tmp/files/staging/raptor-shroudly" ]]; then'
 assert_contains files/scripts/raptor-music/install.sh 'STAGE_DIR="/tmp/files/staging"'
-assert_contains files/scripts/shroudly-raptor/install.sh 'STAGE_DIR="/tmp/files/staging/shroudly-app"'
+assert_contains files/scripts/shroudly-raptor/install.sh 'STAGED_BIN="/tmp/files/staging/raptor-shroudly"'
 echo "Image tagging and payload staging contracts passed."
 
 echo "=== Checking boot-time GPU detection safety ==="
