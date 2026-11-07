@@ -72,7 +72,7 @@ systemctl reboot
 
 ## First Boot
 
-Three dialogs appear on the first login, in sequence:
+A one-time **Welcome to Raptor OS Home** dialog introduces the Raptor app suite and explains what each core app does. Three setup dialogs then appear on the first login, in sequence:
 
 1. **Browser choice** — no browser ships in the image; Raptor keeps the default *minimal*. Choose Firefox, Brave, Zen Browser, Floorp, Waterfox, Chromium, Chrome, or Edge (each a one-time Flathub download, Firefox pre-selected). Shows a network check, download progress bar, and retry prompt on failure. "Skip — No Browser" installs nothing and forces no default.
 2. **Chat client choice** — choose official Discord, Vesktop (Vencord), Equibop (Equicord), or GoofCord. None is pre-installed. "Skip — Install Neither" is always available.
@@ -166,8 +166,8 @@ The first-boot chooser offers the official Discord client, Vesktop, Equibop, and
 ## Performance
 
 ### GPU
-- **Auto GPU detection** at boot — AMD, NVIDIA, Intel and hybrid configurations; selects supported GPU environment and driver settings. CPU power policy is handled separately by power-profiles-daemon
-- **`RADV_PERFTEST=gpl`** — cuts in-game shader compile stalls 30–60% on RDNA2+
+- **Auto GPU detection** at boot — AMD, NVIDIA, Intel and hybrid configurations. Raptor leaves kernel/Mesa driver selection to the supported system stack and applies only controls exposed by the detected driver. Older Intel GPUs are not forced onto the `iris` driver; unsupported Vulkan/DirectX feature levels and ray-tracing modes are never globally forced. CPU power policy is handled separately by power-profiles-daemon
+- **Driver-selected Vulkan defaults** — Raptor does not force experimental RADV flags or a Vulkan ICD globally; Mesa and the active GPU driver select supported features, especially on hybrid and older systems
 - **Mesa GL threading** is enabled for Wine/Proton where supported; native applications keep driver defaults to avoid global compatibility regressions
 - **`WINE_FULLSCREEN_FSR` and `DXVK_ASYNC` not set globally** — both caused flickering in OpenGL games (Project Zomboid). Set per-game in Steam launch options instead
 
@@ -206,7 +206,7 @@ The first-boot chooser offers the official Discord client, Vesktop, Equibop, and
 ### Network
 - **BBR congestion control + CAKE qdisc**, **128 MB TCP buffers**, **socket busy-polling**, **TCP fast-open**
 - **Network's own DNS wins, fast DoT resolvers on fallback** — the per-link (DHCP) resolver is always used first (so school/corporate DNS and captive portals work out of the box); Cloudflare/Quad9 DoT are consulted only when a network provides no DNS server. Pinning Cloudflare as the *only* resolver broke DPI'd networks that block `1.1.1.1`
-- **Forced WiFi reconnection on resume** — NetworkManager dispatcher + resume-trigger service cycle the WiFi interface on wake from suspend (school/corporate APs often drop associations during suspend), and the DNS cache is flushed to clear stale entries from the old network
+- **Bounded Wi-Fi recovery** — NetworkManager gets time to complete normal association; a watchdog now detects activation states stuck for about three minutes, serializes recovery attempts, bounds CLI calls, and uses a radio reset only after checking for a likely saved network. Automatic driver reloads are avoided because they can disrupt hardware and are reserved for explicit recovery. Resume recovery remains separate and respects the user's Wi-Fi-off choice
 
 ### Input
 - **USB autosuspend disabled** for HID devices and Bluetooth adapters specifically — excluded from Cortex's power-mode switching entirely, so a Bluetooth mouse/keyboard can never be swept into a suspended state by a mode change

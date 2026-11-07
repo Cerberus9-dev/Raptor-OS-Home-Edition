@@ -133,9 +133,6 @@ _set_amd_gpu_power_mode() {
 }
 
 # ── Common env vars ───────────────────────────────────────────────────────────
-# RADV_PERFTEST=gpl: Vulkan Graphics Pipeline Library — pre-compiles shader
-# variant stubs as a library rather than full monolithic programs. Cuts
-# in-game compile stalls by 30-60% on RDNA2+. Safe, well-tested upstream.
 COMMON_VARS="WINE_LARGE_ADDRESS_AWARE=1
 PROTON_FORCE_LARGE_ADDRESS_AWARE=1
 # WINE_FULLSCREEN_FSR and DXVK_ASYNC are intentionally NOT set globally.
@@ -145,7 +142,7 @@ PROTON_FORCE_LARGE_ADDRESS_AWARE=1
 STAGING_SHARED_MEMORY=1
 PROTON_NO_ESYNC=0
 PROTON_NO_FSYNC=0
-RADV_PERFTEST=gpl"
+"
 
 # ── Profile → env file ────────────────────────────────────────────────────────
 case "$PROFILE" in
@@ -153,7 +150,6 @@ case "$PROFILE" in
   extreme)
     cat << ENVEOF > /etc/environment.d/raptor-gpu.conf
 # ── Raptor OS: EXTREME PERFORMANCE profile ───────────────────────────────────
-AMD_VULKAN_ICD=RADV
 MESA_SHADER_CACHE_DISABLE=false
 MESA_SHADER_CACHE_MAX_SIZE=4G
 __GL_SHADER_DISK_CACHE=1
@@ -163,8 +159,6 @@ AMDGPU_HIGH_POWER=1
 PROTON_ENABLE_NVAPI=1
 # DXVK_ASYNC=1  ← set per-game, not globally (causes shader flicker)
 DXVK_FRAME_RATE=0
-VKD3D_CONFIG=dxr11,dxr
-VKD3D_FEATURE_LEVEL=12_2
 $COMMON_VARS
 ENVEOF
     if [ "$GPU_VENDOR" = "amd" ]; then _set_amd_gpu_power_mode high 1; fi
@@ -178,7 +172,6 @@ ENVEOF
   performance)
     cat << ENVEOF > /etc/environment.d/raptor-gpu.conf
 # ── Raptor OS: MAX PERFORMANCE profile ───────────────────────────────────────
-AMD_VULKAN_ICD=RADV
 MESA_SHADER_CACHE_DISABLE=false
 MESA_SHADER_CACHE_MAX_SIZE=2G
 __GL_SHADER_DISK_CACHE=1
@@ -186,8 +179,6 @@ __GL_SHADER_DISK_CACHE_SKIP_CLEANUP=1
 __GL_THREADED_OPTIMIZATIONS=1
 PROTON_ENABLE_NVAPI=1
 # DXVK_ASYNC=1  ← set per-game, not globally (causes shader flicker)
-VKD3D_CONFIG=dxr11
-VKD3D_FEATURE_LEVEL=12_1
 $COMMON_VARS
 ENVEOF
     if [ "$GPU_VENDOR" = "amd" ]; then _set_amd_gpu_power_mode high 1; fi
@@ -283,8 +274,6 @@ ENVEOF
     elif [ "$GPU_VENDOR" = "intel" ]; then
         cat << ENVEOF > /etc/environment.d/raptor-gpu.conf
 # ── Raptor OS: Intel auto profile ─────────────────────────────────────────────
-MESA_LOADER_DRIVER_OVERRIDE=iris
-LIBGL_DRI3_DISABLE=0
 $COMMON_VARS
 ENVEOF
     else

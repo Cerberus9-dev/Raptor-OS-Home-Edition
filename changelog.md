@@ -6,6 +6,25 @@
 
 This is the consolidation release for more than two months of sustained Raptor OS overhaul work. The scope includes substantial changes across performance and memory management, gaming and GPU behavior, audio, Cortex, update reliability, hardware recovery, browser and chat-client choice, build validation, and the installation/distribution path. The intent is to ship the work as one coherent major update rather than scatter it across a long sequence of small version bumps.
 
+### First-login welcome experience
+
+- Added a one-time **Welcome to Raptor OS Home** dialog before the existing browser, chat, and optional-app choices. It introduces the Raptor app suite in plain language and can be dismissed without blocking setup.
+- The welcome-complete stamp is stored per user under the XDG data directory; closing the window counts as a valid dismissal and prevents repeated prompts.
+
+### Legacy and hybrid GPU compatibility
+
+- Removed forced Intel iris driver selection so older Intel graphics can use the Mesa driver appropriate to their generation.
+- Removed global RADV experimental tuning and forced VKD3D feature-level/ray-tracing settings. Driver defaults now decide which Vulkan and DirectX features are available, avoiding unsupported settings on older AMD and NVIDIA hardware.
+- GPU power controls remain conditional on the relevant sysfs or vendor tools being present; unsupported controls are left unchanged.
+
+### Wi-Fi connection reliability
+
+- Fixed a watchdog logic error that treated NetworkManager's connecting/configuring states as healthy forever, allowing stalled Wi-Fi activation to evade recovery indefinitely.
+- Added a per-adapter stalled-activation counter, a three-minute grace period, and a serialized recovery lock so timer and resume recovery cannot fight each other.
+- Bounded NetworkManager CLI operations to prevent a stuck D-Bus request from holding the recovery helper open indefinitely.
+- Removed automatic Wi-Fi driver reload from background/watch/resume recovery. Recovery now stops after a bounded radio reset and reports the failure; driver reload remains available only through explicit force recovery.
+- Preserved saved connection profiles and credentials; the watchdog does not delete networks or alter their security settings.
+
 ### Wine and Proton reliability
 
 - Kept the normal Wine installer independent of UMU availability: Wine and its KDE integration can still be installed even if the optional Proton launcher is unavailable. The Proton action now checks for UMU only when the user invokes it.
