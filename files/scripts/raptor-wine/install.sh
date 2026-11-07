@@ -336,7 +336,7 @@ SERVICE
 
 update-desktop-database /usr/share/applications >/dev/null 2>&1 || true
 
-for required in /usr/bin/raptor-wine /usr/bin/raptor-wine-proton /usr/bin/raptor-wine-open /usr/bin/raptor-proton-open /usr/lib/raptor/launch-windows-app /usr/bin/raptor-wine-associations /usr/lib/systemd/user/raptor-wine-associations.service /usr/share/applications/raptor-wine-manager.desktop /usr/share/applications/raptor-proton-manager.desktop /usr/share/applications/raptor-proton-prefix-manager.desktop /usr/share/applications/raptor-wine-open.desktop /usr/share/applications/raptor-proton-open.desktop /usr/share/kio/servicemenus/raptor-wine.desktop; do
+for required in /usr/bin/raptor-wine /usr/bin/raptor-wine-proton /usr/bin/raptor-wine-open /usr/bin/raptor-proton-open /usr/bin/raptor-proton-prefix-manager /usr/bin/raptor-proton-prefix-open /usr/lib/raptor/launch-windows-app /usr/bin/raptor-wine-associations /usr/lib/systemd/user/raptor-wine-associations.service /usr/share/applications/raptor-wine-manager.desktop /usr/share/applications/raptor-proton-manager.desktop /usr/share/applications/raptor-proton-prefix-manager.desktop /usr/share/applications/raptor-wine-open.desktop /usr/share/applications/raptor-proton-open.desktop /usr/share/kio/servicemenus/raptor-wine.desktop; do
   [[ -s "$required" ]] || { echo "RAPTOR_WINE_PAYLOAD_MISSING:$required" >&2; exit 1; }
 done
 bash -n /usr/bin/raptor-wine
