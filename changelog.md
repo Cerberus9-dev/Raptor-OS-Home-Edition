@@ -42,6 +42,12 @@ This is the consolidation release for more than two months of sustained Raptor O
 - Rework the interface into a Raptor-branded graphite-and-sage desktop player, with clearer browse/library/queue hierarchy, a more prominent global search, and a persistent playback dock. The visual language uses familiar desktop-media conventions without Spotify logos, artwork, or copied branding.
 - Let the local-library and Audius result lists expand with the available window height instead of trapping results in short fixed-height panes. Clarify that local results are searched locally and online results come from Audius; this is not a Spotify-sized licensed streaming catalog.
 
+### Low-memory application tuning
+- **Firefox:** reduce the default content-process ceiling from four to two (web-isolated from two to one), halve in-memory page/media cache defaults, and apply the same defaults to existing profiles as well as new profiles. This trades some parallel page isolation/throughput for lower baseline RAM on low-memory systems; users can still override profile preferences.
+- **Equibop and Vesktop:** on systems with 8 GiB RAM or less, use a four-renderer ceiling while preserving GPU acceleration, Chromium sandboxing, and voice/video features. Equibop uses its documented persistent flags file. Do not impose a hard V8 heap cap or disable WebRTC.
+- **Raptor Cortex:** slow idle sensor polling from every eight seconds to every fifteen seconds to reduce repeated hardware-probe wakeups. This changes telemetry refresh cadence, not gaming performance.
+- **Raptor Proton:** retain UMU runtime caching and avoid indiscriminately killing shared Wine prefixes; a safe memory cleanup must not terminate another running Windows app.
+
 ### Raptor Cortex telemetry
 - Fix GPU summary detection by importing the regex module used by Linux DRM device discovery, restoring adapter model, utilization, clock, and exposed memory reporting.
 - Expand read-only fan telemetry to report standard hwmon RPM sensors, NVIDIA driver fan percentages, and PWM-only sensors with an explicit duty-cycle label instead of misrepresenting them as RPM.
