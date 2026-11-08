@@ -135,6 +135,124 @@ exit "$status"
 PROTON
 chmod 0755 /usr/bin/raptor-wine-proton
 
+cat <<'REGISTER' > /usr/bin/raptor-proton-register-apps
+#!/usr/bin/env bash
+set -euo pipefail
+
+prefix="${1:-}"
+mode="${2:-}"
+[[ -d "$prefix/drive_c" ]] || exit 0
+command -v zenity >/dev/null 2>&1 || exit 0
+
+exe=""
+if [[ "$mode" == "--manual" ]]; then
+  exe="$(zenity --file-selection --title="Add an installed app to KDE" \
+    --filename="$prefix/drive_c/Program Files/" \
+    --file-filter="Windows applications | *.exe" 2>/dev/null)" || exit 0
+  [[ -n "$exe" && -f "$exe" ]] || exit 0
+else
+  [[ -n "$mode" && -f "$mode" ]] || exit 0
+  declare -a rows=()
+  count=0
+  while IFS= read -r -d '' candidate; do
+    lower="${candidate,,}"
+    case "$lower" in
+      */windows/*|*/windows|*/unins*.exe|*/uninstall*.exe|*/setup*.exe|*/update*.exe|*/vcredist*.exe|*/dxsetup.exe|*/crash*.exe|*/redist*.exe)
+        continue ;;
+    esac
+    name="$(basename "$candidate")"
+    name="${name%.[eE][xX][eE]}"
+    rows+=("$name" "$candidate")
+    ((count+=1))
+    (( count >= 50 )) && break
+  done < <(find "$prefix/drive_c" -type f -iname '*.exe' -size +128k -newer "$mode" \
+      ! -path "$prefix/drive_c/windows/*" -print0 2>/dev/null | sort -z)
+  (("${#rows[@]}" > 0)) || exit 0
+  exe="$(zenity --list --title="Raptor Proton — Add to KDE" \
+    --text="Choose the application installed by the program you just ran." \
+    --column="Application" --column="Executable" --hide-column=2 --print-column=2 \
+    "${rows[@]}" 2>/dev/null)" || exit 0
+  [[ -n "$exe" && -f "$exe" ]] || exit 0
+fi
+
+default_name="$(basename "$exe")"
+default_name="${default_name%.[eE][xX][eE]}"
+app_name="$(zenity --entry --title="Raptor Proton — Application name" \
+  --text="Name to show in the KDE application menu:" --entry-text="$default_name" 2>/dev/null)" || exit 0
+[[ -n "$app_name" ]] || exit 0
+
+category="$(zenity --list --radiolist --title="Raptor Proton — Application category" \
+  --text="Choose where this application belongs in the KDE menu." \
+  --column="" --column="Menu section" TRUE "Game" FALSE "Utility" 2>/dev/null)" || exit 0
+[[ "$category" == "Game" || "$category" == "Utility" ]] || exit 0
+
+desktop_dir="$HOME/.local/share/applications/raptor-proton-apps"
+mkdir -p "$desktop_dir"
+python3 - "$desktop_dir" "$app_name" "$prefix" "$exe" "$category" <<'PY'
+import hashlib
+import os
+import re
+import sys
+
+directory, name, prefix, executable, category = sys.argv[1:]
+def key_escape(value):
+    return value.replace("\\", "\\\\").replace("\n", "\\n").replace("\r", "")
+def exec_quote(value):
+    value = value.replace("\\", "\\\\").replace('"', '\\"')
+    value = value.replace("$", "\\$")
+    value = value.replace("%", "%%")
+    return '"' + value + '"'
+
+slug = re.sub(r"[^A-Za-z0-9._-]+", "-", name).strip("-") or "application"
+digest = hashlib.sha256((prefix + "\0" + executable).encode()).hexdigest()[:10]
+path = os.path.join(directory, "raptor-proton-" + slug[:48] + "-" + digest + ".desktop")
+icon = "applications-games" if category == "Game" else "application-x-executable"
+body = "\n".join([
+    "[Desktop Entry]",
+    "Type=Application",
+    "Version=1.1",
+    "Name=" + key_escape(name),
+    "Comment=Launch " + key_escape(name) + " with Raptor Proton",
+    "Exec=/usr/bin/raptor-proton-launch-installed " + exec_quote(prefix) + " " + exec_quote(executable),
+    "TryExec=/usr/bin/raptor-proton-launch-installed",
+    "Icon=" + icon,
+    "Terminal=false",
+    "StartupNotify=true",
+    "Categories=" + category + ";",
+    "",
+])
+with open(path, "w", encoding="utf-8") as stream:
+    stream.write(body)
+os.chmod(path, 0o644)
+print(path)
+PY
+command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$desktop_dir" >/dev/null 2>&1 || true
+# Refresh the KDE application cache in the background rather than blocking the installer.
+if command -v kbuildsycoca6 >/dev/null 2>&1; then
+  kbuildsycoca6 --noincremental >/dev/null 2>&1 &
+fi
+command -v notify-send >/dev/null 2>&1 && notify-send --app-name="Raptor Proton" \
+  "Added to KDE applications" "$app_name is now listed under $category."
+REGISTER
+chmod 0755 /usr/bin/raptor-proton-register-apps
+
+cat <<'PREFIXLAUNCH' > /usr/bin/raptor-proton-launch-installed
+#!/usr/bin/env bash
+set -euo pipefail
+[[ $# -ge 2 ]] || exit 2
+prefix="$1"; shift
+target="$1"; shift
+[[ -d "$prefix/drive_c" && -f "$target" ]] || {
+  command -v notify-send >/dev/null 2>&1 && notify-send --app-name="Raptor Proton" \
+    "Application not found" "The installed program or its Proton prefix is missing."
+  exit 2
+}
+export WINEPREFIX="$prefix"
+export RAPTOR_WINE_GAME_ID="${RAPTOR_WINE_GAME_ID:-umu-default}"
+exec /usr/bin/raptor-wine-proton "$target" "$@"
+PREFIXLAUNCH
+chmod 0755 /usr/bin/raptor-proton-launch-installed
+
 # Desktop launches must not block Dolphin/Plasma while Wine creates its first
 # prefix or UMU downloads its runtime/Proton distribution. Keep terminal use
 # synchronous; these wrappers are only for file-manager/application launches.
