@@ -183,17 +183,13 @@ assert_contains files/scripts/raptor-gaming/install.sh '"Value": 32768,'
 assert_contains files/scripts/raptor-gaming/install.sh '"Value": 2,'
 assert_contains files/scripts/raptor-gaming/install.sh 'user_pref("dom.ipc.processCount", 2);'
 assert_contains files/system_files/raptor-app-choice.sh '--renderer-process-limit=4'
+assert_contains files/system_files/raptor-app-choice.sh 'discord-flags.conf'
+assert_contains files/system_files/raptor-app-choice.sh 'Raptor OS low-memory renderer default'
+assert_contains files/system_files/raptor-app-choice.sh '$HOME}/.var/app/org.mozilla.firefox/.mozilla/firefox'
+assert_contains files/system_files/raptor-app-choice.sh 'Raptor OS low-memory process defaults'
 assert_contains files/scripts/raptor-wine/install.sh 'cleanup_idle_wineserver'
-assert_contains files/scripts/raptor-wine/install.sh 'WINEPREFIX="$WINEPREFIX" wineserver -k'
-assert_contains files/system_files/raptor-app-choice.sh 'Raptor OS low-memory process defaults'
-assert_contains files/scripts/raptor-cortex/install.sh 'GLib.timeout_add_seconds(15, self._refresh_stats)'
-
-echo "=== Checking low-memory application defaults ==="
-assert_contains files/scripts/raptor-gaming/install.sh '"Value": 32768,'
-assert_contains files/scripts/raptor-gaming/install.sh '"Value": 2,'
-assert_contains files/scripts/raptor-gaming/install.sh 'user_pref("dom.ipc.processCount", 2);'
-assert_contains files/system_files/raptor-app-choice.sh '--renderer-process-limit=4'
-assert_contains files/system_files/raptor-app-choice.sh 'Raptor OS low-memory process defaults'
+assert_contains files/scripts/raptor-wine/install.sh 'umu-run wineboot -k'
+assert_not_contains files/scripts/raptor-wine/install.sh 'WINEPREFIX="$WINEPREFIX" wineserver -k'
 assert_contains files/scripts/raptor-cortex/install.sh 'GLib.timeout_add_seconds(15, self._refresh_stats)'
 
 echo "=== Checking ISO and requirements documentation ==="
@@ -467,7 +463,7 @@ assert_contains files/scripts/raptor-cortex/install.sh 'gpu_telemetry_group.add(
 assert_contains files/scripts/raptor-cortex/install.sh 'add_page("games", "Games")'
 assert_contains files/scripts/raptor-cortex/install.sh 'add_page("optimize", "Optimize")'
 assert_contains files/scripts/raptor-cortex/install.sh 'add_page("settings", "Settings")'
-assert_contains files/scripts/raptor-cortex/install.sh 'GLib.timeout_add_seconds(8, self._refresh_stats)'
+assert_contains files/scripts/raptor-cortex/install.sh 'GLib.timeout_add_seconds(15, self._refresh_stats)'
 
 echo "=== Checking memory compression defaults ==="
 assert_contains files/system_files/zram-generator.conf 'zram-size = min(ram, 8192)'
