@@ -106,6 +106,9 @@ case "${target,,}" in
   *.msi)
     # An empty UMU invocation initializes a prefix before Windows Installer runs.
     umu-run "" || exit $?
+    printf '%s\n' "$(date +%s)" > "$runtime_stamp"
+    chmod 600 "$runtime_stamp"
+    export UMU_RUNTIME_UPDATE=0
     msiexec="$WINEPREFIX/drive_c/windows/system32/msiexec.exe"
     [[ -f "$msiexec" ]] || {
       echo "Raptor Proton: Windows Installer was not created in the Proton prefix." >&2
@@ -301,11 +304,18 @@ chmod 0755 /usr/lib/raptor/launch-windows-app
 
 cat <<'OPENWINE' > /usr/bin/raptor-wine-open
 #!/usr/bin/env bash
+set -euo pipefail
+if [[ $# -eq 0 ]]; then
+  exec /usr/bin/raptor-wine-manager
+fi
 exec /usr/lib/raptor/launch-windows-app wine "$@"
 OPENWINE
 cat <<'OPENPROTON' > /usr/bin/raptor-proton-open
 #!/usr/bin/env bash
 set -euo pipefail
+if [[ $# -eq 0 ]]; then
+  exec /usr/bin/raptor-proton-manager
+fi
 export RAPTOR_PROTON_REGISTER_AFTER="${RAPTOR_PROTON_REGISTER_AFTER:-1}"
 exec /usr/lib/raptor/launch-windows-app proton "$@"
 OPENPROTON
@@ -483,7 +493,7 @@ Comment=Choose and run a Windows game with Proton
 Exec=raptor-proton-manager
 Icon=applications-games
 Terminal=false
-Categories=Game;Utility;
+Categories=Game;
 PROTONDESKTOP
 cat <<'PREFIXDESKTOP' > /usr/share/applications/raptor-proton-prefix-manager.desktop
 [Desktop Entry]
@@ -516,7 +526,8 @@ Name=Open with Raptor Proton
 Exec=raptor-proton-open %f
 Icon=applications-games
 Terminal=false
-NoDisplay=true
+NoDisplay=false
+Categories=Game;
 MimeType=application/x-ms-dos-executable;application/vnd.microsoft.portable-executable;application/x-msdownload;application/x-msi;
 PROTONHANDLER
 mkdir -p /usr/share/kio/servicemenus
