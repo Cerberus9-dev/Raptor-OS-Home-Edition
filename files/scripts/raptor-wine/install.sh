@@ -105,6 +105,30 @@ if [[ -d "$HOME/.local/share/umu" && -s "$runtime_stamp" ]]; then
   fi
 fi
 
+# UMU owns the Proton toolchain for this prefix. Never call the host Wine
+# wineserver here: it may be a different version from the Proton prefix.
+# Ignore this launcher and its parent, then preserve any other app sharing the
+# same prefix. The quoted installer heredoc keeps these expansions literal
+# until the generated helper is executed.
+cleanup_idle_wineserver() {
+  local proc pid comm env_entry
+  for proc in /proc/[0-9]*; do
+    pid="${proc##*/}"
+    [[ "$pid" == "$BASHPID" || "$pid" == "$PPID" ]] && continue
+    [[ -r "$proc/environ" ]] || continue
+    comm=""
+    [[ -r "$proc/comm" ]] && IFS= read -r comm < "$proc/comm" || true
+    [[ "$comm" == "wineserver" ]] && continue
+    while IFS= read -r -d '' env_entry; do
+      if [[ "$env_entry" == "WINEPREFIX=$WINEPREFIX" ]]; then
+        return 0
+      fi
+    done < "$proc/environ" 2>/dev/null || true
+  done
+  WINEPREFIX="$WINEPREFIX" GAMEID="$GAMEID" UMU_RUNTIME_UPDATE=0 \
+    umu-run wineboot -k >/dev/null 2>&1 || true
+}
+
 if (( runtime_is_fresh )); then
   export UMU_RUNTIME_UPDATE=0
 else
@@ -120,6 +144,9 @@ else
   printf '%s\n' "$(date +%s)" > "$runtime_stamp"
   chmod 600 "$runtime_stamp"
   export UMU_RUNTIME_UPDATE=0
+  # Prefix initialization can leave a wineserver behind even though no app
+  # was launched. Shut it down through UMU/Proton before continuing.
+  cleanup_idle_wineserver
 fi
 
 register_after="${RAPTOR_PROTON_REGISTER_AFTER:-0}"
@@ -152,29 +179,6 @@ set +e
 umu-run "${launch_command[@]}"
 status=$?
 set -e
-
-# UMU/Wine can leave an idle wineserver behind after the last app exits.
-# Reclaim that memory only when no other process for this exact prefix remains;
-# this deliberately preserves concurrently running apps that share a prefix.
-cleanup_idle_wineserver() {
-  command -v wineserver >/dev/null 2>&1 || return 0
-  local proc pid comm env_entry
-  for proc in /proc/[0-9]*; do
-    pid="\${proc##*/}"
-    [[ "$pid" == "$BASHPID" || "$pid" == "$PPID" ]] && continue
-    [[ -r "$proc/environ" ]] || continue
-    comm=""
-    [[ -r "$proc/comm" ]] && IFS= read -r comm < "$proc/comm" || true
-    [[ "$comm" == "wineserver" ]] && continue
-    while IFS= read -r -d '' env_entry; do
-      if [[ "$env_entry" == "WINEPREFIX=$WINEPREFIX" ]]; then
-        return 0
-      fi
-    done < "$proc/environ" 2>/dev/null || true
-  done
-  WINEPREFIX="$WINEPREFIX" wineserver -k >/dev/null 2>&1 || true
-}
-cleanup_idle_wineserver
 
 if (( status == 0 )); then
   printf '%s\n' "$(date +%s)" > "$runtime_stamp"
