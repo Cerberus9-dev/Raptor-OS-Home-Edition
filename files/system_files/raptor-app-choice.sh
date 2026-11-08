@@ -74,12 +74,16 @@ if flatpak info dev.vencord.Vesktop &>/dev/null 2>&1; then
     mkdir -p "${VESKTOP_CFG}"
     # Four renderers leave room for the UI, server views and call surfaces.
     # Do not cap V8 heaps, disable GPU acceleration, or disable WebRTC.
-    cat > "${VESKTOP_CFG}/flags.txt" << 'VESKTOPFLAGS'
---ozone-platform=wayland
---enable-wayland-ime
-VESKTOPFLAGS
-    if [[ "$CHAT_LOW_MEMORY" == "1" ]]; then
-        printf '%s\n' '--renderer-process-limit=4' >> "$VESKTOP_CFG/flags.txt"
+    VESKTOP_FLAGS="${VESKTOP_CFG}/flags.txt"
+    touch "$VESKTOP_FLAGS"
+    if ! grep -Fxq -- '--ozone-platform=wayland' "$VESKTOP_FLAGS"; then
+        printf '%s\n' '--ozone-platform=wayland' >> "$VESKTOP_FLAGS"
+    fi
+    if ! grep -Fxq -- '--enable-wayland-ime' "$VESKTOP_FLAGS"; then
+        printf '%s\n' '--enable-wayland-ime' >> "$VESKTOP_FLAGS"
+    fi
+    if [[ "$CHAT_LOW_MEMORY" == "1" ]] && ! grep -q '^--renderer-process-limit=' "$VESKTOP_FLAGS"; then
+        printf '\n%s\n' '# Raptor OS low-memory renderer default' '--renderer-process-limit=4' >> "$VESKTOP_FLAGS"
     fi
     flatpak override --user dev.vencord.Vesktop \
         --env=OZONE_PLATFORM=wayland \
@@ -93,11 +97,9 @@ if flatpak info org.equicord.equibop >/dev/null 2>&1; then
     EQUIBOP_CFG="${HOME}/.var/app/org.equicord.equibop/config/equibop-flags.conf"
     if [[ "$CHAT_LOW_MEMORY" == "1" ]]; then
         mkdir -p "$(dirname "$EQUIBOP_CFG")"
-        if [[ ! -f "$EQUIBOP_CFG" ]] || ! grep -q '^--renderer-process-limit=' "$EQUIBOP_CFG"; then
-            cat > "$EQUIBOP_CFG" <<'EQUIBOPFLAGS'
-# Raptor OS low-memory profile. GPU acceleration and WebRTC remain enabled.
---renderer-process-limit=4
-EQUIBOPFLAGS
+        touch "$EQUIBOP_CFG"
+        if ! grep -q '^--renderer-process-limit=' "$EQUIBOP_CFG"; then
+            printf '\n%s\n' '# Raptor OS low-memory profile. GPU acceleration and WebRTC remain enabled.' '--renderer-process-limit=4' >> "$EQUIBOP_CFG"
         fi
         log "Equibop: low-memory renderer limit configured."
     elif grep -q 'Raptor OS low-memory profile' "$EQUIBOP_CFG" 2>/dev/null; then
