@@ -42,6 +42,12 @@ This is the consolidation release for more than two months of sustained Raptor O
 - Expand read-only fan telemetry to report standard hwmon RPM sensors, NVIDIA driver fan percentages, and PWM-only sensors with an explicit duty-cycle label instead of misrepresenting them as RPM.
 - Add regression coverage with synthetic AMD-style DRM and hwmon RPM/PWM fixtures; hardware without an exposed tachometer or PWM sensor remains reported as unavailable rather than guessed.
 
+### Raptor Music online search and playback
+- Add debounced online track discovery through Audius alongside the existing local-library search; local queries still work offline and local files remain on-device.
+- Filter online results to public, available, streamable tracks, preserve stable provider IDs in the library, and allow selected online results to enter the normal playback queue.
+- Add bounded download-to-cache playback for Audius MP3 streams, with a 256 MiB safety limit, short request timeouts, and automatic temporary-file cleanup. Buffers are written to the per-user cache rather than the typical RAM-backed runtime directory.
+- Add regression tests for streamability/access filtering, malformed responses, and stable remote track IDs. Audius adds an online catalog but does not provide Spotify's complete catalog or guarantee every artist/track is available.
+
 ### Boot-time hardware detection and service cleanup
 - Removed blanket USB autosuspend disable rules for HID, Bluetooth and USB audio devices; controller permissions remain, but idle power behavior stays with the kernel unless a device-specific issue requires a workaround.
 
