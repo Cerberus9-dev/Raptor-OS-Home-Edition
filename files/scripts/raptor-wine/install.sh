@@ -168,7 +168,9 @@ else
     rows+=("$name" "$candidate")
     ((count+=1))
     (( count >= 50 )) && break
-  done < <(find "$prefix/drive_c" -type f -iname '*.exe' -size +128k -newer "$mode" \
+  # Installers sometimes preserve the original executable timestamps, so do not
+  # depend on mtime. Search app locations outside the Windows system directory.
+  done < <(find "$prefix/drive_c" -type f -iname '*.exe' -size +128k \
       ! -path "$prefix/drive_c/windows/*" -print0 2>/dev/null | sort -z)
   (("${#rows[@]}" > 0)) || exit 0
   exe="$(zenity --list --title="Raptor Proton — Add to KDE" \
@@ -220,7 +222,7 @@ body = "\n".join([
     "TryExec=/usr/bin/raptor-proton-launch-installed",
     "Icon=" + icon,
     "Terminal=false",
-    "StartupNotify=true",
+    "StartupNotify=false",
     "Categories=" + category + ";",
     "",
 ])
@@ -316,7 +318,14 @@ set -euo pipefail
 if [[ $# -eq 0 ]]; then
   exec /usr/bin/raptor-proton-manager
 fi
-export RAPTOR_PROTON_REGISTER_AFTER="${RAPTOR_PROTON_REGISTER_AFTER:-1}"
+if [[ -z "${RAPTOR_PROTON_REGISTER_AFTER+x}" ]]; then
+  case "${1,,}" in
+    *.msi|*setup*.exe|*install*.exe|*installer*.exe|*bootstrap*.exe)
+      export RAPTOR_PROTON_REGISTER_AFTER=1 ;;
+    *)
+      export RAPTOR_PROTON_REGISTER_AFTER=0 ;;
+  esac
+fi
 exec /usr/lib/raptor/launch-windows-app proton "$@"
 OPENPROTON
 chmod 0755 /usr/bin/raptor-wine-open /usr/bin/raptor-proton-open
@@ -505,7 +514,7 @@ Comment=Add a program installed in a Steam/Proton prefix to application search
 Exec=raptor-proton-prefix-manager
 Icon=applications-games
 Terminal=false
-Categories=Game;Utility;
+Categories=Game;
 PREFIXDESKTOP
 cat <<'OPENHANDLER' > /usr/share/applications/raptor-wine-open.desktop
 [Desktop Entry]
