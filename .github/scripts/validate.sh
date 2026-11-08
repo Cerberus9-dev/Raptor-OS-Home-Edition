@@ -190,7 +190,7 @@ assert_contains files/system_files/raptor-app-choice.sh '--renderer-process-limi
 assert_contains files/system_files/raptor-app-choice.sh 'discord-flags.conf'
 assert_contains files/system_files/raptor-app-choice.sh 'touch "$VESKTOP_FLAGS"'
 assert_contains files/system_files/raptor-app-choice.sh 'touch "$EQUIBOP_CFG"'
-assert_contains files/system_files/raptor-app-choice.sh 'grep -q \'^--renderer-process-limit=\''
+assert_contains files/system_files/raptor-app-choice.sh "grep -q '^--renderer-process-limit='"
 assert_contains files/system_files/raptor-app-choice.sh 'Raptor OS low-memory renderer default'
 assert_contains files/system_files/raptor-app-choice.sh 'DISCORD_FLAGS="$DISCORD_CFG/discord-flags.conf"'
 assert_contains files/system_files/raptor-app-choice.sh '.var/app/org.mozilla.firefox/.mozilla/firefox'
