@@ -274,6 +274,7 @@ impl AudioPlayer {
                         });
                         let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
                         active_session_token = None;
+                        remote_audio_file = None;
                         break 'play_session;
                     }
                 };
@@ -285,6 +286,7 @@ impl AudioPlayer {
                         let _ = event_tx.send(PlayerEvent::PlaybackFailed { session_token, error_message: e });
                         let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
                         active_session_token = None;
+                        remote_audio_file = None;
                         break 'play_session;
                     }
                 };
@@ -298,6 +300,7 @@ impl AudioPlayer {
                         let _ = event_tx.send(PlayerEvent::PlaybackFailed { session_token, error_message: e.to_string() });
                         let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
                         active_session_token = None;
+                        remote_audio_file = None;
                         break 'play_session;
                     }
                 };
@@ -316,6 +319,7 @@ impl AudioPlayer {
                         let _ = event_tx.send(PlayerEvent::PlaybackFailed { session_token, error_message: e });
                         let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
                         active_session_token = None;
+                        remote_audio_file = None;
                         break 'play_session;
                     }
                 };
@@ -445,6 +449,7 @@ impl AudioPlayer {
                         let _ = event_tx.send(PlayerEvent::PlaybackFailed { session_token, error_message: "Unsupported sample format".into() });
                         let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
                         active_session_token = None;
+                        remote_audio_file = None;
                         break 'play_session;
                     }
                 };
@@ -456,6 +461,7 @@ impl AudioPlayer {
                         let _ = event_tx.send(PlayerEvent::PlaybackFailed { session_token, error_message: e.to_string() });
                         let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
                         active_session_token = None;
+                        remote_audio_file = None;
                         break 'play_session;
                     }
                 };
@@ -492,6 +498,7 @@ impl AudioPlayer {
                         let _ = event_tx.send(PlayerEvent::PlaybackFailed { session_token, error_message: "Output stream error".into() });
                         let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
                         active_session_token = None;
+                        remote_audio_file = None;
                         break 'play_session;
                     }
 
@@ -581,6 +588,7 @@ impl AudioPlayer {
                                     let _ = event_tx.send(PlayerEvent::PlaybackFailed { session_token, error_message: e });
                                     let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
                                     active_session_token = None;
+                                    remote_audio_file = None;
                                     break 'play_session;
                                 }
 
@@ -590,6 +598,7 @@ impl AudioPlayer {
                                     let _ = event_tx.send(PlayerEvent::PlaybackFailed { session_token, error_message: e });
                                     let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
                                     active_session_token = None;
+                                    remote_audio_file = None;
                                     break 'play_session;
                                 }
 
@@ -605,6 +614,7 @@ impl AudioPlayer {
                                         let _ = event_tx.send(PlayerEvent::PlaybackFailed { session_token, error_message: "Output stream error".into() });
                                         let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
                                         active_session_token = None;
+                                        remote_audio_file = None;
                                         break 'play_session;
                                     }
                                     if let Ok(cmd) = rx.try_recv() {
@@ -616,6 +626,7 @@ impl AudioPlayer {
                                                     let _ = event_tx.send(PlayerEvent::Stopped { session_token });
                                                     let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
                                                     active_session_token = None;
+                                                    remote_audio_file = None;
                                                     break 'play_session;
                                                 }
                                             }
@@ -684,6 +695,7 @@ impl AudioPlayer {
                                                 let _ = event_tx.send(PlayerEvent::PlaybackFailed { session_token, error_message: "Output stream error".into() });
                                                 let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
                                                 active_session_token = None;
+                                                remote_audio_file = None;
                                                 break 'play_session;
                                             }
                                             if let Ok(cmd) = rx.try_recv() {
@@ -695,6 +707,7 @@ impl AudioPlayer {
                                                             let _ = event_tx.send(PlayerEvent::Stopped { session_token });
                                                             let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
                                                             active_session_token = None;
+                                                            remote_audio_file = None;
                                                             break 'play_session;
                                                         }
                                                     }
@@ -737,6 +750,7 @@ impl AudioPlayer {
                                         let _ = event_tx.send(PlayerEvent::PlaybackFailed { session_token, error_message: e });
                                         let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
                                         active_session_token = None;
+                                        remote_audio_file = None;
                                         break 'play_session;
                                     }
                                 }
@@ -748,6 +762,7 @@ impl AudioPlayer {
                                 let _ = event_tx.send(PlayerEvent::PlaybackFailed { session_token, error_message: e });
                                 let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
                                 active_session_token = None;
+                                remote_audio_file = None;
                                 break 'play_session;
                             }
                         }
@@ -770,6 +785,7 @@ impl AudioPlayer {
                                         let _ = event_tx.send(PlayerEvent::Stopped { session_token });
                                         let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
                                         active_session_token = None;
+                                        remote_audio_file = None;
                                         break 'play_session;
                                     }
                                 }
@@ -820,6 +836,7 @@ impl AudioPlayer {
                             drop(stream);
                             *state.lock().unwrap() = PlayerState::Idle;
                             active_session_token = None;
+                            remote_audio_file = None;
                             break 'play_session;
                         }
                         thread::sleep(std::time::Duration::from_millis(15));
