@@ -7,7 +7,7 @@ use raptor_core::models::{Track, PlaybackSource, PlayerState, PlayerEvent};
 use std::sync::{Arc, Mutex};
 use std::collections::HashSet;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 use uuid::Uuid;
 
@@ -31,6 +31,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let active_session_token: Arc<Mutex<Option<Uuid>>> = Arc::new(Mutex::new(None));
     let active_playing_queue_entry_id: Arc<Mutex<Option<Uuid>>> = Arc::new(Mutex::new(None));
     let last_seek_at: Arc<Mutex<Option<Instant>>> = Arc::new(Mutex::new(None));
+    let online_tracks: Arc<Mutex<Vec<Track>>> = Arc::new(Mutex::new(Vec::new()));
+    let online_search_generation = Arc::new(AtomicU64::new(0));
 
     {
         let db_lock = db.lock().unwrap();
@@ -82,24 +84,94 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let db_for_search = Arc::clone(&db);
     let visible_ids_for_search = Arc::clone(&visible_track_ids);
     let selected_id_for_search = Arc::clone(&selected_track_id);
+    let online_tracks_for_search = Arc::clone(&online_tracks);
+    let online_generation_for_search = Arc::clone(&online_search_generation);
     let ui_handle_search = ui.as_weak();
     ui.on_search_changed(move |query| {
         let ui = match ui_handle_search.upgrade() {
             Some(ui) => ui,
             None => return,
         };
+        let query = query.to_string();
+        let request_generation = online_generation_for_search.fetch_add(1, Ordering::AcqRel) + 1;
+
         let all_tracks = db_for_search.lock().unwrap().get_all_tracks().unwrap_or_default();
-        let needle = query.to_string().trim().to_lowercase();
+        let needle = query.trim().to_lowercase();
+        let tokens = needle.split_whitespace().collect::<Vec<_>>();
         let filtered = all_tracks.into_iter().filter(|track| {
-            needle.is_empty()
-                || track.title.to_lowercase().contains(&needle)
-                || track.artist.to_lowercase().contains(&needle)
-                || track.album.as_deref().unwrap_or("").to_lowercase().contains(&needle)
+            if tokens.is_empty() {
+                return true;
+            }
+            let haystack = format!(
+                "{} {} {}",
+                track.title,
+                track.artist,
+                track.album.as_deref().unwrap_or("")
+            ).to_lowercase();
+            tokens.iter().all(|token| haystack.contains(token))
         }).collect::<Vec<_>>();
+
         *visible_ids_for_search.lock().unwrap() = filtered.iter().map(|track| track.id).collect();
         *selected_id_for_search.lock().unwrap() = None;
         ui.set_selected_track_index(-1);
+        ui.set_selected_online_track_index(-1);
         ui.set_track_list(slint::ModelRc::new(slint::VecModel::from(tracks_to_slint(&filtered))));
+
+        if query.trim().chars().count() < 2 {
+            *online_tracks_for_search.lock().unwrap() = Vec::new();
+            ui.set_online_track_list(slint::ModelRc::new(slint::VecModel::from(Vec::<TrackData>::new())));
+            ui.set_online_search_status("Type at least 2 characters to search online".into());
+            return;
+        }
+
+        ui.set_online_search_status("Searching Audius…".into());
+        let query_for_thread = query.trim().to_string();
+        let ui_weak = ui_handle_search.clone();
+        let online_tracks = Arc::clone(&online_tracks_for_search);
+        let generation = Arc::clone(&online_generation_for_search);
+        std::thread::spawn(move || {
+            // Debounce typing and discard stale responses so a slower network
+            // response can never overwrite results for a newer search.
+            std::thread::sleep(Duration::from_millis(450));
+            if generation.load(Ordering::Acquire) != request_generation {
+                return;
+            }
+            let result = search_audius_tracks(&query_for_thread);
+            if generation.load(Ordering::Acquire) != request_generation {
+                return;
+            }
+
+            match result {
+                Ok(tracks) => {
+                    let count = tracks.len();
+                    *online_tracks.lock().unwrap() = tracks.clone();
+                    let rows = tracks_to_slint(&tracks);
+                    let status = if count == 0 {
+                        "No streamable online tracks found".to_string()
+                    } else {
+                        format!("{count} results · Audius")
+                    };
+                    let _ = slint::invoke_from_event_loop(move || {
+                        if let Some(ui) = ui_weak.upgrade() {
+                            ui.set_online_track_list(slint::ModelRc::new(slint::VecModel::from(rows)));
+                            ui.set_online_search_status(status.into());
+                        }
+                    });
+                }
+                Err(error) => {
+                    *online_tracks.lock().unwrap() = Vec::new();
+                    let status = format!("Online search unavailable: {}", error);
+                    let _ = slint::invoke_from_event_loop(move || {
+                        if let Some(ui) = ui_weak.upgrade() {
+                            ui.set_online_track_list(slint::ModelRc::new(
+                                slint::VecModel::from(Vec::<TrackData>::new())
+                            ));
+                            ui.set_online_search_status(status.into());
+                        }
+                    });
+                }
+            }
+        });
     });
 
     let visible_ids_for_select = Arc::clone(&visible_track_ids);
@@ -111,6 +183,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             *selected_id_for_select.lock().unwrap() = Some(id);
             if let Some(ui) = ui_handle_select.upgrade() {
                 ui.set_selected_track_index(idx);
+                ui.set_selected_online_track_index(-1);
+            }
+        }
+    });
+
+    let online_tracks_for_select = Arc::clone(&online_tracks);
+    let db_for_online_select = Arc::clone(&db);
+    let selected_id_for_online_select = Arc::clone(&selected_track_id);
+    let ui_handle_online_select = ui.as_weak();
+    ui.on_online_track_selected(move |idx| {
+        let track = online_tracks_for_select.lock().unwrap().get(idx as usize).cloned();
+        if let Some(track) = track {
+            let saved = db_for_online_select.lock().unwrap().upsert_track(&track).is_ok();
+            if !saved {
+                if let Some(ui) = ui_handle_online_select.upgrade() {
+                    ui.set_player_state_label("Could not add online track to your library".into());
+                }
+                return;
+            }
+            *selected_id_for_online_select.lock().unwrap() = Some(track.id);
+            if let Some(ui) = ui_handle_online_select.upgrade() {
+                ui.set_selected_online_track_index(idx);
+                ui.set_selected_track_index(-1);
+                ui.set_player_state_label("Online track selected · Add selected to queue".into());
             }
         }
     });
@@ -571,6 +667,185 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     ui.run()?;
     Ok(())
+}
+
+fn audius_flag(value: &serde_json::Value, key: &str, default: bool) -> bool {
+    match value.get(key) {
+        Some(serde_json::Value::Bool(flag)) => *flag,
+        Some(serde_json::Value::String(flag)) => flag.eq_ignore_ascii_case("true"),
+        _ => default,
+    }
+}
+
+fn parse_audius_tracks(payload: &serde_json::Value) -> Result<Vec<Track>, String> {
+    let rows = payload
+        .get("data")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| "Audius returned an unexpected search response".to_string())?;
+
+    let mut tracks = Vec::new();
+    for row in rows.iter().take(24) {
+        // Do not display hidden, unavailable, gated, or non-streamable items as
+        // playable results. The player repeats this provider check at playback.
+        if !audius_flag(row, "is_streamable", false)
+            || audius_flag(row, "is_unlisted", false)
+            || audius_flag(row, "is_stream_gated", false)
+            || !audius_flag(row, "is_available", true)
+            || audius_flag(row, "is_delete", false)
+        {
+            continue;
+        }
+
+        let Some(provider_track_id) = row.get("id").and_then(serde_json::Value::as_str) else {
+            continue;
+        };
+        if provider_track_id.is_empty()
+            || !provider_track_id.chars().all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_')
+        {
+            continue;
+        }
+        let Some(title) = row.get("title").and_then(serde_json::Value::as_str) else {
+            continue;
+        };
+        let artist = row
+            .get("user")
+            .and_then(|user| user.get("name"))
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("Unknown artist");
+        let genre = row
+            .get("genre")
+            .and_then(serde_json::Value::as_str)
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or("Audius");
+        let duration = row
+            .get("duration")
+            .and_then(serde_json::Value::as_u64);
+
+        let stable_id = Uuid::new_v5(
+            &Uuid::NAMESPACE_URL,
+            format!("raptor-music:audius:{provider_track_id}").as_bytes(),
+        );
+        tracks.push(Track {
+            id: stable_id,
+            title: title.to_string(),
+            artist: artist.to_string(),
+            album: Some(genre.to_string()),
+            duration_secs: duration,
+            source: PlaybackSource::RemoteStream {
+                provider_id: "audius".into(),
+                provider_track_id: provider_track_id.to_string(),
+            },
+        });
+    }
+    Ok(tracks)
+}
+
+fn search_audius_tracks(query: &str) -> Result<Vec<Track>, String> {
+    let query = query.trim();
+    if query.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let client = reqwest::blocking::Client::builder()
+        .user_agent("RaptorMusic/0.2.17")
+        .connect_timeout(Duration::from_secs(8))
+        .timeout(Duration::from_secs(15))
+        .build()
+        .map_err(|error| format!("Could not initialize online search: {error}"))?;
+
+    let response = client
+        .get("https://api.audius.co/v1/tracks/search")
+        .query(&[
+            ("query", query),
+            ("limit", "24"),
+            ("sort_method", "relevant"),
+            ("app_name", "RaptorMusic"),
+        ])
+        .send()
+        .and_then(|response| response.error_for_status())
+        .map_err(|error| format!("Audius search request failed: {error}"))?;
+
+    let payload: serde_json::Value = response
+        .json()
+        .map_err(|error| format!("Audius returned unreadable search results: {error}"))?;
+    parse_audius_tracks(&payload)
+}
+
+#[cfg(test)]
+mod audius_search_tests {
+    use super::*;
+
+    #[test]
+    fn online_search_keeps_only_public_streamable_tracks() {
+        let payload = serde_json::json!({
+            "data": [
+                {
+                    "id": "track_public_01",
+                    "title": "Example Song",
+                    "user": { "name": "Example Artist" },
+                    "genre": "Electronic",
+                    "duration": 187,
+                    "is_streamable": true,
+                    "is_unlisted": false,
+                    "is_stream_gated": false,
+                    "is_available": true,
+                    "is_delete": false
+                },
+                {
+                    "id": "track_hidden_02",
+                    "title": "Hidden Song",
+                    "is_streamable": true,
+                    "is_unlisted": true
+                },
+                {
+                    "id": "track_gated_03",
+                    "title": "Gated Song",
+                    "is_streamable": true,
+                    "is_stream_gated": true
+                },
+                {
+                    "id": "track_unavailable_04",
+                    "title": "Unavailable Song",
+                    "is_streamable": true,
+                    "is_available": false
+                },
+                {
+                    "id": "track_nonstreamable_05",
+                    "title": "Non-streamable Song",
+                    "is_streamable": false
+                },
+                {
+                    "id": "invalid/id",
+                    "title": "Invalid Identifier",
+                    "is_streamable": true
+                }
+            ]
+        });
+
+        let tracks = parse_audius_tracks(&payload).expect("valid provider response");
+        assert_eq!(tracks.len(), 1);
+        let track = &tracks[0];
+        assert_eq!(track.title, "Example Song");
+        assert_eq!(track.artist, "Example Artist");
+        assert_eq!(track.duration_secs, Some(187));
+        assert_eq!(
+            track.source,
+            PlaybackSource::RemoteStream {
+                provider_id: "audius".into(),
+                provider_track_id: "track_public_01".into(),
+            }
+        );
+
+        let repeated = parse_audius_tracks(&payload).expect("same provider response");
+        assert_eq!(track.id, repeated[0].id, "online IDs must remain stable across searches");
+    }
+
+    #[test]
+    fn unexpected_online_search_shape_is_reported() {
+        let error = parse_audius_tracks(&serde_json::json!({"results": []}))
+            .expect_err("unexpected API shape must not look like an empty successful search");
+        assert!(error.contains("unexpected search response"));
+    }
 }
 
 fn tracks_to_slint(tracks: &[Track]) -> Vec<TrackData> {

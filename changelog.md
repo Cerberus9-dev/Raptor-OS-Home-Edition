@@ -23,11 +23,41 @@
 - Added quality-gate assertions preventing these risky global overrides from silently returning.
 
 
+
+### Low-spec desktop and Windows compatibility
+- Raptor Proton now reuses the cached Steam Linux Runtime between launches and performs an automatic runtime update check at most daily, reducing repeated setup work without permanently disabling updates.
+- Added a post-install app-registration flow for Proton installers. It compares the prefix's executable inventory before and after installation, lets the user select the installed application, and adds a proper KDE launcher under Games or Utilities. Older prefix apps can be registered manually.
+- Added MSI installation through UMU/Proton, clearer launch feedback, a Proton MIME handler for KDE's Open With chooser, and consistent Raptor Wine / Raptor Proton labels.
+- Canonicalize external executable paths, launch from the executable's directory, and expose non-home parent folders to the Steam Runtime container for better support of removable and secondary drives.
+- Switched zram compression to LZ4 to reduce compression/decompression CPU overhead on older low-power systems. This trades some compression ratio for faster response under memory pressure.
+
 ## [Unreleased]
 
 ### v3.0.0 (Major Release)
 
 This is the consolidation release for more than two months of sustained Raptor OS overhaul work. The scope includes substantial changes across performance and memory management, gaming and GPU behavior, audio, Cortex, update reliability, hardware recovery, browser and chat-client choice, build validation, and the installation/distribution path. The intent is to ship the work as one coherent major update rather than scatter it across a long sequence of small version bumps.
+
+### Raptor Music desktop experience
+- Replace fixed Slint window dimensions with preferred initial dimensions and minimum size constraints, allowing KDE/X11 window managers to resize and maximize the player normally.
+- Rework the interface into a Raptor-branded graphite-and-sage desktop player, with clearer browse/library/queue hierarchy, a more prominent global search, and a persistent playback dock. The visual language uses familiar desktop-media conventions without Spotify logos, artwork, or copied branding.
+- Let the local-library and Audius result lists expand with the available window height instead of trapping results in short fixed-height panes. Clarify that local results are searched locally and online results come from Audius; this is not a Spotify-sized licensed streaming catalog.
+
+### Low-memory application tuning
+- **Firefox:** reduce the default content-process ceiling from four to two (web-isolated from two to one), halve in-memory page/media cache defaults, seed a usable default profile on first launch, and apply preferences to both native and Flatpak profile locations. Existing user-set values are preserved rather than overwritten. This trades some parallel page isolation/throughput for lower baseline RAM on low-memory systems.
+- **Discord, Equibop and Vesktop:** on systems with 8 GiB RAM or less, use a four-renderer ceiling while preserving GPU acceleration, Chromium sandboxing, and voice/video features. Discord uses Flathub's `discord-flags.conf`; Equibop and Vesktop use their persistent flags files. Existing user-specified Discord or Equibop renderer limits are preserved. Do not impose a hard V8 heap cap or disable WebRTC.
+- **Raptor Cortex:** slow idle sensor polling from every eight seconds to every fifteen seconds to reduce repeated hardware-probe wakeups. This changes telemetry refresh cadence, not gaming performance.
+- **Raptor Proton:** derive the default prefix from its selected GAMEID and reclaim an idle Proton wineserver through UMU's selected Proton environment (`umu-run wineboot -k`) only when no other process using that exact prefix remains. This avoids invoking an unrelated host Wine server and preserves concurrent Windows apps sharing a prefix. Fix the generated helper's process-ID expansion so it can correctly exclude its own launcher when checking for active apps.
+
+### Raptor Cortex telemetry
+- Fix GPU summary detection by importing the regex module used by Linux DRM device discovery, restoring adapter model, utilization, clock, and exposed memory reporting.
+- Expand read-only fan telemetry to report standard hwmon RPM sensors, NVIDIA driver fan percentages, and PWM-only sensors with an explicit duty-cycle label instead of misrepresenting them as RPM.
+- Add regression coverage with synthetic AMD-style DRM and hwmon RPM/PWM fixtures; hardware without an exposed tachometer or PWM sensor remains reported as unavailable rather than guessed.
+
+### Raptor Music online search and playback
+- Add debounced online track discovery through Audius alongside the existing local-library search; local queries still work offline and local files remain on-device.
+- Filter online results to public, available, streamable tracks, preserve stable provider IDs in the library, and allow selected online results to enter the normal playback queue.
+- Add bounded download-to-cache playback for Audius MP3 streams, with a 256 MiB safety limit, short request timeouts, and automatic temporary-file cleanup. Buffers are written to the per-user cache rather than the typical RAM-backed runtime directory.
+- Add regression tests for streamability/access filtering, malformed responses, and stable remote track IDs. Audius adds an online catalog but does not provide Spotify's complete catalog or guarantee every artist/track is available.
 
 ### Boot-time hardware detection and service cleanup
 - Removed blanket USB autosuspend disable rules for HID, Bluetooth and USB audio devices; controller permissions remain, but idle power behavior stays with the kernel unless a device-specific issue requires a workaround.

@@ -1,4 +1,4 @@
-import { Button, ListView, Slider } from "std-widgets.slint";
+import { Button, LineEdit, ListView, Slider } from "std-widgets.slint";
 
 export struct TrackData {
     id: string,
@@ -15,11 +15,16 @@ export struct PlaylistData {
 
 export component MainWindow inherits Window {
     title: "Raptor Music";
-    width: 1180px;
-    height: 760px;
-    background: #0b1118;
+    preferred-width: 1180px;
+    preferred-height: 760px;
+    min-width: 860px;
+    min-height: 600px;
+    background: #101510;
 
     in-out property <[TrackData]> track_list: [];
+    in-out property <[TrackData]> online_track_list: [];
+    in-out property <string> online_search_status: "Type 2+ characters to search Audius";
+    in-out property <int> selected_online_track_index: -1;
     in-out property <[TrackData]> queue_list: [];
     in-out property <[PlaylistData]> playlist_list: [];
     in-out property <string> new_playlist_name: "";
@@ -38,6 +43,7 @@ export component MainWindow inherits Window {
 
     callback scan_directory_clicked();
     callback track_selected(int);
+    callback online_track_selected(int);
     callback search_changed(string);
     callback queue_selected(int);
     callback playlist_selected(int);
@@ -57,7 +63,7 @@ export component MainWindow inherits Window {
 
         // Top application bar
         Rectangle {
-            background: #101a25;
+            background: #1b241b;
             height: 66px;
             HorizontalLayout {
                 padding-left: 24px;
@@ -65,14 +71,14 @@ export component MainWindow inherits Window {
                 spacing: 14px;
                 Text {
                     text: "RAPTOR";
-                    color: #8bd4f1;
+                    color: #b4d66d;
                     font-size: 13px;
                     font-weight: 800;
                     vertical-alignment: center;
                 }
                 Text {
                     text: "MUSIC";
-                    color: #f3f7fb;
+                    color: #f2f5ec;
                     font-size: 21px;
                     font-weight: 700;
                     vertical-alignment: center;
@@ -80,12 +86,12 @@ export component MainWindow inherits Window {
                 Rectangle { horizontal-stretch: 1; }
                 Text {
                     text: root.player_state_label;
-                    color: #9bb0c2;
+                    color: #b0bdb0;
                     font-size: 12px;
                     vertical-alignment: center;
                 }
                 Button {
-                    text: "Add music folder";
+                    text: "Import folder";
                     clicked => { root.scan_directory_clicked(); }
                 }
             }
@@ -98,33 +104,33 @@ export component MainWindow inherits Window {
 
             // Navigation and playlists
             Rectangle {
-                width: 226px;
-                background: #0e1721;
+                width: 210px;
+                background: #151d17;
                 VerticalLayout {
                     padding: 18px;
                     spacing: 12px;
                     Text {
-                        text: "YOUR SPACE";
-                        color: #71879b;
+                        text: "BROWSE";
+                        color: #879487;
                         font-size: 11px;
                         font-weight: 700;
                     }
                     Text {
                         text: "Home";
-                        color: #eaf3fa;
+                        color: #edf2e7;
                         font-size: 15px;
                         font-weight: 700;
                     }
                     Text {
-                        text: "Search your music";
-                        color: #9bb0c2;
+                        text: "Search & discover";
+                        color: #b0bdb0;
                         font-size: 14px;
                     }
-                    Rectangle { height: 1px; background: #263544; }
+                    Rectangle { height: 1px; background: #354237; }
                     HorizontalLayout {
                         Text {
                             text: "Your Library";
-                            color: #eaf3fa;
+                            color: #edf2e7;
                             font-size: 14px;
                             font-weight: 700;
                             vertical-alignment: center;
@@ -132,13 +138,13 @@ export component MainWindow inherits Window {
                         Rectangle { horizontal-stretch: 1; }
                         Text {
                             text: "♫";
-                            color: #8bd4f1;
+                            color: #b4d66d;
                             font-size: 18px;
                         }
                     }
                     Text {
                         text: "Playlists";
-                        color: #71879b;
+                        color: #879487;
                         font-size: 11px;
                         font-weight: 700;
                     }
@@ -146,7 +152,7 @@ export component MainWindow inherits Window {
                         height: 34px;
                         spacing: 5px;
                         Rectangle {
-                            background: #1b2937;
+                            background: #273229;
                             border-radius: 5px;
                             horizontal-stretch: 1;
                             TextInput {
@@ -155,7 +161,7 @@ export component MainWindow inherits Window {
                                 width: parent.width - 16px;
                                 height: parent.height;
                                 text <=> root.new_playlist_name;
-                                color: #eaf3fa;
+                                color: #edf2e7;
                                 font-size: 12px;
                                 vertical-alignment: center;
                             }
@@ -170,10 +176,10 @@ export component MainWindow inherits Window {
                         for p[index] in root.playlist_list : Rectangle {
                             height: 38px;
                             border-radius: 5px;
-                            background: index == root.selected_playlist_index ? #203b4c : transparent;
+                            background: index == root.selected_playlist_index ? #34482a : transparent;
                             Text {
                                 text: p.name;
-                                color: index == root.selected_playlist_index ? #a9e4fa : #b3c2cf;
+                                color: index == root.selected_playlist_index ? #d4ed9c : #c1cbc0;
                                 x: 9px;
                                 width: parent.width - 18px;
                                 vertical-alignment: center;
@@ -196,27 +202,27 @@ export component MainWindow inherits Window {
 
             // Main library surface
             Rectangle {
-                background: #111c28;
+                background: #1a231c;
                 horizontal-stretch: 1;
                 VerticalLayout {
                     padding: 24px;
                     spacing: 16px;
 
                     Text {
-                        text: "Good listening.";
-                        color: #f3f7fb;
+                        text: "Your music, organized.";
+                        color: #f2f5ec;
                         font-size: 29px;
                         font-weight: 700;
                     }
                     Text {
-                        text: "Browse your collection, find a track, and build your next queue.";
-                        color: #9bb0c2;
+                        text: "Search your local collection and browse streamable tracks from Audius.";
+                        color: #b0bdb0;
                         font-size: 13px;
                     }
 
                     Rectangle {
                         height: 44px;
-                        background: #1d2b39;
+                        background: #273229;
                         border-radius: 8px;
                         HorizontalLayout {
                             padding-left: 12px;
@@ -224,33 +230,38 @@ export component MainWindow inherits Window {
                             spacing: 8px;
                             Text {
                                 text: "⌕";
-                                color: #8bd4f1;
+                                color: #b4d66d;
                                 font-size: 20px;
                                 vertical-alignment: center;
                             }
-                            TextInput {
+                            LineEdit {
+                                placeholder-text: "Songs, artists, albums or genres";
                                 text <=> root.search_query;
-                                color: #f3f7fb;
                                 font-size: 14px;
-                                vertical-alignment: center;
                                 horizontal-stretch: 1;
-                                edited => { root.search_changed(self.text); }
+                                edited(text) => { root.search_changed(text); }
                             }
                         }
                     }
 
+                    Text {
+                        text: "Local matches update as you type · Online results are from Audius";
+                        color: #879487;
+                        font-size: 11px;
+                    }
+
                     HorizontalLayout {
                         Text {
-                            text: "Your tracks";
-                            color: #f3f7fb;
+                            text: "Local library";
+                            color: #f2f5ec;
                             font-size: 18px;
                             font-weight: 700;
                             vertical-alignment: center;
                         }
                         Rectangle { horizontal-stretch: 1; }
                         Text {
-                            text: "Select a track, then add it to your queue";
-                            color: #71879b;
+                            text: "Local files · title, artist, album";
+                            color: #879487;
                             font-size: 11px;
                             vertical-alignment: center;
                         }
@@ -261,10 +272,10 @@ export component MainWindow inherits Window {
                         padding-left: 12px;
                         padding-right: 12px;
                         height: 28px;
-                        Text { text: "#"; color: #71879b; width: 28px; font-size: 11px; }
-                        Text { text: "TITLE"; color: #71879b; horizontal-stretch: 1; font-size: 11px; }
-                        Text { text: "ALBUM"; color: #71879b; width: 150px; font-size: 11px; }
-                        Text { text: "TIME"; color: #71879b; width: 52px; font-size: 11px; }
+                        Text { text: "#"; color: #879487; width: 28px; font-size: 11px; }
+                        Text { text: "TITLE"; color: #879487; horizontal-stretch: 1; font-size: 11px; }
+                        Text { text: "ALBUM"; color: #879487; width: 150px; font-size: 11px; }
+                        Text { text: "TIME"; color: #879487; width: 52px; font-size: 11px; }
                     }
 
                     ListView {
@@ -272,14 +283,14 @@ export component MainWindow inherits Window {
                         for t[index] in root.track_list : Rectangle {
                             height: 52px;
                             border-radius: 6px;
-                            background: index == root.selected_track_index ? #1e3b4e : #142230;
+                            background: index == root.selected_track_index ? #34482a : #202b21;
                             HorizontalLayout {
                                 padding-left: 12px;
                                 padding-right: 12px;
                                 spacing: 10px;
                                 Text {
                                     text: "{index + 1}";
-                                    color: #7f96a9;
+                                    color: #899789;
                                     width: 28px;
                                     vertical-alignment: center;
                                     font-size: 12px;
@@ -296,7 +307,7 @@ export component MainWindow inherits Window {
                                     }
                                     Text {
                                         text: t.artist;
-                                        color: #91a5b7;
+                                        color: #a5b2a3;
                                         font-size: 11px;
                                         vertical-alignment: center;
                                         overflow: elide;
@@ -304,7 +315,7 @@ export component MainWindow inherits Window {
                                 }
                                 Text {
                                     text: t.album;
-                                    color: #91a5b7;
+                                    color: #a5b2a3;
                                     width: 150px;
                                     vertical-alignment: center;
                                     font-size: 11px;
@@ -312,7 +323,7 @@ export component MainWindow inherits Window {
                                 }
                                 Text {
                                     text: t.duration;
-                                    color: #91a5b7;
+                                    color: #a5b2a3;
                                     width: 52px;
                                     vertical-alignment: center;
                                     font-size: 11px;
@@ -323,13 +334,91 @@ export component MainWindow inherits Window {
                     }
 
                     HorizontalLayout {
+                        Text {
+                            text: "Explore Audius";
+                            color: #f2f5ec;
+                            font-size: 18px;
+                            font-weight: 700;
+                            vertical-alignment: center;
+                        }
+                        Rectangle { horizontal-stretch: 1; }
+                        Text {
+                            text: root.online_search_status;
+                            color: #879487;
+                            font-size: 11px;
+                            vertical-alignment: center;
+                        }
+                    }
+
+                    ListView {
+                        vertical-stretch: 1;
+                        for t[index] in root.online_track_list : Rectangle {
+                            height: 48px;
+                            border-radius: 6px;
+                            background: index == root.selected_online_track_index ? #34482a : #202b21;
+                            HorizontalLayout {
+                                padding-left: 12px;
+                                padding-right: 12px;
+                                spacing: 10px;
+                                Rectangle {
+                                    width: 34px;
+                                    height: 34px;
+                                    border-radius: 5px;
+                                    background: #34412c;
+                                    Text {
+                                        text: "♫";
+                                        color: #c5d99a;
+                                        font-size: 19px;
+                                        horizontal-alignment: center;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                                VerticalLayout {
+                                    horizontal-stretch: 1;
+                                    spacing: 1px;
+                                    Text {
+                                        text: t.title;
+                                        color: #edf5fb;
+                                        font-size: 12px;
+                                        vertical-alignment: center;
+                                        overflow: elide;
+                                    }
+                                    Text {
+                                        text: t.artist;
+                                        color: #a5b2a3;
+                                        font-size: 10px;
+                                        vertical-alignment: center;
+                                        overflow: elide;
+                                    }
+                                }
+                                Text {
+                                    text: t.album;
+                                    color: #a5b2a3;
+                                    width: 110px;
+                                    vertical-alignment: center;
+                                    font-size: 10px;
+                                    overflow: elide;
+                                }
+                                Text {
+                                    text: t.duration;
+                                    color: #a5b2a3;
+                                    width: 48px;
+                                    vertical-alignment: center;
+                                    font-size: 10px;
+                                }
+                            }
+                            TouchArea { clicked => { root.online_track_selected(index); } }
+                        }
+                    }
+
+                    HorizontalLayout {
                         spacing: 8px;
                         Button {
-                            text: "Add to queue";
+                            text: "Add selected to queue";
                             clicked => { root.add_to_queue_clicked(); }
                         }
                         Button {
-                            text: "Scan music folder";
+                            text: "Import folder";
                             clicked => { root.scan_directory_clicked(); }
                         }
                     }
@@ -338,20 +427,20 @@ export component MainWindow inherits Window {
 
             // Queue sidebar
             Rectangle {
-                width: 268px;
-                background: #0e1721;
+                width: 238px;
+                background: #151d17;
                 VerticalLayout {
                     padding: 16px;
                     spacing: 10px;
                     Text {
                         text: "Up next";
-                        color: #f3f7fb;
+                        color: #f2f5ec;
                         font-size: 18px;
                         font-weight: 700;
                     }
                     Text {
-                        text: "Your playback queue";
-                        color: #71879b;
+                        text: "Your queue";
+                        color: #879487;
                         font-size: 11px;
                     }
                     ListView {
@@ -359,7 +448,7 @@ export component MainWindow inherits Window {
                         for t[index] in root.queue_list : Rectangle {
                             height: 52px;
                             border-radius: 5px;
-                            background: index == root.playing_queue_index ? #173c35 : (index == root.selected_queue_index ? #203b4c : transparent);
+                            background: index == root.playing_queue_index ? #31472b : (index == root.selected_queue_index ? #34482a : transparent);
                             VerticalLayout {
                                 padding-left: 8px;
                                 padding-right: 8px;
@@ -373,7 +462,7 @@ export component MainWindow inherits Window {
                                 }
                                 Text {
                                     text: t.artist;
-                                    color: #91a5b7;
+                                    color: #a5b2a3;
                                     font-size: 10px;
                                     overflow: elide;
                                 }
@@ -392,7 +481,7 @@ export component MainWindow inherits Window {
         // Persistent player dock
         Rectangle {
             height: 116px;
-            background: #172432;
+            background: #202a20;
             HorizontalLayout {
                 padding: 16px;
                 spacing: 18px;
@@ -401,10 +490,10 @@ export component MainWindow inherits Window {
                     width: 68px;
                     height: 68px;
                     border-radius: 8px;
-                    background: #24485c;
+                    background: #35472d;
                     Text {
                         text: "♫";
-                        color: #a9e4fa;
+                        color: #d4ed9c;
                         font-size: 36px;
                         horizontal-alignment: center;
                         vertical-alignment: center;
@@ -416,20 +505,20 @@ export component MainWindow inherits Window {
                     spacing: 3px;
                     Text {
                         text: root.current_track_title;
-                        color: #f3f7fb;
+                        color: #f2f5ec;
                         font-size: 14px;
                         font-weight: 700;
                         overflow: elide;
                     }
                     Text {
                         text: root.current_track_artist;
-                        color: #9bb0c2;
+                        color: #b0bdb0;
                         font-size: 12px;
                         overflow: elide;
                     }
                     Text {
                         text: root.player_state_label;
-                        color: #8bd4f1;
+                        color: #b4d66d;
                         font-size: 10px;
                     }
                 }
@@ -454,7 +543,7 @@ export component MainWindow inherits Window {
                         changed(value) => { root.is_seeking = true; }
                     }
                     HorizontalLayout {
-                        Text { text: root.progress_label; color: #91a5b7; font-size: 10px; }
+                        Text { text: root.progress_label; color: #a5b2a3; font-size: 10px; }
                         Rectangle { horizontal-stretch: 1; }
                         Button {
                             text: "Seek";

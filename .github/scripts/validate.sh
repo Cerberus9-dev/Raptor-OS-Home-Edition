@@ -83,7 +83,7 @@ assert_contains files/scripts/raptor-cortex/install.sh "ACTUAL_PROFILE"
 assert_contains files/scripts/raptor-cortex/install.sh '"drkonqi"'
 
 echo "=== Checking memory, audio and browser contracts ==="
-# ZRAM defaults are validated below against the current zstd configuration.
+# ZRAM defaults are validated below against the low-CPU LZ4 configuration.
 assert_contains files/system_files/99-raptor-wireplumber-alsa.conf "resample.quality                = 10"
 assert_contains files/scripts/raptor-gaming/install.sh "org.mozilla.firefox/.mozilla/firefox"
 assert_contains files/scripts/raptor-gaming/install.sh "flatpak run com.brave.Browser"
@@ -106,13 +106,15 @@ assert_contains recipes/recipe.yml "- mingw64-wine-gecko"
 assert_contains recipes/recipe.yml "- winetricks"
 assert_contains recipes/recipe.yml "- umu-launcher"
 assert_contains files/scripts/raptor-wine/install.sh "exec wine"
-assert_contains files/scripts/raptor-wine/install.sh "exec umu-run"
+assert_contains files/scripts/raptor-wine/install.sh 'umu-run "${launch_command[@]}"'
+assert_contains files/scripts/raptor-wine/install.sh 'umu-run ""'
 assert_contains files/scripts/raptor-wine/install.sh 'target="$1"'
 assert_not_contains files/scripts/raptor-wine/install.sh 'RAPTOR_WINE_ERROR: UMU is not installed'
-assert_contains files/scripts/raptor-wine/install.sh 'MSI installers should be run with standard Wine'
+assert_contains files/scripts/raptor-wine/install.sh '*.msi)'
+assert_contains files/scripts/raptor-wine/install.sh 'msiexec.exe'
 assert_not_contains files/scripts/raptor-wine/install.sh 'exec umu-run wine msiexec'
 assert_contains files/scripts/raptor-wine/install.sh 'shift'
-assert_contains files/scripts/raptor-wine/install.sh 'Usage: raptor-wine-proton program.exe'
+assert_contains files/scripts/raptor-wine/install.sh 'raptor-wine-proton program.exe [arguments...]'
 # Visible app-menu entries launch a file picker; hidden desktop handlers own MIME opens.
 assert_contains files/scripts/raptor-wine/install.sh 'Exec=raptor-wine-manager'
 assert_contains files/scripts/raptor-wine/install.sh 'Exec=raptor-proton-manager'
@@ -123,7 +125,7 @@ assert_contains files/scripts/raptor-wine/install.sh 'protontricks-launch --appi
 assert_contains files/scripts/raptor-wine/install.sh 'raptor-proton-prefix-open'
 assert_contains files/scripts/raptor-wine/install.sh 'raptor-wine-associations'
 assert_contains files/scripts/raptor-wine/install.sh 'NoDisplay=true'
-assert_not_contains files/scripts/raptor-wine/install.sh "zenity"
+assert_contains files/scripts/raptor-wine/install.sh "zenity"
 assert_not_contains files/scripts/raptor-wine/install.sh "wineboot -u"
 assert_not_contains files/scripts/raptor-wine/install.sh "winetricks --unattended"
 assert_contains files/system_files/raptor-mimeapps.list "application/x-ms-dos-executable=raptor-wine-open.desktop"
@@ -167,6 +169,37 @@ assert_contains .github/workflows/build.yml 'Verify both apps inside the publish
 assert_not_contains .github/workflows/build.yml 'PR validation only: built Raptor Music without staging it into the image.'
 assert_not_contains files/scripts/raptor-update/install.sh "for line in user_proc.stdout"
 assert_not_contains files/scripts/raptor-update/install.sh "for line in fp_proc.stdout"
+
+echo "=== Checking Raptor Music desktop experience ==="
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'preferred-width: 1180px;'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'preferred-height: 760px;'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'import { Button, LineEdit, ListView, Slider }'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'LineEdit {'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'placeholder-text: "Songs, artists, albums or genres";'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'min-width: 860px;'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Explore Audius'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Local matches update as you type'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'vertical-stretch: 1;'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'parse_audius_tracks'
+
+echo "=== Checking low-memory application defaults ==="
+assert_contains files/scripts/raptor-gaming/install.sh '"Value": 32768,'
+assert_contains files/scripts/raptor-gaming/install.sh '"Value": 2,'
+assert_contains files/scripts/raptor-gaming/install.sh 'user_pref("dom.ipc.processCount", 2);'
+assert_contains files/system_files/raptor-app-choice.sh '--renderer-process-limit=4'
+assert_contains files/system_files/raptor-app-choice.sh 'discord-flags.conf'
+assert_contains files/system_files/raptor-app-choice.sh 'touch "$VESKTOP_FLAGS"'
+assert_contains files/system_files/raptor-app-choice.sh 'touch "$EQUIBOP_CFG"'
+assert_contains files/system_files/raptor-app-choice.sh "grep -q '^--renderer-process-limit='"
+assert_contains files/system_files/raptor-app-choice.sh 'Raptor OS low-memory renderer default'
+assert_contains files/system_files/raptor-app-choice.sh 'DISCORD_FLAGS="$DISCORD_CFG/discord-flags.conf"'
+assert_contains files/system_files/raptor-app-choice.sh '.var/app/org.mozilla.firefox/.mozilla/firefox'
+assert_contains files/system_files/raptor-app-choice.sh 'Raptor OS low-memory process defaults'
+assert_contains files/scripts/raptor-wine/install.sh 'cleanup_idle_wineserver'
+assert_contains files/scripts/raptor-wine/install.sh 'umu-run wineboot -k'
+assert_contains files/scripts/raptor-wine/install.sh 'pid="${proc##*/}"'
+assert_not_contains files/scripts/raptor-wine/install.sh 'WINEPREFIX="$WINEPREFIX" wineserver -k'
+assert_contains files/scripts/raptor-cortex/install.sh 'GLib.timeout_add_seconds(15, self._refresh_stats)'
 
 echo "=== Checking ISO and requirements documentation ==="
 assert_not_contains .github/workflows/build-iso.yml "jasonn3/build-container-installer"
@@ -254,6 +287,39 @@ assert_contains files/scripts/shroudly-raptor/README.md 'not the upstream Electr
 assert_contains files/scripts/shroudly-raptor/README.md 'network routing'
 assert_contains files/scripts/raptor-hardware-fixes/install.sh 'Raptor Proton'
 assert_contains files/scripts/raptor-hardware-fixes/install.sh 'standard Wine'
+
+echo "=== Raptor Wine and Proton desktop integration ==="
+assert_contains files/scripts/raptor-wine/install.sh 'RAPTOR_PROTON_REGISTER_AFTER'
+assert_contains files/scripts/raptor-wine/install.sh 'STEAM_COMPAT_LIBRARY_PATHS'
+assert_contains files/scripts/raptor-wine/install.sh 'comm -z -13'
+assert_contains files/scripts/raptor-wine/install.sh 'raptor-proton-register-apps'
+assert_contains files/scripts/raptor-wine/install.sh 'raptor-proton-launch-installed'
+assert_contains files/scripts/raptor-wine/install.sh 'Name=Raptor Proton'
+assert_contains files/scripts/raptor-wine/install.sh 'Name=Raptor Wine'
+assert_contains files/scripts/raptor-wine/install.sh 'MimeType=application/x-ms-dos-executable;application/vnd.microsoft.portable-executable;application/x-msdownload;application/x-msi;'
+assert_contains files/scripts/raptor-wine/install.sh 'UMU_RUNTIME_UPDATE=0'
+assert_contains files/scripts/raptor-wine/install.sh 'Categories=Game;'
+assert_not_contains files/scripts/raptor-wine/install.sh 'Name=Run with Raptor Proton'
+assert_contains files/system_files/zram-generator.conf 'compression-algorithm = lz4'
+
+# Parse the scripts generated by the Wine installer, not just the outer heredoc
+# container. This catches syntax errors hidden inside embedded launchers.
+wine_tmp="$(mktemp -d)"
+awk "/^cat <<'PROTON' > \/usr\/bin\/raptor-wine-proton$/ { inside=1; next } /^PROTON$/ && inside { exit } inside { print }" files/scripts/raptor-wine/install.sh > "$wine_tmp/proton.sh"
+awk "/^cat <<'REGISTER' > \/usr\/bin\/raptor-proton-register-apps$/ { inside=1; next } /^REGISTER$/ && inside { exit } inside { print }" files/scripts/raptor-wine/install.sh > "$wine_tmp/register.sh"
+awk "/^cat <<'PREFIXLAUNCH' > \/usr\/bin\/raptor-proton-launch-installed$/ { inside=1; next } /^PREFIXLAUNCH$/ && inside { exit } inside { print }" files/scripts/raptor-wine/install.sh > "$wine_tmp/prefix-launch.sh"
+awk "/^cat <<'LAUNCH' > \/usr\/lib\/raptor\/launch-windows-app$/ { inside=1; next } /^LAUNCH$/ && inside { exit } inside { print }" files/scripts/raptor-wine/install.sh > "$wine_tmp/launch.sh"
+awk "/^cat <<'OPENPROTON' > \/usr\/bin\/raptor-proton-open$/ { inside=1; next } /^OPENPROTON$/ && inside { exit } inside { print }" files/scripts/raptor-wine/install.sh > "$wine_tmp/proton-open.sh"
+awk "/^cat <<'MANAGER' > \/usr\/bin\/raptor-proton-manager$/ { inside=1; next } /^MANAGER$/ && inside { exit } inside { print }" files/scripts/raptor-wine/install.sh > "$wine_tmp/proton-manager.sh"
+for embedded in "$wine_tmp"/*.sh; do
+  test -s "$embedded"
+  bash -n "$embedded"
+done
+awk "/^python3 - .*<<'PY'$/ { inside=1; next } /^PY$/ && inside { exit } inside { print }" files/scripts/raptor-wine/install.sh > "$wine_tmp/desktop-writer.py"
+test -s "$wine_tmp/desktop-writer.py"
+python3 -m py_compile "$wine_tmp/desktop-writer.py"
+rm -rf "$wine_tmp"
+
 assert_contains files/scripts/raptor-music/install.sh 'RAPTOR_MUSIC_PAYLOAD_MISSING'
 assert_contains .github/workflows/build.yml 'git add -f -- files/staging'
 assert_contains .github/workflows/build.yml 'Verify both apps inside the published image'
@@ -287,7 +353,7 @@ assert_contains files/system_files/raptor-firstboot.service 'ExecStart=/usr/bin/
 assert_contains files/scripts/raptor-cortex/install.sh 'title="Graphics Processor"'
 assert_contains files/scripts/raptor-cortex/install.sh 'def get_gpu_memory():'
 assert_contains files/scripts/raptor-cortex/install.sh 'Telemetry unavailable — check the graphics driver'
-assert_contains files/scripts/raptor-cortex/install.sh 'def get_fan_info():'
+assert_contains files/scripts/raptor-cortex/install.sh 'def get_fan_info(hwmon_root="/sys/class/hwmon"):'
 assert_contains files/scripts/raptor-cortex/install.sh 'vendor == "0x1002"'
 assert_contains files/scripts/raptor-cortex/install.sh 'vendor == "0x8086"'
 assert_contains files/scripts/raptor-cortex/install.sh 'NVIDIA GPU {index}'
@@ -298,6 +364,78 @@ cortex_tmp="$(mktemp --suffix=.py)"
 awk "/^cat << 'PYEOF' > \\/usr\\/bin\\/raptor-cortex$/ { inside=1; next } /^PYEOF$/ && inside { exit } inside { print }" files/scripts/raptor-cortex/install.sh > "$cortex_tmp"
 test -s "$cortex_tmp"
 python3 -c 'import ast, sys; ast.parse(open(sys.argv[1], encoding="utf-8").read())' "$cortex_tmp"
+python3 - "$cortex_tmp" <<'PY'
+import ast
+import os
+import re
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+from types import SimpleNamespace
+
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+tree = ast.parse(source)
+top_imports = {
+    alias.name
+    for node in tree.body if isinstance(node, ast.Import)
+    for alias in node.names
+}
+assert "re" in top_imports, "Cortex must import re at module scope for GPU discovery"
+
+wanted = {"get_gpu_usage", "get_gpu_summary", "get_fan_info"}
+functions = [
+    node for node in tree.body
+    if isinstance(node, ast.FunctionDef) and node.name in wanted
+]
+assert {node.name for node in functions} == wanted, "GPU/fan telemetry functions missing"
+
+class FakeSubprocess:
+    class TimeoutExpired(Exception):
+        pass
+
+    @staticmethod
+    def run(*_args, **_kwargs):
+        return SimpleNamespace(returncode=1, stdout="")
+
+namespace = {"os": os, "re": re, "subprocess": FakeSubprocess}
+exec(compile(ast.Module(body=functions, type_ignores=[]), "<cortex-telemetry>", "exec"), namespace)
+
+# Exercise real AMD sysfs parsing, including the regex-dependent card matcher.
+with tempfile.TemporaryDirectory() as tmp:
+    dev = Path(tmp) / "class/drm/card0/device"
+    dev.mkdir(parents=True)
+    (dev / "vendor").write_text("0x1002")
+    (dev / "gpu_busy_percent").write_text("37")
+    (dev / "pp_dpm_sclk").write_text("0: 800Mhz\n1: 1600Mhz *")
+    assert namespace["get_gpu_usage"](tmp) == (37, 1600)
+
+# GPU summary must compose model and available metrics without crashing.
+namespace["get_gpu_name"] = lambda: "Test GPU"
+namespace["get_gpu_usage"] = lambda: (37, 1600)
+namespace["get_gpu_memory"] = lambda: "512 / 4096 MB"
+summary = namespace["get_gpu_summary"]()
+assert "Test GPU" in summary and "Load 37%" in summary and "1600 MHz" in summary
+
+# Exercise both standard RPM telemetry and PWM-only telemetry.
+with tempfile.TemporaryDirectory() as tmp:
+    hwmon = Path(tmp)
+    cpu = hwmon / "hwmon0"
+    cpu.mkdir()
+    (cpu / "name").write_text("test-ec")
+    (cpu / "fan1_input").write_text("2300")
+    (cpu / "fan1_label").write_text("CPU Fan")
+    gpu = hwmon / "hwmon1"
+    gpu.mkdir()
+    (gpu / "name").write_text("amdgpu")
+    (gpu / "pwm1").write_text("128")
+    fans = namespace["get_fan_info"](tmp)
+    rendered = " | ".join(f"{name}: {value}" for name, value in fans)
+    assert "2300 RPM" in rendered, rendered
+    assert "50% PWM duty" in rendered, rendered
+
+print("Cortex GPU and fan telemetry regression tests passed.")
+PY
 rm -f "$cortex_tmp"
 
 
@@ -334,12 +472,12 @@ assert_contains files/scripts/raptor-cortex/install.sh 'gpu_telemetry_group.add(
 assert_contains files/scripts/raptor-cortex/install.sh 'add_page("games", "Games")'
 assert_contains files/scripts/raptor-cortex/install.sh 'add_page("optimize", "Optimize")'
 assert_contains files/scripts/raptor-cortex/install.sh 'add_page("settings", "Settings")'
-assert_contains files/scripts/raptor-cortex/install.sh 'GLib.timeout_add_seconds(8, self._refresh_stats)'
+assert_contains files/scripts/raptor-cortex/install.sh 'GLib.timeout_add_seconds(15, self._refresh_stats)'
 
 echo "=== Checking memory compression defaults ==="
 assert_contains files/system_files/zram-generator.conf 'zram-size = min(ram, 8192)'
-assert_contains files/system_files/zram-generator.conf 'compression-algorithm = zstd'
-assert_not_contains files/system_files/zram-generator.conf 'compression-algorithm = lz4'
+assert_contains files/system_files/zram-generator.conf 'compression-algorithm = lz4'
+assert_not_contains files/system_files/zram-generator.conf 'compression-algorithm = zstd'
 
 
 echo "=== Raptor Update Manager rollback and lock-screen validation ==="

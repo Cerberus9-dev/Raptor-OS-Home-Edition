@@ -59,33 +59,73 @@ fi
 # Previously lived in raptor-appconfig.sh + raptor-appconfig.service; merged
 # here to eliminate redundant files and service units.
 
-# Vesktop: use native Wayland integration without unsafe global memory caps
+# Apply a conservative Chromium renderer ceiling only on low-memory systems.
+# Four renderers still leave room for the main UI, server views, and voice/video
+# surfaces; do not cap V8 heaps, disable GPU acceleration, or interfere with WebRTC.
+CHAT_RAM_KB="$(awk '/^MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null || echo 0)"
+CHAT_LOW_MEMORY=0
+if [[ "$CHAT_RAM_KB" =~ ^[0-9]+$ ]] && (( CHAT_RAM_KB > 0 && CHAT_RAM_KB <= 8388608 )); then
+    CHAT_LOW_MEMORY=1
+fi
+
+# Vesktop: use native Wayland integration; tune renderer count only on low-RAM PCs.
 VESKTOP_CFG="${HOME}/.var/app/dev.vencord.Vesktop/config/vesktop"
 if flatpak info dev.vencord.Vesktop &>/dev/null 2>&1; then
     mkdir -p "${VESKTOP_CFG}"
-    # Keep stable Wayland integration only. Forced tiny V8 heaps and renderer
-    # caps can crash large servers/calls; backgrounding overrides can increase
-    # idle CPU and interfere with Chromium's normal resource throttling.
-    cat > "${VESKTOP_CFG}/flags.txt" << 'VESKTOPFLAGS'
---ozone-platform=wayland
---enable-wayland-ime
-VESKTOPFLAGS
-
-    # Belt-and-suspenders: also set via flatpak user override (env vars are
-    # picked up even if the flags.txt path ever changes between Vesktop versions)
+    # Four renderers leave room for the UI, server views and call surfaces.
+    # Do not cap V8 heaps, disable GPU acceleration, or disable WebRTC.
+    VESKTOP_FLAGS="${VESKTOP_CFG}/flags.txt"
+    touch "$VESKTOP_FLAGS"
+    if ! grep -Fxq -- '--ozone-platform=wayland' "$VESKTOP_FLAGS"; then
+        printf '%s\n' '--ozone-platform=wayland' >> "$VESKTOP_FLAGS"
+    fi
+    if ! grep -Fxq -- '--enable-wayland-ime' "$VESKTOP_FLAGS"; then
+        printf '%s\n' '--enable-wayland-ime' >> "$VESKTOP_FLAGS"
+    fi
+    if [[ "$CHAT_LOW_MEMORY" == "1" ]] && ! grep -q '^--renderer-process-limit=' "$VESKTOP_FLAGS"; then
+        printf '\n%s\n' '# Raptor OS low-memory renderer default' '--renderer-process-limit=4' >> "$VESKTOP_FLAGS"
+    fi
     flatpak override --user dev.vencord.Vesktop \
         --env=OZONE_PLATFORM=wayland \
         --env=ELECTRON_OZONE_PLATFORM_HINT=auto \
         2>/dev/null || true
-    log "Vesktop: flags.txt and user Flatpak override applied."
-else
-    log "Vesktop not installed — skipping Vesktop config."
+    log "Vesktop: Wayland and low-memory defaults applied."
 fi
 
-# ── Consistent Electron/Chromium Wayland integration for chat clients ─────────
-# Use Electron's automatic Wayland backend selection for each optional client.
-# Do not impose global V8 heap/renderer limits: these can break large servers,
-# voice/video calls, screen sharing, and accessibility features.
+# Equibop's documented persistent Chromium flags file.
+if flatpak info org.equicord.equibop >/dev/null 2>&1; then
+    EQUIBOP_CFG="${HOME}/.var/app/org.equicord.equibop/config/equibop-flags.conf"
+    if [[ "$CHAT_LOW_MEMORY" == "1" ]]; then
+        mkdir -p "$(dirname "$EQUIBOP_CFG")"
+        touch "$EQUIBOP_CFG"
+        if ! grep -q '^--renderer-process-limit=' "$EQUIBOP_CFG"; then
+            printf '\n%s\n' '# Raptor OS low-memory profile. GPU acceleration and WebRTC remain enabled.' '--renderer-process-limit=4' >> "$EQUIBOP_CFG"
+        fi
+        log "Equibop: low-memory renderer limit configured."
+    elif grep -q 'Raptor OS low-memory profile' "$EQUIBOP_CFG" 2>/dev/null; then
+        rm -f "$EQUIBOP_CFG"
+        log "Equibop: removed the Raptor low-memory override on this higher-memory system."
+    fi
+fi
+
+# The official Discord Flatpak supports discord-flags.conf, one Chromium
+# switch per line. Preserve any user options and only add our low-memory limit
+# when the user has not already chosen a renderer limit.
+if flatpak info com.discordapp.Discord >/dev/null 2>&1 && [[ "$CHAT_LOW_MEMORY" == "1" ]]; then
+    DISCORD_CFG="${HOME}/.var/app/com.discordapp.Discord/config"
+    DISCORD_FLAGS="$DISCORD_CFG/discord-flags.conf"
+    mkdir -p "$DISCORD_CFG"
+    if [[ ! -f "$DISCORD_FLAGS" ]] || ! grep -q '^--renderer-process-limit=' "$DISCORD_FLAGS"; then
+        {
+            printf '%s\n' '# Raptor OS low-memory renderer default'
+            printf '%s\n' '--renderer-process-limit=4'
+        } >> "$DISCORD_FLAGS"
+        log "Discord: low-memory renderer limit configured."
+    fi
+fi
+
+# Use Electron's automatic Wayland backend selection for optional chat clients.
+# Do not impose global V8 heap limits or disable GPU/WebRTC.
 if command -v flatpak >/dev/null 2>&1; then
     for chat_app in com.discordapp.Discord dev.vencord.Vesktop org.equicord.equibop io.github.milkshiift.GoofCord; do
         if flatpak info "$chat_app" >/dev/null 2>&1; then
@@ -96,23 +136,72 @@ if command -v flatpak >/dev/null 2>&1; then
     done
 fi
 
-# Firefox: copy skel user.js to any existing profiles that don't have one yet.
-# policies.json (system-wide, from raptor-gaming.sh) handles memory defaults;
-# user.js covers GPU compositing, rendering quality, and privacy prefs.
-FF_SKEL="/etc/skel/.mozilla/firefox/raptor-default/user.js"
-if [[ -f "${FF_SKEL}" ]]; then
-    for profdir in \
-        "${HOME}/.mozilla/firefox/"*.default        \
-        "${HOME}/.mozilla/firefox/"*.default-release \
-        "${HOME}/.mozilla/firefox/"*.default-esr;
-    do
-        [[ -d "${profdir}" ]] || continue
-        if [[ ! -f "${profdir}/user.js" ]]; then
-            cp "${FF_SKEL}" "${profdir}/user.js"
-            log "Firefox user.js deployed to: $(basename "${profdir}")"
+# Firefox stores Flatpak profiles below ~/.var/app/org.mozilla.firefox, not
+# ~/.mozilla. Seed a Raptor profile on first launch when none exists, then
+# apply only memory preferences that the user has not already set.
+FF_SKEL_NATIVE="/etc/skel/.mozilla/firefox/raptor-default/user.js"
+FF_SKEL_FLATPAK="/etc/skel/.var/app/org.mozilla.firefox/.mozilla/firefox/raptor-default/user.js"
+FF_PROFILE_ROOTS=(
+    "${HOME}/.mozilla/firefox"
+    "${HOME}/.var/app/org.mozilla.firefox/.mozilla/firefox"
+)
+
+for profile_root in "${FF_PROFILE_ROOTS[@]}"; do
+    if [[ "$profile_root" == *"/.var/app/org.mozilla.firefox/"* ]]; then
+        ff_skel="$FF_SKEL_FLATPAK"
+        firefox_installed=0
+        flatpak info org.mozilla.firefox >/dev/null 2>&1 && firefox_installed=1
+    else
+        ff_skel="$FF_SKEL_NATIVE"
+        firefox_installed=0
+        command -v firefox >/dev/null 2>&1 && firefox_installed=1
+    fi
+    [[ "$firefox_installed" == "1" ]] || continue
+    mkdir -p "$profile_root"
+
+    # A new Firefox install has no profiles.ini yet. Create a normal default
+    # profile so its first launch receives the optimized, editable user.js.
+    if [[ ! -s "$profile_root/profiles.ini" ]]; then
+        mkdir -p "$profile_root/raptor-default"
+        if [[ -f "$ff_skel" && ! -f "$profile_root/raptor-default/user.js" ]]; then
+            cp "$ff_skel" "$profile_root/raptor-default/user.js"
         fi
-    done
-fi
+        cat > "$profile_root/profiles.ini" <<'FFPROFILE'
+[General]
+StartWithLastProfile=1
+Version=2
+
+[Profile0]
+Name=Raptor Default
+IsRelative=1
+Path=raptor-default
+Default=1
+FFPROFILE
+        log "Firefox: created the Raptor Default profile in $profile_root"
+    fi
+
+    while IFS= read -r -d '' profdir; do
+        [[ -f "$profdir/prefs.js" ]] || continue
+        [[ -f "$profdir/user.js" ]] || : > "$profdir/user.js"
+        if ! grep -q 'Raptor OS low-memory process defaults' "$profdir/user.js"; then
+            printf '\n%s\n' '// Raptor OS low-memory process defaults (user values are preserved).' >> "$profdir/user.js"
+        fi
+        for pref in \
+            'browser.cache.memory.capacity|32768' \
+            'dom.ipc.processCount|2' \
+            'dom.ipc.processCount.webIsolated|1' \
+            'browser.tabs.unloadOnLowMemory|true' \
+            'media.memory_cache_max_size|16384'; do
+            key="${pref%%|*}"
+            value="${pref#*|}"
+            if ! grep -Fq "user_pref(\"$key\"" "$profdir/user.js" \
+                && ! grep -Fq "user_pref(\"$key\"" "$profdir/prefs.js"; then
+                printf 'user_pref("%s", %s);\n' "$key" "$value" >> "$profdir/user.js"
+            fi
+        done
+        log "Firefox low-memory defaults checked for profile: $(basename "$profdir")"
+    done < <(find "$profile_root" -mindepth 1 -maxdepth 1 -type d -print0 2>/dev/null)
+done
 
 # Flatpak: ensure the user-level Flathub remote exists so app installs below work.
 if command -v flatpak &>/dev/null; then

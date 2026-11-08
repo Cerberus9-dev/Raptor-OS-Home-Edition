@@ -88,7 +88,7 @@ cat << 'POLICIES' > /etc/firefox/policies/policies.json
   "policies": {
     "Preferences": {
       "browser.cache.memory.capacity": {
-        "Value": 65536,
+        "Value": 32768,
         "Status": "user"
       },
       "browser.sessionhistory.max_total_viewers": {
@@ -96,11 +96,11 @@ cat << 'POLICIES' > /etc/firefox/policies/policies.json
         "Status": "user"
       },
       "dom.ipc.processCount": {
-        "Value": 4,
+        "Value": 2,
         "Status": "user"
       },
       "dom.ipc.processCount.webIsolated": {
-        "Value": 2,
+        "Value": 1,
         "Status": "user"
       },
       "browser.tabs.unloadOnLowMemory": {
@@ -108,7 +108,7 @@ cat << 'POLICIES' > /etc/firefox/policies/policies.json
         "Status": "user"
       },
       "media.memory_cache_max_size": {
-        "Value": 32768,
+        "Value": 16384,
         "Status": "user"
       },
       "browser.sessionstore.interval": {
@@ -169,11 +169,11 @@ user_pref("javascript.options.mem.high_water_mark", 48);
 user_pref("javascript.options.mem.gc_high_frequency_time_limit_ms", 500);
 
 // ── Low-memory process and cache defaults ────────────────────────────────────
-user_pref("browser.cache.memory.capacity", 65536);
-user_pref("dom.ipc.processCount", 4);
-user_pref("dom.ipc.processCount.webIsolated", 2);
+user_pref("browser.cache.memory.capacity", 32768);
+user_pref("dom.ipc.processCount", 2);
+user_pref("dom.ipc.processCount.webIsolated", 1);
 user_pref("browser.tabs.unloadOnLowMemory", true);
-user_pref("media.memory_cache_max_size", 32768);
+user_pref("media.memory_cache_max_size", 16384);
 
 // ── Disk cache (use disk, not memory, for media/page content) ─────────────────
 user_pref("browser.cache.disk.enable", true);

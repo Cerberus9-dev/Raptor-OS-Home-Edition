@@ -7,6 +7,9 @@ use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::thread;
+use std::io::{Read, Write};
+use std::time::Duration;
+use std::path::PathBuf;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use uuid::Uuid;
 
@@ -17,6 +20,67 @@ pub enum PlayerCommand {
     Resume { session_token: Uuid },
     Seek { position_secs: f64, session_token: Uuid },
     Stop { session_token: Uuid },
+}
+
+fn download_audius_track(track_id: &str) -> Result<tempfile::NamedTempFile, String> {
+    const MAX_STREAM_BYTES: u64 = 256 * 1024 * 1024;
+
+    if track_id.is_empty()
+        || !track_id.chars().all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_')
+    {
+        return Err("Audius returned an invalid track identifier".into());
+    }
+
+    let client = reqwest::blocking::Client::builder()
+        .user_agent("RaptorMusic/0.2.17")
+        .connect_timeout(Duration::from_secs(10))
+        .timeout(Duration::from_secs(60))
+        .build()
+        .map_err(|e| format!("Could not initialize online audio: {e}"))?;
+
+    let url = format!("https://api.audius.co/v1/tracks/{track_id}/stream");
+    let response = client
+        .get(&url)
+        .query(&[("app_name", "RaptorMusic")])
+        .send()
+        .and_then(|r| r.error_for_status())
+        .map_err(|e| format!("Audius could not provide this stream: {e}"))?;
+
+    if response.content_length().is_some_and(|length| length > MAX_STREAM_BYTES) {
+        return Err("This track is larger than Raptor Music's 256 MiB stream limit".into());
+    }
+
+    // Buffer to the per-user cache rather than XDG_RUNTIME_DIR, which is
+    // commonly tmpfs. This keeps large tracks off RAM on low-memory machines.
+    // NamedTempFile removes the buffer automatically when the session ends.
+    let cache_root = std::env::var_os("XDG_CACHE_HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".cache")))
+        .unwrap_or_else(std::env::temp_dir);
+    let stream_dir = cache_root.join("raptor-music").join("streams");
+    let temp_dir = if std::fs::create_dir_all(&stream_dir).is_ok() {
+        stream_dir
+    } else {
+        std::env::temp_dir()
+    };
+    let mut temp = tempfile::Builder::new()
+        .prefix("audius-stream-")
+        .suffix(".mp3")
+        .tempfile_in(temp_dir)
+        .map_err(|e| format!("Could not create the temporary stream buffer: {e}"))?;
+
+    let mut limited = response.take(MAX_STREAM_BYTES + 1);
+    let copied = std::io::copy(&mut limited, &mut temp)
+        .map_err(|e| format!("Online stream download failed: {e}"))?;
+    if copied == 0 {
+        return Err("Audius returned an empty audio stream".into());
+    }
+    if copied > MAX_STREAM_BYTES {
+        return Err("This track is larger than Raptor Music's 256 MiB stream limit".into());
+    }
+    temp.flush()
+        .map_err(|e| format!("Could not finish buffering the online track: {e}"))?;
+    Ok(temp)
 }
 
 pub struct AudioPlayer {
@@ -102,10 +166,12 @@ impl AudioPlayer {
         let is_paused_shared = Arc::new(AtomicBool::new(false));
         let mut active_session_token: Option<Uuid> = None;
         let mut preserve_paused = false;
+        let mut remote_audio_file: Option<tempfile::NamedTempFile> = None;
 
         while let Ok(cmd) = rx.recv() {
             let (mut active_source, mut active_track_id, mut active_queue_entry_id, mut session_token, mut start_offset_secs) = match cmd {
                 PlayerCommand::Play { source, track_id, queue_entry_id, session_token } => {
+                    remote_audio_file = None;
                     active_session_token = Some(session_token);
                     is_paused_shared.store(false, Ordering::Release);
                     preserve_paused = false;
@@ -158,20 +224,58 @@ impl AudioPlayer {
                         });
                         let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
                         active_session_token = None;
+                        remote_audio_file = None;
                         break 'play_session;
                     }
                 };
 
-                let path = match &active_source {
-                    PlaybackSource::LocalFile { path } => path.clone(),
-                    _ => {
+                let path_result: Result<PathBuf, String> = match &active_source {
+                    PlaybackSource::LocalFile { path } => {
+                        remote_audio_file = None;
+                        Ok(path.clone())
+                    }
+                    PlaybackSource::RemoteStream { provider_id, provider_track_id }
+                        if provider_id == "audius" =>
+                    {
+                        if remote_audio_file.is_none() {
+                            match download_audius_track(provider_track_id) {
+                                Ok(file) => remote_audio_file = Some(file),
+                                Err(error) => {
+                                    *state.lock().unwrap() = PlayerState::Error;
+                                    let _ = event_tx.send(PlayerEvent::PlaybackFailed {
+                                        session_token,
+                                        error_message: error,
+                                    });
+                                    let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
+                                    active_session_token = None;
+                                    remote_audio_file = None;
+                                    break 'play_session;
+                                }
+                            }
+                        }
+                        remote_audio_file
+                            .as_ref()
+                            .map(|file| file.path().to_path_buf())
+                            .ok_or_else(|| "Online audio buffer was not created".to_string())
+                    }
+                    PlaybackSource::RemoteStream { provider_id, .. } => {
+                        Err(format!("Unsupported online music provider: {provider_id}"))
+                    }
+                    PlaybackSource::Unknown { raw_type } => {
+                        Err(format!("Unsupported playback source: {raw_type}"))
+                    }
+                };
+                let path = match path_result {
+                    Ok(path) => path,
+                    Err(error) => {
                         *state.lock().unwrap() = PlayerState::Error;
                         let _ = event_tx.send(PlayerEvent::PlaybackFailed {
                             session_token,
-                            error_message: "Unsupported playback source".into(),
+                            error_message: error,
                         });
                         let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
                         active_session_token = None;
+                        remote_audio_file = None;
                         break 'play_session;
                     }
                 };
@@ -183,6 +287,7 @@ impl AudioPlayer {
                         let _ = event_tx.send(PlayerEvent::PlaybackFailed { session_token, error_message: e });
                         let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
                         active_session_token = None;
+                        remote_audio_file = None;
                         break 'play_session;
                     }
                 };
@@ -196,6 +301,7 @@ impl AudioPlayer {
                         let _ = event_tx.send(PlayerEvent::PlaybackFailed { session_token, error_message: e.to_string() });
                         let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
                         active_session_token = None;
+                        remote_audio_file = None;
                         break 'play_session;
                     }
                 };
@@ -214,6 +320,7 @@ impl AudioPlayer {
                         let _ = event_tx.send(PlayerEvent::PlaybackFailed { session_token, error_message: e });
                         let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
                         active_session_token = None;
+                        remote_audio_file = None;
                         break 'play_session;
                     }
                 };
@@ -343,6 +450,7 @@ impl AudioPlayer {
                         let _ = event_tx.send(PlayerEvent::PlaybackFailed { session_token, error_message: "Unsupported sample format".into() });
                         let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
                         active_session_token = None;
+                        remote_audio_file = None;
                         break 'play_session;
                     }
                 };
@@ -354,6 +462,7 @@ impl AudioPlayer {
                         let _ = event_tx.send(PlayerEvent::PlaybackFailed { session_token, error_message: e.to_string() });
                         let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
                         active_session_token = None;
+                        remote_audio_file = None;
                         break 'play_session;
                     }
                 };
@@ -363,6 +472,7 @@ impl AudioPlayer {
                     let _ = event_tx.send(PlayerEvent::PlaybackFailed { session_token, error_message: "Failed to start audio stream".into() });
                     let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
                     active_session_token = None;
+                    remote_audio_file = None;
                     break 'play_session;
                 }
 
@@ -389,6 +499,7 @@ impl AudioPlayer {
                         let _ = event_tx.send(PlayerEvent::PlaybackFailed { session_token, error_message: "Output stream error".into() });
                         let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
                         active_session_token = None;
+                        remote_audio_file = None;
                         break 'play_session;
                     }
 
@@ -400,6 +511,7 @@ impl AudioPlayer {
                                 let _ = event_tx.send(PlayerEvent::Stopped { session_token });
                                 let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
                                 active_session_token = None;
+                                remote_audio_file = None;
                                 break 'play_session;
                             }
                         }
@@ -420,6 +532,7 @@ impl AudioPlayer {
                         Ok(PlayerCommand::Play { source, track_id, queue_entry_id, session_token: new_token }) => {
                             drop(stream);
                             let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
+                            remote_audio_file = None;
                             active_source = source;
                             active_track_id = track_id;
                             active_queue_entry_id = queue_entry_id;
@@ -476,6 +589,7 @@ impl AudioPlayer {
                                     let _ = event_tx.send(PlayerEvent::PlaybackFailed { session_token, error_message: e });
                                     let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
                                     active_session_token = None;
+                                    remote_audio_file = None;
                                     break 'play_session;
                                 }
 
@@ -485,6 +599,7 @@ impl AudioPlayer {
                                     let _ = event_tx.send(PlayerEvent::PlaybackFailed { session_token, error_message: e });
                                     let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
                                     active_session_token = None;
+                                    remote_audio_file = None;
                                     break 'play_session;
                                 }
 
@@ -500,6 +615,7 @@ impl AudioPlayer {
                                         let _ = event_tx.send(PlayerEvent::PlaybackFailed { session_token, error_message: "Output stream error".into() });
                                         let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
                                         active_session_token = None;
+                                        remote_audio_file = None;
                                         break 'play_session;
                                     }
                                     if let Ok(cmd) = rx.try_recv() {
@@ -511,6 +627,7 @@ impl AudioPlayer {
                                                     let _ = event_tx.send(PlayerEvent::Stopped { session_token });
                                                     let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
                                                     active_session_token = None;
+                                                    remote_audio_file = None;
                                                     break 'play_session;
                                                 }
                                             }
@@ -531,6 +648,7 @@ impl AudioPlayer {
                                             PlayerCommand::Play { source, track_id, queue_entry_id, session_token: new_token } => {
                                                 drop(stream);
                                                 let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
+                                                remote_audio_file = None;
                                                 active_source = source;
                                                 active_track_id = track_id;
                                                 active_queue_entry_id = queue_entry_id;
@@ -579,6 +697,7 @@ impl AudioPlayer {
                                                 let _ = event_tx.send(PlayerEvent::PlaybackFailed { session_token, error_message: "Output stream error".into() });
                                                 let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
                                                 active_session_token = None;
+                                                remote_audio_file = None;
                                                 break 'play_session;
                                             }
                                             if let Ok(cmd) = rx.try_recv() {
@@ -590,12 +709,14 @@ impl AudioPlayer {
                                                             let _ = event_tx.send(PlayerEvent::Stopped { session_token });
                                                             let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
                                                             active_session_token = None;
+                                                            remote_audio_file = None;
                                                             break 'play_session;
                                                         }
                                                     }
                                                     PlayerCommand::Play { source, track_id, queue_entry_id, session_token: new_token } => {
                                                         drop(stream);
                                                         let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
+                                                        remote_audio_file = None;
                                                         active_source = source;
                                                         active_track_id = track_id;
                                                         active_queue_entry_id = queue_entry_id;
@@ -632,6 +753,7 @@ impl AudioPlayer {
                                         let _ = event_tx.send(PlayerEvent::PlaybackFailed { session_token, error_message: e });
                                         let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
                                         active_session_token = None;
+                                        remote_audio_file = None;
                                         break 'play_session;
                                     }
                                 }
@@ -643,6 +765,7 @@ impl AudioPlayer {
                                 let _ = event_tx.send(PlayerEvent::PlaybackFailed { session_token, error_message: e });
                                 let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
                                 active_session_token = None;
+                                remote_audio_file = None;
                                 break 'play_session;
                             }
                         }
@@ -653,6 +776,7 @@ impl AudioPlayer {
                             let _ = event_tx.send(PlayerEvent::PlaybackFailed { session_token, error_message: "Output stream error".into() });
                             let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
                             active_session_token = None;
+                            remote_audio_file = None;
                             break 'play_session;
                         }
                         if let Ok(cmd) = rx.try_recv() {
@@ -664,12 +788,14 @@ impl AudioPlayer {
                                         let _ = event_tx.send(PlayerEvent::Stopped { session_token });
                                         let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
                                         active_session_token = None;
+                                        remote_audio_file = None;
                                         break 'play_session;
                                     }
                                 }
                                 PlayerCommand::Play { source, track_id, queue_entry_id, session_token: new_token } => {
                                     drop(stream);
                                     let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
+                                    remote_audio_file = None;
                                     active_source = source;
                                     active_track_id = track_id;
                                     active_queue_entry_id = queue_entry_id;
@@ -714,6 +840,7 @@ impl AudioPlayer {
                             drop(stream);
                             *state.lock().unwrap() = PlayerState::Idle;
                             active_session_token = None;
+                            remote_audio_file = None;
                             break 'play_session;
                         }
                         thread::sleep(std::time::Duration::from_millis(15));
