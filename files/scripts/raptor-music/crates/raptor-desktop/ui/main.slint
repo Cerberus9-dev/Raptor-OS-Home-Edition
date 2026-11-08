@@ -1,4 +1,4 @@
-import { Button, ListView, Slider } from "std-widgets.slint";
+import { Button, LineEdit, ListView, Slider } from "std-widgets.slint";
 
 export struct TrackData {
     id: string,
@@ -15,11 +15,10 @@ export struct PlaylistData {
 
 export component MainWindow inherits Window {
     title: "Raptor Music";
-    width: 1180px;
-    height: 760px;
+    preferred-width: 1180px;
+    preferred-height: 760px;
     min-width: 860px;
     min-height: 600px;
-    resizable: true;
     background: #101510;
 
     in-out property <[TrackData]> track_list: [];
@@ -235,14 +234,12 @@ export component MainWindow inherits Window {
                                 font-size: 20px;
                                 vertical-alignment: center;
                             }
-                            TextInput {
+                            LineEdit {
                                 placeholder-text: "Songs, artists, albums or genres";
                                 text <=> root.search_query;
-                                color: #f2f5ec;
                                 font-size: 14px;
-                                vertical-alignment: center;
                                 horizontal-stretch: 1;
-                                edited => { root.search_changed(self.text); }
+                                edited(text) => { root.search_changed(text); }
                             }
                         }
                     }
