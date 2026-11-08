@@ -46,7 +46,7 @@ This is the consolidation release for more than two months of sustained Raptor O
 - **Firefox:** reduce the default content-process ceiling from four to two (web-isolated from two to one), halve in-memory page/media cache defaults, and apply the same defaults to existing profiles as well as new profiles. This trades some parallel page isolation/throughput for lower baseline RAM on low-memory systems; users can still override profile preferences.
 - **Equibop and Vesktop:** on systems with 8 GiB RAM or less, use a four-renderer ceiling while preserving GPU acceleration, Chromium sandboxing, and voice/video features. Equibop uses its documented persistent flags file. Do not impose a hard V8 heap cap or disable WebRTC.
 - **Raptor Cortex:** slow idle sensor polling from every eight seconds to every fifteen seconds to reduce repeated hardware-probe wakeups. This changes telemetry refresh cadence, not gaming performance.
-- **Raptor Proton:** retain UMU runtime caching and avoid indiscriminately killing shared Wine prefixes; a safe memory cleanup must not terminate another running Windows app.
+- **Raptor Proton:** derive the default prefix from its selected GAMEID and reclaim an idle wineserver after an app exits only when no other process using that exact prefix remains. Concurrent Windows apps sharing a prefix are left running.
 
 ### Raptor Cortex telemetry
 - Fix GPU summary detection by importing the regex module used by Linux DRM device discovery, restoring adapter model, utilization, clock, and exposed memory reporting.
