@@ -74,6 +74,20 @@ shift || true
   echo "Raptor Proton: select an existing Windows program." >&2
   exit 2
 }
+target="$(realpath -e -- "$target")"
+target_dir="$(dirname "$target")"
+target_name="$(basename "$target")"
+# UMU 1.4 has a reported path-handling regression for absolute EXE paths.
+# Launch from the executable directory with a relative target, and explicitly
+# expose non-home locations to pressure-vessel for removable/external drives.
+case "$target_dir/" in
+  "$HOME/"*) ;;
+  *)
+    export STEAM_COMPAT_LIBRARY_PATHS="${STEAM_COMPAT_LIBRARY_PATHS:+$STEAM_COMPAT_LIBRARY_PATHS:}$target_dir"
+    ;;
+esac
+cd "$target_dir"
+target="./$target_name"
 
 # UMU stores its Steam Linux Runtime in ~/.local/share/umu. Reuse the cached
 # runtime between checks, but leave automatic updates enabled at least daily.
@@ -98,7 +112,10 @@ register_after="${RAPTOR_PROTON_REGISTER_AFTER:-0}"
 marker=""
 if [[ "$register_after" == "1" ]]; then
   marker="$(mktemp "${TMPDIR:-/tmp}/raptor-proton-before.XXXXXX")"
-  touch "$marker"
+  if [[ -d "$WINEPREFIX/drive_c" ]]; then
+    find "$WINEPREFIX/drive_c" -type f -iname '*.exe' \
+      ! -path "$WINEPREFIX/drive_c/windows/*" -print0 2>/dev/null | sort -z > "$marker"
+  fi
 fi
 
 declare -a launch_command
@@ -149,8 +166,10 @@ command -v zenity >/dev/null 2>&1 || exit 0
 
 exe=""
 if [[ "$mode" == "--manual" ]]; then
+  start_dir="$prefix/drive_c/Program Files"
+  [[ -d "$start_dir" ]] || start_dir="$prefix/drive_c"
   exe="$(zenity --file-selection --title="Add an installed app to KDE" \
-    --filename="$prefix/drive_c/Program Files/" \
+    --filename="$start_dir/" \
     --file-filter="Windows applications | *.exe" 2>/dev/null)" || exit 0
   [[ -n "$exe" && -f "$exe" ]] || exit 0
 else
@@ -170,8 +189,10 @@ else
     (( count >= 50 )) && break
   # Installers sometimes preserve the original executable timestamps, so do not
   # depend on mtime. Search app locations outside the Windows system directory.
-  done < <(find "$prefix/drive_c" -type f -iname '*.exe' -size +128k \
-      ! -path "$prefix/drive_c/windows/*" -print0 2>/dev/null | sort -z)
+  # Compare against the pre-install snapshot, rather than mtimes: many
+  # installers unpack EXEs with preserved timestamps and would be missed.
+  done < <(comm -z -13 "$mode" <(find "$prefix/drive_c" -type f -iname '*.exe' -size +128k \
+      ! -path "$prefix/drive_c/windows/*" -print0 2>/dev/null | sort -z))
   (("${#rows[@]}" > 0)) || exit 0
   exe="$(zenity --list --title="Raptor Proton — Add to KDE" \
     --text="Choose the application installed by the program you just ran." \
@@ -520,7 +541,7 @@ cat <<'OPENHANDLER' > /usr/share/applications/raptor-wine-open.desktop
 [Desktop Entry]
 Type=Application
 Version=1.1
-Name=Open with Raptor Wine
+Name=Raptor Wine
 Exec=raptor-wine-open %f
 Icon=application-x-ms-dos-executable
 Terminal=false
@@ -531,12 +552,11 @@ cat <<'PROTONHANDLER' > /usr/share/applications/raptor-proton-open.desktop
 [Desktop Entry]
 Type=Application
 Version=1.1
-Name=Open with Raptor Proton
+Name=Raptor Proton
 Exec=raptor-proton-open %f
 Icon=applications-games
 Terminal=false
-NoDisplay=false
-Categories=Game;
+NoDisplay=true
 MimeType=application/x-ms-dos-executable;application/vnd.microsoft.portable-executable;application/x-msdownload;application/x-msi;
 PROTONHANDLER
 mkdir -p /usr/share/kio/servicemenus
@@ -549,12 +569,12 @@ Actions=raptorWineRun;raptorProtonRun;
 X-KDE-Priority=TopLevel
 
 [Desktop Action raptorWineRun]
-Name=Open with Raptor Wine
+Name=Raptor Wine
 Icon=application-x-ms-dos-executable
 Exec=raptor-wine-open %f
 
 [Desktop Action raptorProtonRun]
-Name=Open with Raptor Proton
+Name=Raptor Proton
 Icon=applications-games
 Exec=raptor-proton-open %f
 SERVICE
