@@ -7,7 +7,7 @@ use crossbeam_channel::{unbounded, Receiver, Sender, TryRecvError};
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::thread;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::time::Duration;
 use std::path::PathBuf;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
@@ -34,7 +34,7 @@ fn download_audius_track(track_id: &str) -> Result<tempfile::NamedTempFile, Stri
     let client = reqwest::blocking::Client::builder()
         .user_agent("RaptorMusic/0.2.17")
         .connect_timeout(Duration::from_secs(10))
-        .timeout(Duration::from_secs(180))
+        .timeout(Duration::from_secs(60))
         .build()
         .map_err(|e| format!("Could not initialize online audio: {e}"))?;
 
@@ -50,13 +50,14 @@ fn download_audius_track(track_id: &str) -> Result<tempfile::NamedTempFile, Stri
         return Err("This track is larger than Raptor Music's 256 MiB stream limit".into());
     }
 
-    // Keep transient stream buffers in the per-user runtime directory (normally
-    // tmpfs). NamedTempFile removes the data automatically when the session ends.
-    let runtime_dir = std::env::var_os("XDG_RUNTIME_DIR")
+    // Buffer to the per-user cache rather than XDG_RUNTIME_DIR, which is
+    // commonly tmpfs. This keeps large tracks off RAM on low-memory machines.
+    // NamedTempFile removes the buffer automatically when the session ends.
+    let cache_root = std::env::var_os("XDG_CACHE_HOME")
         .map(PathBuf::from)
-        .filter(|path| path.is_dir())
+        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".cache")))
         .unwrap_or_else(std::env::temp_dir);
-    let stream_dir = runtime_dir.join("raptor-music");
+    let stream_dir = cache_root.join("raptor-music").join("streams");
     let temp_dir = if std::fs::create_dir_all(&stream_dir).is_ok() {
         stream_dir
     } else {
