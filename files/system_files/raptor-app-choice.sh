@@ -80,7 +80,7 @@ if flatpak info dev.vencord.Vesktop &>/dev/null 2>&1; then
 --enable-wayland-ime
 VESKTOPFLAGS
     if [[ "$CHAT_LOW_MEMORY" == "1" ]]; then
-        printf '%s\\n' '--renderer-process-limit=4' >> "$VESKTOP_CFG/flags.txt"
+        printf '%s\n' '--renderer-process-limit=4' >> "$VESKTOP_CFG/flags.txt"
     fi
 
     # Belt-and-suspenders: also set via flatpak user override (env vars are
