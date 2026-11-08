@@ -1803,7 +1803,7 @@ class RaptorCortexWindow(Adw.ApplicationWindow):
         self._mode_btns = {}
         self._toast_overlay = None
         self._build_ui()
-        GLib.timeout_add_seconds(8, self._refresh_stats)
+        GLib.timeout_add_seconds(15, self._refresh_stats)
         # First reading happens after the window is on screen (on a worker thread).
         GLib.idle_add(lambda: (self._refresh_stats(), False)[1])
 
