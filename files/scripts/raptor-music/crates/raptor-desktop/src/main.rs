@@ -677,34 +677,7 @@ fn audius_flag(value: &serde_json::Value, key: &str, default: bool) -> bool {
     }
 }
 
-fn search_audius_tracks(query: &str) -> Result<Vec<Track>, String> {
-    let query = query.trim();
-    if query.is_empty() {
-        return Ok(Vec::new());
-    }
-
-    let client = reqwest::blocking::Client::builder()
-        .user_agent("RaptorMusic/0.2.17")
-        .connect_timeout(Duration::from_secs(8))
-        .timeout(Duration::from_secs(15))
-        .build()
-        .map_err(|error| format!("Could not initialize online search: {error}"))?;
-
-    let response = client
-        .get("https://api.audius.co/v1/tracks/search")
-        .query(&[
-            ("query", query),
-            ("limit", "24"),
-            ("sort_method", "relevant"),
-            ("app_name", "RaptorMusic"),
-        ])
-        .send()
-        .and_then(|response| response.error_for_status())
-        .map_err(|error| format!("Audius search request failed: {error}"))?;
-
-    let payload: serde_json::Value = response
-        .json()
-        .map_err(|error| format!("Audius returned unreadable search results: {error}"))?;
+fn parse_audius_tracks(payload: &serde_json::Value) -> Result<Vec<Track>, String> {
     let rows = payload
         .get("data")
         .and_then(serde_json::Value::as_array)
@@ -765,6 +738,114 @@ fn search_audius_tracks(query: &str) -> Result<Vec<Track>, String> {
         });
     }
     Ok(tracks)
+}
+
+fn search_audius_tracks(query: &str) -> Result<Vec<Track>, String> {
+    let query = query.trim();
+    if query.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let client = reqwest::blocking::Client::builder()
+        .user_agent("RaptorMusic/0.2.17")
+        .connect_timeout(Duration::from_secs(8))
+        .timeout(Duration::from_secs(15))
+        .build()
+        .map_err(|error| format!("Could not initialize online search: {error}"))?;
+
+    let response = client
+        .get("https://api.audius.co/v1/tracks/search")
+        .query(&[
+            ("query", query),
+            ("limit", "24"),
+            ("sort_method", "relevant"),
+            ("app_name", "RaptorMusic"),
+        ])
+        .send()
+        .and_then(|response| response.error_for_status())
+        .map_err(|error| format!("Audius search request failed: {error}"))?;
+
+    let payload: serde_json::Value = response
+        .json()
+        .map_err(|error| format!("Audius returned unreadable search results: {error}"))?;
+    parse_audius_tracks(&payload)
+}
+
+#[cfg(test)]
+mod audius_search_tests {
+    use super::*;
+
+    #[test]
+    fn online_search_keeps_only_public_streamable_tracks() {
+        let payload = serde_json::json!({
+            "data": [
+                {
+                    "id": "track_public_01",
+                    "title": "Example Song",
+                    "user": { "name": "Example Artist" },
+                    "genre": "Electronic",
+                    "duration": 187,
+                    "is_streamable": true,
+                    "is_unlisted": false,
+                    "is_stream_gated": false,
+                    "is_available": true,
+                    "is_delete": false
+                },
+                {
+                    "id": "track_hidden_02",
+                    "title": "Hidden Song",
+                    "is_streamable": true,
+                    "is_unlisted": true
+                },
+                {
+                    "id": "track_gated_03",
+                    "title": "Gated Song",
+                    "is_streamable": true,
+                    "is_stream_gated": true
+                },
+                {
+                    "id": "track_unavailable_04",
+                    "title": "Unavailable Song",
+                    "is_streamable": true,
+                    "is_available": false
+                },
+                {
+                    "id": "track_nonstreamable_05",
+                    "title": "Non-streamable Song",
+                    "is_streamable": false
+                },
+                {
+                    "id": "invalid/id",
+                    "title": "Invalid Identifier",
+                    "is_streamable": true
+                }
+            ]
+        });
+
+        let tracks = parse_audius_tracks(&payload).expect("valid provider response");
+        assert_eq!(tracks.len(), 1);
+        let track = &tracks[0];
+        assert_eq!(track.title, "Example Song");
+        assert_eq!(track.artist, "Example Artist");
+        assert_eq!(track.duration_secs, Some(187));
+        assert_eq!(
+            track.source,
+            PlaybackSource::RemoteStream {
+                provider_id: "audius".into(),
+                provider_track_id: "track_public_01".into(),
+            }
+        );
+
+        let repeated = parse_audius_tracks(&payload).expect("same provider response");
+        assert_eq!(track.id, repeated[0].id, "online IDs must remain stable across searches");
+    }
+
+    #[test]
+    fn unexpected_online_search_shape_is_reported() {
+        let error = parse_audius_tracks(&serde_json::json!({"results": []}))
+            .expect_err("unexpected API shape must not look like an empty successful search");
+        assert!(error.contains("unexpected search response"));
+    }
 }
 
 fn tracks_to_slint(tracks: &[Track]) -> Vec<TrackData> {
