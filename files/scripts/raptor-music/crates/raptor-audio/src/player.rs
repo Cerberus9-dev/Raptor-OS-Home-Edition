@@ -647,6 +647,7 @@ impl AudioPlayer {
                                             PlayerCommand::Play { source, track_id, queue_entry_id, session_token: new_token } => {
                                                 drop(stream);
                                                 let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
+                                                remote_audio_file = None;
                                                 active_source = source;
                                                 active_track_id = track_id;
                                                 active_queue_entry_id = queue_entry_id;
@@ -714,6 +715,7 @@ impl AudioPlayer {
                                                     PlayerCommand::Play { source, track_id, queue_entry_id, session_token: new_token } => {
                                                         drop(stream);
                                                         let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
+                                                        remote_audio_file = None;
                                                         active_source = source;
                                                         active_track_id = track_id;
                                                         active_queue_entry_id = queue_entry_id;
@@ -792,6 +794,7 @@ impl AudioPlayer {
                                 PlayerCommand::Play { source, track_id, queue_entry_id, session_token: new_token } => {
                                     drop(stream);
                                     let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
+                                    remote_audio_file = None;
                                     active_source = source;
                                     active_track_id = track_id;
                                     active_queue_entry_id = queue_entry_id;
