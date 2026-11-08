@@ -807,6 +807,7 @@ import sys
 import time
 import json
 import uuid
+import re
 
 CORTEX_CONFIG  = "/etc/raptor/cortex-suspend.conf"
 HELPER         = "/usr/lib/raptor/cortex-helper"
@@ -1353,53 +1354,88 @@ def get_gpu_summary():
     return " · ".join(parts)
 
 
-def get_fan_info():
-    """Read-only fan report from hwmon (and nvidia-smi). Never writes anything.
+def get_fan_info(hwmon_root="/sys/class/hwmon"):
+    """Return read-only fan telemetry from hwmon and NVIDIA's driver interface.
 
-    Returns a list of (label, text) tuples; empty list if no fan sensors exist.
+    RPM is preferred. If a driver exposes only a standard 0-255 PWM duty value,
+    report that explicitly as duty (not RPM). This function never writes controls.
     """
     fans = []
-    base = "/sys/class/hwmon"
     try:
-        for hw in sorted(os.listdir(base)):
-            d = f"{base}/{hw}"
+        hwmons = sorted(os.listdir(hwmon_root))
+    except OSError:
+        hwmons = []
+
+    for hw in hwmons:
+        d = os.path.join(hwmon_root, hw)
+        try:
+            with open(os.path.join(d, "name"), encoding="utf-8") as f:
+                chip = f.read().strip() or hw
+        except OSError:
+            chip = hw
+        try:
+            entries = set(os.listdir(d))
+        except OSError:
+            continue
+
+        rpm_indices = set()
+        for ent in sorted(x for x in entries if re.fullmatch(r"fan(\d+)_input", x)):
+            idx = ent[3:-6]
             try:
-                with open(f"{d}/name") as f:
-                    chip = f.read().strip()
-            except Exception:
-                chip = hw
-            try:
-                entries = sorted(x for x in os.listdir(d)
-                                 if x.startswith("fan") and x.endswith("_input"))
-            except Exception:
-                continue
-            for ent in entries:
-                idx = ent[3:-6]
-                try:
-                    with open(f"{d}/{ent}") as f:
-                        rpm = int(f.read().strip())
-                except Exception:
+                with open(os.path.join(d, ent), encoding="utf-8") as f:
+                    rpm = int(f.read().strip())
+                if rpm < 0:
                     continue
-                label = None
-                try:
-                    with open(f"{d}/fan{idx}_label") as f:
-                        label = f.read().strip()
-                except Exception:
-                    pass
-                name = f"{chip} {label}" if label else f"{chip} fan{idx}"
-                fans.append((name, f"{rpm} RPM" if rpm > 0 else "Stopped / idle"))
-    except Exception:
-        pass
+            except (OSError, ValueError):
+                continue
+
+            label = None
+            try:
+                with open(os.path.join(d, f"fan{idx}_label"), encoding="utf-8") as f:
+                    label = f.read().strip()
+            except OSError:
+                pass
+            name = f"{chip} {label}" if label else f"{chip} fan{idx}"
+            fans.append((name, f"{rpm} RPM" if rpm > 0 else "Stopped / idle"))
+            rpm_indices.add(idx)
+
+        # Some GPU and embedded-controller drivers expose PWM duty but no
+        # tachometer. It is not a speed reading, so label it clearly and only
+        # use the kernel hwmon ABI's documented 0-255 range.
+        for ent in sorted(x for x in entries if re.fullmatch(r"pwm\d+", x)):
+            idx = ent[3:]
+            if idx in rpm_indices:
+                continue
+            try:
+                with open(os.path.join(d, ent), encoding="utf-8") as f:
+                    duty = int(f.read().strip())
+                if not 0 <= duty <= 255:
+                    continue
+            except (OSError, ValueError):
+                continue
+            label = None
+            try:
+                with open(os.path.join(d, f"fan{idx}_label"), encoding="utf-8") as f:
+                    label = f.read().strip()
+            except OSError:
+                pass
+            name = f"{chip} {label} PWM" if label else f"{chip} fan{idx} PWM"
+            fans.append((name, f"{round(duty * 100 / 255)}% PWM duty"))
+
     if not any("nvidia" in n.lower() for n, _ in fans):
         try:
             r = subprocess.run(
                 ["nvidia-smi", "--query-gpu=fan.speed", "--format=csv,noheader,nounits"],
                 capture_output=True, text=True, timeout=2)
             if r.returncode == 0:
-                for i, line in enumerate(r.stdout.strip().splitlines()):
-                    if line.strip().isdigit():
-                        fans.append((f"NVIDIA GPU {i}", f"{line.strip()} %"))
-        except Exception:
+                for i, line in enumerate(r.stdout.splitlines()):
+                    match = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*%?\s*", line)
+                    if match:
+                        speed = float(match.group(1))
+                        if 0 <= speed <= 100:
+                            shown = int(speed) if speed.is_integer() else speed
+                            fans.append((f"NVIDIA GPU {i}", f"{shown}%"))
+        except (OSError, subprocess.TimeoutExpired, ValueError):
             pass
     return fans
 
