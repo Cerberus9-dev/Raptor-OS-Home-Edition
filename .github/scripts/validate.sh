@@ -106,10 +106,12 @@ assert_contains recipes/recipe.yml "- mingw64-wine-gecko"
 assert_contains recipes/recipe.yml "- winetricks"
 assert_contains recipes/recipe.yml "- umu-launcher"
 assert_contains files/scripts/raptor-wine/install.sh "exec wine"
-assert_contains files/scripts/raptor-wine/install.sh "exec umu-run"
+assert_contains files/scripts/raptor-wine/install.sh 'umu-run "${launch_command[@]}"'
+assert_contains files/scripts/raptor-wine/install.sh 'umu-run ""'
 assert_contains files/scripts/raptor-wine/install.sh 'target="$1"'
 assert_not_contains files/scripts/raptor-wine/install.sh 'RAPTOR_WINE_ERROR: UMU is not installed'
-assert_contains files/scripts/raptor-wine/install.sh 'MSI installers should be run with standard Wine'
+assert_contains files/scripts/raptor-wine/install.sh '*.msi)'
+assert_contains files/scripts/raptor-wine/install.sh 'msiexec.exe'
 assert_not_contains files/scripts/raptor-wine/install.sh 'exec umu-run wine msiexec'
 assert_contains files/scripts/raptor-wine/install.sh 'shift'
 assert_contains files/scripts/raptor-wine/install.sh 'Usage: raptor-wine-proton program.exe'
@@ -123,7 +125,7 @@ assert_contains files/scripts/raptor-wine/install.sh 'protontricks-launch --appi
 assert_contains files/scripts/raptor-wine/install.sh 'raptor-proton-prefix-open'
 assert_contains files/scripts/raptor-wine/install.sh 'raptor-wine-associations'
 assert_contains files/scripts/raptor-wine/install.sh 'NoDisplay=true'
-assert_not_contains files/scripts/raptor-wine/install.sh "zenity"
+assert_contains files/scripts/raptor-wine/install.sh "zenity"
 assert_not_contains files/scripts/raptor-wine/install.sh "wineboot -u"
 assert_not_contains files/scripts/raptor-wine/install.sh "winetricks --unattended"
 assert_contains files/system_files/raptor-mimeapps.list "application/x-ms-dos-executable=raptor-wine-open.desktop"
@@ -262,6 +264,7 @@ assert_contains files/scripts/raptor-wine/install.sh 'comm -z -13'
 assert_contains files/scripts/raptor-wine/install.sh 'raptor-proton-register-apps'
 assert_contains files/scripts/raptor-wine/install.sh 'raptor-proton-launch-installed'
 assert_contains files/scripts/raptor-wine/install.sh 'Name=Raptor Proton'
+assert_contains files/scripts/raptor-wine/install.sh 'Name=Raptor Wine'
 assert_contains files/scripts/raptor-wine/install.sh 'MimeType=application/x-ms-dos-executable;application/vnd.microsoft.portable-executable;application/x-msdownload;application/x-msi;'
 assert_contains files/scripts/raptor-wine/install.sh 'UMU_RUNTIME_UPDATE=0'
 assert_contains files/scripts/raptor-wine/install.sh 'Categories=Game;'
