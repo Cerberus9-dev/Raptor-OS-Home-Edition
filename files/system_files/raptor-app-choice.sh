@@ -59,7 +59,16 @@ fi
 # Previously lived in raptor-appconfig.sh + raptor-appconfig.service; merged
 # here to eliminate redundant files and service units.
 
-# Vesktop: use native Wayland integration without unsafe global memory caps
+# Apply a conservative Chromium renderer ceiling only on low-memory systems.
+# Four renderers still leave room for the main UI, server views, and voice/video
+# surfaces; do not cap V8 heaps, disable GPU acceleration, or interfere with WebRTC.
+CHAT_RAM_KB="$(awk '/^MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null || echo 0)"
+CHAT_LOW_MEMORY=0
+if [[ "$CHAT_RAM_KB" =~ ^[0-9]+$ ]] && (( CHAT_RAM_KB > 0 && CHAT_RAM_KB <= 8388608 )); then
+    CHAT_LOW_MEMORY=1
+fi
+
+# Vesktop: use native Wayland integration; tune renderer count only on low-RAM PCs.
 VESKTOP_CFG="${HOME}/.var/app/dev.vencord.Vesktop/config/vesktop"
 if flatpak info dev.vencord.Vesktop &>/dev/null 2>&1; then
     mkdir -p "${VESKTOP_CFG}"
@@ -70,6 +79,9 @@ if flatpak info dev.vencord.Vesktop &>/dev/null 2>&1; then
 --ozone-platform=wayland
 --enable-wayland-ime
 VESKTOPFLAGS
+    if [[ "$CHAT_LOW_MEMORY" == "1" ]]; then
+        printf '%s\\n' '--renderer-process-limit=4' >> "$VESKTOP_CFG/flags.txt"
+    fi
 
     # Belt-and-suspenders: also set via flatpak user override (env vars are
     # picked up even if the flags.txt path ever changes between Vesktop versions)
@@ -80,6 +92,18 @@ VESKTOPFLAGS
     log "Vesktop: flags.txt and user Flatpak override applied."
 else
     log "Vesktop not installed — skipping Vesktop config."
+fi
+
+# Equibop documents this persistent flags file; Flatpak maps XDG_CONFIG_HOME
+# to this application's private config directory.
+if flatpak info org.equicord.equibop >/dev/null 2>&1 && [[ "$CHAT_LOW_MEMORY" == "1" ]]; then
+    EQUIBOP_CFG="${HOME}/.var/app/org.equicord.equibop/config/equibop-flags.conf"
+    mkdir -p "$(dirname "$EQUIBOP_CFG")"
+    cat > "$EQUIBOP_CFG" <<'EQUIBOPFLAGS'
+# Raptor OS low-memory profile. GPU acceleration and WebRTC remain enabled.
+--renderer-process-limit=4
+EQUIBOPFLAGS
+    log "Equibop: low-memory renderer limit configured."
 fi
 
 # ── Consistent Electron/Chromium Wayland integration for chat clients ─────────
@@ -110,6 +134,20 @@ if [[ -f "${FF_SKEL}" ]]; then
         if [[ ! -f "${profdir}/user.js" ]]; then
             cp "${FF_SKEL}" "${profdir}/user.js"
             log "Firefox user.js deployed to: $(basename "${profdir}")"
+        fi
+        # Append the current low-memory defaults once to profiles created by
+        # older Raptor images, without overwriting any other profile settings.
+        if ! grep -q 'Raptor OS low-memory process defaults' "${profdir}/user.js"; then
+            cat >> "${profdir}/user.js" <<'FFMEM'
+
+// Raptor OS low-memory process defaults (safe to override in about:config).
+user_pref("browser.cache.memory.capacity", 32768);
+user_pref("dom.ipc.processCount", 2);
+user_pref("dom.ipc.processCount.webIsolated", 1);
+user_pref("browser.tabs.unloadOnLowMemory", true);
+user_pref("media.memory_cache_max_size", 16384);
+FFMEM
+            log "Firefox low-memory defaults applied to: $(basename "${profdir}")"
         fi
     done
 fi
