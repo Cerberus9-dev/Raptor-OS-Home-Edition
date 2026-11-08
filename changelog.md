@@ -38,7 +38,7 @@
 This is the consolidation release for more than two months of sustained Raptor OS overhaul work. The scope includes substantial changes across performance and memory management, gaming and GPU behavior, audio, Cortex, update reliability, hardware recovery, browser and chat-client choice, build validation, and the installation/distribution path. The intent is to ship the work as one coherent major update rather than scatter it across a long sequence of small version bumps.
 
 ### Raptor Music desktop experience
-- Make the Slint player window explicitly resizable with practical minimum dimensions, allowing KDE/X11 window managers to maximize and resize it normally.
+- Replace fixed Slint window dimensions with preferred initial dimensions and minimum size constraints, allowing KDE/X11 window managers to resize and maximize the player normally.
 - Rework the interface into a Raptor-branded graphite-and-sage desktop player, with clearer browse/library/queue hierarchy, a more prominent global search, and a persistent playback dock. The visual language uses familiar desktop-media conventions without Spotify logos, artwork, or copied branding.
 - Let the local-library and Audius result lists expand with the available window height instead of trapping results in short fixed-height panes. Clarify that local results are searched locally and online results come from Audius; this is not a Spotify-sized licensed streaming catalog.
 
