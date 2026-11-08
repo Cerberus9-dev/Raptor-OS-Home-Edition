@@ -257,9 +257,11 @@ assert_contains files/scripts/raptor-hardware-fixes/install.sh 'standard Wine'
 
 echo "=== Raptor Wine and Proton desktop integration ==="
 assert_contains files/scripts/raptor-wine/install.sh 'RAPTOR_PROTON_REGISTER_AFTER'
+assert_contains files/scripts/raptor-wine/install.sh 'STEAM_COMPAT_LIBRARY_PATHS'
+assert_contains files/scripts/raptor-wine/install.sh 'comm -z -13'
 assert_contains files/scripts/raptor-wine/install.sh 'raptor-proton-register-apps'
 assert_contains files/scripts/raptor-wine/install.sh 'raptor-proton-launch-installed'
-assert_contains files/scripts/raptor-wine/install.sh 'Name=Open with Raptor Proton'
+assert_contains files/scripts/raptor-wine/install.sh 'Name=Raptor Proton'
 assert_contains files/scripts/raptor-wine/install.sh 'MimeType=application/x-ms-dos-executable;application/vnd.microsoft.portable-executable;application/x-msdownload;application/x-msi;'
 assert_contains files/scripts/raptor-wine/install.sh 'UMU_RUNTIME_UPDATE=0'
 assert_contains files/scripts/raptor-wine/install.sh 'Categories=Game;'
