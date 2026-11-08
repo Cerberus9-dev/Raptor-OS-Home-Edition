@@ -42,35 +42,24 @@ set -euo pipefail
 
 if [[ $# -eq 0 || "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
   cat <<'HELP'
-Raptor Proton — optional Proton-powered Windows game launcher.
+Raptor Proton — Proton-powered Windows games and applications.
 
 Usage:
-  raptor-wine-proton game.exe [arguments...]
+  raptor-wine-proton program.exe [arguments...]
 
-Normal Windows applications continue to use:
-  wine program.exe
-
-Proton supplies its own game-focused compatibility patches and graphics
-translation (including DXVK/VKD3D where supported) inside UMU's Steam Linux
-Runtime. The Steam client is not required.
-
-Optional environment settings:
-  RAPTOR_WINE_GAME_ID   UMU database ID (default: umu-default)
-  RAPTOR_WINE_STORE     Store ID for supported UMU fixes
-  RAPTOR_WINE_PROTONPATH Proton directory/version (default: UMU-Proton)
-  RAPTOR_WINE_DEBUG=1   Enable UMU and Proton diagnostic logs
+Raptor Proton uses UMU and the Steam Linux Runtime without requiring the
+Steam client. Installed programs can be added to the KDE application menu.
 HELP
   [[ $# -gt 0 ]] || exit 0
 fi
 
 command -v umu-run >/dev/null 2>&1 || {
-  echo "raptor-wine-proton: UMU is not installed." >&2
+  echo "Raptor Proton: UMU is not installed." >&2
   exit 1
 }
 
-# Let UMU manage its standard default Proton prefix. Respect a caller-supplied
-# WINEPREFIX, but do not force users into a custom prefix/profile workflow.
 export GAMEID="${RAPTOR_WINE_GAME_ID:-umu-default}"
+export WINEPREFIX="${WINEPREFIX:-$HOME/Games/umu/umu-default}"
 [[ -z "${RAPTOR_WINE_STORE:-}" ]] || export STORE="$RAPTOR_WINE_STORE"
 [[ -z "${RAPTOR_WINE_PROTONPATH:-}" ]] || export PROTONPATH="$RAPTOR_WINE_PROTONPATH"
 
@@ -79,24 +68,70 @@ if [[ "${RAPTOR_WINE_DEBUG:-0}" == "1" ]]; then
   export PROTON_LOG=1
 fi
 
-if [[ $# -eq 0 ]]; then
-  echo "Usage: raptor-wine-proton program.exe [arguments...]" >&2
+target="${1:-}"
+shift || true
+[[ -n "$target" && -f "$target" ]] || {
+  echo "Raptor Proton: select an existing Windows program." >&2
   exit 2
+}
+
+# UMU stores its Steam Linux Runtime in ~/.local/share/umu. Reuse the cached
+# runtime between checks, but leave automatic updates enabled at least daily.
+# The initial runtime and Proton downloads are still required on first launch.
+state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/raptor"
+mkdir -p "$state_dir"
+chmod 700 "$state_dir"
+runtime_stamp="$state_dir/umu-runtime-last-check"
+now="$(date +%s)"
+if [[ -d "$HOME/.local/share/umu" && -s "$runtime_stamp" ]]; then
+  last="$(cat "$runtime_stamp" 2>/dev/null || true)"
+  if [[ "$last" =~ ^[0-9]+$ ]] && (( now >= last && now - last < 86400 )); then
+    export UMU_RUNTIME_UPDATE=0
+  else
+    unset UMU_RUNTIME_UPDATE
+  fi
+else
+  unset UMU_RUNTIME_UPDATE
 fi
 
-target="$1"
-shift
+register_after="${RAPTOR_PROTON_REGISTER_AFTER:-0}"
+marker=""
+if [[ "$register_after" == "1" ]]; then
+  marker="$(mktemp "${TMPDIR:-/tmp}/raptor-proton-before.XXXXXX")"
+  touch "$marker"
+fi
 
+declare -a launch_command
 case "${target,,}" in
   *.msi)
-    echo "raptor-wine-proton: MSI installers should be run with standard Wine:" >&2
-    echo "  wine msiexec /i \"$target\"" >&2
-    exit 2
+    # An empty UMU invocation initializes a prefix before Windows Installer runs.
+    umu-run "" || exit $?
+    msiexec="$WINEPREFIX/drive_c/windows/system32/msiexec.exe"
+    [[ -f "$msiexec" ]] || {
+      echo "Raptor Proton: Windows Installer was not created in the Proton prefix." >&2
+      exit 1
+    }
+    launch_command=("$msiexec" /i "$target" "$@")
     ;;
   *)
-    exec umu-run "$target" "$@"
+    launch_command=("$target" "$@")
     ;;
 esac
+
+set +e
+umu-run "${launch_command[@]}"
+status=$?
+set -e
+
+if (( status == 0 )); then
+  printf '%s\n' "$(date +%s)" > "$runtime_stamp"
+  chmod 600 "$runtime_stamp"
+  if [[ "$register_after" == "1" && -n "$marker" ]]; then
+    /usr/bin/raptor-proton-register-apps "$WINEPREFIX" "$marker" || true
+  fi
+fi
+[[ -z "$marker" ]] || rm -f "$marker"
+exit "$status"
 PROTON
 chmod 0755 /usr/bin/raptor-wine-proton
 
