@@ -37,6 +37,11 @@
 
 This is the consolidation release for more than two months of sustained Raptor OS overhaul work. The scope includes substantial changes across performance and memory management, gaming and GPU behavior, audio, Cortex, update reliability, hardware recovery, browser and chat-client choice, build validation, and the installation/distribution path. The intent is to ship the work as one coherent major update rather than scatter it across a long sequence of small version bumps.
 
+### Raptor Cortex telemetry
+- Fix GPU summary detection by importing the regex module used by Linux DRM device discovery, restoring adapter model, utilization, clock, and exposed memory reporting.
+- Expand read-only fan telemetry to report standard hwmon RPM sensors, NVIDIA driver fan percentages, and PWM-only sensors with an explicit duty-cycle label instead of misrepresenting them as RPM.
+- Add regression coverage with synthetic AMD-style DRM and hwmon RPM/PWM fixtures; hardware without an exposed tachometer or PWM sensor remains reported as unavailable rather than guessed.
+
 ### Boot-time hardware detection and service cleanup
 - Removed blanket USB autosuspend disable rules for HID, Bluetooth and USB audio devices; controller permissions remain, but idle power behavior stays with the kernel unless a device-specific issue requires a workaround.
 
