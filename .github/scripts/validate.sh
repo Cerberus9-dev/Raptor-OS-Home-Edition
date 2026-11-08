@@ -322,7 +322,7 @@ assert_contains files/system_files/raptor-firstboot.service 'ExecStart=/usr/bin/
 assert_contains files/scripts/raptor-cortex/install.sh 'title="Graphics Processor"'
 assert_contains files/scripts/raptor-cortex/install.sh 'def get_gpu_memory():'
 assert_contains files/scripts/raptor-cortex/install.sh 'Telemetry unavailable — check the graphics driver'
-assert_contains files/scripts/raptor-cortex/install.sh 'def get_fan_info():'
+assert_contains files/scripts/raptor-cortex/install.sh 'def get_fan_info(hwmon_root="/sys/class/hwmon"):
 assert_contains files/scripts/raptor-cortex/install.sh 'vendor == "0x1002"'
 assert_contains files/scripts/raptor-cortex/install.sh 'vendor == "0x8086"'
 assert_contains files/scripts/raptor-cortex/install.sh 'NVIDIA GPU {index}'
