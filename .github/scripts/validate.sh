@@ -185,7 +185,7 @@ assert_contains files/scripts/raptor-gaming/install.sh 'user_pref("dom.ipc.proce
 assert_contains files/system_files/raptor-app-choice.sh '--renderer-process-limit=4'
 assert_contains files/system_files/raptor-app-choice.sh 'discord-flags.conf'
 assert_contains files/system_files/raptor-app-choice.sh 'Raptor OS low-memory renderer default'
-assert_contains files/system_files/raptor-app-choice.sh '$HOME}/.var/app/org.mozilla.firefox/.mozilla/firefox'
+assert_contains files/system_files/raptor-app-choice.sh '.var/app/org.mozilla.firefox/.mozilla/firefox'
 assert_contains files/system_files/raptor-app-choice.sh 'Raptor OS low-memory process defaults'
 assert_contains files/scripts/raptor-wine/install.sh 'cleanup_idle_wineserver'
 assert_contains files/scripts/raptor-wine/install.sh 'umu-run wineboot -k'
