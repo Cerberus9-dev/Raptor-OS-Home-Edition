@@ -114,7 +114,7 @@ assert_contains files/scripts/raptor-wine/install.sh '*.msi)'
 assert_contains files/scripts/raptor-wine/install.sh 'msiexec.exe'
 assert_not_contains files/scripts/raptor-wine/install.sh 'exec umu-run wine msiexec'
 assert_contains files/scripts/raptor-wine/install.sh 'shift'
-assert_contains files/scripts/raptor-wine/install.sh 'Usage: raptor-wine-proton program.exe'
+assert_contains files/scripts/raptor-wine/install.sh 'raptor-wine-proton program.exe [arguments...]'
 # Visible app-menu entries launch a file picker; hidden desktop handlers own MIME opens.
 assert_contains files/scripts/raptor-wine/install.sh 'Exec=raptor-wine-manager'
 assert_contains files/scripts/raptor-wine/install.sh 'Exec=raptor-proton-manager'
