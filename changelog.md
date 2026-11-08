@@ -23,6 +23,14 @@
 - Added quality-gate assertions preventing these risky global overrides from silently returning.
 
 
+
+### Low-spec desktop and Windows compatibility
+- Raptor Proton now reuses the cached Steam Linux Runtime between launches and performs an automatic runtime update check at most daily, reducing repeated setup work without permanently disabling updates.
+- Added a post-install app-registration flow for Proton installers. It compares the prefix's executable inventory before and after installation, lets the user select the installed application, and adds a proper KDE launcher under Games or Utilities. Older prefix apps can be registered manually.
+- Added MSI installation through UMU/Proton, clearer launch feedback, a Proton MIME handler for KDE's Open With chooser, and consistent Raptor Wine / Raptor Proton labels.
+- Canonicalize external executable paths, launch from the executable's directory, and expose non-home parent folders to the Steam Runtime container for better support of removable and secondary drives.
+- Switched zram compression to LZ4 to reduce compression/decompression CPU overhead on older low-power systems. This trades some compression ratio for faster response under memory pressure.
+
 ## [Unreleased]
 
 ### v3.0.0 (Major Release)
