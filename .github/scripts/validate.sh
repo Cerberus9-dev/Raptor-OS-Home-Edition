@@ -132,6 +132,12 @@ assert_contains files/system_files/raptor-mimeapps.list "application/x-ms-dos-ex
 assert_contains files/system_files/raptor-mimeapps.list "application/x-msi=raptor-wine-open.desktop"
 assert_not_contains files/system_files/10-raptor-wine.conf "WINEESYNC=1"
 assert_not_contains files/system_files/10-raptor-wine.conf "WINEFSYNC=1"
+assert_contains files/system_files/10-raptor-wine.conf "WINEDEBUG=-all,+err"
+assert_contains files/scripts/raptor-wine/install.sh 'export UMU_LOG="${UMU_LOG:-1}"'
+assert_contains files/scripts/raptor-wine/install.sh "Raptor compatibility launch diagnostics"
+assert_contains files/scripts/raptor-wine/install.sh "wine --version"
+assert_contains files/scripts/raptor-wine/install.sh "umu-run --version"
+assert_contains files/scripts/raptor-wine/install.sh "stat -Lc 'Permissions: %A (%a)  Size: %s bytes'"
 
 echo "=== Checking first-boot recovery contracts ==="
 assert_contains files/system_files/raptor-browser-choice.sh "browser choice deferred; it will retry on the next login"
