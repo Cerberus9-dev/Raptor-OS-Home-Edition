@@ -158,17 +158,19 @@ set -e
 # this deliberately preserves concurrently running apps that share a prefix.
 cleanup_idle_wineserver() {
   command -v wineserver >/dev/null 2>&1 || return 0
-  local proc pid comm
+  local proc pid comm env_entry
   for proc in /proc/[0-9]*; do
-    pid="${proc##*/}"
-    [[ "$pid" == "$" || "$pid" == "$PPID" ]] && continue
+    pid="\${proc##*/}"
+    [[ "$pid" == "$BASHPID" || "$pid" == "$PPID" ]] && continue
     [[ -r "$proc/environ" ]] || continue
     comm=""
     [[ -r "$proc/comm" ]] && IFS= read -r comm < "$proc/comm" || true
     [[ "$comm" == "wineserver" ]] && continue
-    if tr '\0' '\n' < "$proc/environ" 2>/dev/null | grep -Fqx "WINEPREFIX=$WINEPREFIX"; then
-      return 0
-    fi
+    while IFS= read -r -d '' env_entry; do
+      if [[ "$env_entry" == "WINEPREFIX=$WINEPREFIX" ]]; then
+        return 0
+      fi
+    done < "$proc/environ" 2>/dev/null || true
   done
   WINEPREFIX="$WINEPREFIX" wineserver -k >/dev/null 2>&1 || true
 }
