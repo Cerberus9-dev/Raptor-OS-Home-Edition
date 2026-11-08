@@ -170,6 +170,14 @@ assert_not_contains .github/workflows/build.yml 'PR validation only: built Rapto
 assert_not_contains files/scripts/raptor-update/install.sh "for line in user_proc.stdout"
 assert_not_contains files/scripts/raptor-update/install.sh "for line in fp_proc.stdout"
 
+echo "=== Checking Raptor Music desktop experience ==="
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'resizable: true;'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'min-width: 860px;'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Explore Audius'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Local matches update as you type'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'vertical-stretch: 1;'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'parse_audius_tracks'
+
 echo "=== Checking ISO and requirements documentation ==="
 assert_not_contains .github/workflows/build-iso.yml "jasonn3/build-container-installer"
 assert_contains .github/workflows/build-iso.yml "cosign verify --key cosign.pub"
