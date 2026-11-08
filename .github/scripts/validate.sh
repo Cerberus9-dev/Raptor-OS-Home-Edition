@@ -183,6 +183,8 @@ assert_contains files/scripts/raptor-gaming/install.sh '"Value": 32768,'
 assert_contains files/scripts/raptor-gaming/install.sh '"Value": 2,'
 assert_contains files/scripts/raptor-gaming/install.sh 'user_pref("dom.ipc.processCount", 2);'
 assert_contains files/system_files/raptor-app-choice.sh '--renderer-process-limit=4'
+assert_contains files/scripts/raptor-wine/install.sh 'cleanup_idle_wineserver'
+assert_contains files/scripts/raptor-wine/install.sh 'WINEPREFIX="$WINEPREFIX" wineserver -k'
 assert_contains files/system_files/raptor-app-choice.sh 'Raptor OS low-memory process defaults'
 assert_contains files/scripts/raptor-cortex/install.sh 'GLib.timeout_add_seconds(15, self._refresh_stats)'
 
