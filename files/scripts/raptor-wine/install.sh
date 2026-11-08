@@ -97,15 +97,29 @@ mkdir -p "$state_dir"
 chmod 700 "$state_dir"
 runtime_stamp="$state_dir/umu-runtime-last-check"
 now="$(date +%s)"
+runtime_is_fresh=0
 if [[ -d "$HOME/.local/share/umu" && -s "$runtime_stamp" ]]; then
   last="$(cat "$runtime_stamp" 2>/dev/null || true)"
   if [[ "$last" =~ ^[0-9]+$ ]] && (( now >= last && now - last < 86400 )); then
-    export UMU_RUNTIME_UPDATE=0
-  else
-    unset UMU_RUNTIME_UPDATE
+    runtime_is_fresh=1
   fi
+fi
+
+if (( runtime_is_fresh )); then
+  export UMU_RUNTIME_UPDATE=0
 else
-  unset UMU_RUNTIME_UPDATE
+  # UMU's documented empty-executable form creates/updates its prefix without
+  # launching an app. Do this once per day, before any game/installer, so a
+  # game that exits with a non-zero code does not force a slow runtime check
+  # again on its next launch.
+  echo "Raptor Proton: preparing its compatibility runtime (first launch or daily check)…"
+  if ! umu-run ""; then
+    echo "Raptor Proton: runtime preparation failed. Check the UMU log and network connection." >&2
+    exit 1
+  fi
+  printf '%s\n' "$(date +%s)" > "$runtime_stamp"
+  chmod 600 "$runtime_stamp"
+  export UMU_RUNTIME_UPDATE=0
 fi
 
 register_after="${RAPTOR_PROTON_REGISTER_AFTER:-0}"
@@ -121,11 +135,7 @@ fi
 declare -a launch_command
 case "${target,,}" in
   *.msi)
-    # An empty UMU invocation initializes a prefix before Windows Installer runs.
-    umu-run "" || exit $?
-    printf '%s\n' "$(date +%s)" > "$runtime_stamp"
-    chmod 600 "$runtime_stamp"
-    export UMU_RUNTIME_UPDATE=0
+    # The common preflight above has already initialized the default prefix.
     msiexec="$WINEPREFIX/drive_c/windows/system32/msiexec.exe"
     [[ -f "$msiexec" ]] || {
       echo "Raptor Proton: Windows Installer was not created in the Proton prefix." >&2
