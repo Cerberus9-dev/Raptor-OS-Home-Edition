@@ -59,7 +59,7 @@ command -v umu-run >/dev/null 2>&1 || {
 }
 
 export GAMEID="${RAPTOR_WINE_GAME_ID:-umu-default}"
-export WINEPREFIX="${WINEPREFIX:-$HOME/Games/umu/umu-default}"
+export WINEPREFIX="${WINEPREFIX:-$HOME/Games/umu/$GAMEID}"
 [[ -z "${RAPTOR_WINE_STORE:-}" ]] || export STORE="$RAPTOR_WINE_STORE"
 [[ -z "${RAPTOR_WINE_PROTONPATH:-}" ]] || export PROTONPATH="$RAPTOR_WINE_PROTONPATH"
 
@@ -152,6 +152,27 @@ set +e
 umu-run "${launch_command[@]}"
 status=$?
 set -e
+
+# UMU/Wine can leave an idle wineserver behind after the last app exits.
+# Reclaim that memory only when no other process for this exact prefix remains;
+# this deliberately preserves concurrently running apps that share a prefix.
+cleanup_idle_wineserver() {
+  command -v wineserver >/dev/null 2>&1 || return 0
+  local proc pid comm
+  for proc in /proc/[0-9]*; do
+    pid="${proc##*/}"
+    [[ "$pid" == "$" || "$pid" == "$PPID" ]] && continue
+    [[ -r "$proc/environ" ]] || continue
+    comm=""
+    [[ -r "$proc/comm" ]] && IFS= read -r comm < "$proc/comm" || true
+    [[ "$comm" == "wineserver" ]] && continue
+    if tr '\0' '\n' < "$proc/environ" 2>/dev/null | grep -Fqx "WINEPREFIX=$WINEPREFIX"; then
+      return 0
+    fi
+  done
+  WINEPREFIX="$WINEPREFIX" wineserver -k >/dev/null 2>&1 || true
+}
+cleanup_idle_wineserver
 
 if (( status == 0 )); then
   printf '%s\n' "$(date +%s)" > "$runtime_stamp"
