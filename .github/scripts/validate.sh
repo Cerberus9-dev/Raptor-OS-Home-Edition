@@ -178,6 +178,22 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint '
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'vertical-stretch: 1;'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'parse_audius_tracks'
 
+echo "=== Checking low-memory application defaults ==="
+assert_contains files/scripts/raptor-gaming/install.sh '"Value": 32768,'
+assert_contains files/scripts/raptor-gaming/install.sh '"Value": 2,'
+assert_contains files/scripts/raptor-gaming/install.sh 'user_pref("dom.ipc.processCount", 2);'
+assert_contains files/system_files/raptor-app-choice.sh '--renderer-process-limit=4'
+assert_contains files/system_files/raptor-app-choice.sh 'Raptor OS low-memory process defaults'
+assert_contains files/scripts/raptor-cortex/install.sh 'GLib.timeout_add_seconds(15, self._refresh_stats)'
+
+echo "=== Checking low-memory application defaults ==="
+assert_contains files/scripts/raptor-gaming/install.sh '"Value": 32768,'
+assert_contains files/scripts/raptor-gaming/install.sh '"Value": 2,'
+assert_contains files/scripts/raptor-gaming/install.sh 'user_pref("dom.ipc.processCount", 2);'
+assert_contains files/system_files/raptor-app-choice.sh '--renderer-process-limit=4'
+assert_contains files/system_files/raptor-app-choice.sh 'Raptor OS low-memory process defaults'
+assert_contains files/scripts/raptor-cortex/install.sh 'GLib.timeout_add_seconds(15, self._refresh_stats)'
+
 echo "=== Checking ISO and requirements documentation ==="
 assert_not_contains .github/workflows/build-iso.yml "jasonn3/build-container-installer"
 assert_contains .github/workflows/build-iso.yml "cosign verify --key cosign.pub"
