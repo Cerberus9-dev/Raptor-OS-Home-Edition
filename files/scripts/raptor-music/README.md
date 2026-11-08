@@ -10,14 +10,18 @@ Raptor Music is a local-first desktop music library and player built with Rust, 
 - A dedicated upcoming-queue panel with selection and removal.
 - Persistent now-playing controls, progress display, seek, previous/next and stop.
 - A folder picker that scans supported local audio formats and imports metadata into the local SQLite library.
+- Debounced online search across songs and artists in the public Audius catalog, shown separately from the local library.
+- Queue and playback support for public Audius tracks that the provider marks streamable and not access-gated.
 
-The interface is Spotify-inspired in its information architecture and ease of browsing, not a copy of Spotify's branding or artwork.
+The interface uses familiar music-player navigation and search patterns without copying Spotify's branding or artwork.
 
-## Current service boundary
+## Catalog and privacy boundary
 
-The current catalog is the user's imported local music. It does not yet provide a hosted global streaming catalog or online discovery feed. Streaming providers require supported APIs, authentication and rights-compatible playback; Raptor Music must not pretend it can search or play those catalogs until each integration is implemented and tested.
+The local library remains fully usable offline. When a search has at least two characters, Raptor Music also sends that query to Audius and displays matching public, streamable tracks in a separate Discover section. Selecting an online result saves its track metadata and provider ID to the local library; adding it to the queue enables playback through Audius' official stream endpoint. Stream data is buffered in a temporary per-user runtime file and removed when playback ends.
 
-Raptor Music remains local-first: no ads, subscription requirement, tracking, or always-on background server. Existing local files remain under the user's control.
+Audius is an additional discovery catalog, not a mirror of Spotify's complete catalog. Availability depends on the artists and tracks published there, and online search/playback requires network access. The provider receives the search query and normal connection metadata; local file names, playlists, and listening history are not uploaded by Raptor Music.
+
+Raptor Music itself has no ads, subscription requirement, app telemetry, or always-on background server. Existing local files remain under the user's control.
 
 ## Workspace
 
