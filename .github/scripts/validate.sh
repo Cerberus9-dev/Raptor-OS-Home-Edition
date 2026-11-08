@@ -171,7 +171,11 @@ assert_not_contains files/scripts/raptor-update/install.sh "for line in user_pro
 assert_not_contains files/scripts/raptor-update/install.sh "for line in fp_proc.stdout"
 
 echo "=== Checking Raptor Music desktop experience ==="
-assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'resizable: true;'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'preferred-width: 1180px;'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'preferred-height: 760px;'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'import { Button, LineEdit, ListView, Slider }'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'LineEdit {'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'placeholder-text: "Songs, artists, albums or genres";'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'min-width: 860px;'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Explore Audius'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Local matches update as you type'
