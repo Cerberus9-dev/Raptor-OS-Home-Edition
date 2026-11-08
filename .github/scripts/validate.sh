@@ -333,6 +333,78 @@ cortex_tmp="$(mktemp --suffix=.py)"
 awk "/^cat << 'PYEOF' > \\/usr\\/bin\\/raptor-cortex$/ { inside=1; next } /^PYEOF$/ && inside { exit } inside { print }" files/scripts/raptor-cortex/install.sh > "$cortex_tmp"
 test -s "$cortex_tmp"
 python3 -c 'import ast, sys; ast.parse(open(sys.argv[1], encoding="utf-8").read())' "$cortex_tmp"
+python3 - "$cortex_tmp" <<'PY'
+import ast
+import os
+import re
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+from types import SimpleNamespace
+
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+tree = ast.parse(source)
+top_imports = {
+    alias.name
+    for node in tree.body if isinstance(node, ast.Import)
+    for alias in node.names
+}
+assert "re" in top_imports, "Cortex must import re at module scope for GPU discovery"
+
+wanted = {"get_gpu_usage", "get_gpu_summary", "get_fan_info"}
+functions = [
+    node for node in tree.body
+    if isinstance(node, ast.FunctionDef) and node.name in wanted
+]
+assert {node.name for node in functions} == wanted, "GPU/fan telemetry functions missing"
+
+class FakeSubprocess:
+    class TimeoutExpired(Exception):
+        pass
+
+    @staticmethod
+    def run(*_args, **_kwargs):
+        return SimpleNamespace(returncode=1, stdout="")
+
+namespace = {"os": os, "re": re, "subprocess": FakeSubprocess}
+exec(compile(ast.Module(body=functions, type_ignores=[]), "<cortex-telemetry>", "exec"), namespace)
+
+# Exercise real AMD sysfs parsing, including the regex-dependent card matcher.
+with tempfile.TemporaryDirectory() as tmp:
+    dev = Path(tmp) / "class/drm/card0/device"
+    dev.mkdir(parents=True)
+    (dev / "vendor").write_text("0x1002")
+    (dev / "gpu_busy_percent").write_text("37")
+    (dev / "pp_dpm_sclk").write_text("0: 800Mhz\n1: 1600Mhz *")
+    assert namespace["get_gpu_usage"](tmp) == (37, 1600)
+
+# GPU summary must compose model and available metrics without crashing.
+namespace["get_gpu_name"] = lambda: "Test GPU"
+namespace["get_gpu_usage"] = lambda: (37, 1600)
+namespace["get_gpu_memory"] = lambda: "512 / 4096 MB"
+summary = namespace["get_gpu_summary"]()
+assert "Test GPU" in summary and "Load 37%" in summary and "1600 MHz" in summary
+
+# Exercise both standard RPM telemetry and PWM-only telemetry.
+with tempfile.TemporaryDirectory() as tmp:
+    hwmon = Path(tmp)
+    cpu = hwmon / "hwmon0"
+    cpu.mkdir()
+    (cpu / "name").write_text("test-ec")
+    (cpu / "fan1_input").write_text("2300")
+    (cpu / "fan1_label").write_text("CPU Fan")
+    gpu = hwmon / "hwmon1"
+    gpu.mkdir()
+    (gpu / "name").write_text("amdgpu")
+    (gpu / "pwm1").write_text("128")
+    fans = namespace["get_fan_info"](tmp)
+    rendered = " | ".join(f"{name}: {value}" for name, value in fans)
+    assert "2300 RPM" in rendered, rendered
+    assert "50% PWM duty" in rendered, rendered
+
+print("Cortex GPU and fan telemetry regression tests passed.")
+PY
 rm -f "$cortex_tmp"
 
 
