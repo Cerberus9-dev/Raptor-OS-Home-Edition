@@ -20,6 +20,9 @@ export component MainWindow inherits Window {
     background: #0b1118;
 
     in-out property <[TrackData]> track_list: [];
+    in-out property <[TrackData]> online_track_list: [];
+    in-out property <string> online_search_status: "Search songs, artists or genres online";
+    in-out property <int> selected_online_track_index: -1;
     in-out property <[TrackData]> queue_list: [];
     in-out property <[PlaylistData]> playlist_list: [];
     in-out property <string> new_playlist_name: "";
@@ -38,6 +41,7 @@ export component MainWindow inherits Window {
 
     callback scan_directory_clicked();
     callback track_selected(int);
+    callback online_track_selected(int);
     callback search_changed(string);
     callback queue_selected(int);
     callback playlist_selected(int);
@@ -209,7 +213,7 @@ export component MainWindow inherits Window {
                         font-weight: 700;
                     }
                     Text {
-                        text: "Browse your collection, find a track, and build your next queue.";
+                        text: "Search your library or discover music from the Audius catalog.";
                         color: #9bb0c2;
                         font-size: 13px;
                     }
@@ -229,6 +233,7 @@ export component MainWindow inherits Window {
                                 vertical-alignment: center;
                             }
                             TextInput {
+                                placeholder-text: "Songs, artists, albums or genres";
                                 text <=> root.search_query;
                                 color: #f3f7fb;
                                 font-size: 14px;
@@ -241,7 +246,7 @@ export component MainWindow inherits Window {
 
                     HorizontalLayout {
                         Text {
-                            text: "Your tracks";
+                            text: "Your library";
                             color: #f3f7fb;
                             font-size: 18px;
                             font-weight: 700;
@@ -249,7 +254,7 @@ export component MainWindow inherits Window {
                         }
                         Rectangle { horizontal-stretch: 1; }
                         Text {
-                            text: "Select a track, then add it to your queue";
+                            text: "Tracks already on this device";
                             color: #71879b;
                             font-size: 11px;
                             vertical-alignment: center;
@@ -268,7 +273,7 @@ export component MainWindow inherits Window {
                     }
 
                     ListView {
-                        vertical-stretch: 1;
+                        height: 142px;
                         for t[index] in root.track_list : Rectangle {
                             height: 52px;
                             border-radius: 6px;
@@ -323,9 +328,87 @@ export component MainWindow inherits Window {
                     }
 
                     HorizontalLayout {
+                        Text {
+                            text: "Discover online";
+                            color: #f3f7fb;
+                            font-size: 18px;
+                            font-weight: 700;
+                            vertical-alignment: center;
+                        }
+                        Rectangle { horizontal-stretch: 1; }
+                        Text {
+                            text: root.online_search_status;
+                            color: #71879b;
+                            font-size: 11px;
+                            vertical-alignment: center;
+                        }
+                    }
+
+                    ListView {
+                        height: 164px;
+                        for t[index] in root.online_track_list : Rectangle {
+                            height: 48px;
+                            border-radius: 6px;
+                            background: index == root.selected_online_track_index ? #1e3b4e : #142230;
+                            HorizontalLayout {
+                                padding-left: 12px;
+                                padding-right: 12px;
+                                spacing: 10px;
+                                Rectangle {
+                                    width: 34px;
+                                    height: 34px;
+                                    border-radius: 5px;
+                                    background: #2b3450;
+                                    Text {
+                                        text: "♫";
+                                        color: #c8b7ff;
+                                        font-size: 19px;
+                                        horizontal-alignment: center;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                                VerticalLayout {
+                                    horizontal-stretch: 1;
+                                    spacing: 1px;
+                                    Text {
+                                        text: t.title;
+                                        color: #edf5fb;
+                                        font-size: 12px;
+                                        vertical-alignment: center;
+                                        overflow: elide;
+                                    }
+                                    Text {
+                                        text: t.artist;
+                                        color: #91a5b7;
+                                        font-size: 10px;
+                                        vertical-alignment: center;
+                                        overflow: elide;
+                                    }
+                                }
+                                Text {
+                                    text: t.album;
+                                    color: #91a5b7;
+                                    width: 110px;
+                                    vertical-alignment: center;
+                                    font-size: 10px;
+                                    overflow: elide;
+                                }
+                                Text {
+                                    text: t.duration;
+                                    color: #91a5b7;
+                                    width: 48px;
+                                    vertical-alignment: center;
+                                    font-size: 10px;
+                                }
+                            }
+                            TouchArea { clicked => { root.online_track_selected(index); } }
+                        }
+                    }
+
+                    HorizontalLayout {
                         spacing: 8px;
                         Button {
-                            text: "Add to queue";
+                            text: "Add selected to queue";
                             clicked => { root.add_to_queue_clicked(); }
                         }
                         Button {
