@@ -25,6 +25,7 @@
 
 
 ### Low-spec desktop and Windows compatibility
+- Improve Wine and Proton startup diagnostics: retain Wine error-channel output, capture the target file type and permissions, runtime binary/version, selected prefix and full launch output in a private per-launch log. UMU diagnostics are enabled by default; the failure notification includes a concise matching error and the full log path.
 - Raptor Proton now reuses the cached Steam Linux Runtime between launches and performs an automatic runtime update check at most daily, reducing repeated setup work without permanently disabling updates.
 - Added a post-install app-registration flow for Proton installers. It compares the prefix's executable inventory before and after installation, lets the user select the installed application, and adds a proper KDE launcher under Games or Utilities. Older prefix apps can be registered manually.
 - Added MSI installation through UMU/Proton, clearer launch feedback, a Proton MIME handler for KDE's Open With chooser, and consistent Raptor Wine / Raptor Proton labels.
