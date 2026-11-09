@@ -116,15 +116,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 match std::fs::read_to_string(&path) {
                     Ok(payload) => match profile_import::parse_profile_export(&payload) {
                         Ok(mut part) => {
-                            if combined.source.is_empty() { combined.source = part.source.clone(); }
-                            if combined.display_name.is_none() { combined.display_name = part.display_name.take(); }
-                            if combined.username.is_none() { combined.username = part.username.take(); }
-                            if combined.biography.is_none() { combined.biography = part.biography.take(); }
-                            if combined.avatar_url.is_none() { combined.avatar_url = part.avatar_url.take(); }
-                            combined.playlists.append(&mut part.playlists);
-                            combined.saved_tracks.append(&mut part.saved_tracks);
-                            combined.followed_artists.append(&mut part.followed_artists);
-                            combined.listening_history.append(&mut part.listening_history);
+                            combined.merge(part);
                             imported_files += 1;
                         }
                         Err(error) => errors.push(format!("{}: {}", path.file_name().unwrap_or_default().to_string_lossy(), error)),
