@@ -146,8 +146,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             if generation.load(Ordering::Acquire) != request_generation {
                 return;
             }
+            // Run track and artist discovery concurrently: the slower endpoint
+            // must not add its full network timeout to the other result.
+            let artist_query = query_for_thread.clone();
+            let artist_worker = std::thread::spawn(move || search_audius_artists(&artist_query));
             let result = search_audius_tracks(&query_for_thread);
-            let artist_result = search_audius_artists(&query_for_thread);
+            let artist_result = artist_worker.join()
+                .unwrap_or_else(|_| Err("Artist search worker stopped unexpectedly".to_string()));
             if generation.load(Ordering::Acquire) != request_generation {
                 return;
             }
@@ -157,22 +162,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let count = tracks.len();
                     *online_tracks.lock().unwrap() = tracks.clone();
                     let rows = tracks_to_slint(&tracks);
+                    let artist_error = artist_result.as_ref().err().cloned();
                     let artists = artist_result.unwrap_or_default();
                     *online_artists.lock().unwrap() = artists.clone();
+                    let artist_count = artists.len();
                     let artist_rows = artists.iter().map(|artist| TrackData {
                         id: artist.id.clone().into(), title: artist.name.clone().into(),
                         artist: format!("@{}", artist.handle).into(), album: "Artist profile".into(), duration: "Open".into(),
                     }).collect::<Vec<_>>();
-                    let status = if count == 0 {
-                        "No streamable online tracks found".to_string()
-                    } else {
-                        format!("{count} results · Audius")
-                    };
+                    let mut status = format!("{count} tracks · {artist_count} artists · Audius");
+                    if let Some(error) = artist_error {
+                        status.push_str(&format!(" · Artist search unavailable: {error}"));
+                    } else if count == 0 && artist_count == 0 {
+                        status = "No matching tracks or artists found".to_string();
+                    }
                     let _ = slint::invoke_from_event_loop(move || {
                         if let Some(ui) = ui_weak.upgrade() {
                             ui.set_online_track_list(slint::ModelRc::new(slint::VecModel::from(rows)));
                             ui.set_online_artist_list(slint::ModelRc::new(slint::VecModel::from(artist_rows)));
-                            ui.set_online_search_status(format!("{} tracks · {} artists · Audius", count, artists.len()).into());
+                            ui.set_online_search_status(status.into());
                         }
                     });
                 }
