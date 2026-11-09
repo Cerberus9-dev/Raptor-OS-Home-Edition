@@ -735,3 +735,15 @@ assert_contains files/system_files/plasma-layout-templates/raptor-flightdeck/met
 assert_contains files/system_files/plasma-layout-templates/raptor-flightdeck/contents/layout.js 'org.kde.plasma.taskmanager'
 assert_contains files/system_files/plasma-layout-templates/raptor-flightdeck/contents/layout.js 'org.kde.plasma.systemtray'
 assert_contains recipes/recipe.yml 'org.raptor.flightdeck'
+
+echo "=== Checking Raptor Music one-tap controls ==="
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'root.online_track_selected(index); root.play_clicked();'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'root.track_selected(index); root.play_clicked();'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'callback track_menu_action(int, string, string, int);'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'text: "Song options"'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'root.skip_backward_clicked();'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'root.skip_forward_clicked();'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'ui.on_track_menu_action'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'if direct_selection'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'ui.on_skip_backward_clicked'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'ui.on_skip_forward_clicked'
