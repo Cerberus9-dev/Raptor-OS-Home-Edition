@@ -25,6 +25,7 @@ export component MainWindow inherits Window {
     in-out property <[TrackData]> online_track_list: [];
     in-out property <[TrackData]> online_artist_list: [];
     in-out property <string> online_search_status: "Type 2+ characters to search Audius";
+    in-out property <string> online_sort_method: "relevant";
     in-out property <int> selected_online_track_index: -1;
     in-out property <[TrackData]> queue_list: [];
     in-out property <[PlaylistData]> playlist_list: [];
@@ -217,7 +218,7 @@ export component MainWindow inherits Window {
                         font-weight: 700;
                     }
                     Text {
-                        text: "Search your local collection and browse streamable tracks from Audius.";
+                        text: "Search your library or discover independent artists and tracks on Audius.";
                         color: #b0bdb0;
                         font-size: 13px;
                     }
@@ -352,6 +353,12 @@ export component MainWindow inherits Window {
                         }
                     }
 
+                    HorizontalLayout {
+                        Text { text: "Sort"; color: #879487; font-size: 11px; vertical-alignment: center; }
+                        Button { text: "Relevant"; clicked => { root.online_sort_method = "relevant"; root.search_changed(root.search_query); } }
+                        Button { text: "Popular"; clicked => { root.online_sort_method = "popular"; root.search_changed(root.search_query); } }
+                        Button { text: "Recent"; clicked => { root.online_sort_method = "recent"; root.search_changed(root.search_query); } }
+                    }
                     Text { text: "Artists"; color: #f2f5ec; font-size: 18px; font-weight: 700; }
                     ListView {
                         height: 104px;
