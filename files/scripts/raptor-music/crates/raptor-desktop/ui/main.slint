@@ -48,8 +48,10 @@ export component MainWindow inherits Window {
     in-out property <string> artist_profile_bio: "";
     in-out property <string> artist_profile_stats: "";
     in-out property <string> artist_profile_status: "";
+    in-out property <string> profile_import_status: "Import a profile export to preview what can be transferred";
 
     callback scan_directory_clicked();
+    callback import_profile_clicked();
     callback track_selected(int);
     callback online_track_selected(int);
     callback artist_selected(int);
@@ -142,6 +144,28 @@ export component MainWindow inherits Window {
                                 root.search_changed(root.search_query);
                             }
                         }
+                    }
+                    Rectangle {
+                        height: 36px;
+                        border-radius: 6px;
+                        background: #263329;
+                        Text {
+                            text: "Import profile…";
+                            color: #d4ed9c;
+                            x: 10px;
+                            vertical-alignment: center;
+                            font-size: 14px;
+                            font-weight: 600;
+                        }
+                        TouchArea {
+                            clicked => { root.import_profile_clicked(); }
+                        }
+                    }
+                    Text {
+                        text: root.profile_import_status;
+                        color: #9eae9d;
+                        font-size: 10px;
+                        wrap: word-wrap;
                     }
                     Rectangle {
                         height: 36px;
