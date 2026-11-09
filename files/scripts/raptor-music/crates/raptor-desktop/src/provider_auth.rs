@@ -116,7 +116,7 @@ impl OAuthProvider {
                 "RAPTOR_SPOTIFY_REDIRECT_URI",
                 "https://accounts.spotify.com/authorize",
                 "https://accounts.spotify.com/api/token",
-                "user-read-private playlist-read-private playlist-read-collaborative",
+                "user-read-private playlist-read-private playlist-read-collaborative user-library-read user-follow-read user-read-recently-played",
             ),
             Self::Tidal => (
                 "RAPTOR_TIDAL_CLIENT_ID",
@@ -381,6 +381,25 @@ fn parse_spotify_playlist_tracks(value: &serde_json::Value) -> Result<Vec<Provid
     }).collect())
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ProviderFollowedArtist {
+    pub id: String,
+    pub name: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ProviderListen {
+    pub track: ProviderPlaylistTrack,
+    pub played_at: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct SpotifyProfileExtras {
+    pub saved_tracks: Vec<ProviderPlaylistTrack>,
+    pub followed_artists: Vec<ProviderFollowedArtist>,
+    pub listening_history: Vec<ProviderListen>,
+}
+
 fn parse_youtube_playlist_tracks(value: &serde_json::Value) -> Result<Vec<ProviderPlaylistTrack>, String> {
     let items = value.get("items").and_then(|v| v.as_array())
         .ok_or_else(|| "YouTube playlist-item response did not include an items list".to_string())?;
@@ -504,6 +523,102 @@ pub fn fetch_provider_playlists(provider: OAuthProvider, access_token: &str) -> 
         OAuthProvider::YoutubeData => fetch_youtube_playlist_pages(access_token),
         OAuthProvider::Tidal => Err("TIDAL playlist retrieval needs its verified API adapter; no guessed endpoint is used.".into()),
     }
+}
+
+fn fetch_spotify_saved_tracks(access_token: &str) -> Result<Vec<ProviderPlaylistTrack>, String> {
+    let mut tracks = Vec::new();
+    for page in 0..200usize {
+        let mut url = Url::parse("https://api.spotify.com/v1/me/tracks")
+            .expect("Spotify saved-tracks endpoint is valid");
+        url.query_pairs_mut().append_pair("limit", "50")
+            .append_pair("offset", &(page * 50).to_string());
+        let value = get_provider_json(url.as_str(), access_token)?;
+        let batch = parse_spotify_playlist_tracks(&value)?;
+        let count = batch.len();
+        tracks.extend(batch);
+        if value.get("next").and_then(|v| v.as_str()).is_none() || count == 0 {
+            return Ok(tracks);
+        }
+    }
+    Err("Spotify saved-track import reached the 10,000-item safety limit.".into())
+}
+
+fn fetch_spotify_followed_artists(access_token: &str) -> Result<Vec<ProviderFollowedArtist>, String> {
+    let mut artists = Vec::new();
+    let mut cursor: Option<String> = None;
+    let mut seen_cursors = std::collections::HashSet::new();
+    for _ in 0..200 {
+        let mut url = Url::parse("https://api.spotify.com/v1/me/following")
+            .expect("Spotify following endpoint is valid");
+        {
+            let mut query = url.query_pairs_mut();
+            query.append_pair("type", "artist");
+            query.append_pair("limit", "50");
+            if let Some(after) = cursor.as_deref() { query.append_pair("after", after); }
+        }
+        let value = get_provider_json(url.as_str(), access_token)?;
+        let items = value.pointer("/artists/items").and_then(|v| v.as_array())
+            .ok_or_else(|| "Spotify followed-artist response did not include an items list".to_string())?;
+        artists.extend(items.iter().filter_map(|item| Some(ProviderFollowedArtist {
+            id: item.get("id")?.as_str()?.to_owned(),
+            name: item.get("name")?.as_str()?.to_owned(),
+        })));
+        let next = value.pointer("/artists/cursors/after").and_then(|v| v.as_str());
+        let has_next = value.pointer("/artists/next").and_then(|v| v.as_str()).is_some();
+        if !has_next || next.is_none() { return Ok(artists); }
+        let next = next.unwrap().to_owned();
+        if !seen_cursors.insert(next.clone()) {
+            return Err("Spotify returned a repeated followed-artist cursor; import stopped safely.".into());
+        }
+        cursor = Some(next);
+    }
+    Err("Spotify followed-artist import reached the 10,000-item safety limit.".into())
+}
+
+fn fetch_spotify_recently_played(access_token: &str) -> Result<Vec<ProviderListen>, String> {
+    let mut listens = Vec::new();
+    let mut cursor: Option<String> = None;
+    let mut seen_cursors = std::collections::HashSet::new();
+    for _ in 0..200 {
+        let mut url = Url::parse("https://api.spotify.com/v1/me/player/recently-played")
+            .expect("Spotify recent-history endpoint is valid");
+        {
+            let mut query = url.query_pairs_mut();
+            query.append_pair("limit", "50");
+            if let Some(after) = cursor.as_deref() { query.append_pair("after", after); }
+        }
+        let value = get_provider_json(url.as_str(), access_token)?;
+        let items = value.get("items").and_then(|v| v.as_array())
+            .ok_or_else(|| "Spotify listening-history response did not include an items list".to_string())?;
+        for item in items {
+            let track_value = serde_json::json!({"items": [{"track": item.get("track").cloned().unwrap_or(serde_json::Value::Null)}]});
+            if let Some(track) = parse_spotify_playlist_tracks(&track_value)?.into_iter().next() {
+                listens.push(ProviderListen {
+                    track,
+                    played_at: item.get("played_at").and_then(|v| v.as_str()).map(str::to_owned),
+                });
+            }
+        }
+        let next = value.pointer("/cursors/after").and_then(|v| v.as_str());
+        let has_next = value.get("next").and_then(|v| v.as_str()).is_some();
+        if !has_next || next.is_none() { return Ok(listens); }
+        let next = next.unwrap().to_owned();
+        if !seen_cursors.insert(next.clone()) {
+            return Err("Spotify returned a repeated listening-history cursor; import stopped safely.".into());
+        }
+        cursor = Some(next);
+    }
+    Err("Spotify listening-history import reached the 10,000-item safety limit.".into())
+}
+
+/// Retrieves the user's saved tracks, followed artists and recent listening
+/// history using only the corresponding read-only Spotify OAuth scopes.
+pub fn fetch_spotify_profile_extras(access_token: &str) -> Result<SpotifyProfileExtras, String> {
+    Ok(SpotifyProfileExtras {
+        saved_tracks: fetch_spotify_saved_tracks(access_token)?,
+        followed_artists: fetch_spotify_followed_artists(access_token)?,
+        listening_history: fetch_spotify_recently_played(access_token)?,
+    })
 }
 
 /// Imports every page of playlist entries from supported metadata APIs.
@@ -725,6 +840,38 @@ mod tests {
         assert!(source.contains("fetch_youtube_playlist_pages"));
         assert!(source.contains("repeated playlist page token"));
         assert!(source.contains("10,000-item safety limit"));
+    }
+
+    #[test]
+    fn spotify_profile_extras_normalize_followed_artists_and_history() {
+        let followed = serde_json::json!({
+            "artists": {
+                "items": [{"id": "artist-1", "name": "Independent Artist"}],
+                "next": null,
+                "cursors": {"after": null}
+            }
+        });
+        let items = followed.pointer("/artists/items").and_then(|v| v.as_array()).unwrap();
+        assert_eq!(items[0]["name"], "Independent Artist");
+
+        let history = serde_json::json!({
+            "items": [{
+                "track": {
+                    "id": "track-2", "name": "Recent Song",
+                    "artists": [{"name": "Band"}],
+                    "album": {"name": "Record", "images": []},
+                    "duration_ms": 120000
+                },
+                "played_at": "2026-11-01T12:00:00Z"
+            }],
+            "cursors": {"after": null},
+            "next": null
+        });
+        let row = &history["items"][0];
+        let wrapped = serde_json::json!({"items": [{"track": row["track"]}]});
+        let track = parse_spotify_playlist_tracks(&wrapped).unwrap().remove(0);
+        assert_eq!(track.title, "Recent Song");
+        assert_eq!(row["played_at"], "2026-11-01T12:00:00Z");
     }
 
     #[test]
