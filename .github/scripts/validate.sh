@@ -145,6 +145,13 @@ assert_contains files/scripts/raptor-wine/install.sh "stat -Lc 'Permissions: %A 
 echo "=== Checking Raptor Music provider authorization contracts ==="
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs "fetch_spotify_playlist_pages"
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs "fetch_youtube_playlist_pages"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "search_jamendo_tracks"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "parse_jamendo_tracks"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "RAPTOR_JAMENDO_CLIENT_ID"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "open_jamendo_track"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "creativecommons.org"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint "Fallback catalog: Jamendo"
+
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs "parse_authorization_callback"
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/callback_listener.rs "address.is_loopback()"
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/callback_listener.rs "request.len() < 8192"
