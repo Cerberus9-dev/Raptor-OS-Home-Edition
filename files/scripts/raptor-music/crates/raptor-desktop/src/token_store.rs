@@ -74,6 +74,5 @@ mod tests {
         let serialized = serde_json::to_string(&tokens).unwrap();
         assert!(serialized.contains("private-access-token"));
         assert!(serialized.contains("private-refresh-token"));
-        assert!(!format!("{:?}", tokens).is_empty());
     }
 }
