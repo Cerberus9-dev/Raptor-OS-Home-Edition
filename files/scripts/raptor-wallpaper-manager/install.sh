@@ -854,6 +854,7 @@ EOF
 # Verify each artifact landed and is non-empty; fail the build if not.
 RAPTOR_EXPECTED_PAYLOAD="
 /usr/bin/raptor-wallpaper
+/usr/bin/raptor-wallpaper-launch
 /usr/share/applications/raptor-wallpaper.desktop
 "
 raptor_missing=""
