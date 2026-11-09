@@ -149,6 +149,11 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "se
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "parse_jamendo_tracks"
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "RAPTOR_JAMENDO_CLIENT_ID"
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "open_jamendo_track"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "on_open_external_service_clicked"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint "Open TIDAL"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint "Open YouTube Music"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint "Open Jamendo"
+assert_not_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint "Connect TIDAL"
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "creativecommons.org"
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint "Fallback catalog: Jamendo"
 
