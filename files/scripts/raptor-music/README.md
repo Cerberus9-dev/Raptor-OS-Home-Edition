@@ -93,3 +93,8 @@ cargo test --workspace
 ## Raptor OS image
 
 The image workflow builds and tests the workspace, stages the desktop app, and checks that the executable, launcher, desktop entry and icon are present in the finished Raptor OS image.
+
+
+## External catalog fallback
+
+Jamendo search is available when `RAPTOR_JAMENDO_CLIENT_ID` is configured. Results are filtered to records carrying a Creative Commons license URL, labeled as Jamendo results, and selecting one opens its official Jamendo track page in the system browser. This intentionally uses Jamendo as a discovery-and-handoff integration rather than mirroring its player or caching its audio. Each Jamendo result should retain the creator credit and direct source link required by the provider's API terms. Obtain a real application client ID from the [Jamendo developer portal](https://devportal.jamendo.com/); the documentation's shared test ID is for testing only and must not be shipped.
