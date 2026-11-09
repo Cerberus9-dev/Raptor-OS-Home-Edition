@@ -351,7 +351,7 @@ case "$mode" in
   proton) command=(/usr/bin/raptor-wine-proton "$target" "$@"); label="Raptor Proton" ;;
   *) echo "Unknown Raptor compatibility mode: $mode" >&2; exit 2 ;;
 esac
-log="$state_dir/${mode}-${stamp}-$.log"
+log="$state_dir/${mode}-${stamp}-$$.log"
 # Create the log before detaching so the path in the notification always exists.
 if ! (umask 077; : > "$log") || [[ ! -f "$log" ]]; then
   command -v notify-send >/dev/null 2>&1 && notify-send --app-name="Raptor OS" --urgency=critical "$label could not start" "Cannot create diagnostic log in $state_dir. Check home-directory permissions and free space."
