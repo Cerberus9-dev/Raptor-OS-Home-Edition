@@ -111,6 +111,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             _ => return,
         };
         let ui_weak = ui_handle_profile_import.clone();
+        let pending_for_thread = Arc::clone(&pending_for_preview);
         std::thread::spawn(move || {
             let mut combined = profile_import::ImportedProfile::default();
             let mut imported_files = 0usize;
@@ -118,7 +119,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             for path in files {
                 match std::fs::read_to_string(&path) {
                     Ok(payload) => match profile_import::parse_profile_export(&payload) {
-                        Ok(mut part) => {
+                        Ok(part) => {
                             combined.merge(part);
                             imported_files += 1;
                         }
@@ -129,9 +130,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             let summary = combined.summary();
             if imported_files > 0 {
-                *pending_for_preview.lock().unwrap() = Some(combined.clone());
+                *pending_for_thread.lock().unwrap() = Some(combined.clone());
             } else {
-                *pending_for_preview.lock().unwrap() = None;
+                *pending_for_thread.lock().unwrap() = None;
             }
             let status = if imported_files == 0 {
                 format!("No supported profile data imported. {}", errors.join(" · "))
