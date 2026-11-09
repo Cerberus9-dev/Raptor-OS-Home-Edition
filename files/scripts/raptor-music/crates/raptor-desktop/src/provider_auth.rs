@@ -496,8 +496,11 @@ fn parse_tidal_playlists(value: &serde_json::Value) -> Result<Vec<ProviderPlayli
 
 fn fetch_tidal_profile(access_token: &str) -> Result<ProviderProfile, String> {
     let user_id = tidal_user_id_from_access_token(access_token)?;
-    let url = format!("https://openapi.tidal.com/v2/users/{}", urlencoding::encode(&user_id));
-    let value = get_tidal_json(&url, access_token)?;
+    let mut url = Url::parse("https://openapi.tidal.com/v2/users")
+        .expect("TIDAL user endpoint is a valid URL");
+    url.path_segments_mut().map_err(|_| "Could not construct TIDAL user URL".to_string())?
+        .push(&user_id);
+    let value = get_tidal_json(url.as_str(), access_token)?;
     parse_tidal_profile(&value, &user_id)
 }
 
