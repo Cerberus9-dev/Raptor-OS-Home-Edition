@@ -5,6 +5,63 @@ mod provider_auth;
 mod token_store;
 mod callback_listener;
 
+fn refresh_provider_tokens_if_needed(
+    provider: provider_auth::OAuthProvider,
+    provider_key: &str,
+    bundle: token_store::StoredTokenBundle,
+) -> Result<(), String> {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default().as_secs();
+    let expires_at = bundle.saved_at_unix.saturating_add(bundle.tokens.expires_in);
+    if bundle.saved_at_unix > 0 && now.saturating_add(60) < expires_at {
+        return Ok(());
+    }
+    let refresh_token = bundle.tokens.refresh_token.as_deref()
+        .ok_or_else(|| "The saved access token has expired; disconnect and reconnect this account".to_string())?;
+    let (_, pending) = provider_auth::begin_authorization(provider, None)
+        .map_err(|error| format!("Could not prepare token refresh: {error}"))?;
+    let mut refreshed = provider_auth::refresh_access_token(&pending, refresh_token)?;
+    if refreshed.refresh_token.is_none() {
+        refreshed.refresh_token = Some(refresh_token.to_owned());
+    }
+    token_store::save_tokens(provider_key, &refreshed)?;
+    Ok(())
+}
+
+fn restore_provider_connections(ui: slint::Weak<MainWindow>) {
+    std::thread::spawn(move || {
+        let providers = [
+            ("Spotify", "spotify", provider_auth::OAuthProvider::Spotify),
+            ("TIDAL", "tidal", provider_auth::OAuthProvider::Tidal),
+            ("YouTube account", "youtube", provider_auth::OAuthProvider::YoutubeData),
+        ];
+        let mut connected = Vec::new();
+        let mut needs_attention = Vec::new();
+        for (label, key, provider) in providers {
+            if let Ok(bundle) = token_store::load_token_bundle(key) {
+                match refresh_provider_tokens_if_needed(provider, key, bundle) {
+                    Ok(()) => connected.push(label),
+                    Err(error) => needs_attention.push(format!("{label}: {error}")),
+                }
+            }
+        }
+        let mut status = if connected.is_empty() {
+            "No active music-service connections".to_string()
+        } else {
+            format!("Connected accounts: {}", connected.join(", "))
+        };
+        if !needs_attention.is_empty() {
+            status.push_str(&format!(" · {}", needs_attention.join(" · ")));
+        }
+        let _ = slint::invoke_from_event_loop(move || {
+            if let Some(ui) = ui.upgrade() {
+                ui.set_provider_connection_status(status.into());
+            }
+        });
+    });
+}
+
 fn start_provider_connection(
     provider: provider_auth::OAuthProvider,
     ui: slint::Weak<MainWindow>,
@@ -207,6 +264,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let player = Arc::new(AudioPlayer::new());
 
     let ui = MainWindow::new()?;
+    restore_provider_connections(ui.as_weak());
     {
         let db_lock = db.lock().unwrap();
         ui.set_discord_presence_enabled(db_lock.get_state_value("discord_presence_enabled").ok().flatten().as_deref() == Some("true"));
