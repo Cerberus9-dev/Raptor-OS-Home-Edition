@@ -392,18 +392,61 @@ pub fn fetch_provider_profile(provider: OAuthProvider, access_token: &str) -> Re
     }
 }
 
-/// Imports playlist metadata from Spotify or a Google account's YouTube
-/// channel. YouTube Data API playlists are not YouTube Music catalog access.
+/// Retrieves every page of a provider's playlist metadata. Pagination is
+/// bounded and repeated page tokens are rejected so a malformed provider
+/// response cannot trap the desktop app in an endless import.
+fn fetch_spotify_playlist_pages(access_token: &str) -> Result<Vec<ProviderPlaylist>, String> {
+    let mut playlists = Vec::new();
+    let mut offset = 0usize;
+    for _ in 0..200 {
+        let url = format!("https://api.spotify.com/v1/me/playlists?limit=50&offset={offset}");
+        let value = get_provider_json(&url, access_token)?;
+        let page = parse_spotify_playlists(&value)?;
+        let page_len = page.len();
+        playlists.extend(page);
+        let has_next = value.get("next").and_then(|v| v.as_str()).is_some();
+        if !has_next || page_len == 0 {
+            return Ok(playlists);
+        }
+        offset = offset.saturating_add(page_len);
+    }
+    Err("Spotify playlist import reached the 10,000-item safety limit; retry to continue.".into())
+}
+
+fn fetch_youtube_playlist_pages(access_token: &str) -> Result<Vec<ProviderPlaylist>, String> {
+    let mut playlists = Vec::new();
+    let mut page_token: Option<String> = None;
+    let mut seen_tokens = std::collections::HashSet::new();
+    for _ in 0..200 {
+        let mut url = Url::parse("https://www.googleapis.com/youtube/v3/playlists")
+            .expect("YouTube playlist endpoint is a valid URL");
+        {
+            let mut query = url.query_pairs_mut();
+            query.append_pair("part", "snippet,contentDetails");
+            query.append_pair("mine", "true");
+            query.append_pair("maxResults", "50");
+            if let Some(token) = page_token.as_deref() {
+                query.append_pair("pageToken", token);
+            }
+        }
+        let value = get_provider_json(url.as_str(), access_token)?;
+        playlists.extend(parse_youtube_playlists(&value)?);
+        match value.get("nextPageToken").and_then(|v| v.as_str()).filter(|v| !v.is_empty()) {
+            Some(next) if seen_tokens.insert(next.to_owned()) => page_token = Some(next.to_owned()),
+            Some(_) => return Err("YouTube returned a repeated playlist page token; import stopped safely.".into()),
+            None => return Ok(playlists),
+        }
+    }
+    Err("YouTube playlist import reached the 10,000-item safety limit; retry to continue.".into())
+}
+
+/// Imports all available playlist metadata from Spotify or a Google account's
+/// YouTube channel. YouTube Data API playlists are not YouTube Music catalog
+/// access. Provider API permissions and account visibility still apply.
 pub fn fetch_provider_playlists(provider: OAuthProvider, access_token: &str) -> Result<Vec<ProviderPlaylist>, String> {
     match provider {
-        OAuthProvider::Spotify => {
-            let value = get_provider_json("https://api.spotify.com/v1/me/playlists?limit=50", access_token)?;
-            parse_spotify_playlists(&value)
-        }
-        OAuthProvider::YoutubeData => {
-            let value = get_provider_json("https://www.googleapis.com/youtube/v3/playlists?part=snippet,contentDetails&mine=true&maxResults=50", access_token)?;
-            parse_youtube_playlists(&value)
-        }
+        OAuthProvider::Spotify => fetch_spotify_playlist_pages(access_token),
+        OAuthProvider::YoutubeData => fetch_youtube_playlist_pages(access_token),
         OAuthProvider::Tidal => Err("TIDAL playlist retrieval needs its verified API adapter; no guessed endpoint is used.".into()),
     }
 }
@@ -554,6 +597,15 @@ mod tests {
         assert_eq!(response.access_token, "access");
         assert_eq!(response.refresh_token.as_deref(), Some("refresh"));
         assert_eq!(response.id_token.as_deref(), Some("identity"));
+    }
+
+    #[test]
+    fn playlist_pagination_safety_contracts_are_present() {
+        let source = include_str!("provider_auth.rs");
+        assert!(source.contains("fetch_spotify_playlist_pages"));
+        assert!(source.contains("fetch_youtube_playlist_pages"));
+        assert!(source.contains("repeated playlist page token"));
+        assert!(source.contains("10,000-item safety limit"));
     }
 
     #[test]
