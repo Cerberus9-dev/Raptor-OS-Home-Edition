@@ -30,6 +30,7 @@ export component MainWindow inherits Window {
     in-out property <[TrackData]> track_list: [];
     in-out property <[TrackData]> online_track_list: [];
     in-out property <[TrackData]> online_artist_list: [];
+    in-out property <[TrackData]> online_collection_list: [];
     in-out property <string> online_search_status: "Search artist names, song titles or keywords";
     in-out property <string> online_sort_method: "relevant";
     in-out property <int> selected_online_track_index: -1;
@@ -74,6 +75,7 @@ export component MainWindow inherits Window {
     callback track_selected(int);
     callback online_track_selected(int);
     callback artist_selected(int);
+    callback collection_selected(int);
     callback search_changed(string);
     callback queue_selected(int);
     callback playlist_selected(int);
@@ -701,6 +703,26 @@ export component MainWindow inherits Window {
                                 Text { text: "Open profile"; color: #b4d66d; font-size: 10px; vertical-alignment: center; }
                             }
                             TouchArea { clicked => { root.artist_selected(index); } }
+                        }
+                    }
+                    Text { visible: root.active_view == "discover" && root.online_collection_list.length > 0; text: "Albums & playlists"; color: #f2f5ec; font-size: 18px; font-weight: 700; }
+                    ListView {
+                        visible: root.active_view == "discover" && root.online_collection_list.length > 0;
+                        height: 150px;
+                        for c[index] in root.online_collection_list : Rectangle {
+                            height: 48px; border-radius: 6px; background: #202b21;
+                            HorizontalLayout {
+                                padding-left: 12px; padding-right: 12px; spacing: 10px;
+                                Rectangle { width: 32px; height: 32px; border-radius: 5px; background: #34412c;
+                                    Text { text: c.album == "Album" ? "▣" : "≡"; color: #c5d99a; font-size: 16px; horizontal-alignment: center; vertical-alignment: center; }
+                                }
+                                VerticalLayout { horizontal-stretch: 1; spacing: 1px;
+                                    Text { text: c.title; color: #edf5fb; font-size: 12px; vertical-alignment: center; overflow: elide; }
+                                    Text { text: c.artist; color: #a5b2a3; font-size: 10px; vertical-alignment: center; overflow: elide; }
+                                }
+                                Text { text: "Open"; color: #b4d66d; font-size: 10px; vertical-alignment: center; }
+                            }
+                            TouchArea { clicked => { root.collection_selected(index); } }
                         }
                     }
                     Text { visible: root.active_view == "discover"; text: "Tracks"; color: #f2f5ec; font-size: 18px; font-weight: 700; }
