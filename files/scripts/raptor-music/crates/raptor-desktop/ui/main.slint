@@ -30,7 +30,7 @@ export component MainWindow inherits Window {
     in-out property <[TrackData]> track_list: [];
     in-out property <[TrackData]> online_track_list: [];
     in-out property <[TrackData]> online_artist_list: [];
-    in-out property <string> online_search_status: "Type 2+ characters to search";
+    in-out property <string> online_search_status: "Search artist names, song titles or keywords";
     in-out property <string> online_sort_method: "relevant";
     in-out property <int> selected_online_track_index: -1;
     in-out property <[TrackData]> queue_list: [];
@@ -456,7 +456,7 @@ export component MainWindow inherits Window {
                             }
                             LineEdit {
                                 placeholder-text: root.active_view == "discover"
-                                    ? "Search artists and tracks"
+                                    ? "Search artists, songs and keywords"
                                     : "Search your local library";
                                 text <=> root.search_query;
                                 font-size: 14px;
