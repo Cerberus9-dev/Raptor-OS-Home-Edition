@@ -2,9 +2,9 @@
 //!
 //! This module only prepares authorization requests. It does not claim that a
 //! successful login grants streaming rights, and it deliberately keeps provider
-//! credentials out of source control. Token exchange is implemented as a
-//! separate primitive; callback listening, OS-keyring persistence and provider-
-//! specific profile/playlist adapters remain separate steps.
+//! credentials out of source control. Token exchange, callback parsing,
+//! refresh, profile metadata and supported playlist adapters are separate
+//! primitives; the UI lifecycle still needs to connect them.
 
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use sha2::{Digest, Sha256};
