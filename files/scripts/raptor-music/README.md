@@ -40,6 +40,12 @@ There are limits. Export formats differ, and a provider may leave out profile ph
 
 Direct account connections, OAuth-based imports, automatic refresh, and support for more export formats are future work. Any future connection will need clear permissions, secure token storage and a way to revoke access.
 
+## Discord Rich Presence
+
+Open **Settings** and enter the Client ID for your Discord application. Rich Presence works with Discord desktop and compatible clients that expose the local Discord RPC socket, including clients such as Vesktop and Equibop. Raptor Music does not need a Raptor-hosted account or server for this.
+
+Turn Rich Presence on, then edit the details and state templates. Use `{title}` and `{artist}` to insert the current track information. Playback and pause state are reflected in the status. Rich Presence is off by default; users choose whether to enable it and which text to share. The feature requires a compatible client to be running on the same desktop session.
+
 ## Workspace
 
 - `raptor-core`: shared track models and playback events
