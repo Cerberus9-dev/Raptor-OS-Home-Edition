@@ -77,6 +77,15 @@ pub fn parse_authorization_callback(
 ) -> Result<String, CallbackError> {
     let callback = Url::parse(callback_url)
         .map_err(|_| CallbackError::MissingCode)?;
+    let expected_redirect = Url::parse(&pending.redirect_uri)
+        .map_err(|_| CallbackError::MissingCode)?;
+    if callback.origin() != expected_redirect.origin()
+        || callback.path() != expected_redirect.path()
+        || callback.username() != ""
+        || callback.password().is_some()
+    {
+        return Err(CallbackError::InvalidState);
+    }
     let mut code = None;
     let mut state = None;
     let mut provider_error = None;
