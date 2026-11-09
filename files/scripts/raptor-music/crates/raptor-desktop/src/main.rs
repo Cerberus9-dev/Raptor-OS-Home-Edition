@@ -166,7 +166,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let count = tracks.len();
                     *online_tracks.lock().unwrap() = tracks.clone();
                     let rows = tracks_to_slint(&tracks);
-                    let artist_error = artist_result.as_ref().err().cloned();
+                    let artist_error = artist_result.is_err();
                     let artists = artist_result.unwrap_or_default();
                     *online_artists.lock().unwrap() = artists.clone();
                     let artist_count = artists.len();
@@ -175,7 +175,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         artist: format!("@{}", artist.handle).into(), album: "Artist profile".into(), duration: "Open".into(),
                     }).collect::<Vec<_>>();
                     let mut status = format!("{count} tracks · {artist_count} artists");
-                    if let Some(error) = artist_error {
+                    if artist_error {
                         status.push_str(" · Some artist results are unavailable");
                     } else if count == 0 && artist_count == 0 {
                         status = "No matching tracks or artists found".to_string();
@@ -188,7 +188,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     });
                 }
-                Err(error) => {
+                Err(_error) => {
                     *online_tracks.lock().unwrap() = Vec::new();
                     *online_artists.lock().unwrap() = Vec::new();
                     let status = "Online search is temporarily unavailable. Try again shortly.".to_string();
