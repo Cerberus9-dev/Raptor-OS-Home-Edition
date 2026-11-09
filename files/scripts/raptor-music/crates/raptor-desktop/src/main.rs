@@ -221,13 +221,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
         let result = db_for_profile_confirm.lock().unwrap()
             .save_imported_profile(provider, display_name, username, &payload);
+        let imported_ok = result.is_ok();
         let status = match result {
             Ok(id) => format!("Profile imported and saved separately from your local library. Import ID: {}", id),
             Err(error) => format!("Profile import failed: {error}"),
         };
         if let Some(ui) = ui_handle_profile_confirm.upgrade() {
             ui.set_profile_import_status(status.into());
-            if result.is_ok() { refresh_imported_profile_list(&ui, &db_for_profile_confirm); }
+            if imported_ok { refresh_imported_profile_list(&ui, &db_for_profile_confirm); }
         }
     });
 
