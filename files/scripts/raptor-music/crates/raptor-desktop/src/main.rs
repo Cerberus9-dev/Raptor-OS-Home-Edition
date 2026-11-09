@@ -533,14 +533,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
         let result = db_for_profile_confirm.lock().unwrap()
             .save_imported_profile(provider, display_name, username, &payload);
-        let imported_ok = result.is_ok();
-        let status = match result {
-            Ok(id) => format!("Profile imported and saved separately from your local library. Import ID: {}", id),
-            Err(error) => format!("Profile import failed: {error}"),
-        };
-        if let Some(ui) = ui_handle_profile_confirm.upgrade() {
-            ui.set_profile_import_status(status.into());
-            if imported_ok { refresh_imported_profile_list(&ui, &db_for_profile_confirm); }
+        match result {
+            Ok(id) => {
+                if let Some(ui) = ui_handle_profile_confirm.upgrade() {
+                    ui.set_profile_import_status(format!(
+                        "Profile imported and saved separately from your local library. Import ID: {id}"
+                    ).into());
+                }
+                let avatar_url = profile.avatar_url.clone();
+                let ui_weak = ui_handle_profile_confirm.clone();
+                let db_for_avatar = Arc::clone(&db_for_profile_confirm);
+                std::thread::spawn(move || {
+                    if let Some(url) = avatar_url.as_deref() {
+                        let _ = cache_profile_avatar(url, id);
+                    }
+                    let _ = slint::invoke_from_event_loop(move || {
+                        if let Some(ui) = ui_weak.upgrade() {
+                            refresh_imported_profile_list(&ui, &db_for_avatar);
+                        }
+                    });
+                });
+            }
+            Err(error) => {
+                if let Some(ui) = ui_handle_profile_confirm.upgrade() {
+                    ui.set_profile_import_status(format!("Profile import failed: {error}").into());
+                }
+            }
         }
     });
 
