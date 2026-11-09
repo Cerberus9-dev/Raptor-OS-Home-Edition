@@ -35,6 +35,9 @@
 - Improve Music navigation, empty-library and empty-queue guidance, and selection-aware playlist, queue and playback controls.
 - Expand online track results, keep artist and track sorting consistent, and open artist profiles inside Raptor Music.
 - Add an optional Raptor Flight Deck KDE Plasma 6 panel preset. It creates a compact bottom panel without changing or removing the user's existing panels.
+- Make track rows start playback on a single click in both Discover and Local Library. A direct song selection is added to the queue and starts immediately, even when other tracks are already queued.
+- Add a three-dot song menu for adding a track straight to the queue or to any existing playlist.
+- Add one-tap 15-second rewind and skip controls to the player dock.
 ### v3.0.0
 
 Version 3.0 groups the larger changes to performance, gaming, audio, Cortex, updates, hardware recovery, first-run setup, and image distribution. It also includes fixes to the Raptor apps and their build checks.
