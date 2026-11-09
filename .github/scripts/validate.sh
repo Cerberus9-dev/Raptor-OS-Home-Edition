@@ -676,3 +676,9 @@ test ! -e files/system_files/raptor-resume-trigger.service
 test ! -e files/system_files/raptor-lid-open-fix.service
 test ! -e files/system_files/raptor-cpugovernor.service
 echo "Suspend/resume ownership checks passed."
+
+# Raptor Flight Deck Plasma panel preset
+assert_contains files/system_files/plasma-layout-templates/raptor-flightdeck/metadata.json 'org.raptor.flightdeck'
+assert_contains files/system_files/plasma-layout-templates/raptor-flightdeck/contents/layout.js 'org.kde.plasma.taskmanager'
+assert_contains files/system_files/plasma-layout-templates/raptor-flightdeck/contents/layout.js 'org.kde.plasma.systemtray'
+assert_contains recipes/recipe.yml 'org.raptor.flightdeck'
