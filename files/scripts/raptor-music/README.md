@@ -1,66 +1,56 @@
 # Raptor Music
 
-Raptor Music is a desktop music player built with Rust, SQLite, Symphonia/CPAL and Slint. It combines local-file playback with online discovery while keeping the two collections separate in the interface. Its interface is designed around familiar music-app workflows while retaining a distinct Raptor visual identity.
+Raptor Music is a desktop player built with Rust, SQLite, Symphonia/CPAL and Slint. It handles music already on the computer and online discovery, but keeps those collections separate so local files do not get mixed up with provider results.
 
-## Desktop experience
+## Using the app
 
-- Separate **Discover** and **Local Library** views, with online discovery as the default landing view.
-- A searchable local collection matching title, artist and album metadata; local browsing stays offline and never sends queries to the online catalog.
-- Online discovery and local files never appear in the same results list.
-- Playlist creation, selection, track assignment and queue loading.
-- A dedicated upcoming-queue panel with selection and removal.
-- Persistent now-playing controls, progress display, seek, previous/next and stop.
-- A folder picker that scans supported local audio formats and imports metadata into the local SQLite library.
-- Debounced online search across public tracks and artist profiles, with in-app artist pages showing profile details and playable popular tracks.
-- Search sorting by relevance, popularity, or recency, with up to 50 track results and 30 artist results per query.
-- Online artist and track results live only in Discover; switching to Local Library clears online results and prevents unnecessary catalog requests.
-- Context-aware empty states for a library with no imported files and a queue with no upcoming tracks.
-- Playback controls reflect player state and disable queue actions when there is no valid selection.
-- Queue and playback support for public Audius tracks that the provider marks streamable and not access-gated.
+- **Discover** is the starting point for online track and artist search.
+- **Local Library** searches music imported from folders on the computer. It works offline and does not send search terms to the online catalog.
+- Artist results open in Raptor Music, with profile details and playable popular tracks where the provider makes them available.
+- Tracks from the online catalog can be added to the queue and played when they are public, streamable and not access-gated.
+- Playlists, the upcoming queue and the playback dock have their own controls. Queue actions respond to the current selection.
+- Folder import scans supported audio formats and stores track metadata in the local SQLite library.
+- Search can sort by relevance, popularity or recency. A query can return up to 50 tracks and 30 artists.
 
-The interface uses familiar music-player navigation and search patterns without copying Spotify's branding or artwork.
+## Online catalog and privacy
 
-## Catalog and privacy boundary
+Audius is currently the only online catalog connected to Raptor Music. Its catalog is not the same size or coverage as Spotify's, and some artists or tracks will not be available. Album and playlist search, genre browsing, recommendations, pagination and additional catalog providers are not implemented yet.
 
-The local library remains fully usable offline. Discover is the default view. When a search has at least two characters while Discover is active, Raptor Music sends the query to the online catalog and displays matching public, streamable tracks and artist profiles. Searching in Local Library never makes a catalog request. Selecting an online artist opens an in-app profile with its biography, public track/follower counts, and up to 50 playable popular tracks. Selecting an online track stores its provider metadata so it can be queued and played. Provider-backed tracks are excluded from the Local Library view and are not treated as local files. Stream data is buffered in a temporary per-user runtime file and removed when playback ends.
+Online searches send the query to Audius, along with normal connection metadata. Local file names, local playlists and listening history are not uploaded. Online playback uses a temporary file in the user's cache and removes it when playback ends.
 
-Audius is the only online catalog currently integrated. It is not a mirror of Spotify's catalog, and its available artists and tracks differ substantially. Album and playlist search, genre browsing, recommendations, pagination, and additional catalog providers remain future work. Search sorting currently changes the provider's relevance, popularity, or recency ordering; it does not make Audius' catalog equivalent in size or coverage to Spotify. Online search and playback require network access. The provider receives the search query and normal connection metadata; local file names, playlists, and listening history are not uploaded by Raptor Music.
+Raptor Music has no ads, subscription requirement, app telemetry or always-running background server.
 
-Raptor Music itself has no ads, subscription requirement, app telemetry, or always-on background server. Existing local files remain under the user's control.
+## Importing a music profile
+
+The import flow is for supported account-data exports, not password-based account access. Choose the JSON export files, review the profile information and collections Raptor Music can read, then confirm the import. The app can save the imported profile so it can be opened again later from **Imported Profiles**.
+
+The current importer understands Raptor Music profile packages and supported Spotify JSON exports. Depending on what the source files contain, an import can include:
+
+- Profile details and avatar artwork.
+- Playlists, including their order and available track information.
+- Saved tracks and followed artists.
+- Listening events and history supplied by the export.
+
+Multiple files can be selected together. Imports can be merged and deduplicated, and profiles without a stable account username are kept as separate imports. The Imported Profiles view lets users browse the saved profile's playlists, saved tracks, followed artists and listening history.
+
+There are limits. Export formats differ, and a provider may leave out profile photos, follows, albums or listening history. Raptor Music only imports information actually present in supported files; it does not fill in missing account data by guessing. It does not sign in to external services, scrape private endpoints or bypass provider controls. Importing a track entry does not download its audio or guarantee it can be played. Imported collections remain separate from the Local Library and from listening activity recorded in Raptor Music.
+
+Direct account connections, OAuth-based imports, automatic refresh, and support for more export formats are future work. Any future connection will need clear permissions, secure token storage and a way to revoke access.
 
 ## Workspace
 
-- `raptor-core`: shared track models, playback events and capabilities
+- `raptor-core`: shared track models and playback events
 - `raptor-library`: SQLite library, playlists, queue and persisted state
 - `raptor-audio`: decoding, resampling, channel conversion and playback worker
 - `raptor-desktop`: Slint desktop application
+
+Build and test the workspace with:
 
 ```sh
 cargo build --workspace
 cargo test --workspace
 ```
 
-## Image integration
+## Raptor OS image
 
-CI builds and tests the workspace on every image build, stages the desktop executable, and verifies the launcher, desktop entry and icon inside the published Raptor OS image.
-
-## Full profile migration (planned)
-
-Raptor Music's import experience is intended to migrate a music profile, not merely copy a list of playlist URLs. The target experience is a guided **Import profile** flow: choose a source service, connect through its official authorization flow or select an official account-data export, preview what is available, then import the profile into Raptor Music.
-
-Where the source service and its terms permit it, a migration can include:
-
-- Profile identity: display name, username, biography, and profile image.
-- Collections: created playlists, saved/liked tracks, saved albums, and followed artists.
-- Activity: recently played tracks and listening history, including play timestamps and counts when supplied by the source.
-- Playlist details: title, description, ordering, track entries, and artwork when available.
-
-Imported information should appear together on a Raptor Music profile page, with sections for playlists, saved music, followed artists, and listening activity. The original service should be recorded as the import source, and users should be able to refresh supported imports, unlink a connected account, or remove imported data. Imported history must remain distinguishable from listening activity recorded natively by Raptor Music.
-
-A first normalized migration parser now exists in the desktop crate. It accepts the Raptor Music profile-package shape and Spotify JSON playlist/library export documents, preserving playlist order and source identifiers while normalizing profile identity, playlists, saved tracks, followed artists, and listening events when present. Profile artwork URLs are accepted only over HTTPS. This is parser groundwork covered by unit tests, not yet a user-facing import workflow: account linking, folder-wide multi-file collection, durable imported-profile storage, artwork rendering, and refresh/unlink controls remain to be implemented. No service credentials or private account fields are inferred from an export. This first UI step lets users select multiple JSON export files and previews the profile identity and available collections; it does not yet save imported data.\n\nImport should be a transparent migration, not a promise that every source item can be played. Raptor should match imported tracks against playable catalog entries where permitted, preserve unmatched entries as unavailable migration records, report partial imports, and avoid silently dropping songs. Duplicate detection should use stable provider identifiers when available and conservative metadata matching otherwise. Re-importing or refreshing must not duplicate playlists, tracks, or history.
-
-Each service needs a capability-aware adapter because profile photos, playlists, likes, follows, albums, and listening history are not uniformly exposed. Use official APIs with narrowly scoped authorization or user-provided exports; never scrape private endpoints, request account passwords, or bypass provider controls. Respect provider licensing, attribution, branding, and display requirements even where that means a particular service cannot offer a fully unified profile import. Do not claim a field was imported when the source did not supply it.
-
-The migration should provide a preview before writing data, explain unavailable categories, preserve the user's existing Raptor library, and keep imported collections separable from collections created in Raptor. OAuth tokens, if a future adapter needs them, must be stored securely and be revocable; they must never be written to logs or the music database in plaintext.
-
-This is a product roadmap item, not a currently shipped feature. Current Raptor Music supports local-folder import and Audius online discovery; it does not yet connect external music accounts or import full profiles.
+The image workflow builds and tests the workspace, stages the desktop app, and checks that the executable, launcher, desktop entry and icon are present in the finished Raptor OS image.
