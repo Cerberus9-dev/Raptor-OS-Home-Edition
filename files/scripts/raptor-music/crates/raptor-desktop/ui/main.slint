@@ -61,8 +61,9 @@ export component MainWindow inherits Window {
     in-out property <string> profile_import_status: "Import a profile export to preview what can be transferred";
     in-out property <bool> discord_presence_enabled: false;
     in-out property <string> discord_client_id: "";
-    in-out property <string> discord_details_template: "Listening to {title}";
+    in-out property <string> discord_details_template: "{title}";
     in-out property <string> discord_state_template: "by {artist}";
+    in-out property <string> discord_custom_phrase: "Jamming out to";
     in-out property <string> discord_presence_status: "Discord Rich Presence is off";
 
     callback scan_directory_clicked();
@@ -409,13 +410,19 @@ export component MainWindow inherits Window {
                             text <=> root.discord_client_id;
                             font-size: 13px;
                         }
-                        Text { text: "Details line · use {title} and {artist}"; color: #d4ed9c; font-size: 12px; font-weight: 700; }
+                        Text { text: "Personal phrase · shown before the track title"; color: #d4ed9c; font-size: 12px; font-weight: 700; }
                         LineEdit {
-                            placeholder-text: "Listening to {title}";
+                            placeholder-text: "Jamming out to";
+                            text <=> root.discord_custom_phrase;
+                            font-size: 13px;
+                        }
+                        Text { text: "Track line · {title} and {artist} fill in automatically"; color: #d4ed9c; font-size: 12px; font-weight: 700; }
+                        LineEdit {
+                            placeholder-text: "{title}";
                             text <=> root.discord_details_template;
                             font-size: 13px;
                         }
-                        Text { text: "State line · use {title} and {artist}"; color: #d4ed9c; font-size: 12px; font-weight: 700; }
+                        Text { text: "Artist line · use {title} and {artist}"; color: #d4ed9c; font-size: 12px; font-weight: 700; }
                         LineEdit {
                             placeholder-text: "by {artist}";
                             text <=> root.discord_state_template;
