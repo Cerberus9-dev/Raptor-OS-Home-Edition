@@ -1,5 +1,9 @@
 # Changelog
 
+### Raptor Music discovery
+- Added an Independent sort option that alternates relevance-ranked and recent Audius search results, deduplicating tracks so emerging and lower-play-count artists are not crowded out by popularity sorting.
+
+
 ## Raptor Music
 
 - Added Apple Music catalog song search when the app developer configures a MusicKit developer token. Search results with official preview clips can play short, temporary previews; this does not claim full Apple Music subscription playback.
