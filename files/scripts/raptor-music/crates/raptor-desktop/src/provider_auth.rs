@@ -348,6 +348,61 @@ fn parse_youtube_playlists(value: &serde_json::Value) -> Result<Vec<ProviderPlay
     }).collect())
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ProviderPlaylistTrack {
+    pub provider: String,
+    pub id: String,
+    pub title: String,
+    pub artist: String,
+    pub album: Option<String>,
+    pub duration_secs: Option<u64>,
+    pub artwork_url: Option<String>,
+    pub external_url: Option<String>,
+}
+
+fn parse_spotify_playlist_tracks(value: &serde_json::Value) -> Result<Vec<ProviderPlaylistTrack>, String> {
+    let items = value.get("items").and_then(|v| v.as_array())
+        .ok_or_else(|| "Spotify playlist-track response did not include an items list".to_string())?;
+    Ok(items.iter().filter_map(|item| {
+        let track = item.get("track")?;
+        let id = track.get("id")?.as_str()?;
+        let title = track.get("name")?.as_str()?;
+        let artists = track.get("artists").and_then(|v| v.as_array())
+            .map(|values| values.iter().filter_map(|artist| artist.get("name").and_then(|v| v.as_str())).collect::<Vec<_>>().join(", "))
+            .filter(|value| !value.is_empty()).unwrap_or_else(|| "Unknown artist".into());
+        let album = track.pointer("/album/name").and_then(|v| v.as_str()).map(str::to_owned);
+        let artwork_url = track.get("album").and_then(|v| first_image_url(&v["images"]));
+        let external_url = track.pointer("/external_urls/spotify").and_then(|v| v.as_str()).map(str::to_owned);
+        let duration_secs = track.get("duration_ms").and_then(|v| v.as_u64()).map(|ms| ms / 1000);
+        Some(ProviderPlaylistTrack {
+            provider: "spotify".into(), id: id.into(), title: title.into(),
+            artist: artists, album, duration_secs, artwork_url, external_url,
+        })
+    }).collect())
+}
+
+fn parse_youtube_playlist_tracks(value: &serde_json::Value) -> Result<Vec<ProviderPlaylistTrack>, String> {
+    let items = value.get("items").and_then(|v| v.as_array())
+        .ok_or_else(|| "YouTube playlist-item response did not include an items list".to_string())?;
+    Ok(items.iter().filter_map(|item| {
+        let snippet = item.get("snippet")?;
+        let id = snippet.pointer("/resourceId/videoId")?.as_str()?;
+        let title = snippet.get("title")?.as_str()?;
+        if title == "Private video" || title == "Deleted video" { return None; }
+        let artist = snippet.get("videoOwnerChannelTitle")
+            .or_else(|| snippet.get("channelTitle"))
+            .and_then(|v| v.as_str()).unwrap_or("Unknown channel");
+        let thumbnails = snippet.get("thumbnails")?;
+        let artwork_url = ["maxres", "standard", "high", "medium", "default"]
+            .iter().find_map(|key| thumbnails.get(*key)?.get("url")?.as_str().map(str::to_owned));
+        Some(ProviderPlaylistTrack {
+            provider: "youtube".into(), id: id.into(), title: title.into(),
+            artist: artist.into(), album: None, duration_secs: None, artwork_url,
+            external_url: Some(format!("https://www.youtube.com/watch?v={id}")),
+        })
+    }).collect())
+}
+
 fn get_provider_json(url: &str, access_token: &str) -> Result<serde_json::Value, String> {
     if access_token.trim().is_empty() {
         return Err("The provider access token is empty".into());
@@ -448,6 +503,70 @@ pub fn fetch_provider_playlists(provider: OAuthProvider, access_token: &str) -> 
         OAuthProvider::Spotify => fetch_spotify_playlist_pages(access_token),
         OAuthProvider::YoutubeData => fetch_youtube_playlist_pages(access_token),
         OAuthProvider::Tidal => Err("TIDAL playlist retrieval needs its verified API adapter; no guessed endpoint is used.".into()),
+    }
+}
+
+/// Imports every page of playlist entries from supported metadata APIs.
+/// Spotify entries are metadata only; YouTube entries are video references,
+/// not playable YouTube Music tracks.
+pub fn fetch_provider_playlist_tracks(
+    provider: OAuthProvider,
+    access_token: &str,
+    playlist_id: &str,
+) -> Result<Vec<ProviderPlaylistTrack>, String> {
+    if playlist_id.trim().is_empty() {
+        return Err("A playlist ID is required".into());
+    }
+    match provider {
+        OAuthProvider::Spotify => {
+            let mut tracks = Vec::new();
+            for page in 0..200usize {
+                let mut url = Url::parse("https://api.spotify.com/v1/")
+                    .expect("Spotify API base URL is valid");
+                {
+                    let mut segments = url.path_segments_mut()
+                        .map_err(|_| "Could not construct Spotify playlist URL".to_string())?;
+                    segments.pop_if_empty().push("playlists").push(playlist_id).push("tracks");
+                }
+                url.query_pairs_mut().append_pair("limit", "100")
+                    .append_pair("offset", &(page * 100).to_string());
+                let value = get_provider_json(url.as_str(), access_token)?;
+                let batch = parse_spotify_playlist_tracks(&value)?;
+                let count = batch.len();
+                tracks.extend(batch);
+                if value.get("next").and_then(|v| v.as_str()).is_none() || count == 0 {
+                    return Ok(tracks);
+                }
+            }
+            Err("Spotify playlist import reached the 20,000-track safety limit.".into())
+        }
+        OAuthProvider::YoutubeData => {
+            let mut tracks = Vec::new();
+            let mut page_token: Option<String> = None;
+            let mut seen_tokens = std::collections::HashSet::new();
+            for _ in 0..200 {
+                let mut url = Url::parse("https://www.googleapis.com/youtube/v3/playlistItems")
+                    .expect("YouTube playlist-item endpoint is valid");
+                {
+                    let mut query = url.query_pairs_mut();
+                    query.append_pair("part", "snippet,contentDetails");
+                    query.append_pair("playlistId", playlist_id);
+                    query.append_pair("maxResults", "50");
+                    if let Some(token) = page_token.as_deref() {
+                        query.append_pair("pageToken", token);
+                    }
+                }
+                let value = get_provider_json(url.as_str(), access_token)?;
+                tracks.extend(parse_youtube_playlist_tracks(&value)?);
+                match value.get("nextPageToken").and_then(|v| v.as_str()).filter(|v| !v.is_empty()) {
+                    Some(next) if seen_tokens.insert(next.to_owned()) => page_token = Some(next.to_owned()),
+                    Some(_) => return Err("YouTube returned a repeated playlist-item page token; import stopped safely.".into()),
+                    None => return Ok(tracks),
+                }
+            }
+            Err("YouTube playlist import reached the 10,000-item safety limit.".into())
+        }
+        OAuthProvider::Tidal => Err("TIDAL playlist-track retrieval needs its verified API adapter and approved permissions.".into()),
     }
 }
 
@@ -606,6 +725,45 @@ mod tests {
         assert!(source.contains("fetch_youtube_playlist_pages"));
         assert!(source.contains("repeated playlist page token"));
         assert!(source.contains("10,000-item safety limit"));
+    }
+
+    #[test]
+    fn spotify_playlist_track_metadata_is_normalized_without_stream_urls() {
+        let tracks = parse_spotify_playlist_tracks(&serde_json::json!({
+            "items": [{
+                "track": {
+                    "id": "track-1", "name": "Underground Song",
+                    "artists": [{"name": "Small Artist"}, {"name": "Guest"}],
+                    "album": {"name": "Independent EP", "images": [{"url": "https://example.test/cover.jpg"}]},
+                    "duration_ms": 187500,
+                    "external_urls": {"spotify": "https://open.spotify.com/track/track-1"}
+                }
+            }]
+        })).unwrap();
+        assert_eq!(tracks.len(), 1);
+        assert_eq!(tracks[0].artist, "Small Artist, Guest");
+        assert_eq!(tracks[0].duration_secs, Some(187));
+        assert_eq!(tracks[0].provider, "spotify");
+        assert_eq!(tracks[0].external_url.as_deref(), Some("https://open.spotify.com/track/track-1"));
+    }
+
+    #[test]
+    fn youtube_playlist_items_are_video_references_not_music_streams() {
+        let tracks = parse_youtube_playlist_tracks(&serde_json::json!({
+            "items": [{
+                "snippet": {
+                    "title": "Uploaded live session",
+                    "channelTitle": "Independent Channel",
+                    "resourceId": {"videoId": "video-123"},
+                    "thumbnails": {"default": {"url": "https://example.test/thumb.jpg"}}
+                }
+            }]
+        })).unwrap();
+        assert_eq!(tracks.len(), 1);
+        assert_eq!(tracks[0].provider, "youtube");
+        assert_eq!(tracks[0].artist, "Independent Channel");
+        assert_eq!(tracks[0].external_url.as_deref(), Some("https://www.youtube.com/watch?v=video-123"));
+        assert_eq!(tracks[0].duration_secs, None);
     }
 
     #[test]
