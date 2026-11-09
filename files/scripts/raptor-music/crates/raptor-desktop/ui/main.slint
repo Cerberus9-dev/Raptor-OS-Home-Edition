@@ -17,6 +17,7 @@ export struct ImportedProfileData {
     id: string,
     name: string,
     subtitle: string,
+    avatar: image,
 }
 
 export component MainWindow inherits Window {
@@ -385,7 +386,12 @@ export component MainWindow inherits Window {
                                 border-radius: 7px;
                                 background: #202b21;
                                 HorizontalLayout {
-                                    padding-left: 12px; padding-right: 12px; spacing: 8px;
+                                    padding-left: 12px; padding-right: 12px; spacing: 10px;
+                                    Image {
+                                        source: p.avatar;
+                                        width: 42px;
+                                        height: 42px;
+                                    }
                                     VerticalLayout {
                                         horizontal-stretch: 1; spacing: 2px;
                                         Text { text: p.name; color: #edf5fb; font-size: 13px; font-weight: 600; vertical-alignment: center; overflow: elide; }
