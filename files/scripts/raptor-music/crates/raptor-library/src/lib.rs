@@ -602,7 +602,7 @@ mod migration_tests {
         db.delete_imported_profile(id).unwrap();
         assert!(db.get_imported_profiles().unwrap().is_empty());
     }
-\n    #[test]
+    #[test]
     fn fresh_database_applies_all_migrations_and_creates_track_indexes() {
         let db = LibraryDatabase::new(":memory:")
             .expect("a fresh in-memory library database should initialize");
