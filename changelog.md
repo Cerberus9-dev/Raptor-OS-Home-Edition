@@ -33,6 +33,7 @@
 - Switched zram compression to LZ4 to reduce compression/decompression CPU overhead on older low-power systems. This trades some compression ratio for faster response under memory pressure.
 
 ## [Unreleased]
+- Add an optional Raptor Flight Deck KDE Plasma 6 panel preset. It creates a compact bottom panel with the standard launcher, workspace pager, task manager, system tray and clock, without deleting or altering the user's existing panels. Available from the desktop right-click menu under Add Panel.
 
 ### v3.0.0 (Major Release)
 
