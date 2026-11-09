@@ -8,6 +8,9 @@ Raptor Music is a desktop player built with Rust, SQLite, Symphonia/CPAL and Sli
 - **Local Library** searches music imported from folders on the computer. It works offline and does not send search terms to the online catalog.
 - Artist results open in Raptor Music, with profile details and playable popular tracks where the provider makes them available.
 - Tracks from the online catalog can be added to the queue and played when they are public, streamable and not access-gated.
+- Click a track to start it immediately. The player keeps the current queue moving, and the dock has one-tap previous/next track and 15-second rewind/skip controls.
+- Use the three-dot song menu to add a track to the queue or any playlist. The queue and playlists stay editable while music is playing.
+- Playback runs on its own audio worker, so it continues while the window is minimized or you're using another app. Closing Raptor Music ends playback for now.
 - Playlists, the upcoming queue and the playback dock have their own controls. Queue actions respond to the current selection.
 - Folder import scans supported audio formats and stores track metadata in the local SQLite library.
 - Search can sort by relevance, popularity or recency. A query can return up to 50 tracks and 30 artists.
