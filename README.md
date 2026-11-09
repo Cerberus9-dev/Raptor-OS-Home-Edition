@@ -88,6 +88,12 @@ Hardware baseline follows [Bazzite's published gaming requirements](https://docs
 
 ---
 
+## Desktop customization
+
+Raptor OS includes an optional **Raptor Flight Deck** panel preset for KDE Plasma 6. Right-click the desktop, choose **Add Panel**, then select **Raptor Flight Deck**. It creates a compact bottom panel with the standard KDE launcher, workspace switcher, running applications, system tray and clock. It does not replace or remove an existing panel; remove the old panel manually after checking the new layout.
+
+Raptor Wallpaper also supports setting the desktop and lock-screen image independently.
+
 ## Installation
 
 **Download Raptor OS only from the official [Internet Archive release page](https://archive.org/details/raptor-os_202605).** The page is the public distribution point for the ISO and its matching SHA-256 checksum. End users do not need GitHub Actions access, repository permissions, or CI artifacts. When v3.0.0 (Major Release) is published, its ISO and checksum will be added to that same Archive.org item. The installer leaves disk selection and partitioning interactive; it does not automatically erase a drive.

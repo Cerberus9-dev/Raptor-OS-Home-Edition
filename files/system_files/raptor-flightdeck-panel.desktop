@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Link
+Name=Raptor Flight Deck Panel
+Comment=Add the Raptor flight-deck taskbar layout from the desktop context menu
+Icon=preferences-system-windows
+URL=/usr/share/plasma/layout-templates/org.raptor.flightdeck/metadata.json

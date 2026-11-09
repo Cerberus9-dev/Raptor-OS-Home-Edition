@@ -23,6 +23,9 @@ modules:
         destination: /usr/bin/raptor-browser-choice.sh
       - source: ../files/system_files/raptor-chat-choice.sh
         destination: /usr/bin/raptor-chat-choice.sh
+      # KDE Plasma 6 panel preset; available from the desktop's Add Panel menu.
+      - source: ../files/system_files/plasma-layout-templates/raptor-flightdeck
+        destination: /usr/share/plasma/layout-templates/org.raptor.flightdeck
       # Default file manager (Dolphin) + image/archive type associations.
       - source: ../files/system_files/raptor-mimeapps.list
         destination: /etc/xdg/mimeapps.list
