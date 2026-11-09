@@ -223,20 +223,31 @@ impl LibraryDatabase {
             return Err(LibraryError::Validation("Imported profile provider and data are required".into()));
         }
         let id = Uuid::new_v4();
-        self.conn.execute(
-            r#"INSERT INTO imported_profiles (id, provider, display_name, username, payload_json)
-               VALUES (?1, ?2, ?3, ?4, ?5)
-               ON CONFLICT(provider, username) DO UPDATE SET
-                 display_name = excluded.display_name,
-                 payload_json = excluded.payload_json,
-                 updated_at = CURRENT_TIMESTAMP"#,
-            params![id.to_string(), provider, display_name, username, payload_json],
-        )?;
-        let stored_id: String = self.conn.query_row(
-            "SELECT id FROM imported_profiles WHERE provider = ?1 AND username IS ?2",
-            params![provider, username], |row| row.get(0),
-        )?;
-        Ok(Uuid::parse_str(&stored_id)?)
+        if let Some(username) = username.map(str::trim).filter(|value| !value.is_empty()) {
+            self.conn.execute(
+                r#"INSERT INTO imported_profiles (id, provider, display_name, username, payload_json)
+                   VALUES (?1, ?2, ?3, ?4, ?5)
+                   ON CONFLICT(provider, username) DO UPDATE SET
+                     display_name = excluded.display_name,
+                     payload_json = excluded.payload_json,
+                     updated_at = CURRENT_TIMESTAMP"#,
+                params![id.to_string(), provider, display_name, username, payload_json],
+            )?;
+            let stored_id: String = self.conn.query_row(
+                "SELECT id FROM imported_profiles WHERE provider = ?1 AND username = ?2",
+                params![provider, username], |row| row.get(0),
+            )?;
+            Ok(Uuid::parse_str(&stored_id)?)
+        } else {
+            // Exports without an account username cannot be safely matched to
+            // an existing profile. Keep each import distinct rather than
+            // accidentally returning or overwriting another anonymous row.
+            self.conn.execute(
+                "INSERT INTO imported_profiles (id, provider, display_name, username, payload_json) VALUES (?1, ?2, ?3, NULL, ?4)",
+                params![id.to_string(), provider, display_name, payload_json],
+            )?;
+            Ok(id)
+        }
     }
 
     pub fn get_imported_profiles(&self) -> Result<Vec<ImportedProfileRecord>, LibraryError> {
