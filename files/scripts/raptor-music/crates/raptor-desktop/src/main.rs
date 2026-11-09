@@ -21,7 +21,7 @@ use raptor_library::{LibraryDatabase, QueueEntry};
 use raptor_core::models::{Track, PlaybackSource, PlayerState, PlayerEvent};
 use std::sync::{Arc, Mutex};
 use std::collections::HashSet;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::io::{Read, Write};
 #[cfg(unix)]
 use std::os::unix::net::UnixStream;
@@ -331,12 +331,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             return;
         }
 
-        if query.trim().chars().count() < 2 {
+        if query.trim().is_empty() {
             *online_tracks_for_search.lock().unwrap() = Vec::new();
             *online_artists_for_search.lock().unwrap() = Vec::new();
             ui.set_online_artist_list(slint::ModelRc::new(slint::VecModel::from(Vec::<TrackData>::new())));
             ui.set_online_track_list(slint::ModelRc::new(slint::VecModel::from(Vec::<TrackData>::new())));
-            ui.set_online_search_status("Type at least 2 characters to search online".into());
+            ui.set_online_search_status("Search artist names, song titles or keywords".into());
             return;
         }
 
@@ -1093,22 +1093,43 @@ fn write_discord_frame(stream: &mut UnixStream, opcode: u32, payload: &serde_jso
 }
 
 #[cfg(unix)]
+fn append_discord_socket_candidates(candidates: &mut Vec<PathBuf>, root: &Path) {
+    // Native installs expose the socket directly in the runtime directory.
+    // Flatpak clients commonly place it inside their application runtime dir.
+    const CLIENT_IDS: &[&str] = &[
+        "com.discordapp.Discord",
+        "com.discordapp.DiscordCanary",
+        "com.discordapp.DiscordPTB",
+        "dev.vencord.Vesktop",
+        "io.github.equicord.equibop",
+    ];
+    for index in 0..10 {
+        let socket = format!("discord-ipc-{index}");
+        let direct = root.join(&socket);
+        if !candidates.contains(&direct) { candidates.push(direct); }
+        for client_id in CLIENT_IDS {
+            let nested = root.join("app").join(client_id).join(&socket);
+            if !candidates.contains(&nested) { candidates.push(nested); }
+        }
+    }
+}
+
+#[cfg(unix)]
 fn connect_discord_rpc(client_id: &str) -> Result<DiscordConnection, String> {
     let mut candidates = Vec::new();
+    if let Some(explicit) = std::env::var_os("DISCORD_IPC_PATH") {
+        candidates.push(PathBuf::from(explicit));
+    }
     if let Some(runtime) = std::env::var_os("XDG_RUNTIME_DIR") {
-        let root = PathBuf::from(runtime);
-        for index in 0..10 {
-            candidates.push(root.join(format!("discord-ipc-{index}")));
-        }
+        append_discord_socket_candidates(&mut candidates, &PathBuf::from(runtime));
     }
     if let Some(uid) = std::env::var_os("UID") {
         let root = PathBuf::from("/run/user").join(uid);
-        for index in 0..10 {
-            candidates.push(root.join(format!("discord-ipc-{index}")));
-        }
+        append_discord_socket_candidates(&mut candidates, &root);
     }
     for index in 0..10 {
-        candidates.push(PathBuf::from(format!("/tmp/discord-ipc-{index}")));
+        let socket = PathBuf::from(format!("/tmp/discord-ipc-{index}"));
+        if !candidates.contains(&socket) { candidates.push(socket); }
     }
 
     let mut last_error = None;
