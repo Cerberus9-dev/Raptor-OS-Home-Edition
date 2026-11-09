@@ -896,6 +896,92 @@ fn search_audius_artists(query: &str, sort_method: &str) -> Result<Vec<AudiusArt
     }).collect())
 }
 
+fn fetch_audius_artist_profile(artist: &AudiusArtist) -> Result<AudiusArtistProfile, String> {
+    if artist.id.is_empty()
+        || !artist.id.chars().all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_')
+    {
+        return Err("Invalid artist identifier".to_string());
+    }
+
+    let client = reqwest::blocking::Client::builder()
+        .user_agent("RaptorMusic/0.2.18")
+        .connect_timeout(Duration::from_secs(8))
+        .timeout(Duration::from_secs(15))
+        .build()
+        .map_err(|error| format!("Could not initialize artist profile request: {error}"))?;
+
+    let profile_response = client
+        .get(format!("https://api.audius.co/v1/users/{}", artist.id))
+        .send()
+        .and_then(|response| response.error_for_status())
+        .map_err(|error| format!("Artist profile request failed: {error}"))?;
+    let profile_payload: serde_json::Value = profile_response
+        .json()
+        .map_err(|error| format!("Artist profile response was unreadable: {error}"))?;
+    let data = profile_payload
+        .get("data")
+        .filter(|value| value.is_object())
+        .ok_or_else(|| "Artist profile response had an unexpected shape".to_string())?;
+
+    let name = data
+        .get("name")
+        .and_then(serde_json::Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or(&artist.name)
+        .to_string();
+    let handle = data
+        .get("handle")
+        .and_then(serde_json::Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or(&artist.handle)
+        .to_string();
+    let bio = data
+        .get("bio")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("")
+        .to_string();
+    let follower_count = data
+        .get("follower_count")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(0);
+    let track_count = data
+        .get("track_count")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(0);
+
+    let tracks_response = client
+        .get(format!("https://api.audius.co/v1/users/{}/tracks", artist.id))
+        .query(&[
+            ("limit", "50"),
+            ("offset", "0"),
+            ("filter_tracks", "public"),
+            ("gate_condition", "ungated"),
+            ("sort_method", "plays"),
+            ("sort_direction", "desc"),
+        ])
+        .send()
+        .and_then(|response| response.error_for_status())
+        .map_err(|error| format!("Artist tracks request failed: {error}"))?;
+    let tracks_payload: serde_json::Value = tracks_response
+        .json()
+        .map_err(|error| format!("Artist tracks response was unreadable: {error}"))?;
+    let mut tracks = parse_audius_tracks(&tracks_payload)?;
+    for track in &mut tracks {
+        if track.artist == "Unknown artist" {
+            track.artist = name.clone();
+        }
+    }
+
+    Ok(AudiusArtistProfile {
+        name,
+        handle,
+        bio,
+        follower_count,
+        track_count,
+        tracks,
+    })
+}
+
 fn search_audius_tracks(query: &str, sort_method: &str) -> Result<Vec<Track>, String> {
     let query = query.trim();
     if query.is_empty() {
