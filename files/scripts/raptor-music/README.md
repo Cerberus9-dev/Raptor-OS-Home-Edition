@@ -7,6 +7,14 @@ Raptor Music is a desktop player built with Rust, SQLite, Symphonia/CPAL and Sli
 
 Discover includes an **Independent** sort option that blends Audius relevance-ranked matches with recent uploads and interleaves the two lists while deduplicating tracks. This is intended to give newer and less-played artists a fairer chance to appear without replacing normal relevance, popularity, or recency sorting. Results still depend on what the connected catalog indexes; this does not imply every artist or release is available.
 
+### Albums and playlists
+
+Discover now queries Audius autocomplete for album and playlist matches alongside artist and track search. Album and playlist rows are shown separately from tracks; selecting one loads its track list into the online results so tracks can be selected and played with the existing player controls. The catalog only returns public, available items that the provider exposes. This is catalog discovery, not a connected Audius user account.
+
+### Music-service account connections
+
+The provider sign-in roadmap uses each service's supported authorization method rather than collecting service passwords. TIDAL and Spotify require their own registered OAuth applications and approved use; Apple Music uses MusicKit developer and Music User Tokens; Google OAuth can authorize YouTube Data API access to a user's YouTube playlists, but it is not a YouTube Music playback/catalog API. These account connections are not yet shipped. No client secrets, private keys, or tokens are bundled in the repository. A linked account does not automatically grant Raptor Music permission to stream that service's catalog.
+
 ## Using the app
 
 - **Discover** is the starting point for online track and artist search.
