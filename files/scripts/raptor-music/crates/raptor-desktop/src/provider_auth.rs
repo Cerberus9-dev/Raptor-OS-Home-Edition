@@ -123,7 +123,7 @@ impl OAuthProvider {
                 "RAPTOR_TIDAL_REDIRECT_URI",
                 "https://login.tidal.com/authorize",
                 "https://auth.tidal.com/v1/oauth2/token",
-                "",
+                "user.read playlists.read",
             ),
             Self::YoutubeData => (
                 "RAPTOR_GOOGLE_CLIENT_ID",
@@ -422,6 +422,109 @@ fn parse_youtube_playlist_tracks(value: &serde_json::Value) -> Result<Vec<Provid
     }).collect())
 }
 
+fn tidal_user_id_from_access_token(access_token: &str) -> Result<String, String> {
+    let payload = access_token.split('.').nth(1)
+        .ok_or_else(|| "TIDAL returned a token without a readable user identity claim".to_string())?;
+    let bytes = URL_SAFE_NO_PAD.decode(payload)
+        .map_err(|_| "TIDAL access token did not contain a valid JWT payload".to_string())?;
+    let claims: serde_json::Value = serde_json::from_slice(&bytes)
+        .map_err(|_| "TIDAL access token payload was not valid JSON".to_string())?;
+    claims.get("sub").and_then(|value| value.as_str())
+        .filter(|value| !value.trim().is_empty())
+        .map(str::to_owned)
+        .ok_or_else(|| "TIDAL access token did not include a user subject".to_string())
+}
+
+fn get_tidal_json(url: &str, access_token: &str) -> Result<serde_json::Value, String> {
+    let parsed = Url::parse(url).map_err(|_| "TIDAL API returned an invalid URL".to_string())?;
+    if parsed.scheme() != "https" || parsed.host_str() != Some("openapi.tidal.com") {
+        return Err("TIDAL pagination returned an untrusted API host; import stopped.".into());
+    }
+    let response = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(20))
+        .build()
+        .map_err(|error| format!("Could not create TIDAL connection: {error}"))?
+        .get(parsed)
+        .header(reqwest::header::ACCEPT, "application/vnd.api+json")
+        .bearer_auth(access_token)
+        .send()
+        .map_err(|error| format!("TIDAL API request failed: {error}"))?;
+    let status = response.status();
+    if !status.is_success() {
+        return Err(format!("TIDAL API returned HTTP {status}; check the app's granted scopes and access tier"));
+    }
+    response.json::<serde_json::Value>()
+        .map_err(|error| format!("TIDAL returned unreadable account data: {error}"))
+}
+
+fn parse_tidal_profile(value: &serde_json::Value, user_id: &str) -> Result<ProviderProfile, String> {
+    let data = value.get("data").ok_or_else(|| "TIDAL user response did not include resource data".to_string())?;
+    let id = data.get("id").and_then(|value| value.as_str()).unwrap_or(user_id);
+    let attributes = data.get("attributes").cloned().unwrap_or_default();
+    let display_name = ["displayName", "username", "name"]
+        .iter()
+        .find_map(|key| attributes.get(*key).and_then(|value| value.as_str()))
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or(id);
+    Ok(ProviderProfile {
+        provider: "tidal".into(),
+        id: id.into(),
+        display_name: display_name.into(),
+        avatar_url: attributes.get("picture").and_then(|value| value.as_str()).map(str::to_owned),
+    })
+}
+
+fn parse_tidal_playlists(value: &serde_json::Value) -> Result<Vec<ProviderPlaylist>, String> {
+    let data = value.get("data").and_then(|value| value.as_array())
+        .ok_or_else(|| "TIDAL playlist response did not include a data list".to_string())?;
+    Ok(data.iter().filter_map(|item| {
+        let id = item.get("id")?.as_str()?;
+        let attributes = item.get("attributes")?;
+        let name = attributes.get("name").or_else(|| attributes.get("title"))?.as_str()?;
+        Some(ProviderPlaylist {
+            provider: "tidal".into(),
+            id: id.into(),
+            name: name.into(),
+            description: attributes.get("description").and_then(|value| value.as_str())
+                .filter(|value| !value.is_empty()).map(str::to_owned),
+            image_url: attributes.get("imageUrl").and_then(|value| value.as_str()).map(str::to_owned),
+            item_count: attributes.get("numberOfItems").and_then(|value| value.as_u64())
+                .or_else(|| item.pointer("/relationships/items/meta/total").and_then(|value| value.as_u64())),
+        })
+    }).collect())
+}
+
+fn fetch_tidal_profile(access_token: &str) -> Result<ProviderProfile, String> {
+    let user_id = tidal_user_id_from_access_token(access_token)?;
+    let url = format!("https://openapi.tidal.com/v2/users/{}", urlencoding::encode(&user_id));
+    let value = get_tidal_json(&url, access_token)?;
+    parse_tidal_profile(&value, &user_id)
+}
+
+fn fetch_tidal_playlist_pages(access_token: &str) -> Result<Vec<ProviderPlaylist>, String> {
+    let user_id = tidal_user_id_from_access_token(access_token)?;
+    let mut url = Url::parse("https://openapi.tidal.com/v2/playlists")
+        .expect("TIDAL playlist endpoint is a valid URL");
+    url.query_pairs_mut()
+        .append_pair("filter[owners.id]", &user_id)
+        .append_pair("page[limit]", "50")
+        .append_pair("include", "coverArt,ownerProfiles");
+    let mut playlists = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for _ in 0..100 {
+        let value = get_tidal_json(url.as_str(), access_token)?;
+        playlists.extend(parse_tidal_playlists(&value)?);
+        match value.pointer("/links/next").and_then(|value| value.as_str()).filter(|value| !value.is_empty()) {
+            Some(next) if seen.insert(next.to_owned()) => {
+                url = Url::parse(next).map_err(|_| "TIDAL returned an invalid playlist page link".to_string())?;
+            }
+            Some(_) => return Err("TIDAL returned a repeated playlist page link; import stopped safely.".into()),
+            None => return Ok(playlists),
+        }
+    }
+    Err("TIDAL playlist import reached the 5,000-item safety limit.".into())
+}
+
 fn get_provider_json(url: &str, access_token: &str) -> Result<serde_json::Value, String> {
     if access_token.trim().is_empty() {
         return Err("The provider access token is empty".into());
@@ -443,8 +546,7 @@ fn get_provider_json(url: &str, access_token: &str) -> Result<serde_json::Value,
 }
 
 /// Retrieves basic account identity from providers with documented user APIs.
-/// TIDAL's account endpoint is intentionally not guessed; it needs its own
-/// verified adapter before being enabled here.
+
 pub fn fetch_provider_profile(provider: OAuthProvider, access_token: &str) -> Result<ProviderProfile, String> {
     match provider {
         OAuthProvider::Spotify => parse_spotify_profile(&get_provider_json("https://api.spotify.com/v1/me", access_token)?),
@@ -462,7 +564,7 @@ pub fn fetch_provider_profile(provider: OAuthProvider, access_token: &str) -> Re
                 avatar_url: snippet.pointer("/thumbnails/default/url").and_then(|v| v.as_str()).map(str::to_owned),
             })
         }
-        OAuthProvider::Tidal => Err("TIDAL profile retrieval needs its verified API adapter; account authorization alone is not enough.".into()),
+        OAuthProvider::Tidal => fetch_tidal_profile(access_token),
     }
 }
 
@@ -521,7 +623,7 @@ pub fn fetch_provider_playlists(provider: OAuthProvider, access_token: &str) -> 
     match provider {
         OAuthProvider::Spotify => fetch_spotify_playlist_pages(access_token),
         OAuthProvider::YoutubeData => fetch_youtube_playlist_pages(access_token),
-        OAuthProvider::Tidal => Err("TIDAL playlist retrieval needs its verified API adapter; no guessed endpoint is used.".into()),
+        OAuthProvider::Tidal => fetch_tidal_playlist_pages(access_token),
     }
 }
 
@@ -681,7 +783,7 @@ pub fn fetch_provider_playlist_tracks(
             }
             Err("YouTube playlist import reached the 10,000-item safety limit.".into())
         }
-        OAuthProvider::Tidal => Err("TIDAL playlist-track retrieval needs its verified API adapter and approved permissions.".into()),
+        OAuthProvider::Tidal => Err("TIDAL playlist item metadata import is not implemented yet; the linked account and playlist metadata remain available.".into()),
     }
 }
 
