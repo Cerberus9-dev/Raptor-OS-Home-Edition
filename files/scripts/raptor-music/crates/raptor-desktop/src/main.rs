@@ -21,7 +21,7 @@ fn start_provider_connection(
                 .map_err(|error| error.to_string())?;
             // Bind first so the provider cannot redirect before the receiver is listening.
             let receiver = callback_listener::CallbackListener::bind(&pending)?;
-            std::process::Command::new("xdg-open")
+            std::process::Command::new("gio").arg("open")
                 .arg(authorization_url.as_str())
                 .spawn()
                 .map_err(|_| "Could not open the system browser for provider sign-in".to_string())?;
