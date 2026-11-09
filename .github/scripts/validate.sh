@@ -608,6 +608,16 @@ fi
 rm -f "$gpu_tmp"
 echo "Boot-time GPU detection contracts passed."
 
+echo "=== Checking Raptor Music profile migration parser ==="
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'mod profile_import;'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/profile_import.rs 'pub fn parse_profile_export'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/profile_import.rs 'parse_spotify_playlists'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/profile_import.rs 'parse_spotify_library'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/profile_import.rs 'safe_https_url'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/profile_import.rs 'fn parses_profile_identity_and_all_collection_types'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/profile_import.rs 'fn parses_spotify_playlist_export_and_preserves_order'
+echo "Raptor Music profile migration parser contracts passed."
+
 echo "=== Checking embedded Raptor Cortex Python ==="
 cortex_tmp="$(mktemp --suffix=.py)"
 awk "/^cat << 'PYEOF' > \/usr\/bin\/raptor-cortex$/ { inside=1; next } /^PYEOF$/ && inside { exit } inside { print }" files/scripts/raptor-cortex/install.sh > "$cortex_tmp"
