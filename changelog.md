@@ -2,6 +2,9 @@
 
 ## Raptor Music
 
+- Added Apple Music catalog song search when the app developer configures a MusicKit developer token. Search results with official preview clips can play short, temporary previews; this does not claim full Apple Music subscription playback.
+- Added URL and redirect-host checks for Apple Music preview downloads, plus size limits and temporary-file cleanup.
+- Added provider availability notes to Settings and documented the Apple Music developer-token setup and current Spotify, YouTube Music and TIDAL boundaries.
 - Expanded Discord IPC discovery to cover native and common Flatpak runtime socket locations, plus an optional explicit socket path for unusual client setups.
 - Removed the arbitrary two-character search gate so short artist, song and keyword queries can be sent to online discovery. Search continues to query artists and tracks together.
 - Clarified the search field and status text for artist, song and keyword searches.
