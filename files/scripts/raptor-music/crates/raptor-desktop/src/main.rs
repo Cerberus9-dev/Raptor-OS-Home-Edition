@@ -46,6 +46,39 @@ fn start_provider_connection(
                         avatar_url: provider_profile.avatar_url.clone(),
                         ..profile_import::ImportedProfile::default()
                     };
+                    if provider == provider_auth::OAuthProvider::Spotify {
+                        let extras = provider_auth::fetch_spotify_profile_extras(&tokens.access_token)?;
+                        imported.saved_tracks = extras.saved_tracks.into_iter().map(|track| {
+                            profile_import::ImportedTrack {
+                                source_id: Some(track.id),
+                                title: track.title,
+                                artist: track.artist,
+                                album: track.album,
+                            }
+                        }).collect();
+                        imported.followed_artists = extras.followed_artists.into_iter().map(|artist| {
+                            profile_import::ImportedArtist {
+                                source_id: Some(artist.id),
+                                name: artist.name,
+                            }
+                        }).collect();
+                        imported.listening_history = extras.listening_history.into_iter().map(|listen| {
+                            profile_import::ImportedListen {
+                                track: profile_import::ImportedTrack {
+                                    source_id: Some(listen.track.id),
+                                    title: listen.track.title,
+                                    artist: listen.track.artist,
+                                    album: listen.track.album,
+                                },
+                                played_at: listen.played_at,
+                                ms_played: None,
+                                play_count: 1,
+                            }
+                        }).collect();
+                    }
+                    let saved_track_count = imported.saved_tracks.len();
+                    let followed_artist_count = imported.followed_artists.len();
+                    let listening_event_count = imported.listening_history.len();
                     let mut imported_track_count = 0usize;
                     let mut skipped_playlists = 0usize;
                     let mut track_budget = 50_000usize;
@@ -103,7 +136,7 @@ fn start_provider_connection(
                         "Spotify"
                     };
                     Ok(format!(
-                        "Imported {provider_name} profile {} · {playlist_count} playlists · {imported_track_count} playlist entries. {} playlist(s) could not be fully read. This imports metadata only; it does not grant streaming access.",
+                        "Imported {provider_name} profile {} · {playlist_count} playlists · {imported_track_count} playlist entries · {saved_track_count} saved tracks · {followed_artist_count} followed artists · {listening_event_count} listening events. {} playlist(s) could not be fully read. This imports metadata only; it does not grant streaming access.",
                         provider_profile.display_name, skipped_playlists
                     ))
                 }
