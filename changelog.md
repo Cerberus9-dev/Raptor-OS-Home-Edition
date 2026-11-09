@@ -29,6 +29,7 @@
 - Changed ZRAM compression to LZ4 to reduce CPU overhead on slower processors. Compression is lower than with zstd.
 
 ## [Unreleased]
+- Add a normalized Raptor Music profile-migration parser for Raptor profile packages and Spotify JSON playlist/library exports, preserving playlist order and source identifiers; parser tests cover profile collections, duplicate handling, and HTTPS-only artwork URLs. The user-facing import flow and persistent imported-profile storage are still pending.
 - Split Raptor Music into separate Discover and Local Library views, with online discovery as the default landing view. Local-library searches stay offline and do not send queries to the online catalog.
 - Improve Music navigation, empty-library and empty-queue guidance, and selection-aware playlist, queue, and playback controls.
 - Expand online track result parsing to retain up to 50 valid tracks, preserve actual album names, and keep artist and track search sorting aligned.
