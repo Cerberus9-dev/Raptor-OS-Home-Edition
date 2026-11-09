@@ -749,6 +749,9 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'ui
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'ui.on_skip_forward_clicked'
 
 echo "=== Checking Raptor Music provider integrations ==="
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn merge_independent_discovery'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'independent_discovery_interleaves_and_deduplicates_sources'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'text: "Independent"'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn search_apple_music_tracks'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'RAPTOR_APPLE_MUSIC_DEVELOPER_TOKEN'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn parse_apple_music_tracks'
