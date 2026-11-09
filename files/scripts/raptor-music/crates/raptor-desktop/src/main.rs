@@ -724,7 +724,7 @@ fn parse_audius_tracks(payload: &serde_json::Value) -> Result<Vec<Track>, String
         .ok_or_else(|| "Audius returned an unexpected search response".to_string())?;
 
     let mut tracks = Vec::new();
-    for row in rows.iter().take(24) {
+    for row in rows.iter().take(50) {
         // Do not display hidden, unavailable, gated, or non-streamable items as
         // playable results. The player repeats this provider check at playback.
         if !audius_flag(row, "is_streamable", false)
@@ -752,11 +752,12 @@ fn parse_audius_tracks(payload: &serde_json::Value) -> Result<Vec<Track>, String
             .and_then(|user| user.get("name"))
             .and_then(serde_json::Value::as_str)
             .unwrap_or("Unknown artist");
-        let genre = row
-            .get("genre")
+        let album = row
+            .get("album")
+            .and_then(|album| album.get("title"))
             .and_then(serde_json::Value::as_str)
             .filter(|value| !value.trim().is_empty())
-            .unwrap_or("Audius");
+            .map(str::to_string);
         let duration = row
             .get("duration")
             .and_then(serde_json::Value::as_u64);
@@ -769,7 +770,7 @@ fn parse_audius_tracks(payload: &serde_json::Value) -> Result<Vec<Track>, String
             id: stable_id,
             title: title.to_string(),
             artist: artist.to_string(),
-            album: Some(genre.to_string()),
+            album,
             duration_secs: duration,
             source: PlaybackSource::RemoteStream {
                 provider_id: "audius".into(),
@@ -858,6 +859,7 @@ mod audius_search_tests {
                     "id": "track_public_01",
                     "title": "Example Song",
                     "user": { "name": "Example Artist" },
+                    "album": { "title": "Example Album" },
                     "genre": "Electronic",
                     "duration": 187,
                     "is_streamable": true,
@@ -902,6 +904,7 @@ mod audius_search_tests {
         let track = &tracks[0];
         assert_eq!(track.title, "Example Song");
         assert_eq!(track.artist, "Example Artist");
+        assert_eq!(track.album.as_deref(), Some("Example Album"));
         assert_eq!(track.duration_secs, Some(187));
         assert_eq!(
             track.source,
