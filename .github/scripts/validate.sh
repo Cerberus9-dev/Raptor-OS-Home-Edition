@@ -747,3 +747,12 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'ui
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'if direct_selection'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'ui.on_skip_backward_clicked'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'ui.on_skip_forward_clicked'
+
+echo "=== Checking Raptor Music Discord Rich Presence ==="
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'text: "Discord Rich Presence"'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'discord_client_id'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'discord_details_template'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'discord_state_template'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn send_discord_presence'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn update_discord_from_database'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'discord_presence_templates_replace_track_placeholders'
