@@ -507,6 +507,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         let ui_weak = ui_handle_collection.clone();
         let tracks_state = Arc::clone(&tracks_for_collection);
+        let generation_state = Arc::clone(&generation_for_collection);
         std::thread::spawn(move || {
             let result = fetch_audius_collection_tracks(&collection);
             let tracks = match result {
@@ -526,7 +527,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let count = tracks.len();
             let _ = slint::invoke_from_event_loop(move || {
                 if let Some(ui) = ui_weak.upgrade() {
-                    if generation_for_collection.load(Ordering::Acquire) == request_generation {
+                    if generation_state.load(Ordering::Acquire) == request_generation {
                         ui.set_online_track_list(slint::ModelRc::new(slint::VecModel::from(rows)));
                         ui.set_selected_online_track_index(-1);
                         ui.set_online_search_status(format!("{title} · {count} tracks").into());
