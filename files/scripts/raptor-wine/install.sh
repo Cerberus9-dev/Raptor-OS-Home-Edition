@@ -14,6 +14,11 @@ cat <<'WINE' > /usr/bin/raptor-wine
 #!/usr/bin/env bash
 set -euo pipefail
 
+# The image default is intentionally quiet, but retain Wine errors for reports.
+if [[ "${WINEDEBUG:-}" == "-all" ]]; then
+  export WINEDEBUG="-all,+err"
+fi
+
 if [[ $# -eq 0 ]]; then
   exec wine
 fi
@@ -63,9 +68,14 @@ export WINEPREFIX="${WINEPREFIX:-$HOME/Games/umu/$GAMEID}"
 [[ -z "${RAPTOR_WINE_STORE:-}" ]] || export STORE="$RAPTOR_WINE_STORE"
 [[ -z "${RAPTOR_WINE_PROTONPATH:-}" ]] || export PROTONPATH="$RAPTOR_WINE_PROTONPATH"
 
+# Capture UMU's useful startup diagnostics in the Raptor per-launch log.
+export UMU_LOG="${UMU_LOG:-1}"
 if [[ "${RAPTOR_WINE_DEBUG:-0}" == "1" ]]; then
   export UMU_LOG=1
   export PROTON_LOG=1
+fi
+if [[ "${WINEDEBUG:-}" == "-all" ]]; then
+  export WINEDEBUG="-all,+err"
 fi
 
 target="${1:-}"
@@ -334,13 +344,26 @@ shift
 state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/raptor"
 mkdir -p "$state_dir"
 chmod 700 "$state_dir"
+umask 077
 stamp="$(date +%Y%m%d-%H%M%S)"
-log="$state_dir/${mode}-${stamp}-$$.log"
 case "$mode" in
   wine) command=(/usr/bin/raptor-wine "$target" "$@"); label="Raptor Wine" ;;
   proton) command=(/usr/bin/raptor-wine-proton "$target" "$@"); label="Raptor Proton" ;;
   *) echo "Unknown Raptor compatibility mode: $mode" >&2; exit 2 ;;
 esac
+log="$state_dir/${mode}-${stamp}-$$.log"
+# Create the log before detaching so the path in the notification always exists.
+if ! (umask 077; : > "$log") || [[ ! -f "$log" ]]; then
+  command -v notify-send >/dev/null 2>&1 && notify-send --app-name="Raptor OS" --urgency=critical "$label could not start" "Cannot create diagnostic log in $state_dir. Check home-directory permissions and free space."
+  exit 1
+fi
+chmod 600 "$log"
+# Create the log before detaching so the path in the notification always exists.
+if ! (umask 077; : > "$log") || [[ ! -f "$log" ]]; then
+  command -v notify-send >/dev/null 2>&1 && notify-send --app-name="Raptor OS" --urgency=critical "$label could not start" "Cannot create diagnostic log in $state_dir. Check home-directory permissions and free space."
+  exit 1
+fi
+chmod 600 "$log"
 # Detach from the file manager and show immediate feedback. First-time prefix
 # creation and UMU runtime preparation can take longer than an ordinary launch.
 if command -v notify-send >/dev/null 2>&1; then
@@ -349,12 +372,39 @@ if command -v notify-send >/dev/null 2>&1; then
 fi
 (
   set +e
+  {
+    printf 'Raptor compatibility launch diagnostics\n'
+    printf 'Timestamp: %s\n' "$(date --iso-8601=seconds 2>/dev/null || date)"
+    printf 'Mode: %s\n' "$mode"
+    printf 'Target: %s\n' "$target"
+    printf 'User: %s (uid %s)\n' "${USER:-unknown}" "$(id -u 2>/dev/null || echo unknown)"
+    printf 'Home: %s\n' "$HOME"
+    printf '\n--- Target file ---\n'
+    if command -v file >/dev/null 2>&1; then file -L -- "$target" 2>&1; fi
+    if command -v stat >/dev/null 2>&1; then stat -Lc 'Permissions: %A (%a)  Size: %s bytes' -- "$target" 2>&1; fi
+    printf '\n--- Compatibility runtime ---\n'
+    if [[ "$mode" == "wine" ]]; then
+      printf 'Wine binary: %s\n' "$(command -v wine 2>/dev/null || echo MISSING)"
+      wine --version 2>&1 || true
+      printf 'WINEPREFIX: %s\n' "${WINEPREFIX:-$HOME/.wine}"
+    else
+      printf 'UMU binary: %s\n' "$(command -v umu-run 2>/dev/null || echo MISSING)"
+      umu-run --version 2>&1 || true
+      printf 'GAMEID: %s\n' "${GAMEID:-umu-default}"
+      printf 'WINEPREFIX: %s\n' "${WINEPREFIX:-$HOME/Games/umu/umu-default}"
+      printf 'PROTONPATH: %s\n' "${PROTONPATH:-UMU default}"
+    fi
+    printf '\n--- Launch output ---\n'
+  } >>"$log" 2>&1
   "${command[@]}" >>"$log" 2>&1
   status=$?
   if (( status != 0 )); then
     printf '\nRaptor launcher exit status: %s\n' "$status" >>"$log"
+    summary="$(grep -Ei 'error|failed|failure|not found|cannot|could not|permission denied' "$log" | tail -n 1 | cut -c1-180 || true)"
+    [[ -n "$summary" ]] || summary="The compatibility runtime exited without a matching diagnostic line."
     if command -v notify-send >/dev/null 2>&1; then
-      notify-send --app-name="Raptor OS" --urgency=critical "$label could not start" "Exit code $status. See $log"
+      notify-send --app-name="Raptor OS" --urgency=critical "$label could not start" "$summary
+Exit code $status. Full log: $log"
     fi
   fi
 ) </dev/null >/dev/null 2>&1 &
