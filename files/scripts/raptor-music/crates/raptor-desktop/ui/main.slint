@@ -681,6 +681,7 @@ export component MainWindow inherits Window {
                         Button { text: "Relevant"; clicked => { root.online_sort_method = "relevant"; root.search_changed(root.search_query); } }
                         Button { text: "Popular"; clicked => { root.online_sort_method = "popular"; root.search_changed(root.search_query); } }
                         Button { text: "Recent"; clicked => { root.online_sort_method = "recent"; root.search_changed(root.search_query); } }
+                        Button { text: "Independent"; clicked => { root.online_sort_method = "independent"; root.search_changed(root.search_query); } }
                     }
                     Text { visible: root.active_view == "discover"; text: "Artists"; color: #f2f5ec; font-size: 18px; font-weight: 700; }
                     ListView {
