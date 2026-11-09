@@ -1,5 +1,12 @@
 # Changelog
 
+## Raptor Music
+
+- Added a separate personal phrase field to Discord Rich Presence. The current track title and artist still fill in automatically.
+- Fixed profile imports so normalized playlist packages with a `tracks` array keep their playlist tracks when multiple export files are merged.
+- Documented the provider-specific account and catalog restrictions that shape future Spotify, Apple Music, YouTube Music and TIDAL support.
+
+
 ## v3.0 fixes: app packaging
 
 - Packaged the Raptor Shroudly Rust/Slint app with its own launcher, desktop entry, and icon. The image build checks that these files are present.
