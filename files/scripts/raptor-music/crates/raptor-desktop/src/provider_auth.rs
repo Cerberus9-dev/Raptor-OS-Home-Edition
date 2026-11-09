@@ -116,7 +116,7 @@ impl OAuthProvider {
                 "RAPTOR_SPOTIFY_REDIRECT_URI",
                 "https://accounts.spotify.com/authorize",
                 "https://accounts.spotify.com/api/token",
-                "user-read-private user-read-email playlist-read-private playlist-read-collaborative user-library-read user-follow-read",
+                "user-read-private playlist-read-private playlist-read-collaborative",
             ),
             Self::Tidal => (
                 "RAPTOR_TIDAL_CLIENT_ID",
