@@ -47,6 +47,8 @@ pub struct ImportedArtist {
 pub struct ImportedListen {
     pub track: ImportedTrack,
     pub played_at: Option<String>,
+    /// Playback duration reported by the source export, in milliseconds.
+    pub ms_played: Option<u64>,
     pub play_count: u32,
 }
 
@@ -63,6 +65,10 @@ pub struct ImportSummary {
 pub fn parse_profile_export(payload: &str) -> Result<ImportedProfile, String> {
     let root: Value = serde_json::from_str(payload)
         .map_err(|_| "The selected file is not valid JSON".to_string())?;
+
+    if root.is_array() {
+        return parse_spotify_history(&root);
+    }
 
     if let Some(profile) = root.get("raptor_music_profile") {
         return parse_raptor_package(profile);
@@ -125,6 +131,7 @@ fn parse_raptor_package(value: &Value) -> Result<ImportedProfile, String> {
             Some(ImportedListen {
                 track,
                 played_at: string(row, "played_at"),
+                ms_played: row.get("ms_played").and_then(Value::as_u64),
                 play_count: row.get("play_count").and_then(Value::as_u64).unwrap_or(1).min(u32::MAX as u64) as u32,
             })
         }).collect();
@@ -167,6 +174,51 @@ fn parse_spotify_library(root: &Value) -> Result<ImportedProfile, String> {
         parse_spotify_track(track)
     }).collect();
     deduplicate_profile(&mut profile);
+    Ok(profile)
+}
+
+
+/// Spotify's extended streaming-history exports (for example
+/// StreamingHistory_music_*.json and endsong_*.json) are top-level arrays,
+/// unlike Spotify's playlist and saved-library exports.
+fn parse_spotify_history(root: &Value) -> Result<ImportedProfile, String> {
+    let rows = root.as_array()
+        .ok_or_else(|| "Spotify listening history must be a JSON array".to_string())?;
+    let mut profile = ImportedProfile {
+        source: "Spotify extended listening history".into(),
+        ..ImportedProfile::default()
+    };
+
+    for row in rows {
+        let title = string(row, "master_metadata_track_name");
+        let artist = string(row, "master_metadata_album_artist_name");
+        // Podcast episodes and rows without music metadata are deliberately
+        // skipped rather than being mislabeled as songs.
+        let (Some(title), Some(artist)) = (title, artist) else { continue };
+        let track = ImportedTrack {
+            source_id: string(row, "spotify_track_uri"),
+            title,
+            artist,
+            album: string(row, "master_metadata_album_album_name"),
+        };
+        profile.listening_history.push(ImportedListen {
+            track,
+            played_at: string(row, "ts"),
+            ms_played: row.get("ms_played").and_then(Value::as_u64),
+            play_count: 1,
+        });
+    }
+
+    let mut seen = HashSet::new();
+    profile.listening_history.retain(|listen| {
+        let key = format!(
+            "{}\\0{}\\0{}",
+            listen.track.source_id.as_deref().unwrap_or(""),
+            listen.played_at.as_deref().unwrap_or(""),
+            listen.ms_played.unwrap_or(0)
+        );
+        seen.insert(key)
+    });
     Ok(profile)
 }
 
@@ -321,6 +373,40 @@ mod tests {
         assert_eq!(combined.playlists[0].tracks.len(), 1);
         assert_eq!(combined.saved_tracks.len(), 1);
         assert_eq!(combined.saved_tracks[0].title, "Two");
+    }
+
+
+    #[test]
+    fn parses_spotify_extended_streaming_history_array() {
+        let json = r#"[
+          {"ts":"2026-10-01T12:00:00Z","ms_played":183000,
+           "master_metadata_track_name":"Independent Track",
+           "master_metadata_album_artist_name":"Small Artist",
+           "master_metadata_album_album_name":"First EP",
+           "spotify_track_uri":"spotify:track:abc"},
+          {"ts":"2026-10-01T12:05:00Z","ms_played":90000,
+           "master_metadata_track_name":"Another Track",
+           "master_metadata_album_artist_name":"Another Artist",
+           "master_metadata_album_album_name":null},
+          {"ts":"2026-10-01T12:08:00Z","ms_played":45000,
+           "episode_name":"Podcast episode"}
+        ]"#;
+        let profile = parse_profile_export(json).unwrap();
+        assert_eq!(profile.source, "Spotify extended listening history");
+        assert_eq!(profile.listening_history.len(), 2);
+        assert_eq!(profile.listening_history[0].track.title, "Independent Track");
+        assert_eq!(profile.listening_history[0].track.artist, "Small Artist");
+        assert_eq!(profile.listening_history[0].ms_played, Some(183000));
+        assert_eq!(profile.listening_history[0].played_at.as_deref(), Some("2026-10-01T12:00:00Z"));
+        assert_eq!(profile.listening_history[1].track.title, "Another Track");
+        assert_eq!(profile.listening_history[1].track.album, None);
+    }
+
+    #[test]
+    fn skips_non_music_rows_in_spotify_history() {
+        let json = r#"[{"ts":"2026-10-01T12:00:00Z","ms_played":1000,"episode_name":"Podcast"}]"#;
+        let profile = parse_profile_export(json).unwrap();
+        assert!(profile.listening_history.is_empty());
     }
 
     #[test]
