@@ -91,7 +91,7 @@ export component MainWindow inherits Window {
     callback skip_forward_clicked();
     callback save_discord_presence_clicked();
     callback connect_spotify_clicked();
-    callback connect_tidal_clicked();
+    callback open_external_service_clicked(string);
     callback connect_youtube_clicked();
     callback disconnect_spotify_clicked();
     callback disconnect_tidal_clicked();
@@ -435,16 +435,21 @@ export component MainWindow inherits Window {
                             Button { text: "Disconnect"; clicked => { root.disconnect_spotify_clicked(); } }
                         }
                         Text {
-                            text: "Fallback catalog: Jamendo offers independent and Creative Commons music. Set RAPTOR_JAMENDO_CLIENT_ID to enable search. Selecting a result opens its Jamendo page so playback, creator attribution and license terms remain with the source service.";
-                            color: #879487; font-size: 11px; wrap: word-wrap;
-                        }
-                        Text {
-                            text: "TIDAL sign-in uses its documented OAuth 2.1 + PKCE flow. The app imports the account profile and playlist metadata when the registered client has the user.read and playlists.read scopes. Playlist track-item import and playback are separate capabilities.";
+                            text: "Fallback catalogs: Audius is integrated for in-app search and playback. Jamendo search is available with RAPTOR_JAMENDO_CLIENT_ID; selecting a result opens its licensed Jamendo page. These are the built-in alternatives when a provider cannot be combined in-app.";
                             color: #879487; font-size: 11px; wrap: word-wrap;
                         }
                         HorizontalLayout {
                             spacing: 8px;
-                            Button { text: "Connect TIDAL"; clicked => { root.connect_tidal_clicked(); } }
+                            Button { text: "Open Audius"; clicked => { root.open_external_service_clicked("audius"); } }
+                            Button { text: "Open Jamendo"; clicked => { root.open_external_service_clicked("jamendo"); } }
+                        }
+                        Text {
+                            text: "TIDAL content cannot be mixed into Raptor Music's combined catalog under the current developer guidelines. Use the official TIDAL service separately unless express written approval covers a deeper integration.";
+                            color: #879487; font-size: 11px; wrap: word-wrap;
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            Button { text: "Open TIDAL"; clicked => { root.open_external_service_clicked("tidal"); } }
                             Button { text: "Disconnect"; clicked => { root.disconnect_tidal_clicked(); } }
                         }
                         HorizontalLayout {
