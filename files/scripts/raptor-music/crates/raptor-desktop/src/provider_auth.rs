@@ -2,8 +2,9 @@
 //!
 //! This module only prepares authorization requests. It does not claim that a
 //! successful login grants streaming rights, and it deliberately keeps provider
-//! credentials out of source control. Token exchange, OS-keyring persistence,
-//! callback handling and provider-specific API adapters remain separate steps.
+//! credentials out of source control. Token exchange is implemented as a
+//! separate primitive; callback listening, OS-keyring persistence and provider-
+//! specific profile/playlist adapters remain separate steps.
 
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use sha2::{Digest, Sha256};
@@ -48,24 +49,27 @@ impl std::fmt::Display for AuthorizationError {
 impl std::error::Error for AuthorizationError {}
 
 impl OAuthProvider {
-    fn settings(self) -> (&'static str, &'static str, &'static str, &'static str) {
+    fn settings(self) -> (&'static str, &'static str, &'static str, &'static str, &'static str) {
         match self {
             Self::Spotify => (
                 "RAPTOR_SPOTIFY_CLIENT_ID",
                 "RAPTOR_SPOTIFY_REDIRECT_URI",
                 "https://accounts.spotify.com/authorize",
+                "https://accounts.spotify.com/api/token",
                 "user-read-private user-read-email playlist-read-private playlist-read-collaborative user-library-read user-follow-read",
             ),
             Self::Tidal => (
                 "RAPTOR_TIDAL_CLIENT_ID",
                 "RAPTOR_TIDAL_REDIRECT_URI",
                 "https://login.tidal.com/authorize",
+                "https://auth.tidal.com/v1/oauth2/token",
                 "",
             ),
             Self::YoutubeData => (
                 "RAPTOR_GOOGLE_CLIENT_ID",
                 "RAPTOR_GOOGLE_REDIRECT_URI",
                 "https://accounts.google.com/o/oauth2/v2/auth",
+                "https://oauth2.googleapis.com/token",
                 "openid email profile https://www.googleapis.com/auth/youtube.readonly",
             ),
         }
@@ -87,7 +91,7 @@ pub fn begin_authorization(
     provider: OAuthProvider,
     redirect_override: Option<&str>,
 ) -> Result<(Url, PendingAuthorization), AuthorizationError> {
-    let (client_env, redirect_env, endpoint, scopes) = provider.settings();
+    let (client_env, redirect_env, endpoint, _token_endpoint, default_scopes) = provider.settings();
     let client_id = std::env::var(client_env)
         .ok()
         .filter(|value| !value.trim().is_empty())
@@ -102,6 +106,11 @@ pub fn begin_authorization(
         return Err(AuthorizationError::InvalidRedirectUri);
     }
 
+    let scopes = if provider == OAuthProvider::Tidal {
+        std::env::var("RAPTOR_TIDAL_SCOPES").unwrap_or_default()
+    } else {
+        default_scopes.to_string()
+    };
     let (code_verifier, code_challenge) = create_pkce_pair();
     let state = Uuid::new_v4().simple().to_string();
     let mut url = Url::parse(endpoint).expect("provider authorization endpoint is a valid URL");
@@ -114,7 +123,11 @@ pub fn begin_authorization(
         query.append_pair("code_challenge_method", "S256");
         query.append_pair("code_challenge", &code_challenge);
         if !scopes.is_empty() {
-            query.append_pair("scope", scopes);
+            query.append_pair("scope", &scopes);
+        }
+        if provider == OAuthProvider::YoutubeData {
+            query.append_pair("access_type", "offline");
+            query.append_pair("prompt", "consent");
         }
     }
 
@@ -125,6 +138,49 @@ pub fn begin_authorization(
         redirect_uri,
         client_id,
     }))
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+pub struct OAuthTokenResponse {
+    pub access_token: String,
+    pub token_type: String,
+    pub expires_in: u64,
+    pub refresh_token: Option<String>,
+    pub scope: Option<String>,
+    pub id_token: Option<String>,
+}
+
+/// Exchanges a provider authorization code using the original PKCE verifier.
+/// The caller must validate callback state before calling this function and
+/// store returned credentials only in the operating system's secure store.
+pub fn exchange_authorization_code(
+    pending: &PendingAuthorization,
+    authorization_code: &str,
+) -> Result<OAuthTokenResponse, String> {
+    if authorization_code.trim().is_empty() {
+        return Err("The provider returned an empty authorization code".into());
+    }
+    let (_, _, _, token_endpoint, _) = pending.provider.settings();
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(20))
+        .build()
+        .map_err(|error| format!("Could not create provider connection: {error}"))?;
+    let response = client.post(token_endpoint)
+        .form(&[
+            ("grant_type", "authorization_code"),
+            ("client_id", pending.client_id.as_str()),
+            ("code", authorization_code),
+            ("redirect_uri", pending.redirect_uri.as_str()),
+            ("code_verifier", pending.code_verifier.as_str()),
+        ])
+        .send()
+        .map_err(|error| format!("Provider token exchange failed: {error}"))?;
+    let status = response.status();
+    if !status.is_success() {
+        return Err(format!("Provider token exchange returned HTTP {status}"));
+    }
+    response.json::<OAuthTokenResponse>()
+        .map_err(|error| format!("Provider returned an unreadable token response: {error}"))
 }
 
 /// Rejects callbacks that do not echo the unguessable request state.
@@ -183,9 +239,20 @@ mod tests {
     }
 
     #[test]
+    fn token_response_parser_keeps_refresh_and_identity_tokens_optional() {
+        let response: OAuthTokenResponse = serde_json::from_str(
+            r#"{"access_token":"access","token_type":"Bearer","expires_in":3600,"refresh_token":"refresh","scope":"read","id_token":"identity"}"#
+        ).expect("valid token response");
+        assert_eq!(response.access_token, "access");
+        assert_eq!(response.refresh_token.as_deref(), Some("refresh"));
+        assert_eq!(response.id_token.as_deref(), Some("identity"));
+    }
+
+    #[test]
     fn youtube_data_is_explicitly_a_separate_google_oauth_provider() {
         let settings = OAuthProvider::YoutubeData.settings();
         assert_eq!(settings.0, "RAPTOR_GOOGLE_CLIENT_ID");
-        assert!(settings.3.contains("youtube.readonly"));
+        assert!(settings.4.contains("youtube.readonly"));
+        assert_eq!(settings.3, "https://oauth2.googleapis.com/token");
     }
 }
