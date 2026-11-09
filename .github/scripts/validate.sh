@@ -640,6 +640,10 @@ assert_contains files/scripts/raptor-music/crates/raptor-library/src/lib.rs 'imp
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'ui.on_confirm_profile_import_clicked'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'serde_json::to_string(&profile)'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Confirm profile import'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Imported profiles'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'imported_profile_selected'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'refresh_imported_profile_list'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'get_imported_profile_payload'
 
 echo "=== Checking embedded Raptor Cortex Python ==="
 cortex_tmp="$(mktemp --suffix=.py)"
