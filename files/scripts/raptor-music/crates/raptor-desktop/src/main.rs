@@ -372,6 +372,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let mut tracks = audius_result.unwrap_or_default();
             let audius_count = tracks.len();
+            let apple_error = apple_result.is_err();
             let apple_tracks = apple_result.unwrap_or_default();
             let apple_count = apple_tracks.len();
             tracks.extend(apple_tracks);
@@ -391,7 +392,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 status.push_str(&format!(" · {apple_count} Apple Music previews"));
             } else if std::env::var("RAPTOR_APPLE_MUSIC_DEVELOPER_TOKEN").is_err() {
                 status.push_str(" · Apple Music catalog not configured");
-            } else if apple_result.is_err() {
+            } else if apple_error {
                 status.push_str(" · Apple Music search unavailable");
             }
             if audius_count == 0 && apple_count == 0 && artist_count == 0 {
