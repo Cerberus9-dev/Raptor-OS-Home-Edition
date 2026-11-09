@@ -148,10 +148,16 @@ fn parse_spotify_playlists(root: &Value) -> Result<ImportedProfile, String> {
     for row in rows {
         let name = string(row, "name").unwrap_or_default();
         if name.trim().is_empty() { continue; }
-        let tracks = row.get("items").and_then(Value::as_array)
+        // Accept both Spotify's native items[].track export shape and
+        // normalized profile packages that store tracks[] directly.
+        let tracks = row.get("items").or_else(|| row.get("tracks"))
+            .and_then(Value::as_array)
             .map(|items| items.iter().filter_map(|item| {
-                let track = item.get("track").unwrap_or(item);
-                parse_spotify_track(track)
+                if let Some(track) = item.get("track") {
+                    parse_spotify_track(track)
+                } else {
+                    parse_normalized_track(item).or_else(|| parse_spotify_track(item))
+                }
             }).collect())
             .unwrap_or_default();
         profile.playlists.push(ImportedPlaylist {
