@@ -439,8 +439,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             } else if apple_error {
                 status.push_str(" · Apple Music search unavailable");
             }
-            if audius_count == 0 && apple_count == 0 && artist_count == 0 {
-                status = "No matching tracks or artists found".to_string();
+            if audius_count == 0 && apple_count == 0 && artist_count == 0 && collection_count == 0 {
+                status = "No matching tracks, artists, albums or playlists found".to_string();
             }
             if artist_error {
                 status.push_str(" · Some artist results are unavailable");
