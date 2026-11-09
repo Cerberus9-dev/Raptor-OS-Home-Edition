@@ -209,7 +209,7 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'ui
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fetch_audius_artist_profile'
 assert_not_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Audius'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Connect Spotify'
-assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Connect TIDAL'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'TIDAL approval pending'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Connect YouTube account'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'avatar: image'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'source: p.avatar;'
