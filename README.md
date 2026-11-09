@@ -5,7 +5,7 @@
 
 Raptor OS is a Bazzite-based Linux distribution built around KDE Plasma, gaming support, and a set of desktop tools maintained for the project. The aim is to make everyday setup and maintenance possible from the GUI, while keeping the usual Linux tools available when needed.
 
-> **Work in progress.** v3.0.0 has not been released. Back up important files before installing. Raptor OS can be tested in a virtual machine or installed on a separate drive. Allow at least 40–50 GB for a dual-boot installation.
+> **Work in progress.** v3.0.0 has not been released. Back up important files before installing. Raptor OS can be tested in a virtual machine or installed on a separate drive. Allow at least 50 GB for a dual-boot installation.
 
 ## Project goals
 
@@ -17,7 +17,7 @@ Raptor OS is a Bazzite-based Linux distribution built around KDE Plasma, gaming 
 - **Optional software:** let users choose browsers, chat clients, and other apps instead of installing a large default bundle.
 - **Document limitations:** distinguish tested hardware and features from work that is still being developed.
 
-These goals apply to Home Edition and Security Edition. The editions have different uses and security settings, but share the same preference for clear controls and documented behavior.
+This README describes Home Edition. Security Edition is maintained separately and may have different tools, defaults, and security settings.
 
 ### Recovery and lock-screen settings
 
@@ -27,7 +27,7 @@ Raptor Wallpaper can set the desktop image and KDE Plasma lock-screen image sepa
 
 ### Raptor desktop apps
 
-Raptor Tasks stores tasks locally and includes search, category filters, and status filters. Raptor Wallpaper provides a searchable image gallery, preview, fit options, and a Dolphin action for applying an image. Raptor Music currently focuses on local files, playlists, and playback; online catalog search is still in development.
+Raptor Tasks stores tasks locally and includes search, category filters, and status filters. Raptor Wallpaper provides a searchable image gallery, preview, fit options, and a Dolphin action for applying an image. Raptor Music plays local files and can search Audius for public tracks and artist profiles. Online results are displayed separately from the local-file list. Audius is the only online catalog currently integrated.
 
 ### Desktop theme
 
@@ -51,7 +51,7 @@ Raptor intentionally does not depend on `systemd-udev-settle.service` for boot o
 
 ## Build verification
 
-The image workflow derives the verification tag from the recipe's `image-version` and the event ref, matching BlueBuild's version-suffixed tags (for example, pull-request images use `pr-N-VERSION`). It then pulls that exact image and verifies the installed Raptor Music and Shroudly payloads. The installers also fall back to the build's mounted source-files tree if the temporary staging copy is not visible between BlueBuild modules.
+The image workflow derives the verification tag from the recipe's `image-version` and the event ref, matching BlueBuild's version-suffixed tags (for example, pull-request images use `pr-N-VERSION`). It then pulls that exact image and verifies the installed Raptor Music and Raptor Shroudly payloads. The installers also fall back to the build's mounted source-files tree if the temporary staging copy is not visible between BlueBuild modules.
 
 ## GPU compatibility defaults
 
@@ -126,7 +126,7 @@ A one-time **Welcome to Raptor OS Home** dialog introduces the Raptor app suite 
 
 1. **Browser choice** — no browser ships in the image; Raptor keeps the default *minimal*. Choose Firefox, Brave, Zen Browser, Floorp, Waterfox, Chromium, Chrome, or Edge (each a one-time Flathub download, Firefox pre-selected). Shows a network check, download progress bar, and retry prompt on failure. "Skip — No Browser" installs nothing and forces no default.
 2. **Chat client choice** — choose official Discord, Vesktop (Vencord), Equibop (Equicord), or GoofCord. None is pre-installed. "Skip — Install Neither" is always available.
-3. **App picker** — 90+ optional apps across 21 categories, including Flameshot for screenshot annotation, Save Desktop for desktop backups, KDE Connect, the GOverlay MangoHud config GUI, game-streaming (Moonlight + Sunshine), emulators, IDEs, and more. Nothing is pre-ticked. Search the list by typing, and reopen **Raptor App Picker** from the application menu after first boot to install more software later. "Skip — Install Nothing" is always available.
+3. **App picker** — around 140 optional entries across 17 categories, covering communication, productivity, privacy, creative work, media, gaming, emulation, education, development, accessibility, and system utilities. Nothing is pre-selected. Reopen **Raptor App Picker** from the application menu to install more software later. "Skip — Install Nothing" is always available.
 
 ---
 
@@ -139,8 +139,8 @@ A one-time **Welcome to Raptor OS Home** dialog introduces the Raptor app suite 
 | **Gaming** | Heroic Games Launcher (Epic/GOG/Amazon), ProtonUp-Qt, Protontricks, Wine, Winetricks |
 | **Media** | mpv (lightweight playback) |
 | **System** | htop, KDE Partition Manager, Plasma System Monitor, Gwenview, KCalc, Fastfetch, p7zip |
-| **Raptor Apps** | Raptor Cortex, Raptor Wallpaper, Raptor Update Manager, and Raptor Tasks — grouped under their own **Raptor OS** category in the app menu |
-| **Raptor apps** | Raptor Music and the original Shroudly desktop app are built, staged, installed, and verified in every image build |
+| **Raptor Apps** | Raptor Cortex, Raptor Wallpaper, Raptor Update Manager, Raptor Tasks, Raptor Music, and **Raptor Shroudly** — grouped under their own **Raptor OS** category in the app menu |
+
 | **Overlays** | MangoHud (green palette, Shift+F12), Gamemode |
 
 ---
@@ -156,14 +156,21 @@ A one-time **Welcome to Raptor OS Home** dialog introduces the Raptor app suite 
 | **Office** | LibreOffice |
 | **Creative** | GIMP, Inkscape, Krita, Darktable, Blender, Kdenlive, Shotcut, OBS Studio, Audacity, Boatswain, HandBrake |
 | **Development** | VSCodium, Developer Runtime (Git + Node.js + pip), Godot Engine, GitHub Desktop, Pods, GCC + Make + CMake, Ninja + Meson, Neovim, GitHub CLI, dash, xclip, ksshaskpass, libssh-tools |
-| **Gaming** | Bottles, Lutris, Protontricks, Spotify, Plex, VLC, Cartridges, Ryujinx, RPCS3, RetroArch, Dolphin Emulator, PCSX2, Chiaki, Goverlay |
-| **Privacy** | ProtonVPN, KeePassXC |
-| **Academic** | Zotero |
-| **Remote Access** | RustDesk, Remmina |
-| **Media & Downloads** | FreeTube, Parabolic, Kooha, Clapper, Amberol, qBittorrent, Subtitle Edit |
-| **Audio Production** | EasyEffects, Helvum, LMMS, Ardour |
-| **System** | Warehouse, Impression, CoreCtrl, btop, Variety, Mission Center, Flatseal, BleachBit, Filelight, GNOME Boxes, GNOME Backups, Warp, Flatsweep, Upscayl, Metadata Cleaner, Klipper, kfind, file-roller, Stacer, NCurses Du, Restic |
-| **Sync & VPN** | Syncthing, Tailscale |
+| **Passwords & 2FA** | Bitwarden, KeePassXC, Proton Pass, Authenticator |
+| **Privacy & Security** | Tor Browser, Mullvad Browser, OnionShare, Proton VPN, Cryptomator, Metadata Cleaner |
+| **De-Googled** | LibreWolf, Ungoogled Chromium, FreeTube, Organic Maps, Nextcloud |
+| **Graphics** | GIMP, Krita, Inkscape, Darktable, digiKam, Blender, Pinta, Drawing, Upscayl |
+| **Screenshots & Capture** | Flameshot |
+| **Video & Streaming** | OBS Studio, Kooha, Boatswain, Kdenlive, Shotcut, HandBrake, Parabolic, MakeMKV |
+| **Audio & Players** | VLC, Celluloid, Clapper, Strawberry, Amberol, Spotify, Plex, Audacity, LMMS, Ardour, EasyEffects, Helvum |
+| **Gaming** | Heroic Games Launcher, Lutris, Bottles, PortProton, Prism Launcher, Sober, Cartridges, GOverlay, Moonlight, Sunshine, Chiaki |
+| **Emulators** | RetroArch, Dolphin Emulator, PCSX2, DuckStation, RPCS3, Flycast, ScummVM, OpenRA |
+| **Devices & Accessibility** | Solaar, Piper, OpenRGB, Speech Note |
+| **Torrents** | qBittorrent, Transmission, Fragments |
+| **Education & Science** | LabPlot, Cantor, KAlgebra, Kalzium, Step, KStars, Stellarium, Marble, KGeography, KTurtle, Anki |
+| **Development** | VSCodium, VS Code, IntelliJ IDEA Community, PyCharm Community, GitHub Desktop, Godot Engine, Pods, GitHub CLI, Neovim, C/C++ toolchain |
+| **System & Utilities** | LocalSend, Save Desktop, Gear Lever, Resources, Mission Center, Warehouse, Flatseal, BleachBit, Filelight, File Roller, Impression, Deja Dup, Warp, RustDesk, Remmina, GNOME Boxes, btop |
+| **Fun & Reading** | Foliate, Calibre, Tuba, Cavalier |
 
 ---
 
@@ -182,13 +189,9 @@ GTK4/Adwaita app with Power Saving / Balanced / Performance modes. **power-profi
 - **Scheduled Cleanup** — optional, disabled-by-default pressure-aware memory reclaim on a configurable timer (5–120 min)
 - **Game Mode** — pauses optional file indexers, thumbnail work, and KDE crash reporting while a game is active; audio, networking, Bluetooth, package management, storage maintenance, and user applications remain available. Suspended work is restored when Game Mode ends
 
-## Raptor GPU Profiler
+## GPU profiles
 
-GPU profile selection now lives inside **Raptor Cortex**, under a **Graphics** group. It shipped as its own app for a while, which meant two windows and two launchers for one decision about the same machine; it is now the same row of controls as the CPU boost mode next to it.
-
-- Five profiles — **Auto Detect / Balanced / Max Performance / Extreme / Power Saving** — with a one-line plain-English description of what each actually changes
-- Applies immediately, no reboot; the choice survives a reboot because it is stored as a marker file that `gpu-detect.sh` re-reads on every boot
-- The `raptor-gpu-profile` package now ships only the detection and apply machinery. If it is not installed, Cortex says so instead of offering buttons that do nothing
+GPU profile selection is part of **Raptor Cortex → Graphics**. The available choices are Auto Detect, Balanced, Max Performance, Extreme, and Power Saving. A selection is applied immediately and saved for the next boot.
 
 ## Raptor Tasks
 
@@ -200,7 +203,7 @@ Gallery-style wallpaper picker — click any thumbnail to apply it, including fi
 
 ## Raptor Music
 
-Native Rust/Slint local music player. Recursively scans folders into a SQLite library, extracts available tags and durations, supports local playlists and queue loading, and plays local audio through a `cpal` backend with pause/resume, previous/next queue controls, and automatic track advance. The scanner recognizes AAC, AIFF, ALAC, CAF, FLAC, M4A, MP3, MP4, Ogg, Opus, and WAV extensions supported by its Symphonia build. The library database is stored under `$XDG_DATA_HOME/raptor-music/` (or `~/.local/share/raptor-music/`). **Built and installed in every image build**; CI compiles and tests the app, stages its executable and verifies the installed application in the resulting image. This is a local-player prototype, not yet the completed independent multi-service music platform described in the project roadmap.
+Native Rust/Slint music player with local playback and online Audius discovery. It scans selected folders into a SQLite library, reads available tags and durations, supports local playlists and queue management, and plays local files through CPAL. Online search currently returns public, streamable Audius tracks and artist profiles; it does not yet search albums, playlists, or other music services. Online tracks are stored as provider-backed queue entries when selected, but are filtered out of the Local Library view. The database is stored under `$XDG_DATA_HOME/raptor-music/` (or `~/.local/share/raptor-music/`). **Built and installed in every image build**; CI compiles and tests the app and verifies the installed application in the image.
 
 ## Release pipeline (maintainers)
 
@@ -218,7 +221,7 @@ The first-boot chooser offers the official Discord client, Vesktop, Equibop, and
 
 **The custom Raptor OS application, built into every Raptor OS image.** Raptor Shroudly is a native desktop dashboard that detects supported game clients and applications without freezing or modifying them. It is built from the Rust source in `files/scripts/shroudly-raptor`, packaged with its own Raptor-branded launcher and icon, and verified inside each published image.
 
-The current dashboard provides local application detection. Its network-routing and per-app traffic-steering engine is not yet enabled; it does not claim that a proxy or protection mode is active. The custom implementation is inspired by the original Shroudly project by **umutxyp / Codeshare Technology Ltd**; upstream is not substituted for the Raptor app.
+The current dashboard provides local application detection. Its network-routing and per-app traffic-steering engine is not yet enabled; it does not claim that a proxy or protection mode is active. Raptor Shroudly is inspired by the original Shroudly project by **umutxyp / Codeshare Technology Ltd**. Only the custom Raptor Shroudly application is included in the Raptor OS image; the upstream desktop application is not installed.
 
 ---
 
@@ -227,7 +230,7 @@ The current dashboard provides local application detection. Its network-routing 
 ### GPU
 - **Auto GPU detection** at boot — AMD, NVIDIA, Intel and hybrid configurations; selects supported GPU environment and driver settings. CPU power policy is handled separately by power-profiles-daemon
 - **Cortex hardware telemetry** — reports detected GPU model, utilization, active clock and dedicated VRAM where the driver exposes those counters; fan RPM/percentage is read-only and shown only when firmware/driver sensors are available. No unsupported fan-control or overclocking writes are attempted.
-- **`RADV_PERFTEST=gpl`** — cuts in-game shader compile stalls 30–60% on RDNA2+
+- **Shader compilation** — driver and game behavior varies by GPU and Mesa version; no fixed performance improvement is claimed.
 - **Mesa GL threading** is enabled for Wine/Proton where supported; native applications keep driver defaults to avoid global compatibility regressions
 - **`WINE_FULLSCREEN_FSR` and `DXVK_ASYNC` not set globally** — both caused flickering in OpenGL games (Project Zomboid). Set per-game in Steam launch options instead
 
@@ -251,7 +254,7 @@ The current dashboard provides local application detection. Its network-routing 
 - **Game Mode** avoids repeatedly rewriting CPU policy or performing disruptive memory operations at game launch
 
 ### Memory & Low-RAM Tuning
-- **ZRAM** — standard-level zstd compression, logical capacity `min(RAM, 8 GiB)`, priority 100, and `discard` enabled. The configured maximum is virtual capacity, not RAM reserved at boot; physical memory is consumed only as compressed pages are stored. zstd can improve compression ratio versus LZ4 but uses more CPU, so real low-power-device behavior still needs benchmarking. Zswap is not stacked on top of ZRAM: it requires a separate backing swap device and should only be considered when measurements show a benefit.
+- **ZRAM** — enabled for compressed swap in memory. Capacity and compression behavior are controlled by the image's zram-generator configuration; actual results depend on available RAM, workload, and CPU speed.
 - **Baloo** — filename-only indexing with full-text content indexing disabled and a reduced worker count
 - **Cortex One-Click Boost** — applies the Performance power profile, pauses configured optional indexers, and requests bounded memory reclaim only under pressure
 - **No blanket cache flushes, routine OOM-score changes or forced compaction** as a supposed memory booster
@@ -283,7 +286,7 @@ Raptor OS uses KDE Plasma's **KWin** compositor on the Bazzite **Wayland** deskt
 - **Titlebar double-click** — maximizes the window
 - **Focus behavior** — click-to-focus
 - **Window snapping and tiling** — KWin provides screen-edge snapping/tiling; exact behavior follows the active Plasma/KWin configuration
-- **Panel/taskbar** — KDE Plasma's stock panel, with the Raptor green accent and window decoration configured separately
+- **Panel/taskbar** — KDE Plasma's panel uses the installed Raptor Flight Deck theme. The optional Raptor Flight Deck layout preset can be added separately from Plasma's Add Panel menu.
 
 ---
 
