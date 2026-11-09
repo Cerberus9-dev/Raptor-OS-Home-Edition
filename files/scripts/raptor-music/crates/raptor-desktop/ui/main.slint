@@ -247,7 +247,7 @@ export component MainWindow inherits Window {
                     spacing: 16px;
 
                     Text {
-                        text: root.active_view == "discover" ? "Find your next favorite." : "Your music, organized.";
+                        text: root.active_view == "discover" ? "Find your next favorite." : (root.active_view == "artist" ? root.artist_profile_name : "Your music, organized.");
                         color: #f2f5ec;
                         font-size: 29px;
                         font-weight: 700;
@@ -255,7 +255,7 @@ export component MainWindow inherits Window {
                     Text {
                         text: root.active_view == "discover"
                             ? "Explore tracks and independent artists from across the online catalog."
-                            : "Your local files stay separate from online discovery.";
+                            : (root.active_view == "artist" ? "Artist profile and available tracks." : "Your local files stay separate from online discovery.");
                         color: #b0bdb0;
                         font-size: 13px;
                     }
