@@ -98,7 +98,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
+    let pending_import: Arc<Mutex<Option<profile_import::ImportedProfile>>> = Arc::new(Mutex::new(None));
     let ui_handle_profile_import = ui.as_weak();
+    let pending_for_preview = Arc::clone(&pending_import);
     ui.on_import_profile_clicked(move || {
         let selected_files = rfd::FileDialog::new()
             .add_filter("Profile export files", &["json"])
@@ -125,6 +127,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
             let summary = combined.summary();
+            if imported_files > 0 {
+                *pending_for_preview.lock().unwrap() = Some(combined.clone());
+            } else {
+                *pending_for_preview.lock().unwrap() = None;
+            }
             let status = if imported_files == 0 {
                 format!("No supported profile data imported. {}", errors.join(" · "))
             } else {
@@ -147,6 +154,43 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             });
         });
+    });
+
+    // Persist only after the user explicitly confirms the preview.
+    let pending_for_confirm = Arc::clone(&pending_import);
+    let db_for_profile_confirm = Arc::clone(&db);
+    let ui_handle_profile_confirm = ui.as_weak();
+    ui.on_confirm_profile_import_clicked(move || {
+        let profile = match pending_for_confirm.lock().unwrap().take() {
+            Some(profile) => profile,
+            None => {
+                if let Some(ui) = ui_handle_profile_confirm.upgrade() {
+                    ui.set_profile_import_status("Choose and preview an export before confirming the import.".into());
+                }
+                return;
+            }
+        };
+        let provider = if profile.source.trim().is_empty() { "Imported profile" } else { profile.source.as_str() };
+        let display_name = profile.display_name.as_deref();
+        let username = profile.username.as_deref();
+        let payload = match serde_json::to_string(&profile) {
+            Ok(payload) => payload,
+            Err(error) => {
+                if let Some(ui) = ui_handle_profile_confirm.upgrade() {
+                    ui.set_profile_import_status(format!("Could not prepare profile data: {error}").into());
+                }
+                return;
+            }
+        };
+        let result = db_for_profile_confirm.lock().unwrap()
+            .save_imported_profile(provider, display_name, username, &payload);
+        let status = match result {
+            Ok(id) => format!("Profile imported and saved separately from your local library. Import ID: {}", id),
+            Err(error) => format!("Profile import failed: {error}"),
+        };
+        if let Some(ui) = ui_handle_profile_confirm.upgrade() {
+            ui.set_profile_import_status(status.into());
+        }
     });
 
     let db_for_search = Arc::clone(&db);
