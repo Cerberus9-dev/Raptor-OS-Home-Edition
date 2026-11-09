@@ -435,6 +435,10 @@ export component MainWindow inherits Window {
                             Button { text: "Disconnect"; clicked => { root.disconnect_spotify_clicked(); } }
                         }
                         Text {
+                            text: "Fallback catalog: Jamendo offers independent and Creative Commons music. Set RAPTOR_JAMENDO_CLIENT_ID to enable search. Selecting a result opens its Jamendo page so playback, creator attribution and license terms remain with the source service.";
+                            color: #879487; font-size: 11px; wrap: word-wrap;
+                        }
+                        Text {
                             text: "TIDAL sign-in uses its documented OAuth 2.1 + PKCE flow. The app imports the account profile and playlist metadata when the registered client has the user.read and playlists.read scopes. Playlist track-item import and playback are separate capabilities.";
                             color: #879487; font-size: 11px; wrap: word-wrap;
                         }
