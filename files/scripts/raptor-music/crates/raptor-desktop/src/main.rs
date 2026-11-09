@@ -1,5 +1,9 @@
 slint::include_modules!();
 
+#[derive(Clone, Debug)]
+struct AudiusArtist { id: String, name: String, handle: String }
+
+
 use raptor_audio::player::AudioPlayer;
 use raptor_audio::decoder::AudioDecoder;
 use raptor_library::{LibraryDatabase, QueueEntry};
@@ -7,6 +11,7 @@ use raptor_core::models::{Track, PlaybackSource, PlayerState, PlayerEvent};
 use std::sync::{Arc, Mutex};
 use std::collections::HashSet;
 use std::path::PathBuf;
+use std::process::Command;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 use uuid::Uuid;
@@ -32,6 +37,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let active_playing_queue_entry_id: Arc<Mutex<Option<Uuid>>> = Arc::new(Mutex::new(None));
     let last_seek_at: Arc<Mutex<Option<Instant>>> = Arc::new(Mutex::new(None));
     let online_tracks: Arc<Mutex<Vec<Track>>> = Arc::new(Mutex::new(Vec::new()));
+    let online_artists: Arc<Mutex<Vec<AudiusArtist>>> = Arc::new(Mutex::new(Vec::new()));
     let online_search_generation = Arc::new(AtomicU64::new(0));
 
     {
@@ -119,6 +125,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         if query.trim().chars().count() < 2 {
             *online_tracks_for_search.lock().unwrap() = Vec::new();
+            *online_artists_for_search.lock().unwrap() = Vec::new();
+            ui.set_online_artist_list(slint::ModelRc::new(slint::VecModel::from(Vec::<TrackData>::new())));
             ui.set_online_track_list(slint::ModelRc::new(slint::VecModel::from(Vec::<TrackData>::new())));
             ui.set_online_search_status("Type at least 2 characters to search online".into());
             return;
@@ -128,6 +136,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let query_for_thread = query.trim().to_string();
         let ui_weak = ui_handle_search.clone();
         let online_tracks = Arc::clone(&online_tracks_for_search);
+        let online_artists = Arc::clone(&online_artists_for_search);
         let generation = Arc::clone(&online_generation_for_search);
         std::thread::spawn(move || {
             // Debounce typing and discard stale responses so a slower network
@@ -137,6 +146,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 return;
             }
             let result = search_audius_tracks(&query_for_thread);
+            let artist_result = search_audius_artists(&query_for_thread);
             if generation.load(Ordering::Acquire) != request_generation {
                 return;
             }
@@ -146,6 +156,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let count = tracks.len();
                     *online_tracks.lock().unwrap() = tracks.clone();
                     let rows = tracks_to_slint(&tracks);
+                    let artists = artist_result.unwrap_or_default();
+                    *online_artists.lock().unwrap() = artists.clone();
+                    let artist_rows = artists.iter().map(|artist| TrackData {
+                        id: artist.id.clone().into(), title: artist.name.clone().into(),
+                        artist: format!("@{}", artist.handle).into(), album: "Artist profile".into(), duration: "Open".into(),
+                    }).collect::<Vec<_>>();
                     let status = if count == 0 {
                         "No streamable online tracks found".to_string()
                     } else {
@@ -154,18 +170,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let _ = slint::invoke_from_event_loop(move || {
                         if let Some(ui) = ui_weak.upgrade() {
                             ui.set_online_track_list(slint::ModelRc::new(slint::VecModel::from(rows)));
-                            ui.set_online_search_status(status.into());
+                            ui.set_online_artist_list(slint::ModelRc::new(slint::VecModel::from(artist_rows)));
+                            ui.set_online_search_status(format!("{} tracks · {} artists · Audius", count, artists.len()).into());
                         }
                     });
                 }
                 Err(error) => {
                     *online_tracks.lock().unwrap() = Vec::new();
+                    *online_artists.lock().unwrap() = Vec::new();
                     let status = format!("Online search unavailable: {}", error);
                     let _ = slint::invoke_from_event_loop(move || {
                         if let Some(ui) = ui_weak.upgrade() {
                             ui.set_online_track_list(slint::ModelRc::new(
                                 slint::VecModel::from(Vec::<TrackData>::new())
                             ));
+                            ui.set_online_artist_list(slint::ModelRc::new(slint::VecModel::from(Vec::<TrackData>::new())));
                             ui.set_online_search_status(status.into());
                         }
                     });
@@ -208,6 +227,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ui.set_selected_track_index(-1);
                 ui.set_player_state_label("Online track selected · Add selected to queue".into());
             }
+        }
+    });
+
+    let artists_for_open = Arc::clone(&online_artists);
+    ui.on_artist_selected(move |idx| {
+        if let Some(artist) = artists_for_open.lock().unwrap().get(idx as usize).cloned() {
+            let url = format!("https://audius.co/{}", artist.handle);
+            let _ = Command::new("xdg-open").arg(url).spawn();
         }
     });
 
@@ -738,6 +765,32 @@ fn parse_audius_tracks(payload: &serde_json::Value) -> Result<Vec<Track>, String
         });
     }
     Ok(tracks)
+}
+
+fn search_audius_artists(query: &str) -> Result<Vec<AudiusArtist>, String> {
+    let client = reqwest::blocking::Client::builder()
+        .user_agent("RaptorMusic/0.2.18")
+        .connect_timeout(Duration::from_secs(8))
+        .timeout(Duration::from_secs(15))
+        .build()
+        .map_err(|error| format!("Could not initialize artist search: {error}"))?;
+    let response = client.get("https://api.audius.co/v1/users/search")
+        .query(&[("query", query), ("limit", "12"), ("sort_method", "relevant")])
+        .send().and_then(|response| response.error_for_status())
+        .map_err(|error| format!("Audius artist search failed: {error}"))?;
+    let payload: serde_json::Value = response.json()
+        .map_err(|error| format!("Audius returned unreadable artist results: {error}"))?;
+    let data = payload.get("data").and_then(serde_json::Value::as_array)
+        .ok_or_else(|| "Audius returned an unexpected artist search response".to_string())?;
+    Ok(data.iter().filter_map(|entry| {
+        let id = entry.get("id")?.as_str()?.to_string();
+        let handle = entry.get("handle")?.as_str()?.to_string();
+        let name = entry.get("name").and_then(serde_json::Value::as_str)
+            .filter(|name| !name.trim().is_empty())
+            .or_else(|| entry.get("handle").and_then(serde_json::Value::as_str))?.to_string();
+        if id.is_empty() || handle.is_empty() || handle.contains('/') { return None; }
+        Some(AudiusArtist { id, name, handle })
+    }).collect())
 }
 
 fn search_audius_tracks(query: &str) -> Result<Vec<Track>, String> {
