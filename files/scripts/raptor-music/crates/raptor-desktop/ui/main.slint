@@ -13,6 +13,12 @@ export struct PlaylistData {
     name: string,
 }
 
+export struct ImportedProfileData {
+    id: string,
+    name: string,
+    subtitle: string,
+}
+
 export component MainWindow inherits Window {
     title: "Raptor Music";
     preferred-width: 1180px;
@@ -29,6 +35,8 @@ export component MainWindow inherits Window {
     in-out property <int> selected_online_track_index: -1;
     in-out property <[TrackData]> queue_list: [];
     in-out property <[PlaylistData]> playlist_list: [];
+    in-out property <[ImportedProfileData]> imported_profile_list: [];
+    in-out property <string> imported_profile_detail: "Select an imported profile to inspect its playlists, saved tracks, artists and listening history.";
     in-out property <string> new_playlist_name: "";
     in-out property <int> selected_playlist_index: -1;
     in-out property <int> selected_track_index: -1;
@@ -53,6 +61,8 @@ export component MainWindow inherits Window {
     callback scan_directory_clicked();
     callback import_profile_clicked();
     callback confirm_profile_import_clicked();
+    callback imported_profile_selected(int);
+    callback refresh_imported_profiles_clicked();
     callback track_selected(int);
     callback online_track_selected(int);
     callback artist_selected(int);
@@ -187,6 +197,25 @@ export component MainWindow inherits Window {
                     Rectangle {
                         height: 36px;
                         border-radius: 6px;
+                        background: root.active_view == "imported-profiles" ? #34482a : transparent;
+                        Text {
+                            text: "Imported profiles";
+                            color: root.active_view == "imported-profiles" ? #d4ed9c : #c1cbc0;
+                            x: 10px;
+                            vertical-alignment: center;
+                            font-size: 14px;
+                            font-weight: root.active_view == "imported-profiles" ? 700 : 500;
+                        }
+                        TouchArea {
+                            clicked => {
+                                root.active_view = "imported-profiles";
+                                root.refresh_imported_profiles_clicked();
+                            }
+                        }
+                    }
+                    Rectangle {
+                        height: 36px;
+                        border-radius: 6px;
                         background: root.active_view == "library" ? #34482a : transparent;
                         Text {
                             text: "Local library";
@@ -301,8 +330,48 @@ export component MainWindow inherits Window {
                         font-size: 13px;
                     }
 
+                    VerticalLayout {
+                        visible: root.active_view == "imported-profiles";
+                        spacing: 12px;
+                        HorizontalLayout {
+                            Text { text: "Connected profiles"; color: #f2f5ec; font-size: 19px; font-weight: 700; }
+                            Rectangle { horizontal-stretch: 1; }
+                            Button { text: "Refresh"; clicked => { root.refresh_imported_profiles_clicked(); } }
+                        }
+                        Text {
+                            text: "Imported accounts stay separate from your local files and playlists.";
+                            color: #879487;
+                            font-size: 11px;
+                        }
+                        ListView {
+                            height: 190px;
+                            for p[index] in root.imported_profile_list : Rectangle {
+                                height: 54px;
+                                border-radius: 7px;
+                                background: #202b21;
+                                HorizontalLayout {
+                                    padding-left: 12px; padding-right: 12px; spacing: 8px;
+                                    VerticalLayout {
+                                        horizontal-stretch: 1; spacing: 2px;
+                                        Text { text: p.name; color: #edf5fb; font-size: 13px; font-weight: 600; vertical-alignment: center; overflow: elide; }
+                                        Text { text: p.subtitle; color: #9eae9d; font-size: 10px; vertical-alignment: center; overflow: elide; }
+                                    }
+                                    Text { text: "View"; color: #b4d66d; font-size: 11px; vertical-alignment: center; }
+                                }
+                                TouchArea { clicked => { root.imported_profile_selected(index); } }
+                            }
+                        }
+                        Text {
+                            text: root.imported_profile_detail;
+                            color: #c1cbc0;
+                            font-size: 12px;
+                            wrap: word-wrap;
+                            vertical-stretch: 1;
+                        }
+                    }
+
                     Rectangle {
-                        visible: root.active_view != "artist";
+                        visible: root.active_view == "discover" || root.active_view == "library";
                         height: 44px;
                         background: #273229;
                         border-radius: 8px;
