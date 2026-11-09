@@ -624,6 +624,8 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint '
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'pick_files()'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'profile_import::parse_profile_export'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'Preview only; nothing has been added to your library yet.'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/profile_import.rs 'pub fn merge(&mut self, mut other: ImportedProfile)'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/profile_import.rs 'fn merges_multiple_export_documents_without_duplicate_tracks_or_artists'
 
 echo "=== Checking embedded Raptor Cortex Python ==="
 cortex_tmp="$(mktemp --suffix=.py)"
