@@ -408,7 +408,7 @@ export component MainWindow inherits Window {
                     }
                     Text { visible: root.active_view == "discover"; text: "Artists"; color: #f2f5ec; font-size: 18px; font-weight: 700; }
                     Text {
-                        visible: root.active_view == "discover" && root.online_artist_list.length == 0 && root.search_query.trim().length >= 2;
+                        visible: root.active_view == "discover" && root.online_artist_list.length == 0 && root.search_query.length >= 2;
                         text: "No artist matches yet.";
                         color: #879487;
                         font-size: 11px;
@@ -434,7 +434,7 @@ export component MainWindow inherits Window {
                     }
                     Text { visible: root.active_view == "discover"; text: "Tracks"; color: #f2f5ec; font-size: 18px; font-weight: 700; }
                     Text {
-                        visible: root.active_view == "discover" && root.online_track_list.length == 0 && root.search_query.trim().length >= 2;
+                        visible: root.active_view == "discover" && root.online_track_list.length == 0 && root.search_query.length >= 2;
                         text: "No playable tracks found for this search.";
                         color: #879487;
                         font-size: 11px;
