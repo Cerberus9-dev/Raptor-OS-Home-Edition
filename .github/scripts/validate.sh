@@ -195,6 +195,8 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'if
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'Online discovery is available in the Discover tab'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'https://api.audius.co/v1/users/search'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'ui.on_artist_selected'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fetch_audius_artist_profile'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'artist_profile_bio'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'online_artist_list'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Search matches across local titles, artists and album names.'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'vertical-stretch: 1;'
