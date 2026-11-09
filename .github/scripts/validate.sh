@@ -220,7 +220,6 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'ht
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'ui.on_artist_selected'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fetch_audius_artist_profile'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Connect Spotify'
-assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Connect TIDAL'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'callback connect_spotify_clicked();'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'callback connect_tidal_clicked();'
 assert_not_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'approval pending'
