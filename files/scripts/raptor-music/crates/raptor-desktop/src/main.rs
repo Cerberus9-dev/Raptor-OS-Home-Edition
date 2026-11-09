@@ -91,6 +91,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let visible_ids_for_search = Arc::clone(&visible_track_ids);
     let selected_id_for_search = Arc::clone(&selected_track_id);
     let online_tracks_for_search = Arc::clone(&online_tracks);
+    let online_artists_for_search = Arc::clone(&online_artists);
     let online_generation_for_search = Arc::clone(&online_search_generation);
     let ui_handle_search = ui.as_weak();
     ui.on_search_changed(move |query| {
