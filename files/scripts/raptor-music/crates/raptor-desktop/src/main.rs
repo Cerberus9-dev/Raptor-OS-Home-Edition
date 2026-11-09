@@ -5,6 +5,69 @@ mod provider_auth;
 mod token_store;
 mod callback_listener;
 
+fn start_provider_connection(provider: provider_auth::OAuthProvider, ui: slint::Weak<MainWindow>) {
+    std::thread::spawn(move || {
+        let provider_key = match provider {
+            provider_auth::OAuthProvider::Spotify => "spotify",
+            provider_auth::OAuthProvider::Tidal => "tidal",
+            provider_auth::OAuthProvider::YoutubeData => "youtube",
+        };
+        let result = (|| -> Result<String, String> {
+            let (authorization_url, pending) = provider_auth::begin_authorization(provider, None)
+                .map_err(|error| error.to_string())?;
+            // Bind first so the provider cannot redirect before the receiver is listening.
+            let receiver = callback_listener::CallbackListener::bind(&pending)?;
+            std::process::Command::new("xdg-open")
+                .arg(authorization_url.as_str())
+                .spawn()
+                .map_err(|_| "Could not open the system browser for provider sign-in".to_string())?;
+            let code = receiver.wait_for_code(&pending, Duration::from_secs(180))?;
+            let tokens = provider_auth::exchange_authorization_code(&pending, &code)?;
+            token_store::save_tokens(provider_key, &tokens)?;
+            match provider {
+                provider_auth::OAuthProvider::Tidal => Ok(
+                    "TIDAL authorization saved securely. Profile and playlist import remain disabled until its approved API adapter is verified.".into()
+                ),
+                provider_auth::OAuthProvider::Spotify | provider_auth::OAuthProvider::YoutubeData => {
+                    let profile = provider_auth::fetch_provider_profile(provider, &tokens.access_token)?;
+                    let playlists = provider_auth::fetch_provider_playlists(provider, &tokens.access_token)?;
+                    if provider == provider_auth::OAuthProvider::YoutubeData {
+                        Ok(format!(
+                            "Connected YouTube account {} · {} YouTube playlists found. This is not YouTube Music catalog or playback access.",
+                            profile.display_name, playlists.len()
+                        ))
+                    } else {
+                        Ok(format!(
+                            "Connected Spotify account {} · {} playlists found. Spotify playback is not enabled in Raptor Music.",
+                            profile.display_name, playlists.len()
+                        ))
+                    }
+                }
+            }
+        })();
+        let status = result.unwrap_or_else(|error| format!("Provider connection failed: {error}"));
+        let _ = slint::invoke_from_event_loop(move || {
+            if let Some(ui) = ui.upgrade() {
+                ui.set_provider_connection_status(status.into());
+            }
+        });
+    });
+}
+
+fn disconnect_provider(provider: &'static str, ui: slint::Weak<MainWindow>) {
+    std::thread::spawn(move || {
+        let status = match token_store::remove_tokens(provider) {
+            Ok(()) => format!("Disconnected {} and removed its saved credentials.", provider),
+            Err(error) => format!("Could not disconnect {}: {}", provider, error),
+        };
+        let _ = slint::invoke_from_event_loop(move || {
+            if let Some(ui) = ui.upgrade() {
+                ui.set_provider_connection_status(status.into());
+            }
+        });
+    });
+}
+
 #[derive(Clone, Debug)]
 struct AudiusArtist { id: String, name: String, handle: String }
 
@@ -158,6 +221,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Err(error) => format!("Rich Presence is waiting: {error}").into(),
             });
         }
+    });
+
+    let ui_handle_provider_connect = ui.as_weak();
+    ui.on_connect_spotify_clicked({
+        let ui_weak = ui_handle_provider_connect.clone();
+        move || start_provider_connection(provider_auth::OAuthProvider::Spotify, ui_weak.clone())
+    });
+    ui.on_connect_tidal_clicked({
+        let ui_weak = ui_handle_provider_connect.clone();
+        move || start_provider_connection(provider_auth::OAuthProvider::Tidal, ui_weak.clone())
+    });
+    ui.on_connect_youtube_clicked({
+        let ui_weak = ui_handle_provider_connect.clone();
+        move || start_provider_connection(provider_auth::OAuthProvider::YoutubeData, ui_weak.clone())
+    });
+    ui.on_disconnect_spotify_clicked({
+        let ui_weak = ui_handle_provider_connect.clone();
+        move || disconnect_provider("spotify", ui_weak.clone())
+    });
+    ui.on_disconnect_tidal_clicked({
+        let ui_weak = ui_handle_provider_connect.clone();
+        move || disconnect_provider("tidal", ui_weak.clone())
+    });
+    ui.on_disconnect_youtube_clicked({
+        let ui_weak = ui_handle_provider_connect.clone();
+        move || disconnect_provider("youtube", ui_weak.clone())
     });
 
     let pending_import: Arc<Mutex<Option<profile_import::ImportedProfile>>> = Arc::new(Mutex::new(None));
