@@ -3,6 +3,7 @@ slint::include_modules!();
 mod profile_import;
 mod provider_auth;
 mod token_store;
+mod callback_listener;
 
 #[derive(Clone, Debug)]
 struct AudiusArtist { id: String, name: String, handle: String }
