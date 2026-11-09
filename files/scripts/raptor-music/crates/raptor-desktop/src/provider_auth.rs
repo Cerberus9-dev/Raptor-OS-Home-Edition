@@ -200,7 +200,7 @@ pub fn begin_authorization(
     }))
 }
 
-#[derive(Clone, Debug, serde::Deserialize)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct OAuthTokenResponse {
     pub access_token: String,
     pub token_type: String,
