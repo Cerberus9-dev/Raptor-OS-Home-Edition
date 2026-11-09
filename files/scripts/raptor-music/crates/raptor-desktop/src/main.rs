@@ -6,6 +6,14 @@ mod profile_import;
 struct AudiusArtist { id: String, name: String, handle: String }
 
 #[derive(Clone, Debug)]
+struct AudiusCollection {
+    id: String,
+    title: String,
+    creator: String,
+    kind: String,
+}
+
+#[derive(Clone, Debug)]
 struct AudiusArtistProfile {
     name: String,
     handle: String,
@@ -61,6 +69,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let last_seek_at: Arc<Mutex<Option<Instant>>> = Arc::new(Mutex::new(None));
     let online_tracks: Arc<Mutex<Vec<Track>>> = Arc::new(Mutex::new(Vec::new()));
     let online_artists: Arc<Mutex<Vec<AudiusArtist>>> = Arc::new(Mutex::new(Vec::new()));
+    let online_collections: Arc<Mutex<Vec<AudiusCollection>>> = Arc::new(Mutex::new(Vec::new()));
     let online_search_generation = Arc::new(AtomicU64::new(0));
 
     {
@@ -287,6 +296,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let selected_id_for_search = Arc::clone(&selected_track_id);
     let online_tracks_for_search = Arc::clone(&online_tracks);
     let online_artists_for_search = Arc::clone(&online_artists);
+    let online_collections_for_search = Arc::clone(&online_collections);
     let online_generation_for_search = Arc::clone(&online_search_generation);
     let ui_handle_search = ui.as_weak();
     ui.on_search_changed(move |query| {
@@ -326,6 +336,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             *online_tracks_for_search.lock().unwrap() = Vec::new();
             *online_artists_for_search.lock().unwrap() = Vec::new();
             ui.set_online_artist_list(slint::ModelRc::new(slint::VecModel::from(Vec::<TrackData>::new())));
+            ui.set_online_collection_list(slint::ModelRc::new(slint::VecModel::from(Vec::<TrackData>::new())));
             ui.set_online_track_list(slint::ModelRc::new(slint::VecModel::from(Vec::<TrackData>::new())));
             ui.set_online_search_status("Online discovery is available in the Discover tab".into());
             return;
@@ -335,6 +346,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             *online_tracks_for_search.lock().unwrap() = Vec::new();
             *online_artists_for_search.lock().unwrap() = Vec::new();
             ui.set_online_artist_list(slint::ModelRc::new(slint::VecModel::from(Vec::<TrackData>::new())));
+            ui.set_online_collection_list(slint::ModelRc::new(slint::VecModel::from(Vec::<TrackData>::new())));
             ui.set_online_track_list(slint::ModelRc::new(slint::VecModel::from(Vec::<TrackData>::new())));
             ui.set_online_search_status("Search artist names, song titles or keywords".into());
             return;
@@ -346,6 +358,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let ui_weak = ui_handle_search.clone();
         let online_tracks = Arc::clone(&online_tracks_for_search);
         let online_artists = Arc::clone(&online_artists_for_search);
+        let online_collections = Arc::clone(&online_collections_for_search);
         let generation = Arc::clone(&online_generation_for_search);
         std::thread::spawn(move || {
             // Debounce typing and discard stale responses so a slower network
@@ -379,6 +392,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             } else {
                 search_audius_tracks(&query_for_thread, &sort_method)
             };
+            let collection_query = query_for_thread.clone();
+            let collection_worker = std::thread::spawn(move || search_audius_collections(&collection_query));
             let artist_result = artist_worker.join()
                 .unwrap_or_else(|_| Err("Artist search worker stopped unexpectedly".to_string()));
             let apple_result = apple_worker.join()
@@ -396,6 +411,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let count = tracks.len();
             *online_tracks.lock().unwrap() = tracks.clone();
             let rows = tracks_to_slint(&tracks);
+            let collection_result = collection_worker.join()
+                .unwrap_or_else(|_| Err("Collection search worker stopped unexpectedly".to_string()));
+            let collections = collection_result.unwrap_or_default();
+            *online_collections.lock().unwrap() = collections.clone();
+            let collection_count = collections.len();
+            let collection_rows = collections.iter().map(|item| TrackData {
+                id: item.id.clone().into(),
+                title: item.title.clone().into(),
+                artist: format!("{} · {}", item.creator, item.kind).into(),
+                album: item.kind.clone().into(),
+                duration: "Open".into(),
+            }).collect::<Vec<_>>();
             let artist_error = artist_result.is_err();
             let artists = artist_result.unwrap_or_default();
             *online_artists.lock().unwrap() = artists.clone();
@@ -404,7 +431,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 id: artist.id.clone().into(), title: artist.name.clone().into(),
                 artist: format!("@{}", artist.handle).into(), album: "Audius artist profile".into(), duration: "Open".into(),
             }).collect::<Vec<_>>();
-            let mut status = format!("{count} tracks · {artist_count} artists");
+            let mut status = format!("{count} tracks · {artist_count} artists · {collection_count} albums/playlists");
             if apple_count > 0 {
                 status.push_str(&format!(" · {apple_count} Apple Music previews"));
             } else if std::env::var("RAPTOR_APPLE_MUSIC_DEVELOPER_TOKEN").is_err() {
@@ -422,6 +449,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if let Some(ui) = ui_weak.upgrade() {
                     ui.set_online_track_list(slint::ModelRc::new(slint::VecModel::from(rows)));
                     ui.set_online_artist_list(slint::ModelRc::new(slint::VecModel::from(artist_rows)));
+                    ui.set_online_collection_list(slint::ModelRc::new(slint::VecModel::from(collection_rows)));
                     ui.set_online_search_status(status.into());
                 }
             });
@@ -1446,6 +1474,67 @@ fn normalized_sort_method(value: &str) -> &'static str {
     }
 }
 
+fn parse_audius_collections(payload: &serde_json::Value) -> Result<Vec<AudiusCollection>, String> {
+    let data = payload.get("data")
+        .ok_or_else(|| "Audius returned an unexpected collection search response".to_string())?;
+    let mut collections = Vec::new();
+    for (key, kind) in [("albums", "Album"), ("playlists", "Playlist")] {
+        let Some(rows) = data.get(key).and_then(serde_json::Value::as_array) else { continue; };
+        for row in rows.iter().take(20) {
+            let Some(id) = row.get("id").and_then(serde_json::Value::as_str) else { continue; };
+            if id.is_empty() || !id.chars().all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_') { continue; }
+            if row.get("is_private").and_then(serde_json::Value::as_bool) == Some(true)
+                || row.get("is_delete").and_then(serde_json::Value::as_bool) == Some(true) { continue; }
+            let title = row.get("playlist_name").and_then(serde_json::Value::as_str)
+                .or_else(|| row.get("title").and_then(serde_json::Value::as_str))
+                .filter(|value| !value.trim().is_empty());
+            let Some(title) = title else { continue; };
+            let creator = row.get("user").and_then(|user| user.get("name"))
+                .and_then(serde_json::Value::as_str).unwrap_or("Unknown artist");
+            collections.push(AudiusCollection {
+                id: id.to_string(), title: title.to_string(), creator: creator.to_string(), kind: kind.to_string(),
+            });
+        }
+    }
+    Ok(collections)
+}
+
+fn search_audius_collections(query: &str) -> Result<Vec<AudiusCollection>, String> {
+    let query = query.trim();
+    if query.is_empty() { return Ok(Vec::new()); }
+    let client = reqwest::blocking::Client::builder()
+        .user_agent("RaptorMusic/0.2.18")
+        .connect_timeout(Duration::from_secs(8))
+        .timeout(Duration::from_secs(15))
+        .build().map_err(|error| format!("Could not initialize collection search: {error}"))?;
+    let response = client.get("https://api.audius.co/v1/search/autocomplete")
+        .query(&[("query", query), ("app_name", "RaptorMusic")])
+        .send().and_then(|response| response.error_for_status())
+        .map_err(|error| format!("Audius album and playlist search failed: {error}"))?;
+    let payload: serde_json::Value = response.json()
+        .map_err(|error| format!("Audius returned unreadable collection results: {error}"))?;
+    parse_audius_collections(&payload)
+}
+
+fn fetch_audius_collection_tracks(collection: &AudiusCollection) -> Result<Vec<Track>, String> {
+    if collection.id.is_empty()
+        || !collection.id.chars().all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_') {
+        return Err("Invalid album or playlist identifier".to_string());
+    }
+    let client = reqwest::blocking::Client::builder()
+        .user_agent("RaptorMusic/0.2.18")
+        .connect_timeout(Duration::from_secs(8))
+        .timeout(Duration::from_secs(15))
+        .build().map_err(|error| format!("Could not initialize collection request: {error}"))?;
+    let response = client.get(format!("https://api.audius.co/v1/playlists/{}/tracks", collection.id))
+        .query(&[("app_name", "RaptorMusic")])
+        .send().and_then(|response| response.error_for_status())
+        .map_err(|error| format!("Could not load {}: {error}", collection.title))?;
+    let payload: serde_json::Value = response.json()
+        .map_err(|error| format!("Audius returned unreadable collection tracks: {error}"))?;
+    parse_audius_tracks(&payload)
+}
+
 fn search_audius_artists(query: &str, sort_method: &str) -> Result<Vec<AudiusArtist>, String> {
     let client = reqwest::blocking::Client::builder()
         .user_agent("RaptorMusic/0.2.18")
@@ -1678,6 +1767,34 @@ mod independent_discovery_tests {
         let merged = merge_independent_discovery(relevant, recent);
         assert_eq!(merged.iter().map(|item| item.id.as_u128()).collect::<Vec<_>>(),
             vec![1, 4, 2, 5, 3]);
+    }
+}
+
+#[cfg(test)]
+mod audius_collection_search_tests {
+    use super::*;
+
+    #[test]
+    fn parses_album_and_playlist_results_without_private_items() {
+        let payload = serde_json::json!({"data":{
+            "albums":[
+                {"id":"album_1","playlist_name":"Independent EP","user":{"name":"Small Artist"},"is_private":false},
+                {"id":"album_2","playlist_name":"Hidden","is_private":true}
+            ],
+            "playlists":[
+                {"id":"playlist_1","playlist_name":"Deep Cuts","user":{"name":"Curator"},"is_delete":false}
+            ]
+        }});
+        let items = parse_audius_collections(&payload).expect("valid autocomplete payload");
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].kind, "Album");
+        assert_eq!(items[0].creator, "Small Artist");
+        assert_eq!(items[1].kind, "Playlist");
+    }
+
+    #[test]
+    fn malformed_collection_payload_is_not_an_empty_success() {
+        assert!(parse_audius_collections(&serde_json::json!({"oops": []})).is_err());
     }
 }
 
