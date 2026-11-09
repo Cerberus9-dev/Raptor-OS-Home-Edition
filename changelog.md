@@ -29,6 +29,9 @@
 - Changed ZRAM compression to LZ4 to reduce CPU overhead on slower processors. Compression is lower than with zstd.
 
 ## [Unreleased]
+- Split Raptor Music into separate Discover and Local Library views, with online discovery as the default landing view. Local-library searches stay offline and do not send queries to the online catalog.
+- Improve Music navigation, empty-library and empty-queue guidance, and selection-aware playlist, queue, and playback controls.
+- Expand online track result parsing to retain up to 50 valid tracks, preserve actual album names, and keep artist and track search sorting aligned.
 - Add separate Audius artist-profile results to Raptor Music online discovery. Selecting an artist opens the public Audius profile; local-library results remain separate.
 - Add an optional Raptor Flight Deck KDE Plasma 6 panel preset. It creates a compact bottom panel with the standard launcher, workspace pager, task manager, system tray and clock, without deleting or altering the user's existing panels. Available from the desktop right-click menu under Add Panel.
 
