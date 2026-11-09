@@ -926,7 +926,7 @@ fn tracks_to_slint(tracks: &[Track]) -> Vec<TrackData> {
 }
 
 fn is_local_track(track: &Track) -> bool {
-    matches!(track.source, PlaybackSource::LocalFile { .. })
+    matches!(&track.source, PlaybackSource::LocalFile { .. })
 }
 
 fn refresh_track_list(ui: &MainWindow, db: &Arc<Mutex<LibraryDatabase>>) {
