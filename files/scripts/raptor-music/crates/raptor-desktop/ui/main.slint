@@ -66,6 +66,7 @@ export component MainWindow inherits Window {
     in-out property <string> discord_state_template: "by {artist}";
     in-out property <string> discord_custom_phrase: "Jamming out to";
     in-out property <string> discord_presence_status: "Discord Rich Presence is off";
+    in-out property <string> provider_connection_status: "No music-service accounts connected";
 
     callback scan_directory_clicked();
     callback import_profile_clicked();
@@ -88,6 +89,12 @@ export component MainWindow inherits Window {
     callback skip_backward_clicked();
     callback skip_forward_clicked();
     callback save_discord_presence_clicked();
+    callback connect_spotify_clicked();
+    callback connect_tidal_clicked();
+    callback connect_youtube_clicked();
+    callback disconnect_spotify_clicked();
+    callback disconnect_tidal_clicked();
+    callback disconnect_youtube_clicked();
     callback play_clicked();
     callback seek_clicked(float);
     callback previous_clicked();
@@ -408,9 +415,30 @@ export component MainWindow inherits Window {
                         }
                         Text { text: "Apple Music catalog setup"; color: #d4ed9c; font-size: 13px; font-weight: 700; }
                         Text {
-                            text: "App developers can provide RAPTOR_APPLE_MUSIC_DEVELOPER_TOKEN at launch. RAPTOR_APPLE_MUSIC_STOREFRONT is optional and defaults to us. Never place the MusicKit private key in this app or repository.";
+                            text: "App developers can provide RAPTOR_APPLE_MUSIC_DEVELOPER_TOKEN at launch. RAPTOR_APPLE_MUSIC_STOREFRONT is optional and defaults to us. Never place the MusicKit private key in this app or repository. Apple Music account sign-in still needs its separate MusicKit user-authorization implementation.";
                             color: #879487; font-size: 11px; wrap: word-wrap;
                         }
+                        Text { text: "Connect music accounts"; color: #d4ed9c; font-size: 14px; font-weight: 700; }
+                        Text {
+                            text: "Spotify and TIDAL connections are for account authorization and supported library metadata only; they do not enable their streaming catalogs in Raptor Music. YouTube account access means YouTube Data API playlist metadata, not YouTube Music playback or catalog access.";
+                            color: #879487; font-size: 11px; wrap: word-wrap;
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            Button { text: "Connect Spotify"; clicked => { root.connect_spotify_clicked(); } }
+                            Button { text: "Disconnect"; clicked => { root.disconnect_spotify_clicked(); } }
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            Button { text: "Connect TIDAL"; clicked => { root.connect_tidal_clicked(); } }
+                            Button { text: "Disconnect"; clicked => { root.disconnect_tidal_clicked(); } }
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            Button { text: "Connect YouTube account"; clicked => { root.connect_youtube_clicked(); } }
+                            Button { text: "Disconnect"; clicked => { root.disconnect_youtube_clicked(); } }
+                        }
+                        Text { text: root.provider_connection_status; color: #b4d66d; font-size: 11px; wrap: word-wrap; }
                         Rectangle { height: 1px; background: #354236; }
                         Text { text: "Discord Rich Presence"; color: #f2f5ec; font-size: 21px; font-weight: 700; }
                         Text {
