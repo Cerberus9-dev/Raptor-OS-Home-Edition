@@ -25,7 +25,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ui = MainWindow::new()?;
     let visible_track_ids = Arc::new(Mutex::new(
         db.lock().unwrap().get_all_tracks().unwrap_or_default()
-            .into_iter().map(|track| track.id).collect::<Vec<_>>()
+            .into_iter().filter(is_local_track).map(|track| track.id).collect::<Vec<_>>()
     ));
     let selected_track_id: Arc<Mutex<Option<Uuid>>> = Arc::new(Mutex::new(None));
     refresh_track_list(&ui, &db);
@@ -70,7 +70,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             std::thread::spawn(move || {
                 if let Ok(mut worker_db) = LibraryDatabase::new(db_path_inner) {
                     walk_dir_and_import(&folder, &mut worker_db);
-                    let updated_tracks = worker_db.get_all_tracks().unwrap_or_default();
+                    let updated_tracks = worker_db.get_all_tracks().unwrap_or_default()
+                        .into_iter().filter(is_local_track).collect::<Vec<_>>();
                     *visible_ids.lock().unwrap() = updated_tracks.iter().map(|track| track.id).collect();
                     *selected_id.lock().unwrap() = None;
                     let new_slint_tracks = tracks_to_slint(&updated_tracks);
@@ -102,7 +103,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let query = query.to_string();
         let request_generation = online_generation_for_search.fetch_add(1, Ordering::AcqRel) + 1;
 
-        let all_tracks = db_for_search.lock().unwrap().get_all_tracks().unwrap_or_default();
+        let all_tracks = db_for_search.lock().unwrap().get_all_tracks().unwrap_or_default()
+            .into_iter().filter(is_local_track).collect::<Vec<_>>();
         let needle = query.trim().to_lowercase();
         let tokens = needle.split_whitespace().collect::<Vec<_>>();
         let filtered = all_tracks.into_iter().filter(|track| {
@@ -923,9 +925,14 @@ fn tracks_to_slint(tracks: &[Track]) -> Vec<TrackData> {
     }).collect()
 }
 
+fn is_local_track(track: &Track) -> bool {
+    matches!(track.source, PlaybackSource::LocalFile { .. })
+}
+
 fn refresh_track_list(ui: &MainWindow, db: &Arc<Mutex<LibraryDatabase>>) {
     let db_lock = db.lock().unwrap();
-    let initial_tracks = db_lock.get_all_tracks().unwrap_or_default();
+    let initial_tracks = db_lock.get_all_tracks().unwrap_or_default()
+        .into_iter().filter(is_local_track).collect::<Vec<_>>();
     ui.set_track_list(slint::ModelRc::new(slint::VecModel::from(tracks_to_slint(&initial_tracks))));
 }
 
@@ -1028,5 +1035,31 @@ fn walk_dir_and_import_inner(
             source: PlaybackSource::LocalFile { path: path.clone() },
         };
         let _ = db.upsert_track(&track);
+    }
+}
+
+#[cfg(test)]
+mod local_library_visibility_tests {
+    use super::*;
+
+    fn sample_track(source: PlaybackSource) -> Track {
+        Track {
+            id: Uuid::new_v4(),
+            title: "Sample".into(),
+            artist: "Artist".into(),
+            album: None,
+            duration_secs: Some(60),
+            source,
+        }
+    }
+
+    #[test]
+    fn local_library_view_excludes_remote_catalog_tracks() {
+        let local = sample_track(PlaybackSource::LocalFile { path: PathBuf::from("/music/local.flac") });
+        let remote = sample_track(PlaybackSource::RemoteStream {
+            provider_id: "audius".into(), provider_track_id: "remote-123".into(),
+        });
+        assert!(is_local_track(&local));
+        assert!(!is_local_track(&remote));
     }
 }
