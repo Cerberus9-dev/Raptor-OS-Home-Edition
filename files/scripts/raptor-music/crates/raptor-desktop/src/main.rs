@@ -33,7 +33,6 @@ fn restore_provider_connections(ui: slint::Weak<MainWindow>) {
     std::thread::spawn(move || {
         let providers = [
             ("Spotify", "spotify", provider_auth::OAuthProvider::Spotify),
-            ("TIDAL", "tidal", provider_auth::OAuthProvider::Tidal),
             ("YouTube account", "youtube", provider_auth::OAuthProvider::YoutubeData),
         ];
         let mut connected = Vec::new();
