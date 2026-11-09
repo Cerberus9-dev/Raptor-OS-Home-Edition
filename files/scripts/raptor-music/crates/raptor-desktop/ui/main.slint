@@ -91,7 +91,6 @@ export component MainWindow inherits Window {
     callback skip_forward_clicked();
     callback save_discord_presence_clicked();
     callback connect_spotify_clicked();
-    callback connect_tidal_clicked();
     callback connect_youtube_clicked();
     callback disconnect_spotify_clicked();
     callback disconnect_tidal_clicked();
@@ -436,8 +435,12 @@ export component MainWindow inherits Window {
                         }
                         HorizontalLayout {
                             spacing: 8px;
-                            Button { text: "Connect TIDAL"; clicked => { root.connect_tidal_clicked(); } }
+                            Button { text: "TIDAL approval pending"; enabled: false; }
                             Button { text: "Disconnect"; clicked => { root.disconnect_tidal_clicked(); } }
+                        }
+                        Text {
+                            text: "TIDAL account linking is disabled until written developer approval is obtained. Its current developer terms restrict competing music services and storage of user playlist data.";
+                            color: #879487; font-size: 11px; wrap: word-wrap;
                         }
                         HorizontalLayout {
                             spacing: 8px;
