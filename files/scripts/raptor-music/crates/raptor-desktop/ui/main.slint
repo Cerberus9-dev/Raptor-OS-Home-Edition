@@ -42,6 +42,7 @@ export component MainWindow inherits Window {
     in-out property <float> playback_position_secs: 0;
     in-out property <bool> is_seeking: false;
     in-out property <string> player_state_label: "Ready";
+    in-out property <string> active_view: "discover";
 
     callback scan_directory_clicked();
     callback track_selected(int);
@@ -118,23 +119,50 @@ export component MainWindow inherits Window {
                         font-size: 11px;
                         font-weight: 700;
                     }
-                    Text {
-                        text: "Home";
-                        color: #edf2e7;
-                        font-size: 15px;
-                        font-weight: 700;
+                    Rectangle {
+                        height: 36px;
+                        border-radius: 6px;
+                        background: root.active_view == "discover" ? #34482a : transparent;
+                        Text {
+                            text: "Discover";
+                            color: root.active_view == "discover" ? #d4ed9c : #c1cbc0;
+                            x: 10px;
+                            vertical-alignment: center;
+                            font-size: 14px;
+                            font-weight: root.active_view == "discover" ? 700 : 500;
+                        }
+                        TouchArea {
+                            clicked => {
+                                root.active_view = "discover";
+                                root.search_changed(root.search_query);
+                            }
+                        }
                     }
-                    Text {
-                        text: "Search & discover";
-                        color: #b0bdb0;
-                        font-size: 14px;
+                    Rectangle {
+                        height: 36px;
+                        border-radius: 6px;
+                        background: root.active_view == "library" ? #34482a : transparent;
+                        Text {
+                            text: "Local library";
+                            color: root.active_view == "library" ? #d4ed9c : #c1cbc0;
+                            x: 10px;
+                            vertical-alignment: center;
+                            font-size: 14px;
+                            font-weight: root.active_view == "library" ? 700 : 500;
+                        }
+                        TouchArea {
+                            clicked => {
+                                root.active_view = "library";
+                                root.search_changed(root.search_query);
+                            }
+                        }
                     }
                     Rectangle { height: 1px; background: #354237; }
                     HorizontalLayout {
                         Text {
-                            text: "Your Library";
-                            color: #edf2e7;
-                            font-size: 14px;
+                            text: "PLAYLISTS";
+                            color: #879487;
+                            font-size: 11px;
                             font-weight: 700;
                             vertical-alignment: center;
                         }
@@ -212,13 +240,15 @@ export component MainWindow inherits Window {
                     spacing: 16px;
 
                     Text {
-                        text: "Your music, organized.";
+                        text: root.active_view == "discover" ? "Find your next favorite." : "Your music, organized.";
                         color: #f2f5ec;
                         font-size: 29px;
                         font-weight: 700;
                     }
                     Text {
-                        text: "Search your library or discover independent artists and tracks.";
+                        text: root.active_view == "discover"
+                            ? "Explore tracks and independent artists from across the online catalog."
+                            : "Your local files stay separate from online discovery.";
                         color: #b0bdb0;
                         font-size: 13px;
                     }
@@ -238,7 +268,9 @@ export component MainWindow inherits Window {
                                 vertical-alignment: center;
                             }
                             LineEdit {
-                                placeholder-text: "Songs, artists, albums or genres";
+                                placeholder-text: root.active_view == "discover"
+                                    ? "Search artists and tracks"
+                                    : "Search your local library";
                                 text <=> root.search_query;
                                 font-size: 14px;
                                 horizontal-stretch: 1;
@@ -248,12 +280,15 @@ export component MainWindow inherits Window {
                     }
 
                     Text {
-                        text: "Local matches update as you type · Online results appear separately";
+                        text: root.active_view == "discover"
+                            ? "Search online catalog results here; your local files remain in Your Library."
+                            : "Search matches across local titles, artists and album names.";
                         color: #879487;
                         font-size: 11px;
                     }
 
                     HorizontalLayout {
+                        visible: root.active_view == "library";
                         Text {
                             text: "Local library";
                             color: #f2f5ec;
@@ -272,6 +307,7 @@ export component MainWindow inherits Window {
 
                     // Column headings
                     HorizontalLayout {
+                        visible: root.active_view == "library";
                         padding-left: 12px;
                         padding-right: 12px;
                         height: 28px;
@@ -282,6 +318,7 @@ export component MainWindow inherits Window {
                     }
 
                     ListView {
+                        visible: root.active_view == "library";
                         vertical-stretch: 1;
                         for t[index] in root.track_list : Rectangle {
                             height: 52px;
@@ -337,6 +374,7 @@ export component MainWindow inherits Window {
                     }
 
                     HorizontalLayout {
+                        visible: root.active_view == "discover";
                         Text {
                             text: "Online discovery";
                             color: #f2f5ec;
@@ -354,13 +392,15 @@ export component MainWindow inherits Window {
                     }
 
                     HorizontalLayout {
+                        visible: root.active_view == "discover";
                         Text { text: "Sort"; color: #879487; font-size: 11px; vertical-alignment: center; }
                         Button { text: "Relevant"; clicked => { root.online_sort_method = "relevant"; root.search_changed(root.search_query); } }
                         Button { text: "Popular"; clicked => { root.online_sort_method = "popular"; root.search_changed(root.search_query); } }
                         Button { text: "Recent"; clicked => { root.online_sort_method = "recent"; root.search_changed(root.search_query); } }
                     }
-                    Text { text: "Artists"; color: #f2f5ec; font-size: 18px; font-weight: 700; }
+                    Text { visible: root.active_view == "discover"; text: "Artists"; color: #f2f5ec; font-size: 18px; font-weight: 700; }
                     ListView {
+                        visible: root.active_view == "discover";
                         height: 104px;
                         for a[index] in root.online_artist_list : Rectangle {
                             height: 48px; border-radius: 6px; background: #202b21;
@@ -378,8 +418,9 @@ export component MainWindow inherits Window {
                             TouchArea { clicked => { root.artist_selected(index); } }
                         }
                     }
-                    Text { text: "Tracks"; color: #f2f5ec; font-size: 18px; font-weight: 700; }
+                    Text { visible: root.active_view == "discover"; text: "Tracks"; color: #f2f5ec; font-size: 18px; font-weight: 700; }
                     ListView {
+                        visible: root.active_view == "discover";
                         vertical-stretch: 1;
                         for t[index] in root.online_track_list : Rectangle {
                             height: 48px;
@@ -441,6 +482,7 @@ export component MainWindow inherits Window {
                     }
 
                     HorizontalLayout {
+                        visible: root.active_view == "discover";
                         spacing: 8px;
                         Button {
                             text: "Add selected to queue";
