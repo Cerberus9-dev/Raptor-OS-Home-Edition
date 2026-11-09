@@ -618,6 +618,13 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/profile_imp
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/profile_import.rs 'fn parses_spotify_playlist_export_and_preserves_order'
 echo "Raptor Music profile migration parser contracts passed."
 
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'callback import_profile_clicked();'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Import profile…'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'profile_import_status'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'pick_files()'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'profile_import::parse_profile_export'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'Preview only; nothing has been added to your library yet.'
+
 echo "=== Checking embedded Raptor Cortex Python ==="
 cortex_tmp="$(mktemp --suffix=.py)"
 awk "/^cat << 'PYEOF' > \/usr\/bin\/raptor-cortex$/ { inside=1; next } /^PYEOF$/ && inside { exit } inside { print }" files/scripts/raptor-cortex/install.sh > "$cortex_tmp"
