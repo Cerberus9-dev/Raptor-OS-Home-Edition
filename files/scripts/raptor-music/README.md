@@ -10,7 +10,8 @@ Raptor Music is a local-first desktop music library and player built with Rust, 
 - A dedicated upcoming-queue panel with selection and removal.
 - Persistent now-playing controls, progress display, seek, previous/next and stop.
 - A folder picker that scans supported local audio formats and imports metadata into the local SQLite library.
-- Debounced online search across songs and artists in the public Audius catalog, shown separately from the local library.
+- Debounced online search across songs and artist profiles in the public Audius catalog; artist results open the artist's public Audius profile.
+- Online discovery remains a separate section from the local collection, with independent artist and track results.
 - Queue and playback support for public Audius tracks that the provider marks streamable and not access-gated.
 
 The interface uses familiar music-player navigation and search patterns without copying Spotify's branding or artwork.

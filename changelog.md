@@ -29,6 +29,7 @@
 - Changed ZRAM compression to LZ4 to reduce CPU overhead on slower processors. Compression is lower than with zstd.
 
 ## [Unreleased]
+- Add separate Audius artist-profile results to Raptor Music online discovery. Selecting an artist opens the public Audius profile; local-library results remain separate.
 - Add an optional Raptor Flight Deck KDE Plasma 6 panel preset. It creates a compact bottom panel with the standard launcher, workspace pager, task manager, system tray and clock, without deleting or altering the user's existing panels. Available from the desktop right-click menu under Add Panel.
 
 ### v3.0.0
