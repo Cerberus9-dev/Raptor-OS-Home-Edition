@@ -59,6 +59,11 @@ export component MainWindow inherits Window {
     in-out property <string> artist_profile_stats: "";
     in-out property <string> artist_profile_status: "";
     in-out property <string> profile_import_status: "Import a profile export to preview what can be transferred";
+    in-out property <bool> discord_presence_enabled: false;
+    in-out property <string> discord_client_id: "";
+    in-out property <string> discord_details_template: "Listening to {title}";
+    in-out property <string> discord_state_template: "by {artist}";
+    in-out property <string> discord_presence_status: "Discord Rich Presence is off";
 
     callback scan_directory_clicked();
     callback import_profile_clicked();
@@ -79,6 +84,7 @@ export component MainWindow inherits Window {
     callback track_menu_action(int, string, string, int);
     callback skip_backward_clicked();
     callback skip_forward_clicked();
+    callback save_discord_presence_clicked();
     callback play_clicked();
     callback seek_clicked(float);
     callback previous_clicked();
@@ -217,6 +223,20 @@ export component MainWindow inherits Window {
                                 root.refresh_imported_profiles_clicked();
                             }
                         }
+                    }
+                    Rectangle {
+                        height: 36px;
+                        border-radius: 6px;
+                        background: root.active_view == "settings" ? #34482a : transparent;
+                        Text {
+                            text: "Settings";
+                            color: root.active_view == "settings" ? #d4ed9c : #c1cbc0;
+                            x: 10px;
+                            vertical-alignment: center;
+                            font-size: 14px;
+                            font-weight: root.active_view == "settings" ? 700 : 500;
+                        }
+                        TouchArea { clicked => { root.active_view = "settings"; } }
                     }
                     Rectangle {
                         height: 36px;
@@ -373,6 +393,43 @@ export component MainWindow inherits Window {
                             wrap: word-wrap;
                             vertical-stretch: 1;
                         }
+                    }
+
+                    VerticalLayout {
+                        visible: root.active_view == "settings";
+                        spacing: 12px;
+                        Text { text: "Discord Rich Presence"; color: #f2f5ec; font-size: 21px; font-weight: 700; }
+                        Text {
+                            text: "Show what you're listening to in Discord and compatible clients. Raptor Music connects to a local Discord RPC socket; it does not send your music history to a Raptor server.";
+                            color: #a5b2a3; font-size: 12px; wrap: word-wrap;
+                        }
+                        Text { text: "Application Client ID"; color: #d4ed9c; font-size: 12px; font-weight: 700; }
+                        LineEdit {
+                            placeholder-text: "Paste your Discord application's Client ID";
+                            text <=> root.discord_client_id;
+                            font-size: 13px;
+                        }
+                        Text { text: "Details line · use {title} and {artist}"; color: #d4ed9c; font-size: 12px; font-weight: 700; }
+                        LineEdit {
+                            placeholder-text: "Listening to {title}";
+                            text <=> root.discord_details_template;
+                            font-size: 13px;
+                        }
+                        Text { text: "State line · use {title} and {artist}"; color: #d4ed9c; font-size: 12px; font-weight: 700; }
+                        LineEdit {
+                            placeholder-text: "by {artist}";
+                            text <=> root.discord_state_template;
+                            font-size: 13px;
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            Button {
+                                text: root.discord_presence_enabled ? "Turn Rich Presence off" : "Turn Rich Presence on";
+                                clicked => { root.discord_presence_enabled = !root.discord_presence_enabled; root.save_discord_presence_clicked(); }
+                            }
+                            Button { text: "Save settings"; clicked => { root.save_discord_presence_clicked(); } }
+                        }
+                        Text { text: root.discord_presence_status; color: #a5b2a3; font-size: 11px; wrap: word-wrap; }
                     }
 
                     Rectangle {
