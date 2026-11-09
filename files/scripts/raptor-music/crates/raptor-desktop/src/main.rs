@@ -22,6 +22,9 @@ use raptor_core::models::{Track, PlaybackSource, PlayerState, PlayerEvent};
 use std::sync::{Arc, Mutex};
 use std::collections::HashSet;
 use std::path::PathBuf;
+use std::io::{Read, Write};
+#[cfg(unix)]
+use std::os::unix::net::UnixStream;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 use uuid::Uuid;
@@ -33,6 +36,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let player = Arc::new(AudioPlayer::new());
 
     let ui = MainWindow::new()?;
+    {
+        let db_lock = db.lock().unwrap();
+        ui.set_discord_presence_enabled(db_lock.get_state_value("discord_presence_enabled").ok().flatten().as_deref() == Some("true"));
+        ui.set_discord_client_id(db_lock.get_state_value("discord_client_id").ok().flatten().unwrap_or_default().into());
+        ui.set_discord_details_template(db_lock.get_state_value("discord_details_template").ok().flatten().unwrap_or_else(|| "Listening to {title}".into()).into());
+        ui.set_discord_state_template(db_lock.get_state_value("discord_state_template").ok().flatten().unwrap_or_else(|| "by {artist}".into()).into());
+    }
+    let discord_connection: Arc<Mutex<Option<DiscordConnection>>> = Arc::new(Mutex::new(None));
     let visible_track_ids = Arc::new(Mutex::new(
         db.lock().unwrap().get_all_tracks().unwrap_or_default()
             .into_iter().filter(is_local_track).map(|track| track.id).collect::<Vec<_>>()
@@ -95,6 +106,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     });
                 }
+            });
+        }
+    });
+
+    let db_for_discord_settings = Arc::clone(&db);
+    let connection_for_discord_settings = Arc::clone(&discord_connection);
+    let ui_handle_discord_settings = ui.as_weak();
+    ui.on_save_discord_presence_clicked(move || {
+        let ui = match ui_handle_discord_settings.upgrade() { Some(ui) => ui, None => return };
+        let enabled = ui.get_discord_presence_enabled();
+        let client_id = ui.get_discord_client_id().to_string().trim().to_string();
+        let details = ui.get_discord_details_template().to_string();
+        let state = ui.get_discord_state_template().to_string();
+        {
+            let db_lock = db_for_discord_settings.lock().unwrap();
+            let _ = db_lock.set_state_value("discord_presence_enabled", if enabled { "true" } else { "false" });
+            let _ = db_lock.set_state_value("discord_client_id", &client_id);
+            let _ = db_lock.set_state_value("discord_details_template", &details);
+            let _ = db_lock.set_state_value("discord_state_template", &state);
+        }
+        if !enabled {
+            clear_discord_presence(&mut connection_for_discord_settings.lock().unwrap());
+            ui.set_discord_presence_status("Rich Presence is off.".into());
+        } else if client_id.is_empty() {
+            ui.set_discord_presence_status("Add your Discord application's Client ID, then save.".into());
+        } else {
+            let title = ui.get_current_track_title().to_string();
+            let artist = ui.get_current_track_artist().to_string();
+            let result = send_discord_presence(
+                &mut connection_for_discord_settings.lock().unwrap(),
+                &client_id, &details, &state, &title, &artist, "Playing",
+            );
+            ui.set_discord_presence_status(match result {
+                Ok(()) => "Connected to a compatible Discord client.".into(),
+                Err(error) => format!("Rich Presence is waiting: {error}").into(),
             });
         }
     });
@@ -864,9 +910,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let active_entry_for_poll = Arc::clone(&active_playing_queue_entry_id);
     let last_seek_at_for_poll = Arc::clone(&last_seek_at);
     let player_for_adv = Arc::clone(&player);
+    let discord_for_poll = Arc::clone(&discord_connection);
 
     std::thread::spawn(move || {
         let mut last_persisted_position = u64::MAX;
+        let mut current_presence_title = String::new();
+        let mut current_presence_artist = String::new();
         loop {
             std::thread::sleep(std::time::Duration::from_millis(100));
             if ui_handle_poll.upgrade().is_none() {
@@ -900,6 +949,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                             (t_title, t_artist, qpos)
                         };
+                        current_presence_title = title.clone();
+                        current_presence_artist = artist.clone();
+                        update_discord_from_database(
+                            &db_for_poll, &discord_for_poll,
+                            &current_presence_title, &current_presence_artist, "Playing",
+                        );
 
                         let ui_weak = ui_handle_poll.clone();
                         let _ = slint::invoke_from_event_loop(move || {
@@ -914,6 +969,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     PlayerEvent::Paused { session_token } => {
                         if Some(session_token) != *session_token_for_poll.lock().unwrap() { continue; }
+                        update_discord_from_database(&db_for_poll, &discord_for_poll, &current_presence_title, &current_presence_artist, "Paused");
                         let ui_weak = ui_handle_poll.clone();
                         let _ = slint::invoke_from_event_loop(move || {
                             if let Some(ui) = ui_weak.upgrade() {
@@ -923,6 +979,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     PlayerEvent::Resumed { session_token } => {
                         if Some(session_token) != *session_token_for_poll.lock().unwrap() { continue; }
+                        update_discord_from_database(&db_for_poll, &discord_for_poll, &current_presence_title, &current_presence_artist, "Playing");
                         let ui_weak = ui_handle_poll.clone();
                         let _ = slint::invoke_from_event_loop(move || {
                             if let Some(ui) = ui_weak.upgrade() {
@@ -931,6 +988,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         });
                     }
                     PlayerEvent::Stopped { session_token } | PlayerEvent::SessionTerminated { session_token } => {
+                        clear_discord_presence(&mut discord_for_poll.lock().unwrap());
                         let mut active_token_lock = session_token_for_poll.lock().unwrap();
                         if Some(session_token) == *active_token_lock {
                             *active_token_lock = None;
@@ -1007,6 +1065,167 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     ui.run()?;
     Ok(())
+}
+
+#[cfg(unix)]
+struct DiscordConnection {
+    client_id: String,
+    stream: UnixStream,
+}
+
+#[cfg(not(unix))]
+struct DiscordConnection;
+
+#[cfg(unix)]
+fn write_discord_frame(stream: &mut UnixStream, opcode: u32, payload: &serde_json::Value) -> Result<(), String> {
+    let bytes = serde_json::to_vec(payload).map_err(|error| error.to_string())?;
+    let length = u32::try_from(bytes.len()).map_err(|_| "Discord RPC payload is too large".to_string())?;
+    stream.write_all(&opcode.to_le_bytes()).map_err(|error| error.to_string())?;
+    stream.write_all(&length.to_le_bytes()).map_err(|error| error.to_string())?;
+    stream.write_all(&bytes).map_err(|error| error.to_string())
+}
+
+#[cfg(unix)]
+fn connect_discord_rpc(client_id: &str) -> Result<DiscordConnection, String> {
+    let mut candidates = Vec::new();
+    if let Some(runtime) = std::env::var_os("XDG_RUNTIME_DIR") {
+        let root = PathBuf::from(runtime);
+        for index in 0..10 {
+            candidates.push(root.join(format!("discord-ipc-{index}")));
+        }
+    }
+    if let Some(uid) = std::env::var_os("UID") {
+        let root = PathBuf::from("/run/user").join(uid);
+        for index in 0..10 {
+            candidates.push(root.join(format!("discord-ipc-{index}")));
+        }
+    }
+    for index in 0..10 {
+        candidates.push(PathBuf::from(format!("/tmp/discord-ipc-{index}")));
+    }
+
+    let mut last_error = None;
+    for path in candidates {
+        if !path.exists() { continue; }
+        match UnixStream::connect(&path) {
+            Ok(mut stream) => {
+                stream.set_read_timeout(Some(Duration::from_secs(2))).ok();
+                stream.set_write_timeout(Some(Duration::from_secs(2))).ok();
+                let handshake = serde_json::json!({"v": 1, "client_id": client_id});
+                write_discord_frame(&mut stream, 0, &handshake)?;
+                let mut header = [0u8; 8];
+                if let Err(error) = stream.read_exact(&mut header) {
+                    last_error = Some(error.to_string());
+                    continue;
+                }
+                let length = u32::from_le_bytes([header[4], header[5], header[6], header[7]]) as usize;
+                if length > 64 * 1024 {
+                    last_error = Some("Discord RPC handshake response was unexpectedly large".into());
+                    continue;
+                }
+                let mut response = vec![0u8; length];
+                if let Err(error) = stream.read_exact(&mut response) {
+                    last_error = Some(error.to_string());
+                    continue;
+                }
+                return Ok(DiscordConnection { client_id: client_id.to_string(), stream });
+            }
+            Err(error) => last_error = Some(error.to_string()),
+        }
+    }
+    Err(last_error.unwrap_or_else(|| "No compatible Discord IPC socket was found. Open Discord, Vesktop or Equibop first.".into()))
+}
+
+#[cfg(unix)]
+fn send_discord_presence(
+    connection: &mut Option<DiscordConnection>,
+    client_id: &str,
+    details_template: &str,
+    state_template: &str,
+    title: &str,
+    artist: &str,
+    playback_state: &str,
+) -> Result<(), String> {
+    if client_id.trim().is_empty() {
+        return Err("Discord Application Client ID is missing".into());
+    }
+    if connection.as_ref().is_none_or(|current| current.client_id != client_id) {
+        *connection = Some(connect_discord_rpc(client_id)?);
+    }
+    let details = details_template.replace("{title}", title).replace("{artist}", artist);
+    let mut state = state_template.replace("{title}", title).replace("{artist}", artist);
+    if playback_state == "Paused" {
+        state = if state.trim().is_empty() { "Paused".into() } else { format!("{state} · Paused") };
+    }
+    let activity = serde_json::json!({
+        "details": details.chars().take(128).collect::<String>(),
+        "state": state.chars().take(128).collect::<String>(),
+        "instance": false
+    });
+    let payload = serde_json::json!({
+        "cmd": "SET_ACTIVITY",
+        "args": { "pid": std::process::id(), "activity": activity },
+        "nonce": Uuid::new_v4().to_string()
+    });
+    let current = connection.as_mut().expect("Discord connection was initialized");
+    if let Err(error) = write_discord_frame(&mut current.stream, 1, &payload) {
+        *connection = None;
+        return Err(format!("Could not update Discord status: {error}"));
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn send_discord_presence(
+    _connection: &mut Option<DiscordConnection>,
+    _client_id: &str,
+    _details_template: &str,
+    _state_template: &str,
+    _title: &str,
+    _artist: &str,
+    _playback_state: &str,
+) -> Result<(), String> {
+    Err("Discord Rich Presence is currently supported on Linux desktop clients only".into())
+}
+
+#[cfg(unix)]
+fn clear_discord_presence(connection: &mut Option<DiscordConnection>) {
+    if let Some(current) = connection.as_mut() {
+        let payload = serde_json::json!({
+            "cmd": "SET_ACTIVITY",
+            "args": { "pid": std::process::id(), "activity": null },
+            "nonce": Uuid::new_v4().to_string()
+        });
+        let _ = write_discord_frame(&mut current.stream, 1, &payload);
+    }
+    *connection = None;
+}
+
+#[cfg(not(unix))]
+fn clear_discord_presence(_connection: &mut Option<DiscordConnection>) {}
+
+fn update_discord_from_database(
+    db: &Arc<Mutex<LibraryDatabase>>,
+    connection: &Arc<Mutex<Option<DiscordConnection>>>,
+    title: &str,
+    artist: &str,
+    playback_state: &str,
+) {
+    let db_lock = db.lock().unwrap();
+    let enabled = db_lock.get_state_value("discord_presence_enabled").ok().flatten().as_deref() == Some("true");
+    let client_id = db_lock.get_state_value("discord_client_id").ok().flatten().unwrap_or_default();
+    let details = db_lock.get_state_value("discord_details_template").ok().flatten().unwrap_or_else(|| "Listening to {title}".into());
+    let state = db_lock.get_state_value("discord_state_template").ok().flatten().unwrap_or_else(|| "by {artist}".into());
+    drop(db_lock);
+
+    let mut connection = connection.lock().unwrap();
+    if enabled {
+        if let Err(error) = send_discord_presence(&mut connection, &client_id, &details, &state, title, artist, playback_state) {
+            eprintln!("Raptor Music Discord Rich Presence: {error}");
+        }
+    } else {
+        clear_discord_presence(&mut connection);
+    }
 }
 
 fn audius_flag(value: &serde_json::Value, key: &str, default: bool) -> bool {
