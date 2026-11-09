@@ -2,6 +2,11 @@
 
 Raptor Music is a desktop player built with Rust, SQLite, Symphonia/CPAL and Slint. It handles music already on the computer and online discovery, but keeps those collections separate so local files do not get mixed up with provider results.
 
+
+### Independent-artist discovery
+
+Discover includes an **Independent** sort option that blends Audius relevance-ranked matches with recent uploads and interleaves the two lists while deduplicating tracks. This is intended to give newer and less-played artists a fairer chance to appear without replacing normal relevance, popularity, or recency sorting. Results still depend on what the connected catalog indexes; this does not imply every artist or release is available.
+
 ## Using the app
 
 - **Discover** is the starting point for online track and artist search.
