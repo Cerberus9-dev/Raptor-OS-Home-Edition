@@ -5,7 +5,11 @@ mod provider_auth;
 mod token_store;
 mod callback_listener;
 
-fn start_provider_connection(provider: provider_auth::OAuthProvider, ui: slint::Weak<MainWindow>) {
+fn start_provider_connection(
+    provider: provider_auth::OAuthProvider,
+    ui: slint::Weak<MainWindow>,
+    db: Arc<Mutex<LibraryDatabase>>,
+) {
     std::thread::spawn(move || {
         let provider_key = match provider {
             provider_auth::OAuthProvider::Spotify => "spotify",
@@ -29,19 +33,79 @@ fn start_provider_connection(provider: provider_auth::OAuthProvider, ui: slint::
                     "TIDAL authorization saved securely. Profile and playlist import remain disabled until its approved API adapter is verified.".into()
                 ),
                 provider_auth::OAuthProvider::Spotify | provider_auth::OAuthProvider::YoutubeData => {
-                    let profile = provider_auth::fetch_provider_profile(provider, &tokens.access_token)?;
-                    let playlists = provider_auth::fetch_provider_playlists(provider, &tokens.access_token)?;
-                    if provider == provider_auth::OAuthProvider::YoutubeData {
-                        Ok(format!(
-                            "Connected YouTube account {} · {} YouTube playlists found. This is not YouTube Music catalog or playback access.",
-                            profile.display_name, playlists.len()
-                        ))
-                    } else {
-                        Ok(format!(
-                            "Connected Spotify account {} · {} playlists found. Spotify playback is not enabled in Raptor Music.",
-                            profile.display_name, playlists.len()
-                        ))
+                    let provider_profile = provider_auth::fetch_provider_profile(provider, &tokens.access_token)?;
+                    let provider_playlists = provider_auth::fetch_provider_playlists(provider, &tokens.access_token)?;
+                    let mut imported = profile_import::ImportedProfile {
+                        source: if provider == provider_auth::OAuthProvider::YoutubeData {
+                            "YouTube Data API account".into()
+                        } else {
+                            "Spotify account".into()
+                        },
+                        display_name: Some(provider_profile.display_name.clone()),
+                        username: Some(provider_profile.id.clone()),
+                        avatar_url: provider_profile.avatar_url.clone(),
+                        ..profile_import::ImportedProfile::default()
+                    };
+                    let mut imported_track_count = 0usize;
+                    let mut skipped_playlists = 0usize;
+                    let mut track_budget = 50_000usize;
+                    for playlist in provider_playlists {
+                        let mut imported_tracks = Vec::new();
+                        if track_budget > 0 {
+                            match provider_auth::fetch_provider_playlist_tracks(
+                                provider, &tokens.access_token, &playlist.id
+                            ) {
+                                Ok(tracks) => {
+                                    let keep = tracks.len().min(track_budget);
+                                    imported_track_count += keep;
+                                    track_budget -= keep;
+                                    imported_tracks = tracks.into_iter().take(keep).map(|track| {
+                                        profile_import::ImportedTrack {
+                                            source_id: Some(track.id),
+                                            title: track.title,
+                                            artist: track.artist,
+                                            album: track.album,
+                                        }
+                                    }).collect();
+                                }
+                                Err(_) => skipped_playlists += 1,
+                            }
+                        }
+                        imported.playlists.push(profile_import::ImportedPlaylist {
+                            source_id: Some(playlist.id),
+                            name: playlist.name,
+                            description: playlist.description,
+                            artwork_url: playlist.image_url,
+                            tracks: imported_tracks,
+                        });
                     }
+                    let playlist_count = imported.playlists.len();
+                    let payload = serde_json::to_string(&imported)
+                        .map_err(|_| "Could not prepare the imported provider profile".to_string())?;
+                    db.lock().map_err(|_| "The local profile database is unavailable".to_string())?
+                        .save_imported_profile(
+                            provider_key,
+                            imported.display_name.as_deref(),
+                            imported.username.as_deref(),
+                            &payload,
+                        )
+                        .map_err(|error| format!("Could not save the imported profile: {error}"))?;
+                    let ui_for_refresh = ui.clone();
+                    let db_for_refresh = Arc::clone(&db);
+                    let _ = slint::invoke_from_event_loop(move || {
+                        if let Some(ui) = ui_for_refresh.upgrade() {
+                            refresh_imported_profile_list(&ui, &db_for_refresh);
+                        }
+                    });
+                    let provider_name = if provider == provider_auth::OAuthProvider::YoutubeData {
+                        "YouTube account"
+                    } else {
+                        "Spotify"
+                    };
+                    Ok(format!(
+                        "Imported {provider_name} profile {} · {playlist_count} playlists · {imported_track_count} playlist entries. {} playlist(s) could not be fully read. This imports metadata only; it does not grant streaming access.",
+                        provider_profile.display_name, skipped_playlists
+                    ))
                 }
             }
         })();
@@ -226,15 +290,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ui_handle_provider_connect = ui.as_weak();
     ui.on_connect_spotify_clicked({
         let ui_weak = ui_handle_provider_connect.clone();
-        move || start_provider_connection(provider_auth::OAuthProvider::Spotify, ui_weak.clone())
+        move || start_provider_connection(provider_auth::OAuthProvider::Spotify, ui_weak.clone(), Arc::clone(&db))
     });
     ui.on_connect_tidal_clicked({
         let ui_weak = ui_handle_provider_connect.clone();
-        move || start_provider_connection(provider_auth::OAuthProvider::Tidal, ui_weak.clone())
+        move || start_provider_connection(provider_auth::OAuthProvider::Tidal, ui_weak.clone(), Arc::clone(&db))
     });
     ui.on_connect_youtube_clicked({
         let ui_weak = ui_handle_provider_connect.clone();
-        move || start_provider_connection(provider_auth::OAuthProvider::YoutubeData, ui_weak.clone())
+        move || start_provider_connection(provider_auth::OAuthProvider::YoutubeData, ui_weak.clone(), Arc::clone(&db))
     });
     ui.on_disconnect_spotify_clicked({
         let ui_weak = ui_handle_provider_connect.clone();
