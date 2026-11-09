@@ -493,6 +493,48 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
+    let collections_for_select = Arc::clone(&online_collections);
+    let tracks_for_collection = Arc::clone(&online_tracks);
+    let generation_for_collection = Arc::clone(&online_search_generation);
+    let ui_handle_collection = ui.as_weak();
+    ui.on_collection_selected(move |idx| {
+        let collection = collections_for_select.lock().unwrap().get(idx as usize).cloned();
+        let Some(collection) = collection else { return; };
+        let request_generation = generation_for_collection.fetch_add(1, Ordering::AcqRel) + 1;
+        if let Some(ui) = ui_handle_collection.upgrade() {
+            ui.set_online_search_status(format!("Loading {}…", collection.title).into());
+        }
+        let ui_weak = ui_handle_collection.clone();
+        let tracks_state = Arc::clone(&tracks_for_collection);
+        std::thread::spawn(move || {
+            let result = fetch_audius_collection_tracks(&collection);
+            let tracks = match result {
+                Ok(tracks) => tracks,
+                Err(error) => {
+                    let _ = slint::invoke_from_event_loop(move || {
+                        if let Some(ui) = ui_weak.upgrade() {
+                            ui.set_online_search_status(error.into());
+                        }
+                    });
+                    return;
+                }
+            };
+            *tracks_state.lock().unwrap() = tracks.clone();
+            let rows = tracks_to_slint(&tracks);
+            let title = collection.title.clone();
+            let count = tracks.len();
+            let _ = slint::invoke_from_event_loop(move || {
+                if let Some(ui) = ui_weak.upgrade() {
+                    if generation_for_collection.load(Ordering::Acquire) == request_generation {
+                        ui.set_online_track_list(slint::ModelRc::new(slint::VecModel::from(rows)));
+                        ui.set_selected_online_track_index(-1);
+                        ui.set_online_search_status(format!("{title} · {count} tracks").into());
+                    }
+                }
+            });
+        });
+    });
+
     let artists_for_profile = Arc::clone(&online_artists);
     let tracks_for_profile = Arc::clone(&online_tracks);
     let generation_for_profile = Arc::clone(&online_search_generation);
