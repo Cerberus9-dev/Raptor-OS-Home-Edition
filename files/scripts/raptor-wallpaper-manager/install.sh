@@ -742,6 +742,41 @@ if __name__ == "__main__":
 PYEOF
 chmod +x /usr/bin/raptor-wallpaper
 
+# Always capture GTK/Python startup exceptions, including failures before the
+# application window is constructed. Keep logs private and rotate old reports.
+cat << 'LAUNCHEOF' > /usr/bin/raptor-wallpaper-launch
+#!/usr/bin/env bash
+set -u
+state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/raptor"
+mkdir -p "$state_dir" || {
+    notify-send --app-name="Raptor OS" "Raptor Wallpaper could not start" "Cannot create $state_dir" 2>/dev/null || true
+    exit 1
+}
+chmod 700 "$state_dir" 2>/dev/null || true
+umask 077
+stamp="$(date +%Y%m%d-%H%M%S)"
+log="$state_dir/wallpaper-$stamp-$.log"
+: > "$log" || exit 1
+{
+    echo "Raptor Wallpaper startup"
+    date --iso-8601=seconds 2>/dev/null || date
+    echo "Python: $(/usr/bin/python3 --version 2>&1)"
+    echo "Session: ${XDG_SESSION_TYPE:-unknown}"
+    echo "Desktop: ${XDG_CURRENT_DESKTOP:-unknown}"
+    echo "Display: ${WAYLAND_DISPLAY:-${DISPLAY:-unknown}}"
+} >> "$log"
+ /usr/bin/python3 /usr/bin/raptor-wallpaper "$@" >> "$log" 2>&1
+status=$?
+if (( status != 0 )); then
+    summary="$(grep -Ei 'Traceback|Error:|ImportError|ModuleNotFoundError|AttributeError|TypeError' "$log" | tail -n 1 | cut -c1-180 || true)"
+    [[ -n "$summary" ]] || summary="The application exited with status $status."
+    notify-send --app-name="Raptor OS" --urgency=critical "Raptor Wallpaper could not start" "$summary
+Log: $log" 2>/dev/null || true
+fi
+exit "$status"
+LAUNCHEOF
+chmod 0755 /usr/bin/raptor-wallpaper-launch
+
 # Keep the old binary name as a symlink in case anything references it
 ln -sf /usr/bin/raptor-wallpaper /usr/bin/raptor-wallpaper-manager
 
@@ -810,7 +845,7 @@ X-KDE-Priority=TopLevel
 [Desktop Action setRaptorWallpaper]
 Name=Set as Raptor Wallpaper
 Icon=raptor-wallpaper
-Exec=/usr/bin/raptor-wallpaper --apply %f
+Exec=/usr/bin/raptor-wallpaper-launch --apply %f
 EOF
 
 # ── Self-check ────────────────────────────────────────────────────────────────
