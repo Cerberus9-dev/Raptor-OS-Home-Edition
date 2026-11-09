@@ -359,55 +359,54 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let artist_query = query_for_thread.clone();
             let artist_sort_method = sort_method.clone();
             let artist_worker = std::thread::spawn(move || search_audius_artists(&artist_query, &artist_sort_method));
-            let result = search_audius_tracks(&query_for_thread, &sort_method);
+            let apple_query = query_for_thread.clone();
+            let apple_worker = std::thread::spawn(move || search_apple_music_tracks(&apple_query));
+            let audius_result = search_audius_tracks(&query_for_thread, &sort_method);
             let artist_result = artist_worker.join()
                 .unwrap_or_else(|_| Err("Artist search worker stopped unexpectedly".to_string()));
+            let apple_result = apple_worker.join()
+                .unwrap_or_else(|_| Err("Apple Music search worker stopped unexpectedly".to_string()));
             if generation.load(Ordering::Acquire) != request_generation {
                 return;
             }
 
-            match result {
-                Ok(tracks) => {
-                    let count = tracks.len();
-                    *online_tracks.lock().unwrap() = tracks.clone();
-                    let rows = tracks_to_slint(&tracks);
-                    let artist_error = artist_result.is_err();
-                    let artists = artist_result.unwrap_or_default();
-                    *online_artists.lock().unwrap() = artists.clone();
-                    let artist_count = artists.len();
-                    let artist_rows = artists.iter().map(|artist| TrackData {
-                        id: artist.id.clone().into(), title: artist.name.clone().into(),
-                        artist: format!("@{}", artist.handle).into(), album: "Artist profile".into(), duration: "Open".into(),
-                    }).collect::<Vec<_>>();
-                    let mut status = format!("{count} tracks · {artist_count} artists");
-                    if artist_error {
-                        status.push_str(" · Some artist results are unavailable");
-                    } else if count == 0 && artist_count == 0 {
-                        status = "No matching tracks or artists found".to_string();
-                    }
-                    let _ = slint::invoke_from_event_loop(move || {
-                        if let Some(ui) = ui_weak.upgrade() {
-                            ui.set_online_track_list(slint::ModelRc::new(slint::VecModel::from(rows)));
-                            ui.set_online_artist_list(slint::ModelRc::new(slint::VecModel::from(artist_rows)));
-                            ui.set_online_search_status(status.into());
-                        }
-                    });
-                }
-                Err(_error) => {
-                    *online_tracks.lock().unwrap() = Vec::new();
-                    *online_artists.lock().unwrap() = Vec::new();
-                    let status = "Online search is temporarily unavailable. Try again shortly.".to_string();
-                    let _ = slint::invoke_from_event_loop(move || {
-                        if let Some(ui) = ui_weak.upgrade() {
-                            ui.set_online_track_list(slint::ModelRc::new(
-                                slint::VecModel::from(Vec::<TrackData>::new())
-                            ));
-                            ui.set_online_artist_list(slint::ModelRc::new(slint::VecModel::from(Vec::<TrackData>::new())));
-                            ui.set_online_search_status(status.into());
-                        }
-                    });
-                }
+            let mut tracks = audius_result.unwrap_or_default();
+            let audius_count = tracks.len();
+            let apple_tracks = apple_result.unwrap_or_default();
+            let apple_count = apple_tracks.len();
+            tracks.extend(apple_tracks);
+            let count = tracks.len();
+            *online_tracks.lock().unwrap() = tracks.clone();
+            let rows = tracks_to_slint(&tracks);
+            let artist_error = artist_result.is_err();
+            let artists = artist_result.unwrap_or_default();
+            *online_artists.lock().unwrap() = artists.clone();
+            let artist_count = artists.len();
+            let artist_rows = artists.iter().map(|artist| TrackData {
+                id: artist.id.clone().into(), title: artist.name.clone().into(),
+                artist: format!("@{}", artist.handle).into(), album: "Audius artist profile".into(), duration: "Open".into(),
+            }).collect::<Vec<_>>();
+            let mut status = format!("{count} tracks · {artist_count} artists");
+            if apple_count > 0 {
+                status.push_str(&format!(" · {apple_count} Apple Music previews"));
+            } else if std::env::var("RAPTOR_APPLE_MUSIC_DEVELOPER_TOKEN").is_err() {
+                status.push_str(" · Apple Music catalog not configured");
+            } else if apple_result.is_err() {
+                status.push_str(" · Apple Music search unavailable");
             }
+            if audius_count == 0 && apple_count == 0 && artist_count == 0 {
+                status = "No matching tracks or artists found".to_string();
+            }
+            if artist_error {
+                status.push_str(" · Some artist results are unavailable");
+            }
+            let _ = slint::invoke_from_event_loop(move || {
+                if let Some(ui) = ui_weak.upgrade() {
+                    ui.set_online_track_list(slint::ModelRc::new(slint::VecModel::from(rows)));
+                    ui.set_online_artist_list(slint::ModelRc::new(slint::VecModel::from(artist_rows)));
+                    ui.set_online_search_status(status.into());
+                }
+            });
         });
     });
 
@@ -1339,6 +1338,87 @@ fn parse_audius_tracks(payload: &serde_json::Value) -> Result<Vec<Track>, String
     Ok(tracks)
 }
 
+fn parse_apple_music_tracks(payload: &serde_json::Value) -> Result<Vec<Track>, String> {
+    let rows = payload.get("results")
+        .and_then(|results| results.get("songs"))
+        .and_then(|songs| songs.get("data"))
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| "Apple Music returned an unexpected search response".to_string())?;
+
+    let mut tracks = Vec::new();
+    for row in rows.iter().take(25) {
+        let Some(attributes) = row.get("attributes") else { continue; };
+        let Some(provider_track_id) = row.get("id").and_then(serde_json::Value::as_str) else { continue; };
+        let Some(title) = attributes.get("name").and_then(serde_json::Value::as_str) else { continue; };
+        let Some(artist) = attributes.get("artistName").and_then(serde_json::Value::as_str) else { continue; };
+        let preview_url = attributes.get("previews")
+            .and_then(serde_json::Value::as_array)
+            .and_then(|previews| previews.first())
+            .and_then(|preview| preview.get("url"))
+            .and_then(serde_json::Value::as_str);
+        let Some(preview_url) = preview_url else { continue; };
+        let Ok(parsed_url) = reqwest::Url::parse(preview_url) else { continue; };
+        if parsed_url.scheme() != "https"
+            || !matches!(parsed_url.host_str(), Some("audio-ssl.itunes.apple.com" | "audio.itunes.apple.com"))
+        {
+            continue;
+        }
+        let duration_secs = attributes.get("durationInMillis")
+            .and_then(serde_json::Value::as_u64)
+            .map(|millis| millis / 1000);
+        let album = attributes.get("albumName")
+            .and_then(serde_json::Value::as_str)
+            .filter(|value| !value.trim().is_empty())
+            .map(|value| format!("{value} · Apple Music preview"));
+        let stable_id = Uuid::new_v5(
+            &Uuid::NAMESPACE_URL,
+            format!("raptor-music:apple-music:{provider_track_id}").as_bytes(),
+        );
+        tracks.push(Track {
+            id: stable_id,
+            title: title.to_string(),
+            artist: artist.to_string(),
+            album,
+            duration_secs,
+            source: PlaybackSource::RemoteStream {
+                provider_id: "apple_music_preview".into(),
+                provider_track_id: preview_url.to_string(),
+            },
+        });
+    }
+    Ok(tracks)
+}
+
+fn search_apple_music_tracks(query: &str) -> Result<Vec<Track>, String> {
+    let developer_token = std::env::var("RAPTOR_APPLE_MUSIC_DEVELOPER_TOKEN")
+        .map_err(|_| "Apple Music catalog needs a developer token".to_string())?;
+    let developer_token = developer_token.trim();
+    if developer_token.is_empty() {
+        return Err("Apple Music developer token is empty".to_string());
+    }
+    let storefront = std::env::var("RAPTOR_APPLE_MUSIC_STOREFRONT")
+        .unwrap_or_else(|_| "us".to_string())
+        .to_lowercase();
+    if storefront.len() != 2 || !storefront.chars().all(|ch| ch.is_ascii_lowercase()) {
+        return Err("Apple Music storefront must be a two-letter country code".to_string());
+    }
+    let client = reqwest::blocking::Client::builder()
+        .user_agent("RaptorMusic/0.2.18")
+        .connect_timeout(Duration::from_secs(8))
+        .timeout(Duration::from_secs(15))
+        .build()
+        .map_err(|error| format!("Could not initialize Apple Music search: {error}"))?;
+    let response = client.get(format!("https://api.music.apple.com/v1/catalog/{storefront}/search"))
+        .bearer_auth(developer_token)
+        .query(&[("term", query.trim()), ("types", "songs"), ("limit", "25")])
+        .send()
+        .and_then(|response| response.error_for_status())
+        .map_err(|error| format!("Apple Music catalog search failed: {error}"))?;
+    let payload: serde_json::Value = response.json()
+        .map_err(|error| format!("Apple Music returned unreadable search results: {error}"))?;
+    parse_apple_music_tracks(&payload)
+}
+
 fn normalized_sort_method(value: &str) -> &'static str {
     match value {
         "popular" => "popular",
@@ -1495,6 +1575,48 @@ fn search_audius_tracks(query: &str, sort_method: &str) -> Result<Vec<Track>, St
         .json()
         .map_err(|error| format!("Audius returned unreadable search results: {error}"))?;
     parse_audius_tracks(&payload)
+}
+
+#[cfg(test)]
+mod apple_music_search_tests {
+    use super::*;
+
+    #[test]
+    fn parses_only_playable_apple_music_previews() {
+        let payload = serde_json::json!({
+            "results": { "songs": { "data": [
+                { "id": "12345", "attributes": {
+                    "name": "Test Track", "artistName": "Independent Artist",
+                    "albumName": "Test EP", "durationInMillis": 187000,
+                    "previews": [{ "url": "https://audio-ssl.itunes.apple.com/preview.m4a" }]
+                }},
+                { "id": "67890", "attributes": {
+                    "name": "No Preview", "artistName": "Another Artist",
+                    "previews": []
+                }},
+                { "id": "99999", "attributes": {
+                    "name": "Unsafe Preview", "artistName": "Bad Host",
+                    "previews": [{ "url": "https://example.com/audio.m4a" }]
+                }}
+            ]}}
+        });
+        let tracks = parse_apple_music_tracks(&payload).expect("valid Apple Music response");
+        assert_eq!(tracks.len(), 1);
+        assert_eq!(tracks[0].title, "Test Track");
+        assert_eq!(tracks[0].artist, "Independent Artist");
+        assert_eq!(tracks[0].duration_secs, Some(187));
+        assert_eq!(tracks[0].album.as_deref(), Some("Test EP · Apple Music preview"));
+        assert!(matches!(&tracks[0].source,
+            PlaybackSource::RemoteStream { provider_id, provider_track_id }
+                if provider_id == "apple_music_preview"
+                    && provider_track_id == "https://audio-ssl.itunes.apple.com/preview.m4a"
+        ));
+    }
+
+    #[test]
+    fn malformed_apple_music_response_is_not_reported_as_empty_success() {
+        assert!(parse_apple_music_tracks(&serde_json::json!({"data": []})).is_err());
+    }
 }
 
 #[cfg(test)]
