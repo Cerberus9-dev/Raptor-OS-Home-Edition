@@ -2238,7 +2238,7 @@ fn profile_avatar_cache_path(profile_id: Uuid, extension: &str) -> Result<PathBu
 fn cache_profile_avatar(url: &str, profile_id: Uuid) -> Result<(), String> {
     let parsed = url::Url::parse(url)
         .map_err(|_| "Profile artwork URL is invalid".to_string())?;
-    if parsed.scheme() != "https" || !parsed.username().is_empty() || parsed.password().is_some() {
+    if parsed.scheme() != "https" || parsed.port_or_known_default() != Some(443) || !parsed.username().is_empty() || parsed.password().is_some() {
         return Err("Profile artwork must use a public HTTPS URL".into());
     }
     let host = parsed.host_str().unwrap_or_default().to_ascii_lowercase();
@@ -2271,7 +2271,9 @@ fn cache_profile_avatar(url: &str, profile_id: Uuid) -> Result<(), String> {
         "image/png" => "png",
         _ => return Err("Only JPEG and PNG provider artwork is supported".into()),
     };
-    let bytes = response.bytes()
+    let mut limited_response = std::io::Read::take(response, (2 * 1024 * 1024 + 1) as u64);
+    let mut bytes = Vec::new();
+    std::io::Read::read_to_end(&mut limited_response, &mut bytes)
         .map_err(|_| "Could not read profile artwork".to_string())?;
     if bytes.len() > 2 * 1024 * 1024 {
         return Err("Profile artwork exceeds the 2 MiB cache limit".into());
@@ -2285,7 +2287,7 @@ fn cache_profile_avatar(url: &str, profile_id: Uuid) -> Result<(), String> {
         return Err("Provider artwork did not match its declared image format".into());
     }
     let destination = profile_avatar_cache_path(profile_id, extension)?;
-    let temporary = destination.with_extension(format!("{extension}.tmp"));
+    let temporary = destination.with_extension(format!("{extension}.{}.tmp", Uuid::new_v4()));
     std::fs::write(&temporary, &bytes)
         .map_err(|_| "Could not cache profile artwork".to_string())?;
     std::fs::rename(&temporary, &destination)
