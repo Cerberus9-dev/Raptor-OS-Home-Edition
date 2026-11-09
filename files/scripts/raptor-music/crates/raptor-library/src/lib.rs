@@ -25,6 +25,15 @@ pub struct QueueEntry {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ImportedProfileRecord {
+    pub id: Uuid,
+    pub provider: String,
+    pub display_name: Option<String>,
+    pub username: Option<String>,
+    pub imported_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Playlist {
     pub id: Uuid,
     pub name: String,
@@ -176,7 +185,85 @@ impl LibraryDatabase {
             tx.execute("INSERT INTO schema_migrations (version) VALUES (2)", [])?;
         }
 
+        if current_version < 3 {
+            tx.execute_batch(
+                r#"
+                CREATE TABLE IF NOT EXISTS imported_profiles (
+                    id TEXT PRIMARY KEY NOT NULL,
+                    provider TEXT NOT NULL,
+                    display_name TEXT,
+                    username TEXT,
+                    payload_json TEXT NOT NULL,
+                    imported_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(provider, username)
+                );
+                CREATE INDEX IF NOT EXISTS idx_imported_profiles_provider
+                    ON imported_profiles(provider, imported_at DESC);
+                "#,
+            )?;
+            tx.execute("INSERT INTO schema_migrations (version) VALUES (3)", [])?;
+        }
+
         tx.commit()?;
+        Ok(())
+    }
+
+    /// Persist an explicitly confirmed imported profile as an isolated JSON
+    /// document. Imported data never enters the native tracks/playlists tables.
+    pub fn save_imported_profile(
+        &self,
+        provider: &str,
+        display_name: Option<&str>,
+        username: Option<&str>,
+        payload_json: &str,
+    ) -> Result<Uuid, LibraryError> {
+        let provider = provider.trim();
+        if provider.is_empty() || payload_json.trim().is_empty() {
+            return Err(LibraryError::Validation("Imported profile provider and data are required".into()));
+        }
+        let id = Uuid::new_v4();
+        self.conn.execute(
+            r#"INSERT INTO imported_profiles (id, provider, display_name, username, payload_json)
+               VALUES (?1, ?2, ?3, ?4, ?5)
+               ON CONFLICT(provider, username) DO UPDATE SET
+                 display_name = excluded.display_name,
+                 payload_json = excluded.payload_json,
+                 updated_at = CURRENT_TIMESTAMP"#,
+            params![id.to_string(), provider, display_name, username, payload_json],
+        )?;
+        let stored_id: String = self.conn.query_row(
+            "SELECT id FROM imported_profiles WHERE provider = ?1 AND username IS ?2",
+            params![provider, username], |row| row.get(0),
+        )?;
+        Ok(Uuid::parse_str(&stored_id)?)
+    }
+
+    pub fn get_imported_profiles(&self) -> Result<Vec<ImportedProfileRecord>, LibraryError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, provider, display_name, username, imported_at FROM imported_profiles ORDER BY updated_at DESC, id"
+        )?;
+        let rows = stmt.query_map([], |row| Ok((
+            row.get::<_, String>(0)?, row.get::<_, String>(1)?,
+            row.get::<_, Option<String>>(2)?, row.get::<_, Option<String>>(3)?,
+            row.get::<_, String>(4)?,
+        )))?;
+        let mut profiles = Vec::new();
+        for row in rows {
+            let (id, provider, display_name, username, imported_at) = row?;
+            profiles.push(ImportedProfileRecord { id: Uuid::parse_str(&id)?, provider, display_name, username, imported_at });
+        }
+        Ok(profiles)
+    }
+
+    pub fn get_imported_profile_payload(&self, id: Uuid) -> Result<Option<String>, LibraryError> {
+        let mut stmt = self.conn.prepare("SELECT payload_json FROM imported_profiles WHERE id = ?1")?;
+        let mut rows = stmt.query([id.to_string()])?;
+        Ok(match rows.next()? { Some(row) => Some(row.get(0)?), None => None })
+    }
+
+    pub fn delete_imported_profile(&self, id: Uuid) -> Result<(), LibraryError> {
+        self.conn.execute("DELETE FROM imported_profiles WHERE id = ?1", [id.to_string()])?;
         Ok(())
     }
 
@@ -502,7 +589,20 @@ impl LibraryDatabase {
 mod migration_tests {
     use super::*;
 
+
     #[test]
+    fn imported_profiles_persist_separately_and_can_be_replaced_or_removed() {
+        let db = LibraryDatabase::new(":memory:").unwrap();
+        let id = db.save_imported_profile("Spotify", Some("Listener"), Some("listener"), r#"{"saved_tracks":[1]}"#).unwrap();
+        assert_eq!(db.get_imported_profile_payload(id).unwrap().as_deref(), Some(r#"{"saved_tracks":[1]}"#));
+        let updated = db.save_imported_profile("Spotify", Some("Listener Two"), Some("listener"), r#"{"saved_tracks":[1,2]}"#).unwrap();
+        assert_eq!(id, updated, "re-import should update the same provider profile");
+        assert_eq!(db.get_imported_profiles().unwrap()[0].display_name.as_deref(), Some("Listener Two"));
+        assert_eq!(db.get_all_tracks().unwrap().len(), 0, "imported data must not pollute the local library");
+        db.delete_imported_profile(id).unwrap();
+        assert!(db.get_imported_profiles().unwrap().is_empty());
+    }
+\n    #[test]
     fn fresh_database_applies_all_migrations_and_creates_track_indexes() {
         let db = LibraryDatabase::new(":memory:")
             .expect("a fresh in-memory library database should initialize");
@@ -512,7 +612,7 @@ mod migration_tests {
             [],
             |row| row.get(0),
         ).expect("migration version should be readable");
-        assert_eq!(version, 2, "fresh database should reach schema version 2");
+        assert_eq!(version, 3, "fresh database should reach schema version 3");
 
         let index_count: i64 = db.conn.query_row(
             "SELECT COUNT(*) FROM sqlite_master
