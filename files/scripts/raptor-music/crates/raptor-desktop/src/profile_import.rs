@@ -4,10 +4,11 @@
 //! services. Provider adapters can normalize their official export/API payloads
 //! into this model before the library persists the import.
 
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashSet;
 
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct ImportedProfile {
     pub source: String,
     pub display_name: Option<String>,
@@ -20,7 +21,7 @@ pub struct ImportedProfile {
     pub listening_history: Vec<ImportedListen>,
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct ImportedPlaylist {
     pub source_id: Option<String>,
     pub name: String,
@@ -29,7 +30,7 @@ pub struct ImportedPlaylist {
     pub tracks: Vec<ImportedTrack>,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ImportedTrack {
     pub source_id: Option<String>,
     pub title: String,
@@ -37,13 +38,13 @@ pub struct ImportedTrack {
     pub album: Option<String>,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ImportedArtist {
     pub source_id: Option<String>,
     pub name: String,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ImportedListen {
     pub track: ImportedTrack,
     pub played_at: Option<String>,
