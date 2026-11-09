@@ -43,6 +43,8 @@ export component MainWindow inherits Window {
     in-out property <string> search_query: "";
     in-out property <int> selected_queue_index: -1;
     in-out property <int> playing_queue_index: -1;
+    in-out property <int> menu_track_index: -1;
+    in-out property <string> menu_track_source: "";
     in-out property <string> current_track_title: "Choose something to play";
     in-out property <string> current_track_artist: "Your music, your library";
     in-out property <string> progress_label: "0:00 / 0:00";
@@ -74,6 +76,9 @@ export component MainWindow inherits Window {
     callback load_playlist_clicked();
     callback remove_queue_clicked();
     callback add_to_queue_clicked();
+    callback track_menu_action(int, string, string, int);
+    callback skip_backward_clicked();
+    callback skip_forward_clicked();
     callback play_clicked();
     callback seek_clicked(float);
     callback previous_clicked();
@@ -469,11 +474,12 @@ export component MainWindow inherits Window {
                                         spacing: 1px;
                                         Text { text: t.title; color: #edf5fb; font-size: 12px; vertical-alignment: center; overflow: elide; }
                                         Text { text: t.artist; color: #a5b2a3; font-size: 10px; vertical-alignment: center; overflow: elide; }
+                                        TouchArea { clicked => { root.online_track_selected(index); root.play_clicked(); } }
                                     }
                                     Text { text: t.album; color: #a5b2a3; width: 110px; font-size: 10px; vertical-alignment: center; overflow: elide; }
                                     Text { text: t.duration; color: #a5b2a3; width: 48px; font-size: 10px; vertical-alignment: center; }
+                                    Button { text: "⋮"; clicked => { root.menu_track_index = index; root.menu_track_source = "online"; } }
                                 }
-                                TouchArea { clicked => { root.online_track_selected(index); } }
                             }
                         }
                         Button {
@@ -554,6 +560,7 @@ export component MainWindow inherits Window {
                                         vertical-alignment: center;
                                         overflow: elide;
                                     }
+                                    TouchArea { clicked => { root.track_selected(index); root.play_clicked(); } }
                                 }
                                 Text {
                                     text: t.album;
@@ -570,8 +577,8 @@ export component MainWindow inherits Window {
                                     vertical-alignment: center;
                                     font-size: 11px;
                                 }
+                                Button { text: "⋮"; clicked => { root.menu_track_index = index; root.menu_track_source = "local"; } }
                             }
-                            TouchArea { clicked => { root.track_selected(index); } }
                         }
                     }
 
@@ -662,6 +669,7 @@ export component MainWindow inherits Window {
                                         vertical-alignment: center;
                                         overflow: elide;
                                     }
+                                    TouchArea { clicked => { root.online_track_selected(index); root.play_clicked(); } }
                                 }
                                 Text {
                                     text: t.album;
@@ -678,8 +686,8 @@ export component MainWindow inherits Window {
                                     vertical-alignment: center;
                                     font-size: 10px;
                                 }
+                                Button { text: "⋮"; clicked => { root.menu_track_index = index; root.menu_track_source = "online"; } }
                             }
-                            TouchArea { clicked => { root.online_track_selected(index); } }
                         }
                     }
 
@@ -754,6 +762,28 @@ export component MainWindow inherits Window {
                         enabled: root.selected_queue_index >= 0;
                         clicked => { root.remove_queue_clicked(); }
                     }
+                    VerticalLayout {
+                        visible: root.menu_track_index >= 0;
+                        spacing: 4px;
+                        Rectangle { height: 1px; background: #354237; }
+                        Text { text: "Song options"; color: #d4ed9c; font-size: 12px; font-weight: 700; }
+                        Button {
+                            text: "Add to queue";
+                            clicked => {
+                                root.track_menu_action(root.menu_track_index, root.menu_track_source, "queue", -1);
+                                root.menu_track_index = -1;
+                            }
+                        }
+                        Text { text: "Add to playlist"; color: #a5b2a3; font-size: 11px; }
+                        for p[index] in root.playlist_list : Button {
+                            text: p.name;
+                            clicked => {
+                                root.track_menu_action(root.menu_track_index, root.menu_track_source, "playlist", index);
+                                root.menu_track_index = -1;
+                            }
+                        }
+                        Button { text: "Close"; clicked => { root.menu_track_index = -1; } }
+                    }
                 }
             }
         }
@@ -809,9 +839,11 @@ export component MainWindow inherits Window {
                     HorizontalLayout {
                         alignment: center;
                         spacing: 12px;
+                        Button { text: "−15s"; enabled: root.duration_secs > 0; clicked => { root.skip_backward_clicked(); } }
                         Button { text: "Previous"; enabled: root.playing_queue_index > 0 || root.selected_queue_index > 0; clicked => { root.previous_clicked(); } }
                         Button { text: root.player_state_label == "Playing" ? "Pause" : "Play"; clicked => { root.play_clicked(); } }
                         Button { text: "Next"; enabled: root.queue_list.length > 1 && (root.playing_queue_index < root.queue_list.length - 1 || root.selected_queue_index < root.queue_list.length - 1); clicked => { root.next_clicked(); } }
+                        Button { text: "+15s"; enabled: root.duration_secs > 0; clicked => { root.skip_forward_clicked(); } }
                         Button { text: "Stop"; enabled: root.player_state_label == "Playing" || root.player_state_label == "Paused" || root.player_state_label == "Loading"; clicked => { root.stop_clicked(); } }
                     }
                     Slider {
