@@ -614,6 +614,17 @@ mod migration_tests {
         assert!(db.get_imported_profiles().unwrap().is_empty());
     }
     #[test]
+    fn anonymous_profile_imports_remain_distinct() {
+        let db = LibraryDatabase::new(":memory:").unwrap();
+        let first = db.save_imported_profile("Spotify", Some("Listener"), None, r#"{"saved_tracks":[1]}"#).unwrap();
+        let second = db.save_imported_profile("Spotify", Some("Listener"), None, r#"{"saved_tracks":[2]}"#).unwrap();
+        assert_ne!(first, second, "imports without a stable username must not collapse into one profile");
+        assert_eq!(db.get_imported_profiles().unwrap().len(), 2);
+        assert_eq!(db.get_imported_profile_payload(first).unwrap().as_deref(), Some(r#"{"saved_tracks":[1]}"#));
+        assert_eq!(db.get_imported_profile_payload(second).unwrap().as_deref(), Some(r#"{"saved_tracks":[2]}"#));
+    }
+
+    #[test]
     fn fresh_database_applies_all_migrations_and_creates_track_indexes() {
         let db = LibraryDatabase::new(":memory:")
             .expect("a fresh in-memory library database should initialize");
