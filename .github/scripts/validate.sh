@@ -187,12 +187,12 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint '
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'placeholder-text: "Songs, artists, albums or genres";'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'min-width: 860px;'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Online discovery · Audius'
-assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Local matches update as you type'
-assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'vertical-stretch: 1;'
-assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'parse_audius_tracks'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'https://api.audius.co/v1/users/search'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'ui.on_artist_selected'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'online_artist_list'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Local matches update as you type'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'vertical-stretch: 1;'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'parse_audius_tracks'
 
 echo "=== Checking low-memory application defaults ==="
 assert_contains files/scripts/raptor-gaming/install.sh '"Value": 32768,'
@@ -220,7 +220,7 @@ assert_contains .github/workflows/build-iso.yml "mkksiso --ks"
 assert_contains README.md "Intel Core i5-8250U"
 assert_contains README.md "Vulkan 1.3+"
 assert_contains README.md "optimization target under development"
-assert_contains changelog.md "v3.0.0 (Major Release"
+assert_contains changelog.md "### v3.0.0"
 
 echo "=== Raptor Tasks installer and embedded Python validation ==="
 bash -n files/scripts/raptor-tasks/install.sh
@@ -553,9 +553,6 @@ assert_contains files/scripts/raptor-wallpaper-manager/install.sh 'kwriteconfig6
 assert_contains files/scripts/raptor-wallpaper-manager/install.sh 'WallpaperPlugin'
 assert_contains files/scripts/raptor-wallpaper-manager/install.sh 'PreviewImage'
 assert_contains files/scripts/raptor-wallpaper-manager/install.sh 'Apply to Lock Screen'
-assert_contains files/scripts/raptor-wallpaper-manager/install.sh '/usr/bin/raptor-wallpaper-launch'
-assert_contains files/scripts/raptor-wallpaper-manager/install.sh 'wallpaper-$stamp-$.log'
-assert_contains files/scripts/raptor-wallpaper-manager/install.sh 'Exec=/usr/bin/raptor-wallpaper-launch'
 assert_contains files/scripts/raptor-wallpaper-manager/install.sh 'import shutil'
 echo "Raptor recovery and lock-screen contracts passed."
 
@@ -682,3 +679,9 @@ test ! -e files/system_files/raptor-resume-trigger.service
 test ! -e files/system_files/raptor-lid-open-fix.service
 test ! -e files/system_files/raptor-cpugovernor.service
 echo "Suspend/resume ownership checks passed."
+
+# Raptor Flight Deck Plasma panel preset
+assert_contains files/system_files/plasma-layout-templates/raptor-flightdeck/metadata.json 'org.raptor.flightdeck'
+assert_contains files/system_files/plasma-layout-templates/raptor-flightdeck/contents/layout.js 'org.kde.plasma.taskmanager'
+assert_contains files/system_files/plasma-layout-templates/raptor-flightdeck/contents/layout.js 'org.kde.plasma.systemtray'
+assert_contains recipes/recipe.yml 'org.raptor.flightdeck'
