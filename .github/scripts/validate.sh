@@ -142,6 +142,17 @@ assert_contains files/scripts/raptor-wine/install.sh "wine --version"
 assert_contains files/scripts/raptor-wine/install.sh "umu-run --version"
 assert_contains files/scripts/raptor-wine/install.sh "stat -Lc 'Permissions: %A (%a)  Size: %s bytes'"
 
+echo "=== Checking Raptor Music provider authorization contracts ==="
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs "fetch_spotify_playlist_pages"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs "fetch_youtube_playlist_pages"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs "parse_authorization_callback"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/callback_listener.rs "address.is_loopback()"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/callback_listener.rs "request.len() < 8192"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/token_store.rs "set_password"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/token_store.rs "get_password"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/token_store.rs "delete_credential"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/Cargo.toml 'keyring = { version = "3.6.3"'
+
 echo "=== Checking first-boot recovery contracts ==="
 assert_contains files/system_files/raptor-browser-choice.sh "browser choice deferred; it will retry on the next login"
 assert_contains files/system_files/raptor-chat-choice.sh "chat client choice deferred; it will retry on the next login"
