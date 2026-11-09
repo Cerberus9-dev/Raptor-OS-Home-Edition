@@ -167,7 +167,7 @@ pub fn begin_authorization(
     }
 
     let scopes = if provider == OAuthProvider::Tidal {
-        std::env::var("RAPTOR_TIDAL_SCOPES").unwrap_or_default()
+        std::env::var("RAPTOR_TIDAL_SCOPES").unwrap_or_else(|_| default_scopes.to_string())
     } else {
         default_scopes.to_string()
     };
@@ -866,6 +866,40 @@ mod tests {
         assert_eq!(playlists.len(), 1);
         assert_eq!(playlists[0].item_count, Some(42));
         assert_eq!(playlists[0].name, "My Mix");
+    }
+
+    #[test]
+    fn tidal_jwt_subject_and_json_api_resources_are_normalized() {
+        let payload = URL_SAFE_NO_PAD.encode(br#"{"sub":"tidal-user-42"}"#);
+        let token = format!("header.{payload}.signature");
+        assert_eq!(tidal_user_id_from_access_token(&token).unwrap(), "tidal-user-42");
+
+        let profile = parse_tidal_profile(&serde_json::json!({
+            "data": {
+                "id": "tidal-user-42",
+                "type": "users",
+                "attributes": {"username": "independent_listener"}
+            }
+        }), "fallback-user").unwrap();
+        assert_eq!(profile.provider, "tidal");
+        assert_eq!(profile.id, "tidal-user-42");
+        assert_eq!(profile.display_name, "independent_listener");
+
+        let playlists = parse_tidal_playlists(&serde_json::json!({
+            "data": [{
+                "id": "playlist-1",
+                "type": "playlists",
+                "attributes": {
+                    "name": "Night Drive",
+                    "description": "Independent discoveries",
+                    "numberOfItems": 37
+                }
+            }]
+        })).unwrap();
+        assert_eq!(playlists.len(), 1);
+        assert_eq!(playlists[0].provider, "tidal");
+        assert_eq!(playlists[0].name, "Night Drive");
+        assert_eq!(playlists[0].item_count, Some(37));
     }
 
     #[test]
