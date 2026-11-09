@@ -1067,6 +1067,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+fn render_presence_template(template: &str, title: &str, artist: &str) -> String {
+    template.replace("{title}", title).replace("{artist}", artist)
+}
+
 #[cfg(unix)]
 struct DiscordConnection {
     client_id: String,
@@ -1149,11 +1153,11 @@ fn send_discord_presence(
     if client_id.trim().is_empty() {
         return Err("Discord Application Client ID is missing".into());
     }
-    if connection.as_ref().is_none_or(|current| current.client_id != client_id) {
+    if connection.as_ref().map_or(true, |current| current.client_id != client_id) {
         *connection = Some(connect_discord_rpc(client_id)?);
     }
-    let details = details_template.replace("{title}", title).replace("{artist}", artist);
-    let mut state = state_template.replace("{title}", title).replace("{artist}", artist);
+    let details = render_presence_template(details_template, title, artist);
+    let mut state = render_presence_template(state_template, title, artist);
     if playback_state == "Paused" {
         state = if state.trim().is_empty() { "Paused".into() } else { format!("{state} · Paused") };
     }
@@ -1697,5 +1701,17 @@ mod local_library_visibility_tests {
         });
         assert!(is_local_track(&local));
         assert!(!is_local_track(&remote));
+    }
+
+    #[test]
+    fn discord_presence_templates_replace_track_placeholders() {
+        assert_eq!(
+            render_presence_template("Listening to {title}", "Night Drive", "Example Artist"),
+            "Listening to Night Drive"
+        );
+        assert_eq!(
+            render_presence_template("by {artist} · {title}", "Night Drive", "Example Artist"),
+            "by Example Artist · Night Drive"
+        );
     }
 }
