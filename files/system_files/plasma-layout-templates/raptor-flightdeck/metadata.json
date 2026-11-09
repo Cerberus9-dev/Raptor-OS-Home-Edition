@@ -1,0 +1,16 @@
+{
+  "KPlugin": {
+    "Authors": [
+      {
+        "Email": "raptor-os@users.noreply.github.com",
+        "Name": "Raptor OS"
+      }
+    ],
+    "Category": "Panel",
+    "Description": "A compact flight-deck inspired bottom panel with launcher, workspace switcher, running apps, system tray and clock.",
+    "Icon": "preferences-system-windows",
+    "Id": "org.raptor.flightdeck",
+    "Name": "Raptor Flight Deck"
+  },
+  "X-Plasma-ContainmentLayout": "org.kde.panel"
+}
