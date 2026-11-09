@@ -86,17 +86,14 @@ fn start_provider_connection(
             let tokens = provider_auth::exchange_authorization_code(&pending, &code)?;
             token_store::save_tokens(provider_key, &tokens)?;
             match provider {
-                provider_auth::OAuthProvider::Tidal => Ok(
-                    "TIDAL account linked and credentials saved in the OS credential store. Catalog and profile import are not enabled yet.".into()
-                ),
-                provider_auth::OAuthProvider::Spotify | provider_auth::OAuthProvider::YoutubeData => {
+                provider_auth::OAuthProvider::Spotify | provider_auth::OAuthProvider::Tidal | provider_auth::OAuthProvider::YoutubeData => {
                     let provider_profile = provider_auth::fetch_provider_profile(provider, &tokens.access_token)?;
                     let provider_playlists = provider_auth::fetch_provider_playlists(provider, &tokens.access_token)?;
                     let mut imported = profile_import::ImportedProfile {
-                        source: if provider == provider_auth::OAuthProvider::YoutubeData {
-                            "YouTube Data API account".into()
-                        } else {
-                            "Spotify account".into()
+                        source: match provider {
+                            provider_auth::OAuthProvider::YoutubeData => "YouTube Data API account".into(),
+                            provider_auth::OAuthProvider::Tidal => "TIDAL account".into(),
+                            provider_auth::OAuthProvider::Spotify => "Spotify account".into(),
                         },
                         display_name: Some(provider_profile.display_name.clone()),
                         username: Some(provider_profile.id.clone()),
