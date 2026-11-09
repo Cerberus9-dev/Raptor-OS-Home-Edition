@@ -347,6 +347,12 @@ chmod 700 "$state_dir"
 umask 077
 stamp="$(date +%Y%m%d-%H%M%S)"
 log="$state_dir/${mode}-${stamp}-$.log"
+# Create the log before detaching so the path in the notification always exists.
+if ! (umask 077; : > "$log") || [[ ! -f "$log" ]]; then
+  command -v notify-send >/dev/null 2>&1 && notify-send --app-name="Raptor OS" --urgency=critical "$label could not start" "Cannot create diagnostic log in $state_dir. Check home-directory permissions and free space."
+  exit 1
+fi
+chmod 600 "$log"
 case "$mode" in
   wine) command=(/usr/bin/raptor-wine "$target" "$@"); label="Raptor Wine" ;;
   proton) command=(/usr/bin/raptor-wine-proton "$target" "$@"); label="Raptor Proton" ;;
