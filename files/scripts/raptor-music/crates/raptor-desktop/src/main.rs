@@ -172,7 +172,7 @@ fn start_provider_connection(
                     let playlist_count = imported.playlists.len();
                     let payload = serde_json::to_string(&imported)
                         .map_err(|_| "Could not prepare the imported provider profile".to_string())?;
-                    db.lock().map_err(|_| "The local profile database is unavailable".to_string())?
+                    let imported_id = db.lock().map_err(|_| "The local profile database is unavailable".to_string())?
                         .save_imported_profile(
                             provider_key,
                             imported.display_name.as_deref(),
@@ -180,6 +180,9 @@ fn start_provider_connection(
                             &payload,
                         )
                         .map_err(|error| format!("Could not save the imported profile: {error}"))?;
+                    if let Some(avatar_url) = imported.avatar_url.as_deref() {
+                        let _ = cache_profile_avatar(avatar_url, imported_id);
+                    }
                     let ui_for_refresh = ui.clone();
                     let db_for_refresh = Arc::clone(&db);
                     let _ = slint::invoke_from_event_loop(move || {
