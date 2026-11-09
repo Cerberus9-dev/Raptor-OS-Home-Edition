@@ -11,7 +11,7 @@ Raptor Music is a desktop music player built with Rust, SQLite, Symphonia/CPAL a
 - A dedicated upcoming-queue panel with selection and removal.
 - Persistent now-playing controls, progress display, seek, previous/next and stop.
 - A folder picker that scans supported local audio formats and imports metadata into the local SQLite library.
-- Debounced online search across public Audius tracks and artist profiles; artist results open the artist's public Audius profile.
+- Debounced online search across public tracks and artist profiles, with in-app artist pages showing profile details and playable popular tracks.
 - Search sorting by relevance, popularity, or recency, with up to 50 track results and 30 artist results per query.
 - Online artist and track results live only in Discover; switching to Local Library clears online results and prevents unnecessary catalog requests.
 - Context-aware empty states for a library with no imported files and a queue with no upcoming tracks.
@@ -22,7 +22,7 @@ The interface uses familiar music-player navigation and search patterns without 
 
 ## Catalog and privacy boundary
 
-The local library remains fully usable offline. Discover is the default view. When a search has at least two characters while Discover is active, Raptor Music sends the query to the online catalog and displays matching public, streamable tracks and artist profiles. Searching in Local Library never makes a catalog request. Selecting an online track stores its provider metadata so it can be queued and played through Audius' stream endpoint. Provider-backed tracks are excluded from the Local Library view and are not treated as local files. Stream data is buffered in a temporary per-user runtime file and removed when playback ends.
+The local library remains fully usable offline. Discover is the default view. When a search has at least two characters while Discover is active, Raptor Music sends the query to the online catalog and displays matching public, streamable tracks and artist profiles. Searching in Local Library never makes a catalog request. Selecting an online artist opens an in-app profile with its biography, public track/follower counts, and up to 50 playable popular tracks. Selecting an online track stores its provider metadata so it can be queued and played. Provider-backed tracks are excluded from the Local Library view and are not treated as local files. Stream data is buffered in a temporary per-user runtime file and removed when playback ends.
 
 Audius is the only online catalog currently integrated. It is not a mirror of Spotify's catalog, and its available artists and tracks differ substantially. Album and playlist search, genre browsing, recommendations, pagination, and additional catalog providers remain future work. Search sorting currently changes the provider's relevance, popularity, or recency ordering; it does not make Audius' catalog equivalent in size or coverage to Spotify. Online search and playback require network access. The provider receives the search query and normal connection metadata; local file names, playlists, and listening history are not uploaded by Raptor Music.
 
