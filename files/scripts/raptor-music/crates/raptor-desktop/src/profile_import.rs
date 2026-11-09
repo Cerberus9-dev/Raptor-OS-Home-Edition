@@ -267,6 +267,16 @@ fn deduplicate_profile(profile: &mut ImportedProfile) {
     deduplicate_tracks(&mut profile.saved_tracks);
     let mut artists = HashSet::new();
     profile.followed_artists.retain(|artist| artists.insert(artist.name.to_lowercase()));
+    let mut listens = HashSet::new();
+    profile.listening_history.retain(|listen| {
+        let key = format!(
+            "{}\\0{}\\0{}",
+            listen.track.source_id.as_deref().unwrap_or(""),
+            listen.played_at.as_deref().unwrap_or(""),
+            listen.ms_played.unwrap_or(0)
+        );
+        listens.insert(key)
+    });
 }
 
 fn deduplicate_tracks(tracks: &mut Vec<ImportedTrack>) {
