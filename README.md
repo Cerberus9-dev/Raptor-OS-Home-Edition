@@ -3,7 +3,7 @@
 **Current stable release:** v2.8.0  
 **Next release:** v3.0.0 (in development)
 
-Raptor OS is a Bazzite-based Linux distribution built around KDE Plasma, gaming support, and a set of desktop tools maintained for the project. The aim is to make everyday setup and maintenance possible from the GUI, while keeping the usual Linux tools available when needed.
+Raptor OS is a Bazzite-based Linux distribution with KDE Plasma, gaming support, and a collection of desktop apps built for the project. The idea is straightforward: make setup, updates and everyday maintenance manageable from the desktop, without taking away the Linux tools that are there when you need them.
 
 > **Work in progress.** v3.0.0 has not been released. Back up important files before installing. Raptor OS can be tested in a virtual machine or installed on a separate drive. Allow at least 50 GB for a dual-boot installation.
 
