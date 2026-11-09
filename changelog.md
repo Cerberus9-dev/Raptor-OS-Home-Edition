@@ -34,6 +34,10 @@
 
 ## [Unreleased]
 
+### Flight-deck desktop and discovery follow-up
+- Add a dedicated Raptor Wallpaper launcher that captures Python/GTK startup errors and session/runtime details in a private per-user log, then surfaces the useful exception in a desktop notification. Route the app-menu and Dolphin image action through this diagnostic launcher so a failed start no longer disappears silently.
+- Extend Raptor Music's online discovery to query Audius artist profiles as well as tracks, display artist profiles separately, and open the selected public artist page. Local library results remain separately displayed from online discovery.
+
 ### v3.0.0 (Major Release)
 
 This is the consolidation release for more than two months of sustained Raptor OS overhaul work. The scope includes substantial changes across performance and memory management, gaming and GPU behavior, audio, Cortex, update reliability, hardware recovery, browser and chat-client choice, build validation, and the installation/distribution path. The intent is to ship the work as one coherent major update rather than scatter it across a long sequence of small version bumps.
