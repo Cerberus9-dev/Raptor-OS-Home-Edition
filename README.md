@@ -1,38 +1,37 @@
 # Raptor OS
-**Current stable version: v2.8.0**  
-**Next release: v3.0.0 (Major Release) — in preparation**
 
-A custom Bazzite-based Linux distribution built for gaming — automatic GPU optimisation, low-latency audio, an aviation-inspired flight-deck desktop identity, familiar window management, and a zero-terminal first-boot experience.
+**Current stable release:** v2.8.0  
+**Next release:** v3.0.0 (in development)
 
-> **Heavy W.I.P — Feedback appreciated!** This is **not** a live OS. It needs its own drive, replaces your current OS, or runs alongside it as a dual boot. Minimum 40–50 GB free for dual boot. Can be tested in a VM first.
+Raptor OS is a Bazzite-based Linux distribution built around KDE Plasma, gaming support, and a set of desktop tools maintained for the project. The aim is to make everyday setup and maintenance possible from the GUI, while keeping the usual Linux tools available when needed.
 
-## Raptor OS philosophy
+> **Work in progress.** v3.0.0 has not been released. Back up important files before installing. Raptor OS can be tested in a virtual machine or installed on a separate drive. Allow at least 40–50 GB for a dual-boot installation.
 
-Raptor OS is designed to deliver the reliability and gaming readiness of Bazzite while removing as much everyday Linux friction as practical. Linux is the foundation, not a skill users should have to learn before they can use their computer.
+## Project goals
 
-- **GUI-first, terminal-optional:** common setup, updates, app installation, hardware controls, and recovery should be available through clear graphical tools. Terminal commands remain available for advanced users, not required for ordinary use.
-- **Stable by default:** preserve the atomic image/update model, keep rollback and recovery paths understandable, and prefer tested defaults over risky performance tweaks.
-- **Windows compatibility that feels native:** ordinary Windows applications use familiar Wine behavior; Proton/UMU is an optional game-focused path, not a replacement for Wine or a requirement to use Steam.
-- **Hardware should just work:** prioritize dependable Wi-Fi, Bluetooth, audio, graphics, controllers, printers, sleep/resume, and laptop power behavior. Never claim a fix is complete without testing it on real hardware.
-- **Performance without placebo tweaks:** optimize only where measurable, keep changes reversible, and never sacrifice core desktop services just to improve a benchmark.
-- **No forced ecosystem:** users choose their apps, browsers, chat clients, and workflows. Optional software stays optional, with clear install and removal paths.
-- **Honest compatibility and requirements:** document known limitations, distinguish tested support from targets, and do not promise that every Windows program or every low-spec device will work.
+- **Desktop-first setup:** updates, app installation, hardware settings, and recovery should be accessible through graphical tools.
+- **Keep the base reliable:** use the atomic update model and retain a rollback path. Avoid system-wide tweaks that trade stability for small benchmark gains.
+- **Windows app support:** use Wine for ordinary Windows programs and the optional Proton/UMU path for games. Compatibility depends on the application.
+- **Hardware support:** test Wi-Fi, Bluetooth, graphics, audio, controllers, sleep and resume on real hardware before describing a fix as complete.
+- **Measured performance changes:** make changes only when there is a clear benefit, and avoid disabling services that other desktop or gaming features need.
+- **Optional software:** let users choose browsers, chat clients, and other apps instead of installing a large default bundle.
+- **Document limitations:** distinguish tested hardware and features from work that is still being developed.
 
-These principles apply to both Home Edition and Security Edition. Each edition keeps its own purpose and security posture, but both should feel coherent, approachable, and dependable.
+These goals apply to Home Edition and Security Edition. The editions have different uses and security settings, but share the same preference for clear controls and documented behavior.
 
-### Recovery and lock-screen customization
+### Recovery and lock-screen settings
 
-Raptor Update Manager exposes the previous OSTree deployment as a guarded rollback action when a previous deployment is available. It stages the rollback and leaves the restart to the user; it does not claim to restore Flatpak versions, personal files, or every user-level setting. The previous deployment remains the recovery target provided by the underlying atomic update system.
+Raptor Update Manager can stage a rollback to the previous OSTree deployment when one is available. The user chooses when to restart. This rolls back the system image; it does not restore Flatpak versions, personal files, or every setting in the home directory.
 
-Raptor Wallpaper can apply the selected image independently to the desktop or KDE Plasma lock screen. Lock-screen changes are stored in the user's Plasma configuration and take effect the next time the lock screen is shown. The standard KDE Screen Locking settings remain available for timeout, resume-lock, and other security behavior.
+Raptor Wallpaper can set the desktop image and KDE Plasma lock-screen image separately. Other lock-screen options, such as timeout and lock-on-resume, remain in KDE's Screen Locking settings.
 
-### First-party app experience
+### Raptor desktop apps
 
-Raptor Tasks includes category and status filters, live search, task counts, and persistent local task storage. Raptor Wallpaper provides a searchable gallery, a large selected-image preview, display-fit controls, bundled Raptor artwork, and direct application from Dolphin. Raptor Music is a local-first music library with searchable track metadata, playlists, a playback queue, and a persistent player dock. Its layout takes cues from modern streaming apps without copying Spotify's branding. Online streaming catalogs and recommendation feeds are not yet implemented. These apps share the aviation-inspired Raptor visual system.
+Raptor Tasks stores tasks locally and includes search, category filters, and status filters. Raptor Wallpaper provides a searchable image gallery, preview, fit options, and a Dolphin action for applying an image. Raptor Music currently focuses on local files, playlists, and playback; online catalog search is still in development.
 
-### Aviation-inspired visual identity
+### Desktop theme
 
-Raptor OS uses a restrained aerospace / flight-deck visual language across the desktop: deep instrument-panel navy, graphite surfaces, instrument-cyan focus accents, amber caution states, and green operational/success indicators. The Raptor HUD applies the matching KDE, GTK, and Qt/Kvantum styling, with clearer Adwaita cards, navigation surfaces, and status treatments. The aim is a modern aircraft systems aesthetic—not a literal cockpit simulator: keep controls readable, status colors meaningful, animations restrained, and everyday desktop workflows familiar.
+The desktop uses dark navy and graphite surfaces with cyan focus accents, amber warnings, and green status indicators. KDE, GTK, and Qt applications share the same palette where their toolkits allow it. The theme keeps status information readable without changing normal desktop workflows.
 
 ---
 
@@ -162,7 +161,11 @@ A one-time **Welcome to Raptor OS Home** dialog introduces the Raptor app suite 
 
 ---
 
-## Raptor Cortex\n\nCortex is organized into Overview, Graphics, Games, Optimize, and Settings tabs. The Graphics tab groups live GPU temperature, model/load/clock/VRAM telemetry, read-only fan sensors, and GPU performance profiles in one place. Unsupported readings are omitted rather than fabricated; fan controls remain with firmware and supported kernel interfaces. Memory compression uses standard zstd-backed ZRAM by default, with conservative sizing.\n\n — Performance & Memory Manager
+## Raptor Cortex
+
+Cortex is organized into Overview, Graphics, Games, Optimize, and Settings tabs. The Graphics tab groups live GPU temperature, model/load/clock/VRAM telemetry, read-only fan sensors, and GPU performance profiles in one place. Unsupported readings are omitted rather than fabricated; fan controls remain with firmware and supported kernel interfaces. Memory compression uses ZRAM with conservative sizing.
+
+**Performance and memory manager**
 
 GTK4/Adwaita app with Power Saving / Balanced / Performance modes. **power-profiles-daemon is the sole owner of CPU governor, boost, EPP, frequency and firmware power policy**, keeping KDE Powerdevil's battery slider functional. Cortex applies separate device-level tuning (such as PCIe/NVMe where supported) and reports failures instead of silently claiming success.
 
@@ -210,7 +213,6 @@ The first-boot chooser offers the official Discord client, Vesktop, Equibop, and
 **The custom Raptor OS application, built into every Raptor OS image.** Raptor Shroudly is a native desktop dashboard that detects supported game clients and applications without freezing or modifying them. It is built from the Rust source in `files/scripts/shroudly-raptor`, packaged with its own Raptor-branded launcher and icon, and verified inside each published image.
 
 The current dashboard provides local application detection. Its network-routing and per-app traffic-steering engine is not yet enabled; it does not claim that a proxy or protection mode is active. The custom implementation is inspired by the original Shroudly project by **umutxyp / Codeshare Technology Ltd**; upstream is not substituted for the Raptor app.
-
 
 ---
 
