@@ -1,6 +1,11 @@
 # Changelog
 
 ### Raptor Music discovery
+- Added Audius autocomplete album and playlist search results in a separate Discover section; selecting a collection loads its tracks into the online player list.
+- Documented provider-specific account authorization boundaries and the distinction between account linking, catalog access, and playback rights.
+
+
+### Raptor Music discovery
 - Added an Independent sort option that alternates relevance-ranked and recent Audius search results, deduplicating tracks so emerging and lower-play-count artists are not crowded out by popularity sorting.
 
 
