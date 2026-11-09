@@ -42,7 +42,7 @@ Raptor Music has no ads, subscription requirement, app telemetry or always-runni
 
 ## Connected music accounts
 
-Direct sign-in is not implemented yet. The intended experience is an official provider sign-in and permission screen—not a Raptor Music form asking users for another service's password. Account linking must use the provider's supported authorization flow, request only the permissions needed, store credentials in the operating system's secure credential store, and include a clear disconnect option.
+Direct sign-in is not implemented yet. Raptor Music now has browser-based account connection controls for Spotify, TIDAL and Google/YouTube Data API. Sign-in uses provider authorization and PKCE rather than collecting service passwords. The callback listener binds only to the configured loopback IP, validates OAuth state and redirect path, and has bounded request and timeout handling. OAuth credentials are stored in the operating system credential manager (Secret Service on Linux, Windows Credential Manager, or Apple Keychain), not in the music database. Each provider has a disconnect control that removes its saved credentials.
 
 Provider support is not interchangeable:
 
