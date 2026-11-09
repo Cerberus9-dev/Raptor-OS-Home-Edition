@@ -415,6 +415,12 @@ export component MainWindow inherits Window {
                         visible: root.active_view == "settings";
                         spacing: 12px;
                         Text { text: "Music providers"; color: #f2f5ec; font-size: 21px; font-weight: 700; }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            Button { text: "Open Spotify"; clicked => { root.open_external_service_clicked("spotify"); } }
+                            Button { text: "Open Apple Music"; clicked => { root.open_external_service_clicked("apple_music"); } }
+                            Button { text: "Open YouTube Music"; clicked => { root.open_external_service_clicked("youtube_music"); } }
+                        }
                         Text {
                             text: "Raptor Music connects accounts through provider sign-in, never by collecting service passwords. Account linking, library import, catalog search and playback are separate capabilities and depend on each provider's API permissions.";
                             color: #a5b2a3; font-size: 12px; wrap: word-wrap;
