@@ -361,7 +361,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let artist_worker = std::thread::spawn(move || search_audius_artists(&artist_query, &artist_sort_method));
             let apple_query = query_for_thread.clone();
             let apple_worker = std::thread::spawn(move || search_apple_music_tracks(&apple_query));
-            let audius_result = search_audius_tracks(&query_for_thread, &sort_method);
+            let audius_result = if sort_method == "independent" {
+                // Blend relevance-ranked and recent uploads instead of letting
+                // play counts dominate discovery. Alternate sources and dedupe
+                // by stable provider-backed track ID.
+                let recent_query = query_for_thread.clone();
+                let recent_worker = std::thread::spawn(move || search_audius_tracks(&recent_query, "recent"));
+                let relevant = search_audius_tracks(&query_for_thread, "relevant");
+                let recent = recent_worker.join()
+                    .unwrap_or_else(|_| Err("Recent discovery worker stopped unexpectedly".to_string()));
+                match (relevant, recent) {
+                    (Ok(relevant), Ok(recent)) => Ok(merge_independent_discovery(relevant, recent)),
+                    (Ok(relevant), Err(_)) => Ok(relevant),
+                    (Err(_), Ok(recent)) => Ok(recent),
+                    (Err(error), Err(_)) => Err(error),
+                }
+            } else {
+                search_audius_tracks(&query_for_thread, &sort_method)
+            };
             let artist_result = artist_worker.join()
                 .unwrap_or_else(|_| Err("Artist search worker stopped unexpectedly".to_string()));
             let apple_result = apple_worker.join()
@@ -1424,6 +1441,7 @@ fn normalized_sort_method(value: &str) -> &'static str {
     match value {
         "popular" => "popular",
         "recent" => "recent",
+        "independent" => "relevant",
         _ => "relevant",
     }
 }
@@ -1546,6 +1564,21 @@ fn fetch_audius_artist_profile(artist: &AudiusArtist) -> Result<AudiusArtistProf
     })
 }
 
+fn merge_independent_discovery(relevant: Vec<Track>, recent: Vec<Track>) -> Vec<Track> {
+    let mut seen = HashSet::new();
+    let mut merged = Vec::with_capacity(relevant.len() + recent.len());
+    let max_len = relevant.len().max(recent.len());
+    for index in 0..max_len {
+        if let Some(track) = relevant.get(index) {
+            if seen.insert(track.id) { merged.push(track.clone()); }
+        }
+        if let Some(track) = recent.get(index) {
+            if seen.insert(track.id) { merged.push(track.clone()); }
+        }
+    }
+    merged
+}
+
 fn search_audius_tracks(query: &str, sort_method: &str) -> Result<Vec<Track>, String> {
     let query = query.trim();
     if query.is_empty() {
@@ -1617,6 +1650,34 @@ mod apple_music_search_tests {
     #[test]
     fn malformed_apple_music_response_is_not_reported_as_empty_success() {
         assert!(parse_apple_music_tracks(&serde_json::json!({"data": []})).is_err());
+    }
+}
+
+#[cfg(test)]
+mod independent_discovery_tests {
+    use super::*;
+
+    fn track(id: u128, title: &str) -> Track {
+        Track {
+            id: Uuid::from_u128(id),
+            title: title.into(),
+            artist: "Independent artist".into(),
+            album: None,
+            duration_secs: Some(120),
+            source: PlaybackSource::RemoteStream {
+                provider_id: "audius".into(),
+                provider_track_id: format!("track-{id}"),
+            },
+        }
+    }
+
+    #[test]
+    fn independent_discovery_interleaves_and_deduplicates_sources() {
+        let relevant = vec![track(1, "Relevant A"), track(2, "Shared"), track(3, "Relevant B")];
+        let recent = vec![track(4, "Recent A"), track(2, "Shared"), track(5, "Recent B")];
+        let merged = merge_independent_discovery(relevant, recent);
+        assert_eq!(merged.iter().map(|item| item.id.as_u128()).collect::<Vec<_>>(),
+            vec![1, 4, 2, 5, 3]);
     }
 }
 
