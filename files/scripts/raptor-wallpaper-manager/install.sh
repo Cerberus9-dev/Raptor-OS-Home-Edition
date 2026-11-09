@@ -746,6 +746,25 @@ chmod +x /usr/bin/raptor-wallpaper
 ln -sf /usr/bin/raptor-wallpaper /usr/bin/raptor-wallpaper-manager
 
 # ── .desktop launcher ─────────────────────────────────────────────────────────
+cat << 'EOF' > /usr/bin/raptor-wallpaper-launch
+#!/usr/bin/env bash
+set -u
+state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/raptor"
+mkdir -p "$state_dir" || exit 1
+chmod 700 "$state_dir" 2>/dev/null || true
+umask 077
+log="$state_dir/wallpaper-$(date +%Y%m%d-%H%M%S)-$.log"
+: > "$log" || exit 1
+/usr/bin/python3 /usr/bin/raptor-wallpaper "$@" >>"$log" 2>&1
+status=$?
+if (( status != 0 )); then
+    summary="$(tail -n 5 "$log" | tr '\n' ' ' | cut -c1-220)"
+    command -v notify-send >/dev/null 2>&1 && notify-send --app-name="Raptor OS" --urgency=critical "Raptor Wallpaper could not start" "${summary:-Exit code $status. Full log: $log}"
+fi
+exit "$status"
+EOF
+chmod 0755 /usr/bin/raptor-wallpaper-launch
+
 cat << 'EOF' > /usr/share/applications/raptor-wallpaper.desktop
 [Desktop Entry]
 Version=1.1
@@ -753,7 +772,7 @@ Type=Application
 Name=Raptor Wallpaper
 GenericName=Wallpaper Picker
 Comment=Browse and apply wallpapers — Raptor OS originals or your own images
-Exec=/usr/bin/raptor-wallpaper
+Exec=/usr/bin/raptor-wallpaper-launch
 Icon=raptor-wallpaper
 Terminal=false
 Categories=X-RaptorOS;System;Settings;
@@ -810,7 +829,7 @@ X-KDE-Priority=TopLevel
 [Desktop Action setRaptorWallpaper]
 Name=Set as Raptor Wallpaper
 Icon=raptor-wallpaper
-Exec=/usr/bin/raptor-wallpaper --apply %f
+Exec=/usr/bin/raptor-wallpaper-launch --apply %f
 EOF
 
 # ── Self-check ────────────────────────────────────────────────────────────────

@@ -28,6 +28,12 @@ modules:
         destination: /etc/xdg/mimeapps.list
       - source: ../files/system_files/raptor-mimeapps.list
         destination: /etc/skel/.config/mimeapps.list
+      # Flight-deck Plasma panel theme: restrained radar markings, readable
+      # task buttons, and a dark instrument-panel surface.
+      - source: ../files/system_files/raptor-flightdeck-theme
+        destination: /usr/share/plasma/desktoptheme/raptor-flightdeck
+      - source: ../files/system_files/raptor-flightdeck-plasmarc
+        destination: /etc/xdg/plasmarc
       # ── Audio: PipeWire low-latency gaming config ──────────────────────────
       - source: ../files/system_files/99-raptor-pipewire-lowlatency.conf
         destination: /etc/pipewire/pipewire.conf.d/99-raptor-lowlatency.conf
@@ -142,6 +148,7 @@ modules:
       # Python + GObject — required by Raptor GTK4/Adwaita apps
       - python3
       - python3-gobject
+      - gtk4
       - libadwaita
 
       # Theming
