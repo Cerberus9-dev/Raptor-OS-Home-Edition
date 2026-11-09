@@ -137,7 +137,7 @@ assert_contains files/scripts/raptor-wine/install.sh 'export UMU_LOG="${UMU_LOG:
 assert_contains files/scripts/raptor-wine/install.sh "Raptor compatibility launch diagnostics"
 assert_contains files/scripts/raptor-wine/install.sh 'log="$state_dir/${mode}-${stamp}-$$.log"'
 assert_contains files/scripts/raptor-wine/install.sh 'chmod 600 "$log"'
-assert_not_containsfiles/scripts/raptor-wine/install.sh '${stamp}-$'+' .log"'
+assert_not_contains files/scripts/raptor-wine/install.sh '${stamp}-$.log"'
 assert_contains files/scripts/raptor-wine/install.sh "wine --version"
 assert_contains files/scripts/raptor-wine/install.sh "umu-run --version"
 assert_contains files/scripts/raptor-wine/install.sh "stat -Lc 'Permissions: %A (%a)  Size: %s bytes'"
