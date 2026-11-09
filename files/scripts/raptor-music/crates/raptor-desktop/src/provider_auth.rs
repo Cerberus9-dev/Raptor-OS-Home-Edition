@@ -518,6 +518,10 @@ mod tests {
             Err(CallbackError::InvalidState)
         );
         assert_eq!(
+            parse_authorization_callback("http://evil.test/callback?code=auth-code&state=expected-state", &pending),
+            Err(CallbackError::InvalidState)
+        );
+        assert_eq!(
             parse_authorization_callback("http://127.0.0.1/callback?error=access_denied&state=expected-state", &pending),
             Err(CallbackError::ProviderRejected("access_denied".into()))
         );
