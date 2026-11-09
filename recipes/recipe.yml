@@ -148,7 +148,8 @@ modules:
       # Python + GObject — required by Raptor GTK4/Adwaita apps
       - python3
       - python3-gobject
-      - gtk4\n      - libadwaita
+      - gtk4
+      - libadwaita
 
       # Theming
       - kde-partitionmanager
