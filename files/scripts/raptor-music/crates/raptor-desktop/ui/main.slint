@@ -43,6 +43,11 @@ export component MainWindow inherits Window {
     in-out property <bool> is_seeking: false;
     in-out property <string> player_state_label: "Ready";
     in-out property <string> active_view: "discover";
+    in-out property <string> artist_profile_name: "";
+    in-out property <string> artist_profile_handle: "";
+    in-out property <string> artist_profile_bio: "";
+    in-out property <string> artist_profile_stats: "";
+    in-out property <string> artist_profile_status: "";
 
     callback scan_directory_clicked();
     callback track_selected(int);
@@ -256,6 +261,7 @@ export component MainWindow inherits Window {
                     }
 
                     Rectangle {
+                        visible: root.active_view != "artist";
                         height: 44px;
                         background: #273229;
                         border-radius: 8px;
@@ -282,11 +288,89 @@ export component MainWindow inherits Window {
                     }
 
                     Text {
+                        visible: root.active_view != "artist";
                         text: root.active_view == "discover"
                             ? "Search online catalog results here; your local files remain in Your Library."
                             : "Search matches across local titles, artists and album names.";
                         color: #879487;
                         font-size: 11px;
+                    }
+
+                    VerticalLayout {
+                        visible: root.active_view == "artist";
+                        spacing: 10px;
+                        Button {
+                            text: "Back to Discover";
+                            clicked => {
+                                root.active_view = "discover";
+                                root.search_changed(root.search_query);
+                            }
+                        }
+                        Text {
+                            text: root.artist_profile_name;
+                            color: #f2f5ec;
+                            font-size: 28px;
+                            font-weight: 700;
+                        }
+                        Text {
+                            text: root.artist_profile_handle;
+                            color: #b4d66d;
+                            font-size: 13px;
+                        }
+                        Text {
+                            text: root.artist_profile_stats;
+                            color: #879487;
+                            font-size: 11px;
+                        }
+                        Text {
+                            text: root.artist_profile_bio;
+                            color: #c1cbc0;
+                            font-size: 13px;
+                            wrap: word-wrap;
+                        }
+                        HorizontalLayout {
+                            Text {
+                                text: "Popular tracks";
+                                color: #f2f5ec;
+                                font-size: 18px;
+                                font-weight: 700;
+                            }
+                            Rectangle { horizontal-stretch: 1; }
+                            Text {
+                                text: root.artist_profile_status;
+                                color: #879487;
+                                font-size: 11px;
+                                vertical-alignment: center;
+                            }
+                        }
+                        ListView {
+                            visible: root.online_track_list.length > 0;
+                            vertical-stretch: 1;
+                            for t[index] in root.online_track_list : Rectangle {
+                                height: 48px;
+                                border-radius: 6px;
+                                background: index == root.selected_online_track_index ? #34482a : #202b21;
+                                HorizontalLayout {
+                                    padding-left: 12px;
+                                    padding-right: 12px;
+                                    spacing: 10px;
+                                    VerticalLayout {
+                                        horizontal-stretch: 1;
+                                        spacing: 1px;
+                                        Text { text: t.title; color: #edf5fb; font-size: 12px; vertical-alignment: center; overflow: elide; }
+                                        Text { text: t.artist; color: #a5b2a3; font-size: 10px; vertical-alignment: center; overflow: elide; }
+                                    }
+                                    Text { text: t.album; color: #a5b2a3; width: 110px; font-size: 10px; vertical-alignment: center; overflow: elide; }
+                                    Text { text: t.duration; color: #a5b2a3; width: 48px; font-size: 10px; vertical-alignment: center; }
+                                }
+                                TouchArea { clicked => { root.online_track_selected(index); } }
+                            }
+                        }
+                        Button {
+                            text: "Add selected track to queue";
+                            enabled: root.selected_online_track_index >= 0;
+                            clicked => { root.add_to_queue_clicked(); }
+                        }
                     }
 
                     HorizontalLayout {
