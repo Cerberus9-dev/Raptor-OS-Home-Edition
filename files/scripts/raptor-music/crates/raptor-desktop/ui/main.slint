@@ -52,6 +52,7 @@ export component MainWindow inherits Window {
 
     callback scan_directory_clicked();
     callback import_profile_clicked();
+    callback confirm_profile_import_clicked();
     callback track_selected(int);
     callback online_track_selected(int);
     callback artist_selected(int);
@@ -166,6 +167,22 @@ export component MainWindow inherits Window {
                         color: #9eae9d;
                         font-size: 10px;
                         wrap: word-wrap;
+                    }
+                    Rectangle {
+                        height: 34px;
+                        border-radius: 6px;
+                        background: #35472d;
+                        Text {
+                            text: "Confirm profile import";
+                            color: #d4ed9c;
+                            x: 10px;
+                            vertical-alignment: center;
+                            font-size: 12px;
+                            font-weight: 600;
+                        }
+                        TouchArea {
+                            clicked => { root.confirm_profile_import_clicked(); }
+                        }
                     }
                     Rectangle {
                         height: 36px;
