@@ -748,6 +748,18 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'if
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'ui.on_skip_backward_clicked'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'ui.on_skip_forward_clicked'
 
+echo "=== Checking Raptor Music provider integrations ==="
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn search_apple_music_tracks'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'RAPTOR_APPLE_MUSIC_DEVELOPER_TOKEN'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn parse_apple_music_tracks'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'apple_music_preview'
+assert_contains files/scripts/raptor-music/crates/raptor-audio/src/player.rs 'fn download_apple_music_preview'
+assert_contains files/scripts/raptor-music/crates/raptor-audio/src/player.rs 'is_apple_preview_url'
+assert_contains files/scripts/raptor-music/crates/raptor-audio/src/player.rs 'accepts_only_https_apple_preview_hosts'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Music providers'
+assert_contains files/scripts/raptor-music/README.md 'Apple Music preview clips'
+echo "Raptor Music provider checks passed."
+
 echo "=== Checking Raptor Music Discord Rich Presence ==="
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'text: "Discord Rich Presence"'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'discord_client_id'
