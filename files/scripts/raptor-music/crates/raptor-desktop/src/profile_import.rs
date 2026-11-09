@@ -226,6 +226,22 @@ fn deduplicate_tracks(tracks: &mut Vec<ImportedTrack>) {
 }
 
 impl ImportedProfile {
+    /// Merge another export document into this profile, retaining the first
+    /// available identity fields and avoiding repeated collections/events.
+    pub fn merge(&mut self, mut other: ImportedProfile) {
+        if self.source.is_empty() { self.source = other.source; }
+        if self.display_name.is_none() { self.display_name = other.display_name.take(); }
+        if self.username.is_none() { self.username = other.username.take(); }
+        if self.biography.is_none() { self.biography = other.biography.take(); }
+        if self.avatar_url.is_none() { self.avatar_url = other.avatar_url.take(); }
+
+        self.playlists.append(&mut other.playlists);
+        self.saved_tracks.append(&mut other.saved_tracks);
+        self.followed_artists.append(&mut other.followed_artists);
+        self.listening_history.append(&mut other.listening_history);
+        deduplicate_profile(self);
+    }
+
     pub fn summary(&self) -> ImportSummary {
         ImportSummary {
             playlists: self.playlists.len(),
@@ -289,6 +305,22 @@ mod tests {
         let profile = parse_profile_export(json).unwrap();
         assert_eq!(profile.avatar_url, None);
         assert_eq!(profile.saved_tracks.len(), 1);
+    }
+
+    #[test]
+    fn merges_multiple_export_documents_without_duplicate_tracks_or_artists() {
+        let first = parse_profile_export(r#"{"playlists":[{"name":"Mix","tracks":[
+          {"source_id":"track-1","title":"One","artist":"A"}
+        ]}]}"#).unwrap();
+        let second = parse_profile_export(r#"{"tracks":[
+          {"track":{"trackName":"Two","artistName":"B","trackUri":"track-2"}}
+        ]}"#).unwrap();
+        let mut combined = first;
+        combined.merge(second);
+        assert_eq!(combined.playlists.len(), 1);
+        assert_eq!(combined.playlists[0].tracks.len(), 1);
+        assert_eq!(combined.saved_tracks.len(), 1);
+        assert_eq!(combined.saved_tracks[0].title, "Two");
     }
 
     #[test]
