@@ -32,7 +32,6 @@ fn refresh_provider_tokens_if_needed(
 fn restore_provider_connections(ui: slint::Weak<MainWindow>) {
     std::thread::spawn(move || {
         let providers = [
-            ("Spotify", "spotify", provider_auth::OAuthProvider::Spotify),
             ("YouTube account", "youtube", provider_auth::OAuthProvider::YoutubeData),
         ];
         let mut connected = Vec::new();
@@ -381,11 +380,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     let ui_handle_provider_connect = ui.as_weak();
-    ui.on_connect_spotify_clicked({
-        let ui_weak = ui_handle_provider_connect.clone();
-        let db_for_connect = Arc::clone(&db);
-        move || start_provider_connection(provider_auth::OAuthProvider::Spotify, ui_weak.clone(), Arc::clone(&db_for_connect))
-    });
     ui.on_connect_youtube_clicked({
         let ui_weak = ui_handle_provider_connect.clone();
         let db_for_connect = Arc::clone(&db);
