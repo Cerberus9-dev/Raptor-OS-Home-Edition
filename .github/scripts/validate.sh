@@ -783,3 +783,17 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'DI
 assert_not_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'chars().count() < 2'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn update_discord_from_database'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'discord_presence_templates_replace_track_placeholders'
+
+echo "=== Checking Raptor Music provider authorization foundation ==="
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'mod provider_auth;'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs 'pub fn create_pkce_pair'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs 'pub fn begin_authorization'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs 'pub fn validate_callback_state'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs 'OAuthProvider::Spotify'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs 'OAuthProvider::Tidal'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs 'OAuthProvider::YoutubeData'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs 'code_challenge_method'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs 'InvalidCallbackState'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/Cargo.toml 'sha2 = "0.10"'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs 'RAPTOR_GOOGLE_CLIENT_ID'
+echo "Raptor Music provider authorization foundation contracts passed."
