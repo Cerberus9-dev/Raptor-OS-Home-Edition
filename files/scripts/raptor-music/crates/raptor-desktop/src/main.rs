@@ -152,7 +152,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Run track and artist discovery concurrently: the slower endpoint
             // must not add its full network timeout to the other result.
             let artist_query = query_for_thread.clone();
-            let artist_worker = std::thread::spawn(move || search_audius_artists(&artist_query, &sort_method));
+            let artist_sort_method = sort_method.clone();
+            let artist_worker = std::thread::spawn(move || search_audius_artists(&artist_query, &artist_sort_method));
             let result = search_audius_tracks(&query_for_thread, &sort_method);
             let artist_result = artist_worker.join()
                 .unwrap_or_else(|_| Err("Artist search worker stopped unexpectedly".to_string()));
