@@ -3,6 +3,15 @@ slint::include_modules!();
 #[derive(Clone, Debug)]
 struct AudiusArtist { id: String, name: String, handle: String }
 
+#[derive(Clone, Debug)]
+struct AudiusArtistProfile {
+    name: String,
+    handle: String,
+    bio: String,
+    follower_count: u64,
+    track_count: u64,
+    tracks: Vec<Track>,
+}
 
 use raptor_audio::player::AudioPlayer;
 use raptor_audio::decoder::AudioDecoder;
@@ -11,7 +20,6 @@ use raptor_core::models::{Track, PlaybackSource, PlayerState, PlayerEvent};
 use std::sync::{Arc, Mutex};
 use std::collections::HashSet;
 use std::path::PathBuf;
-use std::process::Command;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 use uuid::Uuid;
@@ -254,12 +262,68 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    let artists_for_open = Arc::clone(&online_artists);
+    let artists_for_profile = Arc::clone(&online_artists);
+    let tracks_for_profile = Arc::clone(&online_tracks);
+    let generation_for_profile = Arc::clone(&online_search_generation);
+    let ui_handle_profile = ui.as_weak();
     ui.on_artist_selected(move |idx| {
-        if let Some(artist) = artists_for_open.lock().unwrap().get(idx as usize).cloned() {
-            let url = format!("https://audius.co/{}", artist.handle);
-            let _ = Command::new("xdg-open").arg(url).spawn();
+        let artist = artists_for_profile.lock().unwrap().get(idx as usize).cloned();
+        let artist = match artist {
+            Some(artist) => artist,
+            None => return,
+        };
+        let request_generation = generation_for_profile.fetch_add(1, Ordering::AcqRel) + 1;
+        if let Some(ui) = ui_handle_profile.upgrade() {
+            ui.set_active_view("artist".into());
+            ui.set_artist_profile_name(artist.name.clone().into());
+            ui.set_artist_profile_handle(format!("@{}", artist.handle).into());
+            ui.set_artist_profile_bio("Loading artist information…".into());
+            ui.set_artist_profile_stats("Loading profile…".into());
+            ui.set_artist_profile_status("Loading tracks…".into());
+            ui.set_online_track_list(slint::ModelRc::new(slint::VecModel::from(Vec::<TrackData>::new())));
+            ui.set_selected_online_track_index(-1);
         }
+        let ui_weak = ui_handle_profile.clone();
+        let artists_tracks = Arc::clone(&tracks_for_profile);
+        let generation = Arc::clone(&generation_for_profile);
+        std::thread::spawn(move || {
+            let result = fetch_audius_artist_profile(&artist);
+            if generation.load(Ordering::Acquire) != request_generation {
+                return;
+            }
+            match result {
+                Ok(profile) => {
+                    let tracks = profile.tracks.clone();
+                    let rows = tracks_to_slint(&tracks);
+                    *artists_tracks.lock().unwrap() = tracks;
+                    let stats = format!("{} tracks · {} followers", profile.track_count, profile.follower_count);
+                    let status = if rows.is_empty() {
+                        "No playable tracks are available for this artist".to_string()
+                    } else {
+                        format!("{} tracks available", rows.len())
+                    };
+                    let _ = slint::invoke_from_event_loop(move || {
+                        if let Some(ui) = ui_weak.upgrade() {
+                            ui.set_artist_profile_name(profile.name.into());
+                            ui.set_artist_profile_handle(format!("@{}", profile.handle).into());
+                            ui.set_artist_profile_bio(profile.bio.into());
+                            ui.set_artist_profile_stats(stats.into());
+                            ui.set_artist_profile_status(status.into());
+                            ui.set_online_track_list(slint::ModelRc::new(slint::VecModel::from(rows)));
+                        }
+                    });
+                }
+                Err(_error) => {
+                    let _ = slint::invoke_from_event_loop(move || {
+                        if let Some(ui) = ui_weak.upgrade() {
+                            ui.set_artist_profile_bio("Artist information is temporarily unavailable.".into());
+                            ui.set_artist_profile_stats("".into());
+                            ui.set_artist_profile_status("Could not load this artist's tracks. Try again.".into());
+                        }
+                    });
+                }
+            }
+        });
     });
 
     let ui_handle_qselect = ui.as_weak();
@@ -821,7 +885,13 @@ fn search_audius_artists(query: &str, sort_method: &str) -> Result<Vec<AudiusArt
         let name = entry.get("name").and_then(serde_json::Value::as_str)
             .filter(|name| !name.trim().is_empty())
             .or_else(|| entry.get("handle").and_then(serde_json::Value::as_str))?.to_string();
-        if id.is_empty() || handle.is_empty() || handle.contains('/') { return None; }
+        if id.is_empty()
+            || !id.chars().all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_')
+            || handle.is_empty()
+            || handle.contains('/')
+        {
+            return None;
+        }
         Some(AudiusArtist { id, name, handle })
     }).collect())
 }
