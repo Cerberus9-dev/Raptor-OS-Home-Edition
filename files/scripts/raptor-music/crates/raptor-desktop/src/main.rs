@@ -41,6 +41,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     refresh_track_list(&ui, &db);
     refresh_queue_list(&ui, &db);
     refresh_playlist_list(&ui, &db);
+    refresh_imported_profile_list(&ui, &db);
 
     let manual_stopped = Arc::new(AtomicBool::new(false));
     let active_session_token: Arc<Mutex<Option<Uuid>>> = Arc::new(Mutex::new(None));
@@ -156,6 +157,42 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     });
 
+    let db_for_profile_browse = Arc::clone(&db);
+    let ui_handle_profile_browse = ui.as_weak();
+    ui.on_refresh_imported_profiles_clicked(move || {
+        if let Some(ui) = ui_handle_profile_browse.upgrade() {
+            refresh_imported_profile_list(&ui, &db_for_profile_browse);
+        }
+    });
+
+    let db_for_profile_select = Arc::clone(&db);
+    let ui_handle_profile_select = ui.as_weak();
+    ui.on_imported_profile_selected(move |index| {
+        let ui = match ui_handle_profile_select.upgrade() { Some(ui) => ui, None => return };
+        let db_lock = db_for_profile_select.lock().unwrap();
+        let profiles = db_lock.get_imported_profiles().unwrap_or_default();
+        let record = match profiles.get(index as usize) {
+            Some(record) => record,
+            None => { ui.set_imported_profile_detail("No imported profile selected.".into()); return; }
+        };
+        let detail = match db_lock.get_imported_profile_payload(record.id) {
+            Ok(Some(payload)) => match serde_json::from_str::<profile_import::ImportedProfile>(&payload) {
+                Ok(profile) => {
+                    let summary = profile.summary();
+                    let playlists = profile.playlists.iter().take(12).map(|p| format!("• {} ({} tracks)", p.name, p.tracks.len())).collect::<Vec<_>>().join("\\n");
+                    let saved = profile.saved_tracks.iter().take(8).map(|t| format!("• {} — {}", t.title, t.artist)).collect::<Vec<_>>().join("\\n");
+                    let artists = profile.followed_artists.iter().take(8).map(|a| a.name.clone()).collect::<Vec<_>>().join(", ");
+                    let history = profile.listening_history.iter().take(5).map(|h| format!("• {} — {}", h.track.title, h.track.artist)).collect::<Vec<_>>().join("\\n");
+                    format!("{} · {}\\n{} playlists · {} saved tracks · {} followed artists · {} listening events\\n\\nPLAYLISTS\\n{}\\n\\nSAVED TRACKS\\n{}\\n\\nFOLLOWED ARTISTS\\n{}\\n\\nRECENT LISTENING HISTORY\\n{}\\n\\nImported {}", record.display_name.as_deref().or(record.username.as_deref()).unwrap_or("Imported profile"), record.provider, summary.playlists, summary.saved_tracks, summary.followed_artists, summary.listening_events, if playlists.is_empty() { "No playlists in this export" } else { &playlists }, if saved.is_empty() { "No saved tracks in this export" } else { &saved }, if artists.is_empty() { "No followed artists in this export" } else { &artists }, if history.is_empty() { "No listening history in this export" } else { &history }, record.imported_at)
+                }
+                Err(error) => format!("This saved profile could not be read: {error}")
+            },
+            Ok(None) => "The saved profile payload is missing.".to_string(),
+            Err(error) => format!("Could not load profile: {error}"),
+        };
+        ui.set_imported_profile_detail(detail.into());
+    });
+
     // Persist only after the user explicitly confirms the preview.
     let pending_for_confirm = Arc::clone(&pending_import);
     let db_for_profile_confirm = Arc::clone(&db);
@@ -190,6 +227,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
         if let Some(ui) = ui_handle_profile_confirm.upgrade() {
             ui.set_profile_import_status(status.into());
+            if result.is_ok() { refresh_imported_profile_list(&ui, &db_for_profile_confirm); }
         }
     });
 
@@ -1222,6 +1260,17 @@ fn refresh_playlist_list(ui: &MainWindow, db: &Arc<Mutex<LibraryDatabase>>) {
         name: playlist.name.into(),
     }).collect::<Vec<_>>();
     ui.set_playlist_list(slint::ModelRc::new(slint::VecModel::from(rows)));
+}
+
+fn refresh_imported_profile_list(ui: &MainWindow, db: &Arc<Mutex<LibraryDatabase>>) {
+    let db_lock = db.lock().unwrap();
+    let profiles = db_lock.get_imported_profiles().unwrap_or_default();
+    let rows = profiles.into_iter().map(|profile| ImportedProfileData {
+        id: profile.id.to_string().into(),
+        name: profile.display_name.or(profile.username).unwrap_or_else(|| "Imported profile".into()).into(),
+        subtitle: format!("{} · imported {}", profile.provider, profile.imported_at).into(),
+    }).collect::<Vec<_>>();
+    ui.set_imported_profile_list(slint::ModelRc::new(slint::VecModel::from(rows)));
 }
 
 fn refresh_queue_list(ui: &MainWindow, db: &Arc<Mutex<LibraryDatabase>>) {
