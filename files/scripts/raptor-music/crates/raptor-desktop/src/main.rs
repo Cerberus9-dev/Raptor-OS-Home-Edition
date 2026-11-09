@@ -290,15 +290,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ui_handle_provider_connect = ui.as_weak();
     ui.on_connect_spotify_clicked({
         let ui_weak = ui_handle_provider_connect.clone();
-        move || start_provider_connection(provider_auth::OAuthProvider::Spotify, ui_weak.clone(), Arc::clone(&db))
+        let db_for_connect = Arc::clone(&db);
+        move || start_provider_connection(provider_auth::OAuthProvider::Spotify, ui_weak.clone(), Arc::clone(&db_for_connect))
     });
     ui.on_connect_tidal_clicked({
         let ui_weak = ui_handle_provider_connect.clone();
-        move || start_provider_connection(provider_auth::OAuthProvider::Tidal, ui_weak.clone(), Arc::clone(&db))
+        let db_for_connect = Arc::clone(&db);
+        move || start_provider_connection(provider_auth::OAuthProvider::Tidal, ui_weak.clone(), Arc::clone(&db_for_connect))
     });
     ui.on_connect_youtube_clicked({
         let ui_weak = ui_handle_provider_connect.clone();
-        move || start_provider_connection(provider_auth::OAuthProvider::YoutubeData, ui_weak.clone(), Arc::clone(&db))
+        let db_for_connect = Arc::clone(&db);
+        move || start_provider_connection(provider_auth::OAuthProvider::YoutubeData, ui_weak.clone(), Arc::clone(&db_for_connect))
     });
     ui.on_disconnect_spotify_clicked({
         let ui_weak = ui_handle_provider_connect.clone();
