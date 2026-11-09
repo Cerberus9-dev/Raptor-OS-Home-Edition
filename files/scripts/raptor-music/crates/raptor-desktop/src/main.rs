@@ -1,5 +1,7 @@
 slint::include_modules!();
 
+mod profile_import;
+
 #[derive(Clone, Debug)]
 struct AudiusArtist { id: String, name: String, handle: String }
 
