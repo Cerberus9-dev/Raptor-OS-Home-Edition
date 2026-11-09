@@ -29,14 +29,12 @@
 - Changed ZRAM compression to LZ4 to reduce CPU overhead on slower processors. Compression is lower than with zstd.
 
 ## [Unreleased]
-- Add a multi-file JSON profile-export picker in Raptor Music with background parsing and a migration preview for identity, playlists, saved tracks, followed artists, listening events, and available avatar data; preview does not yet persist imported data.
-- Add a normalized Raptor Music profile-migration parser for Raptor profile packages and Spotify JSON playlist/library exports, preserving playlist order and source identifiers; parser tests cover profile collections, duplicate handling, and HTTPS-only artwork URLs. The user-facing import flow and persistent imported-profile storage are still pending.
-- Split Raptor Music into separate Discover and Local Library views, with online discovery as the default landing view. Local-library searches stay offline and do not send queries to the online catalog.
-- Improve Music navigation, empty-library and empty-queue guidance, and selection-aware playlist, queue, and playback controls.
-- Expand online track result parsing to retain up to 50 valid tracks, preserve actual album names, and keep artist and track search sorting aligned.
-- Add in-app artist profiles with biography, public track/follower counts, and up to 50 playable popular tracks; artist navigation no longer opens an external provider page.
-- Add an optional Raptor Flight Deck KDE Plasma 6 panel preset. It creates a compact bottom panel with the standard launcher, workspace pager, task manager, system tray and clock, without deleting or altering the user's existing panels. Available from the desktop right-click menu under Add Panel.
-
+- Add profile import to Raptor Music for supported Raptor profile packages and Spotify JSON exports. Users can select multiple files, review the information found, confirm the import, and reopen saved imports in the Imported Profiles view.
+- Keep imported playlists, saved tracks, followed artists and listening history together as separate saved profiles. Imports can be merged and deduplicated; exports without a stable username remain separate. Imported entries do not become local audio files.
+- Keep online discovery and the offline Local Library separate. Discover searches Audius for tracks and artists; local searches stay on the device.
+- Improve Music navigation, empty-library and empty-queue guidance, and selection-aware playlist, queue and playback controls.
+- Expand online track results, keep artist and track sorting consistent, and open artist profiles inside Raptor Music.
+- Add an optional Raptor Flight Deck KDE Plasma 6 panel preset. It creates a compact bottom panel without changing or removing the user's existing panels.
 ### v3.0.0
 
 Version 3.0 groups the larger changes to performance, gaming, audio, Cortex, updates, hardware recovery, first-run setup, and image distribution. It also includes fixes to the Raptor apps and their build checks.
