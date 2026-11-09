@@ -40,8 +40,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let db_lock = db.lock().unwrap();
         ui.set_discord_presence_enabled(db_lock.get_state_value("discord_presence_enabled").ok().flatten().as_deref() == Some("true"));
         ui.set_discord_client_id(db_lock.get_state_value("discord_client_id").ok().flatten().unwrap_or_default().into());
-        ui.set_discord_details_template(db_lock.get_state_value("discord_details_template").ok().flatten().unwrap_or_else(|| "Listening to {title}".into()).into());
+        ui.set_discord_details_template(db_lock.get_state_value("discord_details_template").ok().flatten().unwrap_or_else(|| "{title}".into()).into());
         ui.set_discord_state_template(db_lock.get_state_value("discord_state_template").ok().flatten().unwrap_or_else(|| "by {artist}".into()).into());
+        ui.set_discord_custom_phrase(db_lock.get_state_value("discord_custom_phrase").ok().flatten().unwrap_or_else(|| "Jamming out to".into()).into());
     }
     let discord_connection: Arc<Mutex<Option<DiscordConnection>>> = Arc::new(Mutex::new(None));
     let visible_track_ids = Arc::new(Mutex::new(
@@ -119,12 +120,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let client_id = ui.get_discord_client_id().to_string().trim().to_string();
         let details = ui.get_discord_details_template().to_string();
         let state = ui.get_discord_state_template().to_string();
+        let custom_phrase = ui.get_discord_custom_phrase().to_string();
         {
             let db_lock = db_for_discord_settings.lock().unwrap();
             let _ = db_lock.set_state_value("discord_presence_enabled", if enabled { "true" } else { "false" });
             let _ = db_lock.set_state_value("discord_client_id", &client_id);
             let _ = db_lock.set_state_value("discord_details_template", &details);
             let _ = db_lock.set_state_value("discord_state_template", &state);
+            let _ = db_lock.set_state_value("discord_custom_phrase", &custom_phrase);
         }
         if !enabled {
             clear_discord_presence(&mut connection_for_discord_settings.lock().unwrap());
@@ -136,7 +139,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let artist = ui.get_current_track_artist().to_string();
             let result = send_discord_presence(
                 &mut connection_for_discord_settings.lock().unwrap(),
-                &client_id, &details, &state, &title, &artist, "Playing",
+                &client_id, &details, &state, &custom_phrase, &title, &artist, "Playing",
             );
             ui.set_discord_presence_status(match result {
                 Ok(()) => "Connected to a compatible Discord client.".into(),
@@ -1146,6 +1149,7 @@ fn send_discord_presence(
     client_id: &str,
     details_template: &str,
     state_template: &str,
+    custom_phrase: &str,
     title: &str,
     artist: &str,
     playback_state: &str,
@@ -1156,7 +1160,15 @@ fn send_discord_presence(
     if connection.as_ref().map_or(true, |current| current.client_id != client_id) {
         *connection = Some(connect_discord_rpc(client_id)?);
     }
-    let details = render_presence_template(details_template, title, artist);
+    let track_details = render_presence_template(details_template, title, artist);
+    let phrase = render_presence_template(custom_phrase, title, artist);
+    let details = if phrase.trim().is_empty() {
+        track_details
+    } else if track_details.trim().is_empty() {
+        phrase
+    } else {
+        format!("{phrase} {track_details}")
+    };
     let mut state = render_presence_template(state_template, title, artist);
     if playback_state == "Paused" {
         state = if state.trim().is_empty() { "Paused".into() } else { format!("{state} · Paused") };
@@ -1185,6 +1197,7 @@ fn send_discord_presence(
     _client_id: &str,
     _details_template: &str,
     _state_template: &str,
+    _custom_phrase: &str,
     _title: &str,
     _artist: &str,
     _playback_state: &str,
@@ -1220,11 +1233,12 @@ fn update_discord_from_database(
     let client_id = db_lock.get_state_value("discord_client_id").ok().flatten().unwrap_or_default();
     let details = db_lock.get_state_value("discord_details_template").ok().flatten().unwrap_or_else(|| "Listening to {title}".into());
     let state = db_lock.get_state_value("discord_state_template").ok().flatten().unwrap_or_else(|| "by {artist}".into());
+    let custom_phrase = db_lock.get_state_value("discord_custom_phrase").ok().flatten().unwrap_or_else(|| "Jamming out to".into());
     drop(db_lock);
 
     let mut connection = connection.lock().unwrap();
     if enabled {
-        if let Err(error) = send_discord_presence(&mut connection, &client_id, &details, &state, title, artist, playback_state) {
+        if let Err(error) = send_discord_presence(&mut connection, &client_id, &details, &state, &custom_phrase, title, artist, playback_state) {
             eprintln!("Raptor Music Discord Rich Presence: {error}");
         }
     } else {
