@@ -23,6 +23,7 @@ export component MainWindow inherits Window {
 
     in-out property <[TrackData]> track_list: [];
     in-out property <[TrackData]> online_track_list: [];
+    in-out property <[TrackData]> online_artist_list: [];
     in-out property <string> online_search_status: "Type 2+ characters to search Audius";
     in-out property <int> selected_online_track_index: -1;
     in-out property <[TrackData]> queue_list: [];
@@ -44,6 +45,7 @@ export component MainWindow inherits Window {
     callback scan_directory_clicked();
     callback track_selected(int);
     callback online_track_selected(int);
+    callback artist_selected(int);
     callback search_changed(string);
     callback queue_selected(int);
     callback playlist_selected(int);
@@ -335,7 +337,7 @@ export component MainWindow inherits Window {
 
                     HorizontalLayout {
                         Text {
-                            text: "Explore Audius";
+                            text: "Online discovery · Audius";
                             color: #f2f5ec;
                             font-size: 18px;
                             font-weight: 700;
@@ -350,6 +352,26 @@ export component MainWindow inherits Window {
                         }
                     }
 
+                    Text { text: "Artists"; color: #f2f5ec; font-size: 18px; font-weight: 700; }
+                    ListView {
+                        height: 104px;
+                        for a[index] in root.online_artist_list : Rectangle {
+                            height: 48px; border-radius: 6px; background: #202b21;
+                            HorizontalLayout {
+                                padding-left: 12px; padding-right: 12px; spacing: 10px;
+                                Rectangle { width: 32px; height: 32px; border-radius: 16px; background: #34412c;
+                                    Text { text: "♪"; color: #c5d99a; font-size: 18px; horizontal-alignment: center; vertical-alignment: center; }
+                                }
+                                VerticalLayout { horizontal-stretch: 1; spacing: 1px;
+                                    Text { text: a.title; color: #edf5fb; font-size: 12px; vertical-alignment: center; overflow: elide; }
+                                    Text { text: a.artist; color: #a5b2a3; font-size: 10px; vertical-alignment: center; overflow: elide; }
+                                }
+                                Text { text: "Open profile"; color: #b4d66d; font-size: 10px; vertical-alignment: center; }
+                            }
+                            TouchArea { clicked => { root.artist_selected(index); } }
+                        }
+                    }
+                    Text { text: "Tracks"; color: #f2f5ec; font-size: 18px; font-weight: 700; }
                     ListView {
                         vertical-stretch: 1;
                         for t[index] in root.online_track_list : Rectangle {
