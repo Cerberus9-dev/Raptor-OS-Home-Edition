@@ -70,57 +70,79 @@ fn read_request_target(stream: &mut TcpStream) -> Result<String, String> {
     Ok(target.to_string())
 }
 
-/// Waits for one provider callback on the configured loopback redirect URI.
-/// Call this from a worker thread; it blocks for at most the supplied timeout.
+/// A callback socket bound before the browser is opened, avoiding a race
+/// between launching the provider page and starting the receiver.
+pub struct CallbackListener {
+    listener: TcpListener,
+    address: IpAddr,
+    port: u16,
+}
+
+impl CallbackListener {
+    pub fn bind(pending: &PendingAuthorization) -> Result<Self, String> {
+        let (address, port) = loopback_bind_address(&pending.redirect_uri)?;
+        let listener = TcpListener::bind((address, port))
+            .map_err(|_| "Could not open the registered local callback port; close another app using it and retry".to_string())?;
+        listener.set_nonblocking(true)
+            .map_err(|_| "Could not configure the local callback listener".to_string())?;
+        Ok(Self { listener, address, port })
+    }
+
+    /// Waits for one callback. Call this from a worker thread.
+    pub fn wait_for_code(
+        self,
+        pending: &PendingAuthorization,
+        timeout: Duration,
+    ) -> Result<String, String> {
+        let deadline = Instant::now() + timeout;
+        loop {
+            match self.listener.accept() {
+                Ok((mut stream, peer)) => {
+                    if !peer.ip().is_loopback() {
+                        respond(&mut stream, "403 Forbidden", "This callback is not permitted.");
+                        continue;
+                    }
+                    let target = match read_request_target(&mut stream) {
+                        Ok(target) => target,
+                        Err(error) => {
+                            respond(&mut stream, "400 Bad Request", "The sign-in response could not be read.");
+                            return Err(error);
+                        }
+                    };
+                    let host = match self.address {
+                        IpAddr::V4(ip) => ip.to_string(),
+                        IpAddr::V6(ip) => format!("[{ip}]"),
+                    };
+                    let callback = format!("http://{host}:{}{}", self.port, target);
+                    match parse_authorization_callback(&callback, pending) {
+                        Ok(code) => {
+                            respond(&mut stream, "200 OK", "Sign-in received successfully.");
+                            return Ok(code);
+                        }
+                        Err(error) => {
+                            respond(&mut stream, "400 Bad Request", "Sign-in could not be verified. Return to Raptor Music and try again.");
+                            return Err(format!("Provider callback rejected: {error}"));
+                        }
+                    }
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                    if Instant::now() >= deadline {
+                        return Err("Timed out waiting for the provider sign-in callback".into());
+                    }
+                    std::thread::sleep(Duration::from_millis(40));
+                }
+                Err(_) => return Err("The local provider callback listener stopped unexpectedly".into()),
+            }
+        }
+    }
+}
+
+/// Convenience wrapper for non-UI callers.
 pub fn wait_for_authorization_code(
     pending: &PendingAuthorization,
     timeout: Duration,
 ) -> Result<String, String> {
-    let (address, port) = loopback_bind_address(&pending.redirect_uri)?;
-    let listener = TcpListener::bind((address, port))
-        .map_err(|_| "Could not open the registered local callback port; close another app using it and retry".to_string())?;
-    listener.set_nonblocking(true)
-        .map_err(|_| "Could not configure the local callback listener".to_string())?;
-    let deadline = Instant::now() + timeout;
-    loop {
-        match listener.accept() {
-            Ok((mut stream, peer)) => {
-                if !peer.ip().is_loopback() {
-                    respond(&mut stream, "403 Forbidden", "This callback is not permitted.");
-                    continue;
-                }
-                let target = match read_request_target(&mut stream) {
-                    Ok(target) => target,
-                    Err(error) => {
-                        respond(&mut stream, "400 Bad Request", "The sign-in response could not be read.");
-                        return Err(error);
-                    }
-                };
-                let host = match address {
-                    IpAddr::V4(ip) => ip.to_string(),
-                    IpAddr::V6(ip) => format!("[{ip}]"),
-                };
-                let callback = format!("http://{host}:{port}{target}");
-                match parse_authorization_callback(&callback, pending) {
-                    Ok(code) => {
-                        respond(&mut stream, "200 OK", "Sign-in received successfully.");
-                        return Ok(code);
-                    }
-                    Err(error) => {
-                        respond(&mut stream, "400 Bad Request", "Sign-in could not be verified. Return to Raptor Music and try again.");
-                        return Err(format!("Provider callback rejected: {error}"));
-                    }
-                }
-            }
-            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
-                if Instant::now() >= deadline {
-                    return Err("Timed out waiting for the provider sign-in callback".into());
-                }
-                std::thread::sleep(Duration::from_millis(40));
-            }
-            Err(_) => return Err("The local provider callback listener stopped unexpectedly".into()),
-        }
-    }
+    CallbackListener::bind(pending)?.wait_for_code(pending, timeout)
 }
 
 #[cfg(test)]
