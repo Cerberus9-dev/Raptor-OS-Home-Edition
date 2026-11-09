@@ -408,7 +408,7 @@ fn fetch_spotify_playlist_pages(access_token: &str) -> Result<Vec<ProviderPlayli
         if !has_next || page_len == 0 {
             return Ok(playlists);
         }
-        offset = offset.saturating_add(page_len);
+        offset = offset.saturating_add(50);
     }
     Err("Spotify playlist import reached the 10,000-item safety limit; retry to continue.".into())
 }
