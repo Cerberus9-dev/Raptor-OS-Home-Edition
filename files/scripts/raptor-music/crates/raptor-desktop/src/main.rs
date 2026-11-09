@@ -126,6 +126,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ui.set_selected_online_track_index(-1);
         ui.set_track_list(slint::ModelRc::new(slint::VecModel::from(tracks_to_slint(&filtered))));
 
+        // The Local Library is intentionally offline-only. Avoid catalog
+        // requests while the user is browsing or filtering local files.
+        if ui.get_active_view() != "discover" {
+            *online_tracks_for_search.lock().unwrap() = Vec::new();
+            *online_artists_for_search.lock().unwrap() = Vec::new();
+            ui.set_online_artist_list(slint::ModelRc::new(slint::VecModel::from(Vec::<TrackData>::new())));
+            ui.set_online_track_list(slint::ModelRc::new(slint::VecModel::from(Vec::<TrackData>::new())));
+            ui.set_online_search_status("Online discovery is available in the Discover tab".into());
+            return;
+        }
+
         if query.trim().chars().count() < 2 {
             *online_tracks_for_search.lock().unwrap() = Vec::new();
             *online_artists_for_search.lock().unwrap() = Vec::new();
