@@ -137,6 +137,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         ui.set_online_search_status("Searching Audius…".into());
         let query_for_thread = query.trim().to_string();
+        let sort_method = ui.get_online_sort_method().to_string();
         let ui_weak = ui_handle_search.clone();
         let online_tracks = Arc::clone(&online_tracks_for_search);
         let online_artists = Arc::clone(&online_artists_for_search);
@@ -151,8 +152,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Run track and artist discovery concurrently: the slower endpoint
             // must not add its full network timeout to the other result.
             let artist_query = query_for_thread.clone();
-            let artist_worker = std::thread::spawn(move || search_audius_artists(&artist_query));
-            let result = search_audius_tracks(&query_for_thread);
+            let artist_worker = std::thread::spawn(move || search_audius_artists(&artist_query, &sort_method));
+            let result = search_audius_tracks(&query_for_thread, &sort_method);
             let artist_result = artist_worker.join()
                 .unwrap_or_else(|_| Err("Artist search worker stopped unexpectedly".to_string()));
             if generation.load(Ordering::Acquire) != request_generation {
@@ -778,7 +779,15 @@ fn parse_audius_tracks(payload: &serde_json::Value) -> Result<Vec<Track>, String
     Ok(tracks)
 }
 
-fn search_audius_artists(query: &str) -> Result<Vec<AudiusArtist>, String> {
+fn normalized_sort_method(value: &str) -> &'static str {
+    match value {
+        "popular" => "popular",
+        "recent" => "recent",
+        _ => "relevant",
+    }
+}
+
+fn search_audius_artists(query: &str, sort_method: &str) -> Result<Vec<AudiusArtist>, String> {
     let client = reqwest::blocking::Client::builder()
         .user_agent("RaptorMusic/0.2.18")
         .connect_timeout(Duration::from_secs(8))
@@ -786,7 +795,7 @@ fn search_audius_artists(query: &str) -> Result<Vec<AudiusArtist>, String> {
         .build()
         .map_err(|error| format!("Could not initialize artist search: {error}"))?;
     let response = client.get("https://api.audius.co/v1/users/search")
-        .query(&[("query", query), ("limit", "12"), ("sort_method", "relevant")])
+        .query(&[("query", query), ("limit", "30"), ("offset", "0"), ("sort_method", normalized_sort_method(sort_method))])
         .send().and_then(|response| response.error_for_status())
         .map_err(|error| format!("Audius artist search failed: {error}"))?;
     let payload: serde_json::Value = response.json()
@@ -804,7 +813,7 @@ fn search_audius_artists(query: &str) -> Result<Vec<AudiusArtist>, String> {
     }).collect())
 }
 
-fn search_audius_tracks(query: &str) -> Result<Vec<Track>, String> {
+fn search_audius_tracks(query: &str, sort_method: &str) -> Result<Vec<Track>, String> {
     let query = query.trim();
     if query.is_empty() {
         return Ok(Vec::new());
@@ -821,8 +830,9 @@ fn search_audius_tracks(query: &str) -> Result<Vec<Track>, String> {
         .get("https://api.audius.co/v1/tracks/search")
         .query(&[
             ("query", query),
-            ("limit", "24"),
-            ("sort_method", "relevant"),
+            ("limit", "50"),
+            ("offset", "0"),
+            ("sort_method", normalized_sort_method(sort_method)),
             ("app_name", "RaptorMusic"),
         ])
         .send()
