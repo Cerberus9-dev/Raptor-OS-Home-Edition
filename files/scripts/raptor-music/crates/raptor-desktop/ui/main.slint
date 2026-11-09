@@ -24,7 +24,7 @@ export component MainWindow inherits Window {
     in-out property <[TrackData]> track_list: [];
     in-out property <[TrackData]> online_track_list: [];
     in-out property <[TrackData]> online_artist_list: [];
-    in-out property <string> online_search_status: "Type 2+ characters to search Audius";
+    in-out property <string> online_search_status: "Type 2+ characters to search";
     in-out property <string> online_sort_method: "relevant";
     in-out property <int> selected_online_track_index: -1;
     in-out property <[TrackData]> queue_list: [];
@@ -218,7 +218,7 @@ export component MainWindow inherits Window {
                         font-weight: 700;
                     }
                     Text {
-                        text: "Search your library or discover independent artists and tracks on Audius.";
+                        text: "Search your library or discover independent artists and tracks.";
                         color: #b0bdb0;
                         font-size: 13px;
                     }
@@ -248,7 +248,7 @@ export component MainWindow inherits Window {
                     }
 
                     Text {
-                        text: "Local matches update as you type · Online results are from Audius";
+                        text: "Local matches update as you type · Online results appear separately";
                         color: #879487;
                         font-size: 11px;
                     }
@@ -338,7 +338,7 @@ export component MainWindow inherits Window {
 
                     HorizontalLayout {
                         Text {
-                            text: "Online discovery · Audius";
+                            text: "Online discovery";
                             color: #f2f5ec;
                             font-size: 18px;
                             font-weight: 700;
