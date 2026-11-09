@@ -149,13 +149,8 @@ A one-time **Welcome to Raptor OS Home** dialog introduces the Raptor app suite 
 
 | Category | Apps |
 |---|---|
-| **Browser** | Firefox, Brave, Zen Browser, Floorp, Waterfox, Chromium, Chrome, Edge — all optional Flathub downloads, Firefox pre-selected |
-| **Chat** | Discord, Vesktop (Vencord), Equibop (Equicord), GoofCord — optional Flathub downloads |
-| **Communication** | Telegram, Signal, Slack, Zoom, Thunderbird, Element (Matrix) |
-| **Productivity** | ONLYOFFICE, Bitwarden, Joplin, MarkText, Calibre, Obsidian, Zotero |
-| **Office** | LibreOffice |
-| **Creative** | GIMP, Inkscape, Krita, Darktable, Blender, Kdenlive, Shotcut, OBS Studio, Audacity, Boatswain, HandBrake |
-| **Development** | VSCodium, Developer Runtime (Git + Node.js + pip), Godot Engine, GitHub Desktop, Pods, GCC + Make + CMake, Ninja + Meson, Neovim, GitHub CLI, dash, xclip, ksshaskpass, libssh-tools |
+| **Communication** | Telegram, Signal, Element, Discord, Slack, Zoom, Pidgin, Mumble, Jami, Fractal, KDE Connect, Thunderbird, Proton Mail Bridge |
+| **Productivity** | LibreOffice, ONLYOFFICE, Planify, Errands, Super Productivity, Joplin, Obsidian, Standard Notes, MarkText, Zotero, Okular, RSS Guard |
 | **Passwords & 2FA** | Bitwarden, KeePassXC, Proton Pass, Authenticator |
 | **Privacy & Security** | Tor Browser, Mullvad Browser, OnionShare, Proton VPN, Cryptomator, Metadata Cleaner |
 | **De-Googled** | LibreWolf, Ungoogled Chromium, FreeTube, Organic Maps, Nextcloud |
@@ -163,12 +158,12 @@ A one-time **Welcome to Raptor OS Home** dialog introduces the Raptor app suite 
 | **Screenshots & Capture** | Flameshot |
 | **Video & Streaming** | OBS Studio, Kooha, Boatswain, Kdenlive, Shotcut, HandBrake, Parabolic, MakeMKV |
 | **Audio & Players** | VLC, Celluloid, Clapper, Strawberry, Amberol, Spotify, Plex, Audacity, LMMS, Ardour, EasyEffects, Helvum |
-| **Gaming** | Heroic Games Launcher, Lutris, Bottles, PortProton, Prism Launcher, Sober, Cartridges, GOverlay, Moonlight, Sunshine, Chiaki |
+| **Gaming** | Heroic Games Launcher, Lutris, Bottles, PortProton, Prism Launcher, Sober, QRookie, Cartridges, GOverlay, Moonlight, Sunshine, Chiaki |
 | **Emulators** | RetroArch, Dolphin Emulator, PCSX2, DuckStation, RPCS3, Flycast, ScummVM, OpenRA |
 | **Devices & Accessibility** | Solaar, Piper, OpenRGB, Speech Note |
 | **Torrents** | qBittorrent, Transmission, Fragments |
 | **Education & Science** | LabPlot, Cantor, KAlgebra, Kalzium, Step, KStars, Stellarium, Marble, KGeography, KTurtle, Anki |
-| **Development** | VSCodium, VS Code, IntelliJ IDEA Community, PyCharm Community, GitHub Desktop, Godot Engine, Pods, GitHub CLI, Neovim, C/C++ toolchain |
+| **Development** | VSCodium, VSCodium Native, VS Code, IntelliJ IDEA Community, PyCharm Community, GitHub Desktop, Godot Engine, Pods, GitHub CLI, Neovim, C/C++ toolchain |
 | **System & Utilities** | LocalSend, Save Desktop, Gear Lever, Resources, Mission Center, Warehouse, Flatseal, BleachBit, Filelight, File Roller, Impression, Deja Dup, Warp, RustDesk, Remmina, GNOME Boxes, btop |
 | **Fun & Reading** | Foliate, Calibre, Tuba, Cavalier |
 
