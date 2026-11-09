@@ -1,0 +1,17 @@
+{
+  "KPlugin": {
+    "Authors": [
+      {
+        "Name": "Cerberus9-dev",
+        "Email": "raptor-os@users.noreply.github.com"
+      }
+    ],
+    "Category": "Plasma Theme",
+    "Description": "A restrained flight-deck panel surface with subtle radar instrumentation",
+    "EnabledByDefault": true,
+    "Id": "raptor-flightdeck",
+    "License": "GPL-3.0-or-later",
+    "Name": "Raptor Flight Deck",
+    "Version": "1.0"
+  }
+}
