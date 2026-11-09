@@ -2204,6 +2204,85 @@ fn refresh_playlist_list(ui: &MainWindow, db: &Arc<Mutex<LibraryDatabase>>) {
     ui.set_playlist_list(slint::ModelRc::new(slint::VecModel::from(rows)));
 }
 
+fn profile_avatar_cache_path(profile_id: Uuid, extension: &str) -> Result<PathBuf, String> {
+    let directory = music_data_dir().map_err(|_| "Could not open the Raptor Music data directory".to_string())?
+        .join("avatars");
+    std::fs::create_dir_all(&directory)
+        .map_err(|_| "Could not create the profile-avatar cache".to_string())?;
+    Ok(directory.join(format!("{profile_id}.{extension}")))
+}
+
+/// Downloads only public profile artwork from the known provider CDNs.
+/// Redirects, non-image responses, unexpected hosts and oversized files are rejected.
+fn cache_profile_avatar(url: &str, profile_id: Uuid) -> Result<(), String> {
+    let parsed = url::Url::parse(url)
+        .map_err(|_| "Profile artwork URL is invalid".to_string())?;
+    if parsed.scheme() != "https" || !parsed.username().is_empty() || parsed.password().is_some() {
+        return Err("Profile artwork must use a public HTTPS URL".into());
+    }
+    let host = parsed.host_str().unwrap_or_default().to_ascii_lowercase();
+    let trusted_host = host == "i.scdn.co"
+        || host.ends_with(".scdn.co")
+        || host.ends_with(".spotifycdn.com")
+        || host.ends_with(".googleusercontent.com")
+        || host.ends_with(".ggpht.com");
+    if !trusted_host {
+        return Err("Profile artwork host is not an approved provider CDN".into());
+    }
+    let client = reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(8))
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .map_err(|_| "Could not create the profile-artwork connection".to_string())?;
+    let response = client.get(parsed).send()
+        .map_err(|_| "Could not retrieve profile artwork".to_string())?;
+    if !response.status().is_success() {
+        return Err("The provider did not return profile artwork".into());
+    }
+    if response.content_length().is_some_and(|length| length > 2 * 1024 * 1024) {
+        return Err("Profile artwork exceeds the 2 MiB cache limit".into());
+    }
+    let content_type = response.headers().get(reqwest::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok()).unwrap_or("")
+        .split(';').next().unwrap_or("").trim().to_ascii_lowercase();
+    let extension = match content_type.as_str() {
+        "image/jpeg" => "jpg",
+        "image/png" => "png",
+        _ => return Err("Only JPEG and PNG provider artwork is supported".into()),
+    };
+    let bytes = response.bytes()
+        .map_err(|_| "Could not read profile artwork".to_string())?;
+    if bytes.len() > 2 * 1024 * 1024 {
+        return Err("Profile artwork exceeds the 2 MiB cache limit".into());
+    }
+    let valid_image = if extension == "jpg" {
+        bytes.starts_with(&[0xff, 0xd8, 0xff])
+    } else {
+        bytes.starts_with(b"\x89PNG\r\n\x1a\n")
+    };
+    if !valid_image {
+        return Err("Provider artwork did not match its declared image format".into());
+    }
+    let destination = profile_avatar_cache_path(profile_id, extension)?;
+    let temporary = destination.with_extension(format!("{extension}.tmp"));
+    std::fs::write(&temporary, &bytes)
+        .map_err(|_| "Could not cache profile artwork".to_string())?;
+    std::fs::rename(&temporary, &destination)
+        .map_err(|_| "Could not finalize the profile-artwork cache".to_string())?;
+    Ok(())
+}
+
+fn load_profile_avatar(profile_id: Uuid) -> slint::Image {
+    for extension in ["jpg", "png"] {
+        if let Ok(path) = profile_avatar_cache_path(profile_id, extension) {
+            if let Ok(image) = slint::Image::load_from_path(&path) {
+                return image;
+            }
+        }
+    }
+    slint::Image::default()
+}
+
 fn refresh_imported_profile_list(ui: &MainWindow, db: &Arc<Mutex<LibraryDatabase>>) {
     let db_lock = db.lock().unwrap();
     let profiles = db_lock.get_imported_profiles().unwrap_or_default();
@@ -2211,6 +2290,7 @@ fn refresh_imported_profile_list(ui: &MainWindow, db: &Arc<Mutex<LibraryDatabase
         id: profile.id.to_string().into(),
         name: profile.display_name.or(profile.username).unwrap_or_else(|| "Imported profile".into()).into(),
         subtitle: format!("{} · imported {}", profile.provider, profile.imported_at).into(),
+        avatar: load_profile_avatar(profile.id),
     }).collect::<Vec<_>>();
     ui.set_imported_profile_list(slint::ModelRc::new(slint::VecModel::from(rows)));
 }
