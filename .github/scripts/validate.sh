@@ -190,6 +190,9 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint '
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Local matches update as you type'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'vertical-stretch: 1;'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'parse_audius_tracks'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'https://api.audius.co/v1/users/search'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'ui.on_artist_selected'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'online_artist_list'
 
 echo "=== Checking low-memory application defaults ==="
 assert_contains files/scripts/raptor-gaming/install.sh '"Value": 32768,'
@@ -550,6 +553,9 @@ assert_contains files/scripts/raptor-wallpaper-manager/install.sh 'kwriteconfig6
 assert_contains files/scripts/raptor-wallpaper-manager/install.sh 'WallpaperPlugin'
 assert_contains files/scripts/raptor-wallpaper-manager/install.sh 'PreviewImage'
 assert_contains files/scripts/raptor-wallpaper-manager/install.sh 'Apply to Lock Screen'
+assert_contains files/scripts/raptor-wallpaper-manager/install.sh '/usr/bin/raptor-wallpaper-launch'
+assert_contains files/scripts/raptor-wallpaper-manager/install.sh 'wallpaper-$stamp-$.log'
+assert_contains files/scripts/raptor-wallpaper-manager/install.sh 'Exec=/usr/bin/raptor-wallpaper-launch'
 assert_contains files/scripts/raptor-wallpaper-manager/install.sh 'import shutil'
 echo "Raptor recovery and lock-screen contracts passed."
 
