@@ -98,6 +98,65 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
+    let ui_handle_profile_import = ui.as_weak();
+    ui.on_import_profile_clicked(move || {
+        let selected_files = rfd::FileDialog::new()
+            .add_filter("Profile export files", &["json"])
+            .pick_files();
+        let files = match selected_files {
+            Some(files) if !files.is_empty() => files,
+            _ => return,
+        };
+        let ui_weak = ui_handle_profile_import.clone();
+        std::thread::spawn(move || {
+            let mut combined = profile_import::ImportedProfile::default();
+            let mut imported_files = 0usize;
+            let mut errors = Vec::new();
+            for path in files {
+                match std::fs::read_to_string(&path) {
+                    Ok(payload) => match profile_import::parse_profile_export(&payload) {
+                        Ok(mut part) => {
+                            if combined.source.is_empty() { combined.source = part.source.clone(); }
+                            if combined.display_name.is_none() { combined.display_name = part.display_name.take(); }
+                            if combined.username.is_none() { combined.username = part.username.take(); }
+                            if combined.biography.is_none() { combined.biography = part.biography.take(); }
+                            if combined.avatar_url.is_none() { combined.avatar_url = part.avatar_url.take(); }
+                            combined.playlists.append(&mut part.playlists);
+                            combined.saved_tracks.append(&mut part.saved_tracks);
+                            combined.followed_artists.append(&mut part.followed_artists);
+                            combined.listening_history.append(&mut part.listening_history);
+                            imported_files += 1;
+                        }
+                        Err(error) => errors.push(format!("{}: {}", path.file_name().unwrap_or_default().to_string_lossy(), error)),
+                    },
+                    Err(error) => errors.push(format!("{}: {}", path.file_name().unwrap_or_default().to_string_lossy(), error)),
+                }
+            }
+            let summary = combined.summary();
+            let status = if imported_files == 0 {
+                format!("No supported profile data imported. {}", errors.join(" · "))
+            } else {
+                let identity = combined.display_name.as_deref()
+                    .or(combined.username.as_deref()).unwrap_or("Profile");
+                let mut message = format!(
+                    "{} · {} file(s) · {} playlist(s) / {} playlist tracks · {} saved tracks · {} followed artists · {} listening events · avatar {}. Preview only; nothing has been added to your library yet.",
+                    identity, imported_files, summary.playlists, summary.playlist_tracks,
+                    summary.saved_tracks, summary.followed_artists, summary.listening_events,
+                    if summary.has_profile_image { "available" } else { "not included" }
+                );
+                if !errors.is_empty() {
+                    message.push_str(&format!(" Skipped {} file(s): {}", errors.len(), errors.join(" · ")));
+                }
+                message
+            };
+            let _ = slint::invoke_from_event_loop(move || {
+                if let Some(ui) = ui_weak.upgrade() {
+                    ui.set_profile_import_status(status.into());
+                }
+            });
+        });
+    });
+
     let db_for_search = Arc::clone(&db);
     let visible_ids_for_search = Arc::clone(&visible_track_ids);
     let selected_id_for_search = Arc::clone(&selected_track_id);
