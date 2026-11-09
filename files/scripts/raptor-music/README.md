@@ -17,11 +17,26 @@ Raptor Music is a desktop player built with Rust, SQLite, Symphonia/CPAL and Sli
 
 ## Online catalog and privacy
 
-Audius is currently the only online catalog connected to Raptor Music. Its catalog is not the same size or coverage as Spotify's, and some artists or tracks will not be available. Album and playlist search, genre browsing, recommendations, pagination and additional catalog providers are not implemented yet.
+Audius is currently the only online catalog connected to Raptor Music. Its coverage is not comparable to Spotify's, and some artists or tracks will not be available yet. The next catalog work is broader provider coverage, album and playlist search, pagination, genre and label discovery, and artist-first results. Popularity should not be the only ranking signal: exact artist matches, smaller artists and newer releases need room to surface.
 
-Online searches send the query to Audius, along with normal connection metadata. Local file names, local playlists and listening history are not uploaded. Online playback uses a temporary file in the user's cache and removes it when playback ends.
+The goal is a large, searchable catalog without pretending every provider grants the same rights. Each result must retain its source, artwork attribution and playback rules. Catalogs that only provide metadata must not be presented as playable, and providers that prohibit combining their content with other services must remain in their own clearly separated area. Open catalogs and providers that permit independent clients are the best route to wider discovery, especially for independent and underground artists.
+
+Online searches currently send the query to Audius, along with normal connection metadata. Local file names, local playlists and listening history are not uploaded. Online playback uses a temporary file in the user's cache and removes it when playback ends.
 
 Raptor Music has no ads, subscription requirement, app telemetry or always-running background server.
+
+## Connected music accounts
+
+Direct sign-in is not implemented yet. The intended experience is an official provider sign-in and permission screen—not a Raptor Music form asking users for another service's password. Account linking must use the provider's supported authorization flow, request only the permissions needed, store credentials in the operating system's secure credential store, and include a clear disconnect option.
+
+Provider support is not interchangeable:
+
+- **Spotify:** Spotify documents OAuth Authorization Code with PKCE for desktop apps. Its developer rules prohibit integrating Spotify content with streams or content from another service and restrict apps that replace Spotify's core experience without written permission. That means a Spotify login cannot simply turn Raptor Music into a combined Spotify-and-Audius streaming client. A narrowly scoped, user-directed playlist-data transfer is a separate use case and still needs to follow Spotify's current rules.
+- **Apple Music:** MusicKit and the Apple Music API support catalog search, artist and album information, and—after user authorization—personal library features. Playback and account access need to use Apple's supported MusicKit path and developer credentials.
+- **YouTube Music:** Google provides the YouTube Data API and OAuth for YouTube account data, but that is not an official YouTube Music catalog-and-playback API. A Google sign-in alone must not be advertised as YouTube Music integration.
+- **TIDAL:** TIDAL documents OAuth 2.1 with PKCE. Its developer terms restrict competing offerings and combining TIDAL content with content from other services, so a multi-provider player needs TIDAL's written approval before integrating its catalog or playback.
+
+Until each provider's access and terms are confirmed, Raptor Music will not scrape private endpoints, collect provider passwords, or claim that linking an account grants streaming rights.
 
 ## Importing a music profile
 
@@ -44,7 +59,7 @@ Direct account connections, OAuth-based imports, automatic refresh, and support 
 
 Open **Settings** and enter the Client ID for your Discord application. Rich Presence works with Discord desktop and compatible clients that expose the local Discord RPC socket, including clients such as Vesktop and Equibop. Raptor Music does not need a Raptor-hosted account or server for this.
 
-Turn Rich Presence on, then edit the details and state templates. Use `{title}` and `{artist}` to insert the current track information. Playback and pause state are reflected in the status. Rich Presence is off by default; users choose whether to enable it and which text to share. The feature requires a compatible client to be running on the same desktop session.
+Turn Rich Presence on, then choose a personal phrase such as “Jamming out to”. Raptor Music adds the current track title automatically and fills the artist line from the playing track. The track and artist templates can still use `{title}` and `{artist}` for further customization. Playback and pause state are reflected in the status. Rich Presence is off by default; users choose whether to enable it and which text to share. The feature requires a compatible client to be running on the same desktop session.
 
 ## Workspace
 
