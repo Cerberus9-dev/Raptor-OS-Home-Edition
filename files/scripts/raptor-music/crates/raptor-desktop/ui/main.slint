@@ -90,7 +90,6 @@ export component MainWindow inherits Window {
     callback skip_backward_clicked();
     callback skip_forward_clicked();
     callback save_discord_presence_clicked();
-    callback connect_spotify_clicked();
     callback connect_youtube_clicked();
     callback disconnect_spotify_clicked();
     callback disconnect_tidal_clicked();
@@ -430,8 +429,12 @@ export component MainWindow inherits Window {
                         }
                         HorizontalLayout {
                             spacing: 8px;
-                            Button { text: "Connect Spotify"; clicked => { root.connect_spotify_clicked(); } }
+                            Button { text: "Spotify approval pending"; enabled: false; }
                             Button { text: "Disconnect"; clicked => { root.disconnect_spotify_clicked(); } }
+                        }
+                        Text {
+                            text: "Spotify account linking is disabled pending written permission for this independent music-player experience. You can still import a Spotify data export through Profile Import.";
+                            color: #879487; font-size: 11px; wrap: word-wrap;
                         }
                         HorizontalLayout {
                             spacing: 8px;
