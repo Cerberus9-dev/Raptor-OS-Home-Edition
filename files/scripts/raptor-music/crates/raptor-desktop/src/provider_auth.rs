@@ -48,6 +48,57 @@ impl std::fmt::Display for AuthorizationError {
 
 impl std::error::Error for AuthorizationError {}
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum CallbackError {
+    ProviderRejected(String),
+    MissingCode,
+    MissingState,
+    InvalidState,
+}
+
+impl std::fmt::Display for CallbackError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::ProviderRejected(reason) => write!(f, "Provider authorization was declined: {reason}"),
+            Self::MissingCode => write!(f, "The provider callback did not include an authorization code"),
+            Self::MissingState => write!(f, "The provider callback did not include its security state"),
+            Self::InvalidState => write!(f, "The provider callback did not match the pending sign-in request"),
+        }
+    }
+}
+
+impl std::error::Error for CallbackError {}
+
+/// Extracts an authorization code only when the callback contains the exact
+/// state generated for this pending authorization request.
+pub fn parse_authorization_callback(
+    callback_url: &str,
+    pending: &PendingAuthorization,
+) -> Result<String, CallbackError> {
+    let callback = Url::parse(callback_url)
+        .map_err(|_| CallbackError::MissingCode)?;
+    let mut code = None;
+    let mut state = None;
+    let mut provider_error = None;
+    for (key, value) in callback.query_pairs() {
+        match key.as_ref() {
+            "code" => code = Some(value.into_owned()),
+            "state" => state = Some(value.into_owned()),
+            "error" | "error_description" => {
+                provider_error.get_or_insert(value.into_owned());
+            }
+            _ => {}
+        }
+    }
+    if let Some(reason) = provider_error {
+        return Err(CallbackError::ProviderRejected(reason));
+    }
+    let actual_state = state.ok_or(CallbackError::MissingState)?;
+    validate_callback_state(&pending.state, &actual_state)
+        .map_err(|_| CallbackError::InvalidState)?;
+    code.filter(|value| !value.trim().is_empty()).ok_or(CallbackError::MissingCode)
+}
+
 impl OAuthProvider {
     fn settings(self) -> (&'static str, &'static str, &'static str, &'static str, &'static str) {
         match self {
@@ -183,6 +234,38 @@ pub fn exchange_authorization_code(
         .map_err(|error| format!("Provider returned an unreadable token response: {error}"))
 }
 
+
+/// Refreshes a provider grant without exposing refresh tokens to the UI.
+/// Returned credentials must be persisted only in the operating system's
+/// secure credential store by the caller.
+pub fn refresh_access_token(
+    pending: &PendingAuthorization,
+    refresh_token: &str,
+) -> Result<OAuthTokenResponse, String> {
+    if refresh_token.trim().is_empty() {
+        return Err("No refresh token is available for this provider account".into());
+    }
+    let (_, _, _, token_endpoint, _) = pending.provider.settings();
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(20))
+        .build()
+        .map_err(|error| format!("Could not create provider connection: {error}"))?;
+    let response = client.post(token_endpoint)
+        .form(&[
+            ("grant_type", "refresh_token"),
+            ("client_id", pending.client_id.as_str()),
+            ("refresh_token", refresh_token),
+        ])
+        .send()
+        .map_err(|error| format!("Provider token refresh failed: {error}"))?;
+    let status = response.status();
+    if !status.is_success() {
+        return Err(format!("Provider token refresh returned HTTP {status}"));
+    }
+    response.json::<OAuthTokenResponse>()
+        .map_err(|error| format!("Provider returned an unreadable refreshed token response: {error}"))
+}
+
 /// Rejects callbacks that do not echo the unguessable request state.
 pub fn validate_callback_state(expected: &str, actual: &str) -> Result<(), AuthorizationError> {
     let expected = expected.as_bytes();
@@ -236,6 +319,46 @@ mod tests {
         assert_eq!(query.get("state"), Some(&pending.state));
         assert_eq!(pending.provider, OAuthProvider::Spotify);
         std::env::remove_var("RAPTOR_SPOTIFY_CLIENT_ID");
+    }
+
+    #[test]
+    fn callback_parser_requires_matching_state_before_returning_code() {
+        let pending = PendingAuthorization {
+            provider: OAuthProvider::Spotify,
+            state: "expected-state".into(),
+            code_verifier: "verifier".into(),
+            redirect_uri: "http://127.0.0.1/callback".into(),
+            client_id: "client".into(),
+        };
+        let callback = "http://127.0.0.1/callback?code=auth-code&state=expected-state";
+        assert_eq!(parse_authorization_callback(callback, &pending).unwrap(), "auth-code");
+        assert_eq!(
+            parse_authorization_callback("http://127.0.0.1/callback?code=auth-code&state=wrong", &pending),
+            Err(CallbackError::InvalidState)
+        );
+        assert_eq!(
+            parse_authorization_callback("http://127.0.0.1/callback?error=access_denied&state=expected-state", &pending),
+            Err(CallbackError::ProviderRejected("access_denied".into()))
+        );
+    }
+
+    #[test]
+    fn callback_parser_rejects_missing_code_or_state() {
+        let pending = PendingAuthorization {
+            provider: OAuthProvider::Spotify,
+            state: "expected-state".into(),
+            code_verifier: "verifier".into(),
+            redirect_uri: "http://127.0.0.1/callback".into(),
+            client_id: "client".into(),
+        };
+        assert_eq!(
+            parse_authorization_callback("http://127.0.0.1/callback?state=expected-state", &pending),
+            Err(CallbackError::MissingCode)
+        );
+        assert_eq!(
+            parse_authorization_callback("http://127.0.0.1/callback?code=auth-code", &pending),
+            Err(CallbackError::MissingState)
+        );
     }
 
     #[test]
