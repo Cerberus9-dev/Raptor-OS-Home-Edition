@@ -642,6 +642,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let artist_worker = std::thread::spawn(move || search_audius_artists(&artist_query, &artist_sort_method));
             let apple_query = query_for_thread.clone();
             let apple_worker = std::thread::spawn(move || search_apple_music_tracks(&apple_query));
+            let jamendo_query = query_for_thread.clone();
+            let jamendo_worker = std::thread::spawn(move || search_jamendo_tracks(&jamendo_query));
             let audius_result = if sort_method == "independent" {
                 // Blend relevance-ranked and recent uploads instead of letting
                 // play counts dominate discovery. Alternate sources and dedupe
@@ -666,6 +668,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .unwrap_or_else(|_| Err("Artist search worker stopped unexpectedly".to_string()));
             let apple_result = apple_worker.join()
                 .unwrap_or_else(|_| Err("Apple Music search worker stopped unexpectedly".to_string()));
+            let jamendo_result = jamendo_worker.join()
+                .unwrap_or_else(|_| Err("Jamendo search worker stopped unexpectedly".to_string()));
             if generation.load(Ordering::Acquire) != request_generation {
                 return;
             }
@@ -676,6 +680,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let apple_tracks = apple_result.unwrap_or_default();
             let apple_count = apple_tracks.len();
             tracks.extend(apple_tracks);
+            let jamendo_error = jamendo_result.is_err();
+            let jamendo_tracks = jamendo_result.unwrap_or_default();
+            let jamendo_count = jamendo_tracks.len();
+            tracks.extend(jamendo_tracks);
             let count = tracks.len();
             *online_tracks.lock().unwrap() = tracks.clone();
             let rows = tracks_to_slint(&tracks);
@@ -707,7 +715,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             } else if apple_error {
                 status.push_str(" · Apple Music search unavailable");
             }
-            if audius_count == 0 && apple_count == 0 && artist_count == 0 && collection_count == 0 {
+            if jamendo_count > 0 {
+                status.push_str(&format!(" · {jamendo_count} Jamendo links"));
+            } else if jamendo_error && std::env::var("RAPTOR_JAMENDO_CLIENT_ID").is_err() {
+                status.push_str(" · Jamendo not configured");
+            } else if jamendo_error {
+                status.push_str(" · Jamendo search unavailable");
+            }
+            if audius_count == 0 && apple_count == 0 && jamendo_count == 0 && artist_count == 0 && collection_count == 0 {
                 status = "No matching tracks, artists, albums or playlists found".to_string();
             }
             if artist_error {
@@ -1194,6 +1209,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 return;
             }
         };
+
+        if let PlaybackSource::RemoteStream { provider_id, provider_track_id } = &target_source {
+            if provider_id == "jamendo_external" {
+                match open_jamendo_track(provider_track_id) {
+                    Ok(()) => ui.set_player_state_label("Opening this track on Jamendo · playback stays on the artist's licensed page".into()),
+                    Err(error) => ui.set_player_state_label(error.into()),
+                }
+                return;
+            }
+        }
 
         let session_token = Uuid::new_v4();
         *session_token_for_play.lock().unwrap() = Some(session_token);
@@ -1746,6 +1771,83 @@ fn parse_apple_music_tracks(payload: &serde_json::Value) -> Result<Vec<Track>, S
     Ok(tracks)
 }
 
+
+fn parse_jamendo_tracks(payload: &serde_json::Value) -> Result<Vec<Track>, String> {
+    let rows = payload.get("results").and_then(serde_json::Value::as_array)
+        .ok_or_else(|| "Jamendo returned an unexpected search response".to_string())?;
+    let mut tracks = Vec::new();
+    for row in rows.iter().take(25) {
+        let Some(provider_track_id) = row.get("id").and_then(serde_json::Value::as_str) else { continue; };
+        if provider_track_id.is_empty() || !provider_track_id.chars().all(|ch| ch.is_ascii_digit()) { continue; }
+        let Some(title) = row.get("name").and_then(serde_json::Value::as_str).filter(|value| !value.trim().is_empty()) else { continue; };
+        let Some(artist) = row.get("artist_name").and_then(serde_json::Value::as_str).filter(|value| !value.trim().is_empty()) else { continue; };
+        let Some(license) = row.get("license_ccurl").and_then(serde_json::Value::as_str) else { continue; };
+        let Ok(license_url) = reqwest::Url::parse(license) else { continue; };
+        if license_url.host_str() != Some("creativecommons.org") { continue; }
+        let duration_secs = row.get("duration").and_then(serde_json::Value::as_u64);
+        let album = row.get("album_name").and_then(serde_json::Value::as_str)
+            .filter(|value| !value.trim().is_empty())
+            .map(|value| format!("{value} · Jamendo · CC"))
+            .or_else(|| Some("Jamendo · Creative Commons".into()));
+        let stable_id = Uuid::new_v5(
+            &Uuid::NAMESPACE_URL,
+            format!("raptor-music:jamendo:{provider_track_id}").as_bytes(),
+        );
+        tracks.push(Track {
+            id: stable_id,
+            title: title.to_string(),
+            artist: artist.to_string(),
+            album,
+            duration_secs,
+            source: PlaybackSource::RemoteStream {
+                provider_id: "jamendo_external".into(),
+                provider_track_id: provider_track_id.to_string(),
+            },
+        });
+    }
+    Ok(tracks)
+}
+
+fn search_jamendo_tracks(query: &str) -> Result<Vec<Track>, String> {
+    let client_id = std::env::var("RAPTOR_JAMENDO_CLIENT_ID")
+        .map_err(|_| "Jamendo catalog not configured · set RAPTOR_JAMENDO_CLIENT_ID".to_string())?;
+    let client_id = client_id.trim();
+    if client_id.is_empty() {
+        return Err("Jamendo catalog client ID is empty".into());
+    }
+    let client = reqwest::blocking::Client::builder()
+        .user_agent("RaptorMusic/0.2.18")
+        .connect_timeout(Duration::from_secs(8))
+        .timeout(Duration::from_secs(15))
+        .build()
+        .map_err(|error| format!("Could not initialize Jamendo search: {error}"))?;
+    let response = client.get("https://api.jamendo.com/v3.0/tracks/")
+        .query(&[
+            ("client_id", client_id),
+            ("format", "json"),
+            ("limit", "25"),
+            ("search", query.trim()),
+            ("include", "licenses"),
+            ("type", "single albumtrack"),
+        ])
+        .send()
+        .and_then(|response| response.error_for_status())
+        .map_err(|error| format!("Jamendo catalog search failed: {error}"))?;
+    let payload: serde_json::Value = response.json()
+        .map_err(|error| format!("Jamendo returned unreadable search results: {error}"))?;
+    parse_jamendo_tracks(&payload)
+}
+
+fn open_jamendo_track(track_id: &str) -> Result<(), String> {
+    if track_id.is_empty() || !track_id.chars().all(|ch| ch.is_ascii_digit()) {
+        return Err("Jamendo returned an invalid track identifier".into());
+    }
+    let url = format!("https://www.jamendo.com/track/{track_id}");
+    std::process::Command::new("gio").arg("open").arg(url).spawn()
+        .map_err(|_| "Could not open this track on Jamendo in the system browser".to_string())?;
+    Ok(())
+}
+
 fn search_apple_music_tracks(query: &str) -> Result<Vec<Track>, String> {
     let developer_token = std::env::var("RAPTOR_APPLE_MUSIC_DEVELOPER_TOKEN")
         .map_err(|_| "Apple Music catalog needs a developer token".to_string())?;
@@ -2106,6 +2208,49 @@ mod audius_collection_search_tests {
     #[test]
     fn malformed_collection_payload_is_not_an_empty_success() {
         assert!(parse_audius_collections(&serde_json::json!({"oops": []})).is_err());
+    }
+}
+
+#[cfg(test)]
+mod jamendo_search_tests {
+    use super::*;
+
+    #[test]
+    fn parses_licensed_jamendo_results_as_external_links() {
+        let payload = serde_json::json!({
+            "results": [{
+                "id": "1848357",
+                "name": "mañana será tarde",
+                "artist_name": "fankel",
+                "album_name": "Night EP",
+                "duration": 272,
+                "license_ccurl": "https://creativecommons.org/licenses/by-nc-nd/3.0/"
+            }, {
+                "id": "invalid/id",
+                "name": "Invalid ID",
+                "artist_name": "Unknown",
+                "license_ccurl": "https://creativecommons.org/licenses/by/4.0/"
+            }, {
+                "id": "1848358",
+                "name": "Missing license",
+                "artist_name": "Unknown"
+            }]
+        });
+        let tracks = parse_jamendo_tracks(&payload).expect("valid Jamendo response");
+        assert_eq!(tracks.len(), 1);
+        assert_eq!(tracks[0].title, "mañana será tarde");
+        assert_eq!(tracks[0].artist, "fankel");
+        assert_eq!(tracks[0].duration_secs, Some(272));
+        assert!(tracks[0].album.as_deref().unwrap().contains("Jamendo"));
+        assert_eq!(tracks[0].source, PlaybackSource::RemoteStream {
+            provider_id: "jamendo_external".into(),
+            provider_track_id: "1848357".into(),
+        });
+    }
+
+    #[test]
+    fn rejects_unexpected_jamendo_payload() {
+        assert!(parse_jamendo_tracks(&serde_json::json!({"oops": []})).is_err());
     }
 }
 
