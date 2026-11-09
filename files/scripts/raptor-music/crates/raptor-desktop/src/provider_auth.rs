@@ -266,6 +266,139 @@ pub fn refresh_access_token(
         .map_err(|error| format!("Provider returned an unreadable refreshed token response: {error}"))
 }
 
+
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ProviderProfile {
+    pub provider: String,
+    pub id: String,
+    pub display_name: String,
+    pub avatar_url: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct ProviderPlaylist {
+    pub provider: String,
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub image_url: Option<String>,
+    pub item_count: Option<u64>,
+}
+
+fn first_image_url(value: &serde_json::Value) -> Option<String> {
+    value.as_array()?.first()?.get("url")?.as_str().map(str::to_owned)
+}
+
+fn parse_spotify_profile(value: &serde_json::Value) -> Result<ProviderProfile, String> {
+    let id = value.get("id").and_then(|v| v.as_str()).filter(|v| !v.is_empty())
+        .ok_or_else(|| "Spotify profile did not include an account ID".to_string())?;
+    Ok(ProviderProfile {
+        provider: "spotify".into(),
+        id: id.into(),
+        display_name: value.get("display_name").and_then(|v| v.as_str()).unwrap_or(id).into(),
+        avatar_url: first_image_url(&value["images"]),
+    })
+}
+
+fn parse_spotify_playlists(value: &serde_json::Value) -> Result<Vec<ProviderPlaylist>, String> {
+    let items = value.get("items").and_then(|v| v.as_array())
+        .ok_or_else(|| "Spotify playlist response did not include an items list".to_string())?;
+    Ok(items.iter().filter_map(|item| {
+        let id = item.get("id")?.as_str()?;
+        let name = item.get("name")?.as_str()?;
+        Some(ProviderPlaylist {
+            provider: "spotify".into(),
+            id: id.into(),
+            name: name.into(),
+            description: item.get("description").and_then(|v| v.as_str()).filter(|v| !v.is_empty()).map(str::to_owned),
+            image_url: first_image_url(&item["images"]),
+            item_count: item.pointer("/tracks/total").and_then(|v| v.as_u64()),
+        })
+    }).collect())
+}
+
+fn parse_youtube_playlists(value: &serde_json::Value) -> Result<Vec<ProviderPlaylist>, String> {
+    let items = value.get("items").and_then(|v| v.as_array())
+        .ok_or_else(|| "YouTube playlist response did not include an items list".to_string())?;
+    Ok(items.iter().filter_map(|item| {
+        let id = item.get("id")?.as_str()?;
+        let snippet = item.get("snippet")?;
+        let name = snippet.get("title")?.as_str()?;
+        let thumbnails = snippet.get("thumbnails")?;
+        let image_url = ["maxres", "standard", "high", "medium", "default"]
+            .iter()
+            .find_map(|key| thumbnails.get(*key)?.get("url")?.as_str().map(str::to_owned));
+        Some(ProviderPlaylist {
+            provider: "youtube".into(),
+            id: id.into(),
+            name: name.into(),
+            description: snippet.get("description").and_then(|v| v.as_str()).filter(|v| !v.is_empty()).map(str::to_owned),
+            image_url,
+            item_count: item.pointer("/contentDetails/itemCount").and_then(|v| v.as_u64()),
+        })
+    }).collect())
+}
+
+fn get_provider_json(url: &str, access_token: &str) -> Result<serde_json::Value, String> {
+    if access_token.trim().is_empty() {
+        return Err("The provider access token is empty".into());
+    }
+    let response = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(20))
+        .build()
+        .map_err(|error| format!("Could not create provider connection: {error}"))?
+        .get(url)
+        .bearer_auth(access_token)
+        .send()
+        .map_err(|error| format!("Provider API request failed: {error}"))?;
+    let status = response.status();
+    if !status.is_success() {
+        return Err(format!("Provider API returned HTTP {status}"));
+    }
+    response.json::<serde_json::Value>()
+        .map_err(|error| format!("Provider returned unreadable account data: {error}"))
+}
+
+/// Retrieves basic account identity from providers with documented user APIs.
+/// TIDAL's account endpoint is intentionally not guessed; it needs its own
+/// verified adapter before being enabled here.
+pub fn fetch_provider_profile(provider: OAuthProvider, access_token: &str) -> Result<ProviderProfile, String> {
+    match provider {
+        OAuthProvider::Spotify => parse_spotify_profile(&get_provider_json("https://api.spotify.com/v1/me", access_token)?),
+        OAuthProvider::YoutubeData => {
+            let value = get_provider_json("https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true", access_token)?;
+            let channel = value.get("items").and_then(|v| v.as_array()).and_then(|v| v.first())
+                .ok_or_else(|| "No YouTube channel was returned for this Google account".to_string())?;
+            let snippet = &channel["snippet"];
+            let id = channel.get("id").and_then(|v| v.as_str())
+                .ok_or_else(|| "YouTube channel response did not include an ID".to_string())?;
+            Ok(ProviderProfile {
+                provider: "youtube".into(),
+                id: id.into(),
+                display_name: snippet.get("title").and_then(|v| v.as_str()).unwrap_or(id).into(),
+                avatar_url: snippet.pointer("/thumbnails/default/url").and_then(|v| v.as_str()).map(str::to_owned),
+            })
+        }
+        OAuthProvider::Tidal => Err("TIDAL profile retrieval needs its verified API adapter; account authorization alone is not enough.".into()),
+    }
+}
+
+/// Imports playlist metadata from Spotify or a Google account's YouTube
+/// channel. YouTube Data API playlists are not YouTube Music catalog access.
+pub fn fetch_provider_playlists(provider: OAuthProvider, access_token: &str) -> Result<Vec<ProviderPlaylist>, String> {
+    match provider {
+        OAuthProvider::Spotify => {
+            let value = get_provider_json("https://api.spotify.com/v1/me/playlists?limit=50", access_token)?;
+            parse_spotify_playlists(&value)
+        }
+        OAuthProvider::YoutubeData => {
+            let value = get_provider_json("https://www.googleapis.com/youtube/v3/playlists?part=snippet,contentDetails&mine=true&maxResults=50", access_token)?;
+            parse_youtube_playlists(&value)
+        }
+        OAuthProvider::Tidal => Err("TIDAL playlist retrieval needs its verified API adapter; no guessed endpoint is used.".into()),
+    }
+}
+
 /// Rejects callbacks that do not echo the unguessable request state.
 pub fn validate_callback_state(expected: &str, actual: &str) -> Result<(), AuthorizationError> {
     let expected = expected.as_bytes();
@@ -319,6 +452,45 @@ mod tests {
         assert_eq!(query.get("state"), Some(&pending.state));
         assert_eq!(pending.provider, OAuthProvider::Spotify);
         std::env::remove_var("RAPTOR_SPOTIFY_CLIENT_ID");
+    }
+
+
+    #[test]
+    fn spotify_profile_and_playlist_metadata_are_normalized() {
+        let profile = parse_spotify_profile(&serde_json::json!({
+            "id": "artist-fan", "display_name": "Listener",
+            "images": [{"url": "https://example.test/avatar.jpg"}]
+        })).unwrap();
+        assert_eq!(profile.id, "artist-fan");
+        assert_eq!(profile.display_name, "Listener");
+        assert_eq!(profile.avatar_url.as_deref(), Some("https://example.test/avatar.jpg"));
+
+        let playlists = parse_spotify_playlists(&serde_json::json!({
+            "items": [{
+                "id": "mix-1", "name": "My Mix", "description": "Saved songs",
+                "images": [{"url": "https://example.test/cover.jpg"}],
+                "tracks": {"total": 42}
+            }]
+        })).unwrap();
+        assert_eq!(playlists.len(), 1);
+        assert_eq!(playlists[0].item_count, Some(42));
+        assert_eq!(playlists[0].name, "My Mix");
+    }
+
+    #[test]
+    fn youtube_playlist_metadata_is_not_mislabeled_as_music_catalog() {
+        let playlists = parse_youtube_playlists(&serde_json::json!({
+            "items": [{
+                "id": "yt-list-1",
+                "snippet": {
+                    "title": "Favorites", "description": "Saved videos",
+                    "thumbnails": {"default": {"url": "https://example.test/thumb.jpg"}}
+                },
+                "contentDetails": {"itemCount": 12}
+            }]
+        })).unwrap();
+        assert_eq!(playlists[0].provider, "youtube");
+        assert_eq!(playlists[0].item_count, Some(12));
     }
 
     #[test]
