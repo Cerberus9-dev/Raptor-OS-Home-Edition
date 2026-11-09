@@ -631,6 +631,15 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'pr
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'Preview only; nothing has been added to your library yet.'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/profile_import.rs 'pub fn merge(&mut self, mut other: ImportedProfile)'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/profile_import.rs 'fn merges_multiple_export_documents_without_duplicate_tracks_or_artists'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/profile_import.rs 'Serialize, Deserialize'
+assert_contains files/scripts/raptor-music/crates/raptor-library/src/lib.rs 'CREATE TABLE IF NOT EXISTS imported_profiles'
+assert_contains files/scripts/raptor-music/crates/raptor-library/src/lib.rs 'pub fn save_imported_profile'
+assert_contains files/scripts/raptor-music/crates/raptor-library/src/lib.rs 'pub fn get_imported_profiles'
+assert_contains files/scripts/raptor-music/crates/raptor-library/src/lib.rs 'pub fn delete_imported_profile'
+assert_contains files/scripts/raptor-music/crates/raptor-library/src/lib.rs 'imported_profiles_persist_separately_and_can_be_replaced_or_removed'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'ui.on_confirm_profile_import_clicked'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'serde_json::to_string(&profile)'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Confirm profile import'
 
 echo "=== Checking embedded Raptor Cortex Python ==="
 cortex_tmp="$(mktemp --suffix=.py)"
