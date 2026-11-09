@@ -1,51 +1,45 @@
 # Changelog
 
-### Raptor application suite corrections
+## v3.0 fixes: app packaging
 
-- **Raptor Shroudly:** package the custom Rust/Slint Raptor application rather than the upstream Electron desktop app. The image now installs a dedicated Raptor-branded launcher, desktop entry and icon, and CI verifies those exact artifacts in the published image. The dashboard reports local app detection honestly; network routing remains disabled until its engine is implemented and tested.
-- **Welcome screen:** identify Raptor Shroudly and explain Raptor Proton as the optional Proton/UMU path for games, distinct from standard Wine for everyday Windows applications.
+- Packaged the Raptor Shroudly Rust/Slint app with its own launcher, desktop entry, and icon. The image build checks that these files are present.
+- Updated the welcome screen to explain the difference between standard Wine and the optional Proton/UMU game launcher.
+- The Shroudly dashboard reports local app detection. Network routing remains disabled.
 
+## v3.0 fixes: suspend and resume
 
-## V3.0 reliability follow-up — suspend/resume and CI regression cleanup
-- Removed the obsolete readiness-only CPU governor and power-profile units, plus the inactive service-health checker. Power Profiles Daemon is the sole CPU/firmware policy owner; the removed units only queried or rechecked service state and did not provide useful behavior.
-- Removed the unused unit files from the image recipe entirely rather than merely leaving them disabled, reducing installed systemd clutter and preventing accidental activation by future dependencies.
+- Removed unused CPU-governor and power-profile units. Power Profiles Daemon remains responsible for CPU and firmware power settings.
+- Removed the unused resume marker and duplicate lid-open service. The existing systemd-sleep hook handles touchpad, Wi-Fi, and Bluetooth recovery.
+- Kept Wi-Fi and Bluetooth recovery in the post-resume hook instead of running the same work from multiple services.
+- Corrected the Steam shader-cache check. Raptor leaves Steam's shader pre-caching setting at its default.
+- Added CI checks to catch removed service units if they are added to the image recipe again.
 
+## v3.0 fixes: gaming defaults
 
-- Removed the unused resume-marker service, redundant lid-open unit, and inactive CPU-governor compatibility unit. Suspend/resume recovery is already handled by the single systemd-sleep hook; target-bound units could run at the wrong point in the suspend transition and add avoidable delay.
-- Kept touchpad rebind and asynchronous Wi-Fi/Bluetooth recovery in the existing post-resume hook, avoiding duplicate recovery paths.
-- Corrected a contradictory gaming validator: Steam's shader pre-caching setting is left untouched, and CI now asserts that no global setting overrides it while risky Steam/GameMode tweaks stay absent.
-- Added regression checks to ensure removed service units are not reintroduced into the image recipe.
+- Removed global Steam HTTP/2, connection-count, and write-buffer overrides. These settings depend on the network and are better handled as troubleshooting steps.
+- Removed GameMode's global AMD and NVIDIA performance-level overrides. GPU power policy stays with the driver and the selected system power profile.
 
-## V3.0 reliability follow-up — conservative gaming defaults
+## Wine and Proton
 
-- Removed forced Steam HTTP/2, extra-connection, and write-buffer settings from the system-wide Steam template. They are network-specific troubleshooting knobs, not universal performance wins; Steam's shader pre-caching setting is left at its own default.
-- Removed GameMode's global AMD high-performance and NVIDIA maximum-performance GPU overrides. Upstream explicitly labels GPU optimisations as an at-your-own-risk operation and notes that they change hardware performance levels; Raptor now leaves GPU policy to the driver and user-selected system power profile.
-- Added quality-gate assertions preventing these risky global overrides from silently returning.
-
-
-
-### Low-spec desktop and Windows compatibility
-- Improve Wine and Proton startup diagnostics: retain Wine error-channel output, capture the target file type and permissions, runtime binary/version, selected prefix and full launch output in a private per-launch log. UMU diagnostics are enabled by default; the failure notification includes a concise matching error and the full log path.
-- Raptor Proton now reuses the cached Steam Linux Runtime between launches and performs an automatic runtime update check at most daily, reducing repeated setup work without permanently disabling updates.
-- Added a post-install app-registration flow for Proton installers. It compares the prefix's executable inventory before and after installation, lets the user select the installed application, and adds a proper KDE launcher under Games or Utilities. Older prefix apps can be registered manually.
-- Added MSI installation through UMU/Proton, clearer launch feedback, a Proton MIME handler for KDE's Open With chooser, and consistent Raptor Wine / Raptor Proton labels.
-- Canonicalize external executable paths, launch from the executable's directory, and expose non-home parent folders to the Steam Runtime container for better support of removable and secondary drives.
-- Switched zram compression to LZ4 to reduce compression/decompression CPU overhead on older low-power systems. This trades some compression ratio for faster response under memory pressure.
+- Added per-launch logs for Wine and Proton, including the target file, file permissions, runtime version, prefix, and launch output. The error notification points to the log.
+- Reused the cached Steam Linux Runtime between Proton launches and checked for runtime updates once a day.
+- Added a way to register applications installed through Protontricks, including a manual option for older prefixes.
+- Added MSI installer support through UMU/Proton and KDE file associations for Wine and Proton.
+- Resolved executable paths before launch and exposed non-home folders to the Steam Runtime for removable and secondary drives.
+- Changed ZRAM compression to LZ4 to reduce CPU overhead on slower processors. Compression is lower than with zstd.
 
 ## [Unreleased]
+- Add separate Audius artist-profile results to Raptor Music online discovery. Selecting an artist opens the public Audius profile; local-library results remain separate.
+- Add an optional Raptor Flight Deck KDE Plasma 6 panel preset. It creates a compact bottom panel with the standard launcher, workspace pager, task manager, system tray and clock, without deleting or altering the user's existing panels. Available from the desktop right-click menu under Add Panel.
 
-### Flight-deck desktop and discovery follow-up
-- Add a dedicated Raptor Wallpaper launcher that captures Python/GTK startup errors and session/runtime details in a private per-user log, then surfaces the useful exception in a desktop notification. Route the app-menu and Dolphin image action through this diagnostic launcher so a failed start no longer disappears silently.
-- Extend Raptor Music's online discovery to query Audius artist profiles as well as tracks, display artist profiles separately, and open the selected public artist page. Local library results remain separately displayed from online discovery.
+### v3.0.0
 
-### v3.0.0 (Major Release)
-
-This is the consolidation release for more than two months of sustained Raptor OS overhaul work. The scope includes substantial changes across performance and memory management, gaming and GPU behavior, audio, Cortex, update reliability, hardware recovery, browser and chat-client choice, build validation, and the installation/distribution path. The intent is to ship the work as one coherent major update rather than scatter it across a long sequence of small version bumps.
+Version 3.0 groups the larger changes to performance, gaming, audio, Cortex, updates, hardware recovery, first-run setup, and image distribution. It also includes fixes to the Raptor apps and their build checks.
 
 ### Raptor Music desktop experience
-- Replace fixed Slint window dimensions with preferred initial dimensions and minimum size constraints, allowing KDE/X11 window managers to resize and maximize the player normally.
-- Rework the interface into a Raptor-branded graphite-and-sage desktop player, with clearer browse/library/queue hierarchy, a more prominent global search, and a persistent playback dock. The visual language uses familiar desktop-media conventions without Spotify logos, artwork, or copied branding.
-- Let the local-library and Audius result lists expand with the available window height instead of trapping results in short fixed-height panes. Clarify that local results are searched locally and online results come from Audius; this is not a Spotify-sized licensed streaming catalog.
+- Replaced fixed Slint window dimensions with preferred initial dimensions and minimum size constraints, allowing KDE/X11 window managers to resize and maximize the player normally.
+- Reworked the interface into a Raptor-branded graphite-and-sage desktop player, with clearer browse/library/queue hierarchy, a more prominent global search, and a persistent playback dock. The visual language uses familiar desktop-media conventions without Spotify logos, artwork, or copied branding.
+- Allowed the local-library and Audius result lists expand with the available window height instead of trapping results in short fixed-height panes. Clarify that local results are searched locally and online results come from Audius; this is not a Spotify-sized licensed streaming catalog.
 
 ### Low-memory application tuning
 - **Firefox:** reduce the default content-process ceiling from four to two (web-isolated from two to one), halve in-memory page/media cache defaults, seed a usable default profile on first launch, and apply preferences to both native and Flatpak profile locations. Existing user-set values are preserved rather than overwritten. This trades some parallel page isolation/throughput for lower baseline RAM on low-memory systems.
@@ -54,15 +48,15 @@ This is the consolidation release for more than two months of sustained Raptor O
 - **Raptor Proton:** derive the default prefix from its selected GAMEID and reclaim an idle Proton wineserver through UMU's selected Proton environment (`umu-run wineboot -k`) only when no other process using that exact prefix remains. This avoids invoking an unrelated host Wine server and preserves concurrent Windows apps sharing a prefix. Fix the generated helper's process-ID expansion so it can correctly exclude its own launcher when checking for active apps.
 
 ### Raptor Cortex telemetry
-- Fix GPU summary detection by importing the regex module used by Linux DRM device discovery, restoring adapter model, utilization, clock, and exposed memory reporting.
-- Expand read-only fan telemetry to report standard hwmon RPM sensors, NVIDIA driver fan percentages, and PWM-only sensors with an explicit duty-cycle label instead of misrepresenting them as RPM.
-- Add regression coverage with synthetic AMD-style DRM and hwmon RPM/PWM fixtures; hardware without an exposed tachometer or PWM sensor remains reported as unavailable rather than guessed.
+- Fixed GPU summary detection by importing the regex module used by Linux DRM device discovery, restoring adapter model, utilization, clock, and exposed memory reporting.
+- Expanded read-only fan telemetry to report standard hwmon RPM sensors, NVIDIA driver fan percentages, and PWM-only sensors with an explicit duty-cycle label instead of misrepresenting them as RPM.
+- Added regression coverage with synthetic AMD-style DRM and hwmon RPM/PWM fixtures; hardware without an exposed tachometer or PWM sensor remains reported as unavailable rather than guessed.
 
 ### Raptor Music online search and playback
-- Add debounced online track discovery through Audius alongside the existing local-library search; local queries still work offline and local files remain on-device.
-- Filter online results to public, available, streamable tracks, preserve stable provider IDs in the library, and allow selected online results to enter the normal playback queue.
-- Add bounded download-to-cache playback for Audius MP3 streams, with a 256 MiB safety limit, short request timeouts, and automatic temporary-file cleanup. Buffers are written to the per-user cache rather than the typical RAM-backed runtime directory.
-- Add regression tests for streamability/access filtering, malformed responses, and stable remote track IDs. Audius adds an online catalog but does not provide Spotify's complete catalog or guarantee every artist/track is available.
+- Added debounced online track discovery through Audius alongside the existing local-library search; local queries still work offline and local files remain on-device.
+- Filtered online results to public, available, streamable tracks, preserve stable provider IDs in the library, and allow selected online results to enter the normal playback queue.
+- Added bounded download-to-cache playback for Audius MP3 streams, with a 256 MiB safety limit, short request timeouts, and automatic temporary-file cleanup. Buffers are written to the per-user cache rather than the typical RAM-backed runtime directory.
+- Added regression tests for streamability/access filtering, malformed responses, and stable remote track IDs. Audius adds an online catalog but does not provide Spotify's complete catalog or guarantee every artist/track is available.
 
 ### Boot-time hardware detection and service cleanup
 - Removed blanket USB autosuspend disable rules for HID, Bluetooth and USB audio devices; controller permissions remain, but idle power behavior stays with the kernel unless a device-specific issue requires a workaround.
@@ -73,7 +67,6 @@ This is the consolidation release for more than two months of sustained Raptor O
 
 - Added CI coverage for the embedded Python application entry points, including Raptor Cortex, so malformed Python cannot hide inside an otherwise valid shell installer.
 - Added a regression guard against introducing a global `systemd-udev-settle.service` dependency, which has been reported to add substantial boot latency and is discouraged by systemd.
-
 
 - GPU detection now performs one bounded PCI display-device probe instead of repeatedly invoking `lspci`; the optional verbose AMD iGPU probe is also bounded.
 - NVIDIA power queries and changes have time limits and safely tolerate an unavailable or unresponsive driver utility instead of holding the boot-critical service indefinitely.
@@ -243,7 +236,6 @@ This is the consolidation release for more than two months of sustained Raptor O
 - USB audio uses a 512-frame, three-period buffer for USB ALSA devices (about 32 ms of period queue at 48 kHz), while retaining resampling quality 10 and existing PipeWire scheduling behavior.
 - Kernel watchdog diagnostics and split-lock mitigation remain enabled; the small theoretical performance gain from disabling them did not justify losing diagnostics or weakening the mitigation.
 
-
 ### One-time app integration
 
 - The update-image workflow stages Raptor Music and the original upstream Shroudly Linux desktop payload only when the explicit one-time integration option is enabled. Pull requests build and test the apps without staging them; ordinary pushes and scheduled rebuilds skip the payload.
@@ -259,8 +251,8 @@ This is the consolidation release for more than two months of sustained Raptor O
 - PipeWire and WirePlumber restart limits now use valid systemd `[Unit]` directives. Audio RT memory locking is capped at 16 MiB, normal scheduling priority matches PipeWire's request, while USB audio retains quality 10 to preserve fidelity.
 - Firefox's low-memory profile defaults now also seed Flatpak Firefox profiles. Brave's optimized launcher scales raster-worker count to installed RAM without reducing Chromium's site-isolation process model. Generated browser and gaming helper scripts are syntax-checked during image construction.
 - ModemManager remains available for WWAN-equipped laptops; Firefox uses the active system DNS resolver instead of forcing Cloudflare DoH, preserving network-provided DNS behavior.
-- Update Manager now streams every privileged and user-scoped helper through a queue-backed reader with hard deadlines and process-group cleanup. Silent or stalled helpers can no longer block the GUI indefinitely. Flatpak update checks and updates cover system and user installations separately; system refs update as root, user refs update as the logged-in account. Wi-Fi power-save state is restored after system updates.
-- Update Manager build-time checks now parse its generated Python GUI and polkit XML and syntax-check all generated shell helpers.
+- Updated Manager now streams every privileged and user-scoped helper through a queue-backed reader with hard deadlines and process-group cleanup. Silent or stalled helpers can no longer block the GUI indefinitely. Flatpak update checks and updates cover system and user installations separately; system refs update as root, user refs update as the logged-in account. Wi-Fi power-save state is restored after system updates.
+- Updated Manager build-time checks now parse its generated Python GUI and polkit XML and syntax-check all generated shell helpers.
 - The ISO workflow no longer depends on the archived `build-container-installer` project. It verifies the signed Raptor image with the repository's Cosign public key, pins the verified digest, verifies the official Fedora 44 Kinoite ISO, and remasters it with `mkksiso`; disk selection remains interactive.
 - Game Mode now includes the KDE crash reporter in its reversible optional-process pause list; it is resumed when the game session ends.
 - README hardware requirements now state the Bazzite quad-core ~2 GHz / 8 GB baseline, Vulkan 1.3 capability, clearer AMD/Intel/NVIDIA driver-generation caveats, and the fact that 4 GB is still an unvalidated optimization target rather than a supported minimum.
@@ -296,8 +288,6 @@ This is the consolidation release for more than two months of sustained Raptor O
 - **Pull requests now validate image-workflow edits.** The push trigger watched `.github/workflows/build.yml`, but the pull-request path filter did not, so changes to the main image workflow could merge without running its PR build. Added the workflow file to the PR path filter.
 
 - **CI no longer pushes generated application binaries to `main`.** The build stages Rust executables only in the temporary one-time staging directory; generated binaries are not committed. The workflow retains contents write permission solely for creating the permanent one-time integration lock tag after a successful opted-in image build.
-
-
 
 - **Raptor Music queue index consistency:** removing a queue row before the currently playing entry now shifts the active-row index to match the reindexed queue; removing the active entry also resets the visible player state to Idle.
 
@@ -348,7 +338,6 @@ This is the consolidation release for more than two months of sustained Raptor O
   The desktop UI displays the decoded track duration, periodically persists
   playback position, and the recursive scanner recognizes additional
   Symphonia-supported audio extensions.
-
 
 - **CI could silently ship a stale Raptor Music binary.** The build workflow
   treated the presence of a cached release executable as proof that the current
@@ -633,14 +622,12 @@ This is the consolidation release for more than two months of sustained Raptor O
   Bluetooth turned off on purpose and never uses `nmcli device disconnect`.
   `btusb enable_autosuspend=0` stops USB Bluetooth adapters from autosuspending.
 
-
 - **Fan information in Raptor Cortex (read-only)** — a new "Fans" row in the
   live stats group lists every fan RPM sensor the kernel exposes through
   hwmon (`fan*_input`, with `fan*_label` when present), plus NVIDIA fan
   percentage via `nvidia-smi` when available. Shows "No fan sensors
   detected" when none exist. Cortex only reads; it never writes fan speed,
   curves or PWM, so the removal of manual fan control above still stands.
-
 
 ## [v2.7.0] - 2026-10-01 (Major Feature Expansion — Cortex Unification, App Picker Overhaul, Battery, Tasks)
 
@@ -2183,7 +2170,6 @@ This is the consolidation release for more than two months of sustained Raptor O
 - LibreOffice, Thunderbird, Kdenlive, GIMP
 - First boot service that automatically rebases to Raptor OS from stock Bazzite
 
-
 ### Optional application catalogue
 
 - Added LocalSend for local-network file sharing, Gear Lever for managing AppImages, and Resources for system monitoring. These remain opt-in Flatpaks and add no idle background services.
@@ -2210,12 +2196,10 @@ This is the consolidation release for more than two months of sustained Raptor O
 - Added a BlueZ startup helper that assigns detected controllers the friendly alias “Raptor OS Bluetooth”, avoiding raw interface names such as hci0 in the user-facing adapter identity.
 - Paired-device cache entries are deliberately preserved; automatic deletion could remove legitimate separate Bluetooth LE/classic identities.
 
-
 ### App picker additions
 - Added **Flameshot** as an optional screenshot capture and annotation tool.
 - Added **Save Desktop** as an optional desktop-configuration backup and restore tool.
 - Both remain opt-in Flatpaks; neither adds a default background service or increases the base image footprint.
-
 
 ### Raptor app visual consistency
 - Aligned the Raptor Cortex, Raptor Wallpaper, and Raptor Update Manager application icons with the Raptor green-on-graphite identity. App glyphs remain distinct while sharing a consistent accent palette.
