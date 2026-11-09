@@ -384,10 +384,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let db_for_connect = Arc::clone(&db);
         move || start_provider_connection(provider_auth::OAuthProvider::Spotify, ui_weak.clone(), Arc::clone(&db_for_connect))
     });
-    ui.on_connect_tidal_clicked({
-        let ui_weak = ui_handle_provider_connect.clone();
-        let db_for_connect = Arc::clone(&db);
-        move || start_provider_connection(provider_auth::OAuthProvider::Tidal, ui_weak.clone(), Arc::clone(&db_for_connect))
+    ui.on_open_external_service_clicked(move |service| {
+        let url = match service.as_str() {
+            "spotify" => "https://open.spotify.com/",
+            "tidal" => "https://tidal.com/",
+            "apple_music" => "https://music.apple.com/",
+            "youtube_music" => "https://music.youtube.com/",
+            "jamendo" => "https://www.jamendo.com/",
+            "audius" => "https://audius.co/",
+            _ => {
+                eprintln!("Raptor Music: rejected unknown external music service");
+                return;
+            }
+        };
+        if let Err(error) = std::process::Command::new("gio").arg("open").arg(url).spawn() {
+            eprintln!("Raptor Music could not open external music service: {error}");
+        }
     });
     ui.on_connect_youtube_clicked({
         let ui_weak = ui_handle_provider_connect.clone();
