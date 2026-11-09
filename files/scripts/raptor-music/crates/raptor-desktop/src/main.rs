@@ -673,6 +673,50 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
+    let db_for_track_menu = Arc::clone(&db);
+    let online_for_track_menu = Arc::clone(&online_tracks);
+    let visible_for_track_menu = Arc::clone(&visible_track_ids);
+    let ui_handle_track_menu = ui.as_weak();
+    ui.on_track_menu_action(move |index, source, action, playlist_index| {
+        let ui = match ui_handle_track_menu.upgrade() { Some(ui) => ui, None => return };
+        let db_lock = db_for_track_menu.lock().unwrap();
+        let track = if source == "online" {
+            online_for_track_menu.lock().unwrap().get(index as usize).cloned()
+        } else {
+            let id = visible_for_track_menu.lock().unwrap().get(index as usize).copied();
+            id.and_then(|id| db_lock.get_all_tracks().unwrap_or_default().into_iter().find(|track| track.id == id))
+        };
+        let track = match track { Some(track) => track, None => return };
+        if source == "online" && db_lock.upsert_track(&track).is_err() {
+            ui.set_player_state_label("Could not save this online track".into());
+            return;
+        }
+        let result = if action == "queue" {
+            let mut queue = db_lock.get_queue().unwrap_or_default();
+            queue.push(QueueEntry { queue_entry_id: Uuid::new_v4(), track_id: track.id, position: queue.len() as i32 });
+            db_lock.save_queue(&queue)
+        } else if action == "playlist" {
+            let playlists = db_lock.get_playlists().unwrap_or_default();
+            match playlists.get(playlist_index as usize) {
+                Some(playlist) => db_lock.add_track_to_playlist(playlist.id, track.id),
+                None => return,
+            }
+        } else {
+            return;
+        };
+        drop(db_lock);
+        if result.is_ok() {
+            if action == "queue" {
+                refresh_queue_list(&ui, &db_for_track_menu);
+                ui.set_player_state_label(format!("Added {} to the queue", track.title).into());
+            } else {
+                ui.set_player_state_label(format!("Added {} to playlist", track.title).into());
+            }
+        } else {
+            ui.set_player_state_label("Could not update your music collection".into());
+        }
+    });
+
     let db_for_play = Arc::clone(&db);
     let player_for_play = Arc::clone(&player);
     let ui_handle_play = ui.as_weak();
@@ -686,7 +730,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Some(u) => u,
             None => return,
         };
+        let direct_selection = ui.get_selected_online_track_index() >= 0 || ui.get_selected_track_index() >= 0;
         let selection_changed = ui.get_selected_queue_index() != ui.get_playing_queue_index();
+        if !direct_selection {
         match player_for_play.get_state() {
             PlayerState::Playing if !selection_changed => {
                 if let Some(token) = *session_token_for_play.lock().unwrap() {
@@ -702,6 +748,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             _ => {}
         }
+        }
         manual_stopped_for_play.store(false, Ordering::Release);
 
         let (target_source, target_id, target_queue_entry_id) = {
@@ -709,7 +756,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let queue_entries = db_lock.get_queue().unwrap_or_default();
             let all_tracks = db_lock.get_all_tracks().unwrap_or_default();
 
-            if !queue_entries.is_empty() {
+            if direct_selection {
+                let selected_id = *selected_id_for_play.lock().unwrap();
+                let track = match all_tracks.iter().find(|track| Some(track.id) == selected_id) {
+                    Some(track) => track.clone(),
+                    None => { ui.set_player_state_label("Select a track first".into()); return; }
+                };
+                let mut queue = queue_entries;
+                let entry = QueueEntry {
+                    queue_entry_id: Uuid::new_v4(),
+                    track_id: track.id,
+                    position: queue.len() as i32,
+                };
+                queue.push(entry.clone());
+                if db_lock.save_queue(&queue).is_err() {
+                    ui.set_player_state_label("Could not update the queue".into());
+                    return;
+                }
+                ui.set_selected_queue_index((queue.len() - 1) as i32);
+                (track.source, track.id, entry.queue_entry_id)
+            } else if !queue_entries.is_empty() {
                 let qidx = ui.get_selected_queue_index();
                 let target_qidx = if qidx >= 0 && (qidx as usize) < queue_entries.len() { qidx as usize } else { 0 };
                 let entry = &queue_entries[target_qidx];
@@ -719,13 +785,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     None => return,
                 }
             } else {
-                let selected_id = *selected_id_for_play.lock().unwrap();
-                if let Some(track) = all_tracks.iter().find(|track| Some(track.id) == selected_id) {
-                    (track.source.clone(), track.id, Uuid::new_v4())
-                } else {
-                    ui.set_player_state_label("No track selected".into());
-                    return;
-                }
+                ui.set_player_state_label("Choose a track to play".into());
+                return;
             }
         };
 
@@ -733,10 +794,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         *session_token_for_play.lock().unwrap() = Some(session_token);
         *active_entry_for_play.lock().unwrap() = Some(target_queue_entry_id);
 
+        ui.set_selected_track_index(-1);
+        ui.set_selected_online_track_index(-1);
+        refresh_queue_list(&ui, &db_for_play);
         ui.set_player_state_label("Loading".into());
         if let Err(e) = player_for_play.play(target_source, target_id, target_queue_entry_id, session_token) {
             eprintln!("Playback error: {}", e);
             ui.set_player_state_label("Error".into());
+        }
+    });
+
+    let player_for_skip_back = Arc::clone(&player);
+    let session_for_skip_back = Arc::clone(&active_session_token);
+    let seek_time_for_skip_back = Arc::clone(&last_seek_at);
+    ui.on_skip_backward_clicked(move || {
+        if let Some(token) = *session_for_skip_back.lock().unwrap() {
+            let position = player_for_skip_back.get_position_secs().saturating_sub(15);
+            *seek_time_for_skip_back.lock().unwrap() = Some(Instant::now());
+            player_for_skip_back.seek(position as f64, token);
+        }
+    });
+
+    let player_for_skip_forward = Arc::clone(&player);
+    let session_for_skip_forward = Arc::clone(&active_session_token);
+    let seek_time_for_skip_forward = Arc::clone(&last_seek_at);
+    ui.on_skip_forward_clicked(move || {
+        if let Some(token) = *session_for_skip_forward.lock().unwrap() {
+            let position = player_for_skip_forward.get_position_secs();
+            let duration = player_for_skip_forward.get_duration_secs().unwrap_or(position);
+            let target = position.saturating_add(15).min(duration);
+            *seek_time_for_skip_forward.lock().unwrap() = Some(Instant::now());
+            player_for_skip_forward.seek(target as f64, token);
         }
     });
 
