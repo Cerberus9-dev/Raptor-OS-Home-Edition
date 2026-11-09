@@ -32,6 +32,8 @@ fn refresh_provider_tokens_if_needed(
 fn restore_provider_connections(ui: slint::Weak<MainWindow>) {
     std::thread::spawn(move || {
         let providers = [
+            ("Spotify", "spotify", provider_auth::OAuthProvider::Spotify),
+            ("TIDAL", "tidal", provider_auth::OAuthProvider::Tidal),
             ("YouTube account", "youtube", provider_auth::OAuthProvider::YoutubeData),
         ];
         let mut connected = Vec::new();
@@ -85,7 +87,7 @@ fn start_provider_connection(
             token_store::save_tokens(provider_key, &tokens)?;
             match provider {
                 provider_auth::OAuthProvider::Tidal => Ok(
-                    "TIDAL authorization saved securely. Profile and playlist import remain disabled until its approved API adapter is verified.".into()
+                    "TIDAL account linked and credentials saved in the OS credential store. Catalog and profile import are not enabled yet.".into()
                 ),
                 provider_auth::OAuthProvider::Spotify | provider_auth::OAuthProvider::YoutubeData => {
                     let provider_profile = provider_auth::fetch_provider_profile(provider, &tokens.access_token)?;
@@ -380,6 +382,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     let ui_handle_provider_connect = ui.as_weak();
+    ui.on_connect_spotify_clicked({
+        let ui_weak = ui_handle_provider_connect.clone();
+        let db_for_connect = Arc::clone(&db);
+        move || start_provider_connection(provider_auth::OAuthProvider::Spotify, ui_weak.clone(), Arc::clone(&db_for_connect))
+    });
+    ui.on_connect_tidal_clicked({
+        let ui_weak = ui_handle_provider_connect.clone();
+        let db_for_connect = Arc::clone(&db);
+        move || start_provider_connection(provider_auth::OAuthProvider::Tidal, ui_weak.clone(), Arc::clone(&db_for_connect))
+    });
     ui.on_connect_youtube_clicked({
         let ui_weak = ui_handle_provider_connect.clone();
         let db_for_connect = Arc::clone(&db);
