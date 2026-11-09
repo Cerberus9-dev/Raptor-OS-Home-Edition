@@ -135,7 +135,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             return;
         }
 
-        ui.set_online_search_status("Searching Audius…".into());
+        ui.set_online_search_status("Searching…".into());
         let query_for_thread = query.trim().to_string();
         let sort_method = ui.get_online_sort_method().to_string();
         let ui_weak = ui_handle_search.clone();
@@ -174,9 +174,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         id: artist.id.clone().into(), title: artist.name.clone().into(),
                         artist: format!("@{}", artist.handle).into(), album: "Artist profile".into(), duration: "Open".into(),
                     }).collect::<Vec<_>>();
-                    let mut status = format!("{count} tracks · {artist_count} artists · Audius");
+                    let mut status = format!("{count} tracks · {artist_count} artists");
                     if let Some(error) = artist_error {
-                        status.push_str(&format!(" · Artist search unavailable: {error}"));
+                        status.push_str(" · Some artist results are unavailable");
                     } else if count == 0 && artist_count == 0 {
                         status = "No matching tracks or artists found".to_string();
                     }
@@ -191,7 +191,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Err(error) => {
                     *online_tracks.lock().unwrap() = Vec::new();
                     *online_artists.lock().unwrap() = Vec::new();
-                    let status = format!("Online search unavailable: {}", error);
+                    let status = "Online search is temporarily unavailable. Try again shortly.".to_string();
                     let _ = slint::invoke_from_event_loop(move || {
                         if let Some(ui) = ui_weak.upgrade() {
                             ui.set_online_track_list(slint::ModelRc::new(
