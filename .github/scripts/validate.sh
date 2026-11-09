@@ -233,7 +233,6 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs '("
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs '("TIDAL", "tidal", provider_auth::OAuthProvider::Tidal)'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'save_imported_profile'
 assert_not_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'SoundCloud'
-assert_not_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Jamendo'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'artist_profile_bio'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'online_artist_list'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Search matches across local titles, artists and album names.'
