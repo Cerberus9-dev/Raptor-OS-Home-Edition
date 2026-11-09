@@ -13,7 +13,7 @@ Raptor Music is a desktop player built with Rust, SQLite, Symphonia/CPAL and Sli
 - Playback runs on its own audio worker, so it continues while the window is minimized or you're using another app. Closing Raptor Music ends playback for now.
 - Playlists, the upcoming queue and the playback dock have their own controls. Queue actions respond to the current selection.
 - Folder import scans supported audio formats and stores track metadata in the local SQLite library.
-- Search can sort by relevance, popularity or recency. A query can return up to 50 tracks and 30 artists.
+- Search checks tracks and artists together, accepts song titles, artist names and general keywords, and sorts by relevance, popularity or recency. Short queries are not blocked by a two-character minimum; results can include up to 50 tracks and 30 artists per request.
 
 ## Online catalog and privacy
 
