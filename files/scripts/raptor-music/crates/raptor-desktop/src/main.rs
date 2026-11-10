@@ -751,7 +751,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let collection_rows = collections.iter().map(|item| TrackData {
                 id: item.id.clone().into(),
                 title: item.title.clone().into(),
-                artist: format!("{} · {}", item.creator, item.kind).into(),
+                artist: format!("{} · {} · {}", if item.provider == "apple_music" { "Apple Music" } else { "Audius" }, item.creator, item.kind).into(),
                 album: item.kind.clone().into(),
                 duration: "Open".into(),
             }).collect::<Vec<_>>();
