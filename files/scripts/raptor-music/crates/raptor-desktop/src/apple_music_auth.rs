@@ -144,4 +144,36 @@ mod tests {
     #[test] fn validates_developer_token_before_embedding(){ assert!(AppleMusicAuthListener::bind("header.payload.signature").is_ok()); assert!(AppleMusicAuthListener::bind("bad token").is_err()); assert!(AppleMusicAuthListener::bind("<script>").is_err()); }
     #[test] fn uses_apple_hosted_musickit_and_one_use_state(){ let page=auth_page("header.payload.signature","state-123"); assert!(page.contains("https://js-cdn.music.apple.com/musickit/v3/musickit.js")); assert!(page.contains("await music.authorize()")); assert!(page.contains("music.musicUserToken")); assert!(page.contains("fetch(\"/callback\"")); assert!(!page.contains("localStorage")); }
     #[test] fn binds_loopback_and_creates_random_state(){ let listener=AppleMusicAuthListener::bind("header.payload.signature").unwrap(); assert!(listener.authorization_url().starts_with("http://127.0.0.1:")); assert_eq!(listener.state.len(),32); }
+    #[test]
+    fn loopback_callback_returns_only_token_with_matching_state_and_origin() {
+        use std::net::TcpStream;
+        use std::io::{Read, Write};
+
+        let listener = AppleMusicAuthListener::bind("header.payload.signature").unwrap();
+        let callback_url = listener.authorization_url();
+        let parsed = url::Url::parse(&callback_url).unwrap();
+        let port = parsed.port().unwrap();
+        let state = listener.state.clone();
+        let worker = std::thread::spawn(move || listener.wait_for_user_token(Duration::from_secs(5)));
+
+        let mut page = TcpStream::connect(("127.0.0.1", port)).unwrap();
+        write!(page, "GET /?state={state} HTTP/1.1\\r\\nHost: 127.0.0.1:{port}\\r\\nConnection: close\\r\\n\\r\\n").unwrap();
+        let mut page_response = String::new();
+        page.read_to_string(&mut page_response).unwrap();
+        assert!(page_response.starts_with("HTTP/1.1 200 OK"));
+        assert!(page_response.contains("MusicKit.getInstance()"));
+
+        let body = serde_json::json!({"state": state, "userToken": "apple-user-token"}).to_string();
+        let mut callback = TcpStream::connect(("127.0.0.1", port)).unwrap();
+        write!(
+            callback,
+            "POST /callback HTTP/1.1\\r\\nHost: 127.0.0.1:{port}\\r\\nOrigin: http://127.0.0.1:{port}\\r\\nContent-Type: application/json\\r\\nContent-Length: {}\\r\\nConnection: close\\r\\n\\r\\n{}",
+            body.len(), body
+        ).unwrap();
+        let mut response = String::new();
+        callback.read_to_string(&mut response).unwrap();
+        assert!(response.starts_with("HTTP/1.1 200 OK"));
+        assert_eq!(worker.join().unwrap().unwrap(), "apple-user-token");
+    }
+
 }
