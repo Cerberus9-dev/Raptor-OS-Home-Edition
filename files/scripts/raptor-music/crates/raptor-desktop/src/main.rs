@@ -2092,6 +2092,23 @@ fn fetch_apple_music_library_import(
         }
         Err(error) => warnings.push(format!("Library artists: {error}")),
     }
+    match apple_music_resource_pages(
+        &client, apple_music_initial_url("recent/played/tracks?limit=30&types=songs")?,
+        developer_token, user_token,
+    ) {
+        Ok(rows) => {
+            profile.listening_history = rows.iter().filter_map(apple_music_track_from_resource)
+                .map(|track| profile_import::ImportedListen {
+                    track,
+                    // Apple's recent-played endpoint returns the ordered recent
+                    // resources, but not a per-item playback timestamp.
+                    played_at: None,
+                    ms_played: None,
+                    play_count: 1,
+                }).collect();
+        }
+        Err(error) => warnings.push(format!("Recent listening: {error}")),
+    }
     Ok((profile, warnings))
 }
 
@@ -2110,6 +2127,7 @@ fn start_apple_music_connection(ui: slint::Weak<MainWindow>, db: Arc<Mutex<Libra
             let playlist_track_count: usize = imported.playlists.iter().map(|playlist| playlist.tracks.len()).sum();
             let saved_count = imported.saved_tracks.len();
             let library_artist_count = imported.library_artists.len();
+            let recent_count = imported.listening_history.len();
             let payload = serde_json::to_string(&imported)
                 .map_err(|_| "Could not prepare the Apple Music library import".to_string())?;
             let imported_id = db.lock().map_err(|_| "The local profile database is unavailable".to_string())?
@@ -2125,7 +2143,7 @@ fn start_apple_music_connection(ui: slint::Weak<MainWindow>, db: Arc<Mutex<Libra
             });
             let warning_text = if warnings.is_empty() { String::new() } else { format!(" Some sections were unavailable: {}.", warnings.join(" · ")) };
             Ok(format!(
-                "Apple Music connected and imported {} library songs · {playlist_count} playlists · {playlist_track_count} playlist tracks · {library_artist_count} library artists.{}",
+                "Apple Music connected and imported {} library songs · {playlist_count} playlists · {playlist_track_count} playlist tracks · {library_artist_count} library artists · {recent_count} recent plays.{}",
                 saved_count, warning_text
             ))
         })();
@@ -2890,5 +2908,43 @@ mod local_library_visibility_tests {
             render_presence_template("by {artist} · {title}", "Night Drive", "Example Artist"),
             "by Example Artist · Night Drive"
         );
+    }
+}
+
+#[cfg(test)]
+mod apple_music_library_tests {
+    use super::*;
+
+    #[test]
+    fn parses_library_and_recent_played_track_resources_without_inventing_timestamps() {
+        let row = serde_json::json!({
+            "id": "l.song-123",
+            "attributes": {
+                "name": "Independent Track",
+                "artistName": "Small Artist",
+                "albumName": "Self Released EP",
+                "durationInMillis": 183000
+            }
+        });
+        let track = apple_music_track_from_resource(&row).unwrap();
+        assert_eq!(track.source_id.as_deref(), Some("l.song-123"));
+        assert_eq!(track.title, "Independent Track");
+        assert_eq!(track.artist, "Small Artist");
+        let listen = profile_import::ImportedListen {
+            track,
+            played_at: None,
+            ms_played: None,
+            play_count: 1,
+        };
+        assert_eq!(listen.play_count, 1);
+        assert!(listen.played_at.is_none());
+    }
+
+    #[test]
+    fn apple_music_artwork_templates_are_restricted_to_apple_cdn() {
+        let valid = serde_json::json!({"artwork":{"url":"https://is5-ssl.mzstatic.com/image/{w}x{h}.jpg"}});
+        assert_eq!(apple_music_artwork_url(&valid).as_deref(), Some("https://is5-ssl.mzstatic.com/image/512x512.jpg"));
+        let invalid = serde_json::json!({"artwork":{"url":"https://attacker.invalid/{w}x{h}.jpg"}});
+        assert!(apple_music_artwork_url(&invalid).is_none());
     }
 }
