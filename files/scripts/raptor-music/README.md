@@ -9,7 +9,7 @@ Discover includes an **Independent** sort option that blends Audius relevance-ra
 
 ### Albums and playlists
 
-Discover now queries Audius autocomplete for album and playlist matches alongside artist and track search. Album and playlist rows are shown separately from tracks; selecting one loads its track list into the online results so tracks can be selected and played with the existing player controls. The catalog only returns public, available items that the provider exposes. This is catalog discovery, not a connected Audius user account. MusicBrainz release-group matches are shown as metadata-only releases with their release type, credited artist and first-release date when available; selecting one opens the official release-group page.
+Discover now queries Audius autocomplete for album and playlist matches alongside artist and track search. Album and playlist rows are shown separately from tracks; selecting one loads its track list into the online results so tracks can be selected and played with the existing player controls. The catalog only returns public, available items that the provider exposes. This is catalog discovery, not a connected Audius user account. MusicBrainz release-group matches are shown as metadata-only releases with their release type, credited artist and first-release date when available; selecting one opens the official release-group page. Selecting a MusicBrainz artist now loads up to 100 indexed release groups into an artist discography view, including albums, EPs and singles. This is descriptive metadata only; it does not provide track audio or claim streaming rights.
 
 ### Music-service account connections
 
