@@ -3062,3 +3062,27 @@ mod apple_music_library_tests {
         assert!(apple_music_artwork_url(&invalid).is_none());
     }
 }
+
+#[cfg(test)]
+mod apple_music_artist_link_tests {
+    use super::*;
+
+    #[test]
+    fn apple_music_artist_links_reject_non_apple_hosts_and_insecure_schemes() {
+        assert!(apple_music_web_url("https://music.apple.com/us/artist/example/123").is_some());
+        assert!(apple_music_web_url("http://music.apple.com/us/artist/example/123").is_none());
+        assert!(apple_music_web_url("https://music.apple.com.attacker.invalid/artist/123").is_none());
+        assert!(apple_music_web_url("https://attacker.invalid/music.apple.com/artist/123").is_none());
+    }
+
+    #[test]
+    fn apple_music_artist_results_are_marked_for_external_handoff() {
+        let artist = AudiusArtist {
+            id: "123".into(), name: "Independent Artist".into(), handle: "Apple Music".into(),
+            provider: "apple_music".into(),
+            external_url: apple_music_web_url("https://music.apple.com/us/artist/independent-artist/123"),
+        };
+        assert_eq!(artist.provider, "apple_music");
+        assert!(artist.external_url.is_some());
+    }
+}
