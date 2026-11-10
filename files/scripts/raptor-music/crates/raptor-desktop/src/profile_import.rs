@@ -18,6 +18,8 @@ pub struct ImportedProfile {
     pub playlists: Vec<ImportedPlaylist>,
     pub saved_tracks: Vec<ImportedTrack>,
     pub followed_artists: Vec<ImportedArtist>,
+    #[serde(default)]
+    pub library_artists: Vec<ImportedArtist>,
     pub listening_history: Vec<ImportedListen>,
 }
 
@@ -59,6 +61,7 @@ pub struct ImportSummary {
     pub playlist_tracks: usize,
     pub saved_tracks: usize,
     pub followed_artists: usize,
+    pub library_artists: usize,
     pub listening_events: usize,
     pub has_profile_image: bool,
 }
@@ -121,6 +124,13 @@ fn parse_raptor_package(value: &Value) -> Result<ImportedProfile, String> {
     }
     if let Some(rows) = value.get("followed_artists").and_then(Value::as_array) {
         profile.followed_artists = rows.iter().filter_map(|row| {
+            let name = string(row, "name")?;
+            if name.trim().is_empty() { return None; }
+            Some(ImportedArtist { source_id: string(row, "source_id"), name })
+        }).collect();
+    }
+    if let Some(rows) = value.get("library_artists").and_then(Value::as_array) {
+        profile.library_artists = rows.iter().filter_map(|row| {
             let name = string(row, "name")?;
             if name.trim().is_empty() { return None; }
             Some(ImportedArtist { source_id: string(row, "source_id"), name })
@@ -274,6 +284,8 @@ fn deduplicate_profile(profile: &mut ImportedProfile) {
     deduplicate_tracks(&mut profile.saved_tracks);
     let mut artists = HashSet::new();
     profile.followed_artists.retain(|artist| artists.insert(artist.name.to_lowercase()));
+    let mut library_artists = HashSet::new();
+    profile.library_artists.retain(|artist| library_artists.insert(artist.name.to_lowercase()));
     let mut listens = HashSet::new();
     profile.listening_history.retain(|listen| {
         let key = format!(
@@ -339,6 +351,7 @@ impl ImportedProfile {
         self.playlists.append(&mut other.playlists);
         self.saved_tracks.append(&mut other.saved_tracks);
         self.followed_artists.append(&mut other.followed_artists);
+        self.library_artists.append(&mut other.library_artists);
         self.listening_history.append(&mut other.listening_history);
         deduplicate_profile(self);
     }
@@ -349,6 +362,7 @@ impl ImportedProfile {
             playlist_tracks: self.playlists.iter().map(|p| p.tracks.len()).sum(),
             saved_tracks: self.saved_tracks.len(),
             followed_artists: self.followed_artists.len(),
+            library_artists: self.library_artists.len(),
             listening_events: self.listening_history.len(),
             has_profile_image: self.avatar_url.is_some(),
         }
@@ -381,9 +395,28 @@ mod tests {
         assert_eq!(profile.avatar_url.as_deref(), Some("https://cdn.example/avatar.png"));
         assert_eq!(profile.summary(), ImportSummary {
             playlists: 1, playlist_tracks: 1, saved_tracks: 1,
-            followed_artists: 1, listening_events: 1, has_profile_image: true,
+            followed_artists: 1, library_artists: 0, listening_events: 1, has_profile_image: true,
         });
         assert_eq!(profile.listening_history[0].play_count, 3);
+    }
+
+    #[test]
+    fn parses_apple_library_artists_separately_from_followed_artists() {
+        let json = r#"{ "raptor_music_profile": {
+            "source": "Apple Music",
+            "library_artists": [{"source_id":"artist-1","name":"Saved Artist"}]
+        }}"#;
+        let profile = parse_profile_export(json).unwrap();
+        assert_eq!(profile.followed_artists.len(), 0);
+        assert_eq!(profile.library_artists.len(), 1);
+        assert_eq!(profile.library_artists[0].name, "Saved Artist");
+    }
+
+    #[test]
+    fn older_saved_profiles_without_library_artists_remain_readable() {
+        let json = r#"{ "raptor_music_profile": { "source":"Old import", "followed_artists":[] } }"#;
+        let profile = parse_profile_export(json).unwrap();
+        assert!(profile.library_artists.is_empty());
     }
 
     #[test]
