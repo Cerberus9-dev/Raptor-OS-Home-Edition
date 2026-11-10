@@ -951,9 +951,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ui.set_selected_online_track_index(-1);
             }
             let ui_weak = ui_handle_profile.clone();
+            let generation = Arc::clone(&generation_for_profile);
             std::thread::spawn(move || {
                 let result = musicbrainz_artist_discography(&artist);
-                if generation_for_profile.load(Ordering::Acquire) != request_generation { return; }
+                if generation.load(Ordering::Acquire) != request_generation { return; }
                 let (bio, stats, status) = match result {
                     Ok(releases) => {
                         let count = releases.len();
@@ -961,7 +962,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             if release.creator.is_empty() { String::new() } else { format!(" · {}", release.creator) }))
                             .collect::<Vec<_>>();
                         let summary = if lines.is_empty() { "No release groups are indexed for this artist yet.".to_string() }
-                            else { lines.join("\\n") };
+                            else { lines.join("\n") };
                         (summary, format!("{count} indexed release groups"), if count == 0 {
                             "No indexed albums, EPs or singles found".to_string()
                         } else { "Discography metadata loaded · open the artist's official MusicBrainz page for release credits and track listings".to_string() })
