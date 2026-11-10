@@ -810,6 +810,9 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'au
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Albums & playlists'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'callback collection_selected(int);'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn search_apple_music_tracks'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn search_apple_music_artists'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'apple_music_artist_links_reject_non_apple_hosts_and_insecure_schemes'
+
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'RAPTOR_APPLE_MUSIC_DEVELOPER_TOKEN'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn parse_apple_music_tracks'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'apple_music_preview'
