@@ -790,7 +790,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             } else if jamendo_error {
                 status.push_str(" · Jamendo search unavailable");
             }
-            if audius_count == 0 && apple_count == 0 && jamendo_count == 0 && artist_count == 0 && collection_count == 0 {
+            if audius_count == 0 && apple_count == 0 && jamendo_count == 0 && artist_count == 0
+                && collection_count == 0 && apple_collection_count == 0 {
                 status = "No matching tracks, artists, albums or playlists found".to_string();
             }
             if artist_error {
@@ -2407,6 +2408,7 @@ fn search_audius_artists(query: &str, sort_method: &str) -> Result<Vec<AudiusArt
 fn apple_music_web_url(value: &str) -> Option<String> {
     let url = reqwest::Url::parse(value).ok()?;
     if url.scheme() == "https" && url.host_str() == Some("music.apple.com")
+        && url.port_or_known_default() == Some(443)
         && url.username().is_empty() && url.password().is_none()
     {
         Some(url.to_string())
@@ -2656,6 +2658,13 @@ mod apple_music_collection_search_tests {
             ]}
         }});
         assert!(parse_apple_music_collections(&payload).unwrap().is_empty());
+    }
+
+    #[test]
+    fn apple_music_collection_links_reject_custom_ports_and_credentials() {
+        assert!(apple_music_web_url("https://music.apple.com:8443/us/album/test/123").is_none());
+        assert!(apple_music_web_url("https://user:pass@music.apple.com/us/album/test/123").is_none());
+        assert!(apple_music_web_url("https://music.apple.com/us/album/test/123").is_some());
     }
 
     #[test]
