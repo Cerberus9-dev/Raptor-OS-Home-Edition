@@ -4,6 +4,7 @@ mod profile_import;
 mod provider_auth;
 mod token_store;
 mod callback_listener;
+mod apple_music_auth;
 
 fn refresh_provider_tokens_if_needed(
     provider: provider_auth::OAuthProvider,
@@ -1898,6 +1899,228 @@ fn search_apple_music_tracks(query: &str) -> Result<Vec<Track>, String> {
     let payload: serde_json::Value = response.json()
         .map_err(|error| format!("Apple Music returned unreadable search results: {error}"))?;
     parse_apple_music_tracks(&payload)
+}
+
+
+fn apple_music_api_client() -> Result<reqwest::blocking::Client, String> {
+    reqwest::blocking::Client::builder()
+        .user_agent("RaptorMusic/0.2.18")
+        .redirect(reqwest::redirect::Policy::none())
+        .connect_timeout(Duration::from_secs(8))
+        .timeout(Duration::from_secs(20))
+        .build()
+        .map_err(|error| format!("Could not initialize Apple Music library access: {error}"))
+}
+
+fn apple_music_api_get(
+    client: &reqwest::blocking::Client,
+    url: &reqwest::Url,
+    developer_token: &str,
+    user_token: &str,
+) -> Result<serde_json::Value, String> {
+    if url.scheme() != "https" || url.host_str() != Some("api.music.apple.com")
+        || !url.path().starts_with("/v1/me/")
+        || !url.username().is_empty() || url.password().is_some()
+    {
+        return Err("Apple Music returned an untrusted library pagination URL".into());
+    }
+    let response = client.get(url.clone())
+        .bearer_auth(developer_token)
+        .header("Music-User-Token", user_token)
+        .send()
+        .map_err(|error| format!("Apple Music library request failed: {error}"))?;
+    let status = response.status();
+    if !status.is_success() {
+        return Err(format!("Apple Music library request returned HTTP {status}"));
+    }
+    response.json::<serde_json::Value>()
+        .map_err(|error| format!("Apple Music returned unreadable library data: {error}"))
+}
+
+fn apple_music_resource_pages(
+    client: &reqwest::blocking::Client,
+    initial_url: reqwest::Url,
+    developer_token: &str,
+    user_token: &str,
+) -> Result<Vec<serde_json::Value>, String> {
+    let mut page_url = Some(initial_url);
+    let mut seen = HashSet::new();
+    let mut resources = Vec::new();
+    for _ in 0..100 {
+        let Some(url) = page_url.take() else { break; };
+        let key = url.as_str().to_string();
+        if !seen.insert(key) {
+            return Err("Apple Music repeated a library pagination URL".into());
+        }
+        let payload = apple_music_api_get(client, &url, developer_token, user_token)?;
+        if let Some(rows) = payload.get("data").and_then(serde_json::Value::as_array) {
+            for row in rows {
+                if resources.len() >= 20_000 { return Err("Apple Music library exceeded the 20,000-item safety limit".into()); }
+                resources.push(row.clone());
+            }
+        }
+        if let Some(next) = payload.get("next").and_then(serde_json::Value::as_str) {
+            let parsed = url.join(next)
+                .map_err(|_| "Apple Music returned an invalid pagination link".to_string())?;
+            if parsed.scheme() != "https" || parsed.host_str() != Some("api.music.apple.com")
+                || !parsed.path().starts_with("/v1/me/") {
+                return Err("Apple Music returned an untrusted pagination destination".into());
+            }
+            page_url = Some(parsed);
+        }
+    }
+    if page_url.is_some() {
+        return Err("Apple Music library pagination exceeded its page safety limit".into());
+    }
+    Ok(resources)
+}
+
+fn apple_music_initial_url(path: &str) -> Result<reqwest::Url, String> {
+    reqwest::Url::parse(&format!("https://api.music.apple.com/v1/me/{path}"))
+        .map_err(|_| "Could not construct Apple Music library endpoint".into())
+}
+
+fn apple_music_track_from_resource(row: &serde_json::Value) -> Option<profile_import::ImportedTrack> {
+    let attributes = row.get("attributes")?;
+    let title = attributes.get("name")?.as_str()?.trim();
+    let artist = attributes.get("artistName").and_then(serde_json::Value::as_str).unwrap_or("Unknown artist").trim();
+    if title.is_empty() || artist.is_empty() { return None; }
+    Some(profile_import::ImportedTrack {
+        source_id: row.get("id").and_then(serde_json::Value::as_str).map(str::to_owned),
+        title: title.to_string(),
+        artist: artist.to_string(),
+        album: attributes.get("albumName").and_then(serde_json::Value::as_str).map(str::to_owned),
+    })
+}
+
+fn apple_music_artwork_url(attributes: &serde_json::Value) -> Option<String> {
+    let template = attributes.pointer("/artwork/url")?.as_str()?;
+    let url = template.replace("{w}", "512").replace("{h}", "512");
+    let parsed = reqwest::Url::parse(&url).ok()?;
+    if parsed.scheme() == "https" && matches!(parsed.host_str(), Some("is1-ssl.mzstatic.com" | "is2-ssl.mzstatic.com" | "is3-ssl.mzstatic.com" | "is4-ssl.mzstatic.com" | "is5-ssl.mzstatic.com")) {
+        Some(url)
+    } else { None }
+}
+
+fn fetch_apple_music_library_import(
+    developer_token: &str,
+    user_token: &str,
+) -> Result<(profile_import::ImportedProfile, Vec<String>), String> {
+    let client = apple_music_api_client()?;
+    let mut profile = profile_import::ImportedProfile {
+        source: "Apple Music".into(),
+        display_name: Some("Apple Music Library".into()),
+        ..profile_import::ImportedProfile::default()
+    };
+    let mut warnings = Vec::new();
+
+    let songs_url = apple_music_initial_url("library/songs?limit=100")?;
+    let songs = apple_music_resource_pages(&client, songs_url, developer_token, user_token)?;
+    profile.saved_tracks = songs.iter().filter_map(apple_music_track_from_resource).collect();
+
+    let playlists = match apple_music_resource_pages(
+        &client, apple_music_initial_url("library/playlists?limit=100")?,
+        developer_token, user_token,
+    ) {
+        Ok(rows) => rows,
+        Err(error) => { warnings.push(format!("Playlists: {error}")); Vec::new() }
+    };
+    let mut track_budget = 50_000usize;
+    for playlist in playlists.into_iter().take(500) {
+        let Some(id) = playlist.get("id").and_then(serde_json::Value::as_str) else { continue; };
+        let attributes = playlist.get("attributes").cloned().unwrap_or_default();
+        let name = attributes.get("name").and_then(serde_json::Value::as_str).unwrap_or("Untitled playlist").trim();
+        if name.is_empty() { continue; }
+        let mut tracks = Vec::new();
+        if track_budget > 0 {
+            let mut endpoint = apple_music_initial_url("library/playlists/")?;
+            {
+                let mut segments = endpoint.path_segments_mut().map_err(|_| "Could not build Apple Music playlist URL")?;
+                segments.pop_if_empty();
+                segments.push(id);
+                segments.push("tracks");
+            }
+            endpoint.query_pairs_mut().append_pair("limit", "100");
+            match apple_music_resource_pages(&client, endpoint, developer_token, user_token) {
+                Ok(rows) => {
+                    tracks = rows.iter().filter_map(apple_music_track_from_resource)
+                        .take(track_budget).collect();
+                    track_budget = track_budget.saturating_sub(tracks.len());
+                }
+                Err(error) => warnings.push(format!("Playlist {name}: {error}")),
+            }
+        }
+        let description = attributes.pointer("/description/standard")
+            .and_then(serde_json::Value::as_str)
+            .or_else(|| attributes.get("description").and_then(serde_json::Value::as_str))
+            .filter(|value| !value.trim().is_empty()).map(str::to_owned);
+        profile.playlists.push(profile_import::ImportedPlaylist {
+            source_id: Some(id.to_string()),
+            name: name.to_string(),
+            description,
+            artwork_url: apple_music_artwork_url(&attributes),
+            tracks,
+        });
+    }
+
+    match apple_music_resource_pages(
+        &client, apple_music_initial_url("library/artists?limit=100")?,
+        developer_token, user_token,
+    ) {
+        Ok(rows) => {
+            profile.followed_artists = rows.iter().filter_map(|row| {
+                let name = row.pointer("/attributes/name")?.as_str()?.trim();
+                if name.is_empty() { return None; }
+                Some(profile_import::ImportedArtist {
+                    source_id: row.get("id").and_then(serde_json::Value::as_str).map(str::to_owned),
+                    name: name.to_string(),
+                })
+            }).collect();
+        }
+        Err(error) => warnings.push(format!("Library artists: {error}")),
+    }
+    Ok((profile, warnings))
+}
+
+fn start_apple_music_connection(ui: slint::Weak<MainWindow>, db: Arc<Mutex<LibraryDatabase>>) {
+    std::thread::spawn(move || {
+        let result = (|| -> Result<String, String> {
+            let developer_token = std::env::var("RAPTOR_APPLE_MUSIC_DEVELOPER_TOKEN")
+                .map_err(|_| "Set RAPTOR_APPLE_MUSIC_DEVELOPER_TOKEN before connecting Apple Music".to_string())?;
+            let listener = apple_music_auth::AppleMusicAuthListener::bind(&developer_token)?;
+            std::process::Command::new("gio").arg("open").arg(listener.authorization_url()).spawn()
+                .map_err(|_| "Could not open the system browser for Apple Music authorization".to_string())?;
+            let user_token = listener.wait_for_user_token(Duration::from_secs(240))?;
+            token_store::save_music_user_token(&user_token)?;
+            let (imported, warnings) = fetch_apple_music_library_import(&developer_token, &user_token)?;
+            let playlist_count = imported.playlists.len();
+            let playlist_track_count: usize = imported.playlists.iter().map(|playlist| playlist.tracks.len()).sum();
+            let saved_count = imported.saved_tracks.len();
+            let artist_count = imported.followed_artists.len();
+            let payload = serde_json::to_string(&imported)
+                .map_err(|_| "Could not prepare the Apple Music library import".to_string())?;
+            let imported_id = db.lock().map_err(|_| "The local profile database is unavailable".to_string())?
+                .save_imported_profile("apple_music", imported.display_name.as_deref(), None, &payload)
+                .map_err(|error| format!("Could not save Apple Music library: {error}"))?;
+            if let Some(artwork) = imported.playlists.iter().find_map(|playlist| playlist.artwork_url.as_deref()) {
+                let _ = cache_profile_avatar(artwork, imported_id);
+            }
+            let ui_refresh = ui.clone();
+            let db_refresh = Arc::clone(&db);
+            let _ = slint::invoke_from_event_loop(move || {
+                if let Some(ui) = ui_refresh.upgrade() { refresh_imported_profile_list(&ui, &db_refresh); }
+            });
+            let warning_text = if warnings.is_empty() { String::new() } else { format!(" Some sections were unavailable: {}.", warnings.join(" · ")) };
+            Ok(format!(
+                "Apple Music connected and imported {} library songs · {playlist_count} playlists · {playlist_track_count} playlist tracks · {artist_count} library artists.{}",
+                saved_count, warning_text
+            ))
+        })();
+        let status = result.unwrap_or_else(|error| format!("Apple Music connection failed: {error}"));
+        let _ = slint::invoke_from_event_loop(move || {
+            if let Some(ui) = ui.upgrade() { ui.set_provider_connection_status(status.into()); }
+        });
+    });
 }
 
 fn normalized_sort_method(value: &str) -> &'static str {
