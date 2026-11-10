@@ -2424,21 +2424,28 @@ fn profile_avatar_cache_path(profile_id: Uuid, extension: &str) -> Result<PathBu
     Ok(directory.join(format!("{profile_id}.{extension}")))
 }
 
-/// Downloads only public profile artwork from the known provider CDNs.
+/// Downloads only public profile artwork from known provider CDNs.
 /// Redirects, non-image responses, unexpected hosts and oversized files are rejected.
+fn is_approved_profile_artwork_host(host: &str) -> bool {
+    let host = host.trim_end_matches('.').to_ascii_lowercase();
+    host == "i.scdn.co"
+        || host.ends_with(".scdn.co")
+        || host.ends_with(".spotifycdn.com")
+        || host.ends_with(".googleusercontent.com")
+        || host.ends_with(".ggpht.com")
+        // Apple Music artwork is served from Apple's mzstatic CDN.
+        || host == "mzstatic.com"
+        || host.ends_with(".mzstatic.com")
+}
+
 fn cache_profile_avatar(url: &str, profile_id: Uuid) -> Result<(), String> {
     let parsed = url::Url::parse(url)
         .map_err(|_| "Profile artwork URL is invalid".to_string())?;
     if parsed.scheme() != "https" || parsed.port_or_known_default() != Some(443) || !parsed.username().is_empty() || parsed.password().is_some() {
         return Err("Profile artwork must use a public HTTPS URL".into());
     }
-    let host = parsed.host_str().unwrap_or_default().to_ascii_lowercase();
-    let trusted_host = host == "i.scdn.co"
-        || host.ends_with(".scdn.co")
-        || host.ends_with(".spotifycdn.com")
-        || host.ends_with(".googleusercontent.com")
-        || host.ends_with(".ggpht.com");
-    if !trusted_host {
+    let host = parsed.host_str().unwrap_or_default();
+    if !is_approved_profile_artwork_host(host) {
         return Err("Profile artwork host is not an approved provider CDN".into());
     }
     let client = reqwest::blocking::Client::builder()
@@ -2624,6 +2631,17 @@ mod local_library_visibility_tests {
         });
         assert!(is_local_track(&local));
         assert!(!is_local_track(&remote));
+    }
+
+    #[test]
+    fn profile_artwork_host_allowlist_accepts_provider_cdns_without_suffix_spoofing() {
+        assert!(is_approved_profile_artwork_host("i.scdn.co"));
+        assert!(is_approved_profile_artwork_host("lh3.googleusercontent.com"));
+        assert!(is_approved_profile_artwork_host("is1-ssl.mzstatic.com"));
+        assert!(is_approved_profile_artwork_host("mzstatic.com"));
+        assert!(!is_approved_profile_artwork_host("notmzstatic.com"));
+        assert!(!is_approved_profile_artwork_host("mzstatic.com.attacker.invalid"));
+        assert!(!is_approved_profile_artwork_host("attacker.invalid"));
     }
 
     #[test]
