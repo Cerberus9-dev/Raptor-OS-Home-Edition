@@ -30,7 +30,7 @@ Spotify and Google/YouTube Data API account authorization are available through 
 
 ## Online catalog and privacy
 
-Raptor Music currently searches Audius and can also search the Apple Music catalog when a developer token is configured. Audius provides artist discovery and public, streamable tracks. Apple Music contributes catalog matches with short preview clips where Apple supplies a preview URL; those clips are not full-song subscription playback. Apple Music preview files are restricted to Apple's preview hosts, buffered temporarily, and removed when playback ends.
+Raptor Music searches Audius and, when a developer token is configured, Apple Music songs and artists. Apple Music artist results open their official artist pages in the system browser; Apple Music song results provide short previews where available. Audius provides artist discovery and public, streamable tracks. Apple Music contributes catalog matches with short preview clips where Apple supplies a preview URL; those clips are not full-song subscription playback. Apple Music preview files are restricted to Apple's preview hosts, buffered temporarily, and removed when playback ends.
 
 This is an early multi-catalog foundation, not Spotify-sized coverage. Audius album and playlist search are implemented, alongside artist and track search; broader pagination, genre and label discovery, and more independent artist sources remain important next steps. Popularity should not be the only ranking signal: exact artist matches, smaller artists and newer releases need room to surface.
 
