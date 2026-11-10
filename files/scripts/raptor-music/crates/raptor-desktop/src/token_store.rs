@@ -64,6 +64,24 @@ pub fn load_tokens(provider: &str) -> Result<OAuthTokenResponse, String> {
     Ok(load_token_bundle(provider)?.tokens)
 }
 
+/// Stores Apple's Music User Token as a separate opaque secret in the OS keyring.
+pub fn save_music_user_token(token: &str) -> Result<(), String> {
+    let token = token.trim();
+    if token.is_empty() || token.len() > 20 * 1024 || token.chars().any(char::is_control) {
+        return Err("Refusing to store an invalid Apple Music user token".into());
+    }
+    provider_entry("apple-music-user")?
+        .set_password(token)
+        .map_err(|_| "Could not save Apple Music authorization to the OS credential store".to_string())
+}
+
+/// Loads Apple's Music User Token from the OS keyring; it is never stored in SQLite.
+pub fn load_music_user_token() -> Result<String, String> {
+    provider_entry("apple-music-user")?
+        .get_password()
+        .map_err(|_| "No Apple Music authorization is saved, or the OS credential store is locked".to_string())
+}
+
 /// Removes the provider's saved credentials (disconnect operation).
 pub fn remove_tokens(provider: &str) -> Result<(), String> {
     provider_entry(provider)?
