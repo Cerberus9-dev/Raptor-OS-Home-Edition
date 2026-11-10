@@ -744,7 +744,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 album: item.kind.clone().into(),
                 duration: "Open".into(),
             }).collect::<Vec<_>>();
-            let artist_error = artist_result.is_err() || apple_artist_result.is_err();
+            let apple_artist_error = apple_artist_result.is_err();
+            let artist_error = artist_result.is_err() || apple_artist_error;
             let mut artists = artist_result.unwrap_or_default();
             let apple_artists = apple_artist_result.unwrap_or_default();
             let apple_artist_count = apple_artists.len();
@@ -766,7 +767,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             if apple_count == 0 && apple_artist_count == 0 && std::env::var("RAPTOR_APPLE_MUSIC_DEVELOPER_TOKEN").is_err() {
                 status.push_str(" · Apple Music catalog not configured");
-            } else if apple_error || apple_artist_result.is_err() {
+            } else if apple_error || apple_artist_error {
                 status.push_str(" · Apple Music search unavailable");
             }
             if jamendo_count > 0 {
