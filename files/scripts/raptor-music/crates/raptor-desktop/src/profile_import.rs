@@ -6,7 +6,7 @@
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct ImportedProfile {
@@ -161,7 +161,7 @@ fn parse_spotify_playlists(root: &Value) -> Result<ImportedProfile, String> {
             }).collect())
             .unwrap_or_default();
         profile.playlists.push(ImportedPlaylist {
-            source_id: string(row, "uri"),
+            source_id: string(row, "uri").or_else(|| string(row, "playlist_id")).or_else(|| string(row, "id")),
             name,
             description: string(row, "description"),
             artwork_url: None,
@@ -267,6 +267,7 @@ fn safe_https_url(value: Option<String>) -> Option<String> {
 }
 
 fn deduplicate_profile(profile: &mut ImportedProfile) {
+    deduplicate_playlists(&mut profile.playlists);
     for playlist in &mut profile.playlists {
         deduplicate_tracks(&mut playlist.tracks);
     }
@@ -283,6 +284,37 @@ fn deduplicate_profile(profile: &mut ImportedProfile) {
         );
         listens.insert(key)
     });
+}
+
+fn deduplicate_playlists(playlists: &mut Vec<ImportedPlaylist>) {
+    let mut positions: HashMap<String, usize> = HashMap::new();
+    let mut merged: Vec<ImportedPlaylist> = Vec::with_capacity(playlists.len());
+
+    for mut playlist in playlists.drain(..) {
+        let Some(source_id) = playlist.source_id.clone().filter(|id| !id.trim().is_empty()) else {
+            // Name-only playlists can legitimately share a title; without a
+            // stable provider ID, preserve them as separate collections.
+            merged.push(playlist);
+            continue;
+        };
+
+        if let Some(index) = positions.get(&source_id).copied() {
+            let existing = &mut merged[index];
+            if existing.description.is_none() {
+                existing.description = playlist.description.take();
+            }
+            if existing.artwork_url.is_none() {
+                existing.artwork_url = playlist.artwork_url.take();
+            }
+            existing.tracks.append(&mut playlist.tracks);
+            deduplicate_tracks(&mut existing.tracks);
+        } else {
+            positions.insert(source_id, merged.len());
+            merged.push(playlist);
+        }
+    }
+
+    *playlists = merged;
 }
 
 fn deduplicate_tracks(tracks: &mut Vec<ImportedTrack>) {
@@ -364,6 +396,33 @@ mod tests {
         assert_eq!(profile.source, "Spotify export");
         assert_eq!(profile.playlists[0].tracks[0].title, "First");
         assert_eq!(profile.playlists[0].tracks[1].title, "Second");
+    }
+
+    #[test]
+    fn spotify_playlist_export_accepts_playlist_ids_and_merges_duplicate_ids() {
+        let json = r#"{"playlists":[
+          {"playlist_id":"playlist-123","name":"Mix","items":[
+            {"track":{"trackName":"One","artistName":"A","trackUri":"track-1"}}
+          ]},
+          {"id":"playlist-123","name":"Mix","items":[
+            {"track":{"trackName":"Two","artistName":"B","trackUri":"track-2"}}
+          ]}
+        ]}"#;
+        let profile = parse_profile_export(json).unwrap();
+        assert_eq!(profile.playlists.len(), 1);
+        assert_eq!(profile.playlists[0].source_id.as_deref(), Some("playlist-123"));
+        assert_eq!(profile.playlists[0].tracks.len(), 2);
+        assert_eq!(profile.playlists[0].tracks[1].title, "Two");
+    }
+
+    #[test]
+    fn playlists_without_stable_ids_are_not_collapsed_by_name() {
+        let json = r#"{"playlists":[
+          {"name":"Favorites","items":[]},
+          {"name":"Favorites","items":[]}
+        ]}"#;
+        let profile = parse_profile_export(json).unwrap();
+        assert_eq!(profile.playlists.len(), 2);
     }
 
     #[test]
