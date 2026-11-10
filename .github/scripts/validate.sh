@@ -824,6 +824,8 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'co
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'if item.provider == "apple_music" { "Apple Music" } else { "Audius" }'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn search_musicbrainz_artists'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn search_musicbrainz_collections'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'for page in 0..3'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'seen_ids.insert(track.id.clone())'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn parse_musicbrainz_release_groups'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn musicbrainz_artist_discography'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn apple_music_artist_discography'
