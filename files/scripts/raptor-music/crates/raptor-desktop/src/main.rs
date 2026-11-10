@@ -2660,7 +2660,13 @@ fn search_musicbrainz_collections(query: &str) -> Result<Vec<AudiusCollection>, 
 fn parse_musicbrainz_release_groups(payload: &serde_json::Value) -> Result<Vec<AudiusCollection>, String> {
     let rows = payload.get("release-groups").and_then(serde_json::Value::as_array)
         .ok_or_else(|| "MusicBrainz returned an unexpected release response".to_string())?;
-    Ok(rows.iter().filter_map(|row| {
+    let mut ordered_rows = rows.iter().collect::<Vec<_>>();
+    ordered_rows.sort_by(|left, right| {
+        let left_date = left.get("first-release-date").and_then(serde_json::Value::as_str).unwrap_or("");
+        let right_date = right.get("first-release-date").and_then(serde_json::Value::as_str).unwrap_or("");
+        right_date.cmp(left_date)
+    });
+    Ok(ordered_rows.into_iter().filter_map(|row| {
         let id = row.get("id")?.as_str()?;
         Uuid::parse_str(id).ok()?;
         let title = row.get("title")?.as_str()?.trim();
