@@ -1044,17 +1044,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let tracks = profile.tracks.clone();
                     let rows = tracks_to_slint(&tracks);
                     *artists_tracks.lock().unwrap() = tracks;
-                    let stats = format!("{} tracks · {} followers", profile.track_count, profile.follower_count);
+                    let album_count = profile.albums.len();
+                    let mut bio = profile.bio.clone();
+                    if album_count > 0 {
+                        let album_lines = profile.albums.iter()
+                            .map(|album| format!("{} · {}", album.title, album.kind))
+                            .collect::<Vec<_>>();
+                        if !bio.trim().is_empty() { bio.push_str("\\n\\n"); }
+                        bio.push_str("Albums & releases\\n");
+                        bio.push_str(&album_lines.join("\\n"));
+                    }
+                    let stats = format!("{} tracks · {} followers · {} albums", profile.track_count, profile.follower_count, album_count);
                     let status = if rows.is_empty() {
-                        "No playable tracks are available for this artist".to_string()
+                        format!("No playable tracks available · {album_count} albums listed")
                     } else {
-                        format!("{} tracks available", rows.len())
+                        format!("{} tracks available · {} albums listed", rows.len(), album_count)
                     };
                     let _ = slint::invoke_from_event_loop(move || {
                         if let Some(ui) = ui_weak.upgrade() {
                             ui.set_artist_profile_name(profile.name.into());
                             ui.set_artist_profile_handle(format!("@{}", profile.handle).into());
-                            ui.set_artist_profile_bio(profile.bio.into());
+                            ui.set_artist_profile_bio(bio.into());
                             ui.set_artist_profile_stats(stats.into());
                             ui.set_artist_profile_status(status.into());
                             ui.set_online_track_list(slint::ModelRc::new(slint::VecModel::from(rows)));
