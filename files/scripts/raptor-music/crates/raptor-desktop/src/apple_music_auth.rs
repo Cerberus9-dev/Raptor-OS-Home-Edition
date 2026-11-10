@@ -9,7 +9,7 @@ const MAX_BODY: usize = 20 * 1024;
 
 fn respond(stream: &mut TcpStream, status: &str, content_type: &str, body: &str) {
     let response = format!(
-        "HTTP/1.1 {status}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\nCache-Control: no-store\r\nPragma: no-cache\r\nX-Content-Type-Options: nosniff\r\nReferrer-Policy: no-referrer\r\nContent-Security-Policy: default-src 'none'; script-src 'self' 'unsafe-inline' https://js-cdn.music.apple.com; connect-src 'self'; style-src 'unsafe-inline'; base-uri 'none'\r\n\r\n{}",
+        "HTTP/1.1 {status}\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\nCache-Control: no-store\r\nPragma: no-cache\r\nX-Content-Type-Options: nosniff\r\nReferrer-Policy: no-referrer\r\nContent-Security-Policy: default-src 'none'; script-src 'self' 'unsafe-inline' https://js-cdn.music.apple.com; connect-src 'self' https://*.apple.com https://*.itunes.apple.com https://*.mzstatic.com; frame-src https://*.apple.com https://*.itunes.apple.com; img-src 'self' data: https://*.mzstatic.com; style-src 'unsafe-inline'; base-uri 'none'\r\n\r\n{}",
         body.len(), body
     );
     let _ = stream.write_all(response.as_bytes());
