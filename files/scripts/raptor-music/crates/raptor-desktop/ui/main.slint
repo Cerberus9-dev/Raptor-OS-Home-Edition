@@ -92,6 +92,7 @@ export component MainWindow inherits Window {
     callback save_discord_presence_clicked();
     callback connect_spotify_clicked();
     callback connect_apple_music_clicked();
+    callback refresh_apple_music_clicked();
     callback open_external_service_clicked(string);
     callback connect_youtube_clicked();
     callback disconnect_spotify_clicked();
@@ -440,6 +441,7 @@ export component MainWindow inherits Window {
                         HorizontalLayout {
                             spacing: 8px;
                             Button { text: "Connect Apple Music"; clicked => { root.connect_apple_music_clicked(); } }
+                            Button { text: "Refresh Library"; clicked => { root.refresh_apple_music_clicked(); } }
                             Button { text: "Disconnect"; clicked => { root.disconnect_apple_music_clicked(); } }
                         }
                         Text {
