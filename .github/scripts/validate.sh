@@ -163,6 +163,9 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/callback_li
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/apple_music_auth.rs "MusicKit.getInstance()"
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/apple_music_auth.rs "wait_for_user_token"
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "fetch_apple_music_library_import"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "start_apple_music_library_refresh"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint "refresh_apple_music_clicked"
+
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "recent/played/tracks?limit=30&types=songs"
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "parses_library_and_recent_played_track_resources_without_inventing_timestamps"
 
