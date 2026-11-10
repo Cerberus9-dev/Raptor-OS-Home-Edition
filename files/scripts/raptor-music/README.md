@@ -13,7 +13,7 @@ Discover now queries Audius autocomplete for album and playlist matches alongsid
 
 ### Music-service account connections
 
-Spotify and Google/YouTube Data API account authorization are available through browser-based OAuth when their respective app credentials are configured. Spotify account data can be imported as metadata, not streamed through Raptor Music. Google authorization exposes YouTube Data API metadata, not the YouTube Music catalog or playback. TIDAL is an official-service handoff only; its account linking and content integration are not enabled in the current UI. Apple Music catalog search and short previews use a developer token, and MusicKit sign-in now imports the user's authorized library songs, playlists, playlist tracks and library artists. No client secrets, private keys, or user tokens are bundled in the repository.
+Spotify and Google/YouTube Data API account authorization are available through browser-based OAuth when their respective app credentials are configured. Spotify account data can be imported as metadata, not streamed through Raptor Music. Google authorization exposes YouTube Data API metadata, not the YouTube Music catalog or playback. TIDAL is an official-service handoff only; its account linking and content integration are not enabled in the current UI. Apple Music catalog search and short previews use a developer token, and MusicKit sign-in now imports the user's authorized library songs, playlists, playlist tracks and saved saved library artists. No client secrets, private keys, or user tokens are bundled in the repository.
 
 ## Using the app
 
@@ -61,10 +61,10 @@ The current importer understands Raptor Music profile packages and supported Spo
 
 - Profile details and avatar artwork.
 - Playlists, including their order and available track information.
-- Saved tracks and followed artists.
+- Saved tracks and followed artists (Spotify) and saved saved library artists (Apple Music).
 - Listening events and history supplied by the export.
 
-Multiple files can be selected together. Imports can be merged and deduplicated, and profiles without a stable account username are kept as separate imports. The Imported Profiles view lets users browse the saved profile's playlists, saved tracks, followed artists and listening history. Profile artwork caching accepts HTTPS images from the Spotify, Google and Apple Music CDNs, with host validation, redirects disabled, a 2 MiB size cap and JPEG/PNG signature checks.
+Multiple files can be selected together. Imports can be merged and deduplicated, and profiles without a stable account username are kept as separate imports. The Imported Profiles view lets users browse the saved profile's playlists, saved tracks, followed artists (Spotify) and saved saved library artists (Apple Music) and listening history. Profile artwork caching accepts HTTPS images from the Spotify, Google and Apple Music CDNs, with host validation, redirects disabled, a 2 MiB size cap and JPEG/PNG signature checks.
 
 There are limits. Export formats differ, and a provider may leave out profile photos, follows, albums or listening history. Raptor Music only imports information actually present in supported files; it does not fill in missing account data by guessing. It does not sign in to external services, scrape private endpoints or bypass provider controls. Importing a track entry does not download its audio or guarantee it can be played. Imported collections remain separate from the Local Library and from listening activity recorded in Raptor Music.
 
