@@ -2003,19 +2003,28 @@ fn apple_music_resource_pages(
             }
         }
         if let Some(next) = payload.get("next").and_then(serde_json::Value::as_str) {
-            let parsed = url.join(next)
-                .map_err(|_| "Apple Music returned an invalid pagination link".to_string())?;
-            if parsed.scheme() != "https" || parsed.host_str() != Some("api.music.apple.com")
-                || !parsed.path().starts_with("/v1/me/") {
-                return Err("Apple Music returned an untrusted pagination destination".into());
-            }
-            page_url = Some(parsed);
+            page_url = Some(apple_music_pagination_url(&url, next)?);
         }
     }
     if page_url.is_some() {
         return Err("Apple Music library pagination exceeded its page safety limit".into());
     }
     Ok(resources)
+}
+
+fn apple_music_pagination_url(current: &reqwest::Url, next: &str) -> Result<reqwest::Url, String> {
+    let parsed = current.join(next)
+        .map_err(|_| "Apple Music returned an invalid pagination link".to_string())?;
+    if parsed.scheme() != "https"
+        || parsed.host_str() != Some("api.music.apple.com")
+        || parsed.port_or_known_default() != Some(443)
+        || !parsed.username().is_empty()
+        || parsed.password().is_some()
+        || !parsed.path().starts_with("/v1/me/")
+    {
+        return Err("Apple Music returned an untrusted pagination destination".into());
+    }
+    Ok(parsed)
 }
 
 fn apple_music_initial_url(path: &str) -> Result<reqwest::Url, String> {
@@ -2057,9 +2066,13 @@ fn fetch_apple_music_library_import(
     };
     let mut warnings = Vec::new();
 
-    let songs_url = apple_music_initial_url("library/songs?limit=100")?;
-    let songs = apple_music_resource_pages(&client, songs_url, developer_token, user_token)?;
-    profile.saved_tracks = songs.iter().filter_map(apple_music_track_from_resource).collect();
+    match apple_music_resource_pages(
+        &client, apple_music_initial_url("library/songs?limit=100")?,
+        developer_token, user_token,
+    ) {
+        Ok(songs) => profile.saved_tracks = songs.iter().filter_map(apple_music_track_from_resource).collect(),
+        Err(error) => warnings.push(format!("Library songs: {error}")),
+    }
 
     let playlists = match apple_music_resource_pages(
         &client, apple_music_initial_url("library/playlists?limit=100")?,
@@ -2157,7 +2170,9 @@ fn save_apple_music_library_import(
     let payload = serde_json::to_string(&imported)
         .map_err(|_| "Could not prepare the Apple Music library import".to_string())?;
     db.lock().map_err(|_| "The local profile database is unavailable".to_string())?
-        .save_imported_profile("apple_music", imported.display_name.as_deref(), None, &payload)
+        // One connected Apple Music account is active per desktop profile.
+        // A stable local key makes Refresh Library update, not duplicate, its import.
+        .save_imported_profile("apple_music", imported.display_name.as_deref(), Some("connected-account"), &payload)
         .map_err(|error| format!("Could not save Apple Music library: {error}"))?;
     let ui_refresh = ui.clone();
     let db_refresh = Arc::clone(db);
@@ -3086,3 +3101,19 @@ mod apple_music_artist_link_tests {
         assert!(artist.external_url.is_some());
     }
 }
+#[cfg(test)]
+mod apple_music_pagination_tests {
+    use super::*;
+
+    #[test]
+    fn apple_music_pagination_only_accepts_https_api_paths_without_credentials_or_custom_ports() {
+        let base = reqwest::Url::parse("https://api.music.apple.com/v1/me/library/songs").unwrap();
+        assert!(apple_music_pagination_url(&base, "/v1/me/library/songs?offset=100").is_ok());
+        assert!(apple_music_pagination_url(&base, "https://api.music.apple.com:8443/v1/me/library/songs").is_err());
+        assert!(apple_music_pagination_url(&base, "https://user:pass@api.music.apple.com/v1/me/library/songs").is_err());
+        assert!(apple_music_pagination_url(&base, "https://attacker.invalid/v1/me/library/songs").is_err());
+        assert!(apple_music_pagination_url(&base, "http://api.music.apple.com/v1/me/library/songs").is_err());
+        assert!(apple_music_pagination_url(&base, "https://api.music.apple.com/v1/catalog/us/songs").is_err());
+    }
+}
+
