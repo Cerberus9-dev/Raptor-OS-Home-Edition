@@ -64,7 +64,7 @@ The current importer understands Raptor Music profile packages and supported Spo
 - Saved tracks and followed artists.
 - Listening events and history supplied by the export.
 
-Multiple files can be selected together. Imports can be merged and deduplicated, and profiles without a stable account username are kept as separate imports. The Imported Profiles view lets users browse the saved profile's playlists, saved tracks, followed artists and listening history.
+Multiple files can be selected together. Imports can be merged and deduplicated, and profiles without a stable account username are kept as separate imports. The Imported Profiles view lets users browse the saved profile's playlists, saved tracks, followed artists and listening history. Profile artwork caching accepts HTTPS images from the Spotify, Google and Apple Music CDNs, with host validation, redirects disabled, a 2 MiB size cap and JPEG/PNG signature checks.
 
 There are limits. Export formats differ, and a provider may leave out profile photos, follows, albums or listening history. Raptor Music only imports information actually present in supported files; it does not fill in missing account data by guessing. It does not sign in to external services, scrape private endpoints or bypass provider controls. Importing a track entry does not download its audio or guarantee it can be played. Imported collections remain separate from the Local Library and from listening activity recorded in Raptor Music.
 
