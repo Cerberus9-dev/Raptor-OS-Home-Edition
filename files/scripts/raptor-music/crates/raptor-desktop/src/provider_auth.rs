@@ -682,18 +682,25 @@ fn fetch_spotify_followed_artists(access_token: &str) -> Result<Vec<ProviderFoll
     Err("Spotify followed-artist import reached the 10,000-item safety limit.".into())
 }
 
+fn spotify_recently_played_url(before: Option<&str>) -> Url {
+    let mut url = Url::parse("https://api.spotify.com/v1/me/player/recently-played")
+        .expect("Spotify recent-history endpoint is valid");
+    {
+        let mut query = url.query_pairs_mut();
+        query.append_pair("limit", "50");
+        // The first page is newest. Follow the backward cursor to avoid
+        // requesting events newer than the first page.
+        if let Some(cursor) = before { query.append_pair("before", cursor); }
+    }
+    url
+}
+
 fn fetch_spotify_recently_played(access_token: &str) -> Result<Vec<ProviderListen>, String> {
     let mut listens = Vec::new();
     let mut cursor: Option<String> = None;
     let mut seen_cursors = std::collections::HashSet::new();
     for _ in 0..200 {
-        let mut url = Url::parse("https://api.spotify.com/v1/me/player/recently-played")
-            .expect("Spotify recent-history endpoint is valid");
-        {
-            let mut query = url.query_pairs_mut();
-            query.append_pair("limit", "50");
-            if let Some(after) = cursor.as_deref() { query.append_pair("after", after); }
-        }
+        let url = spotify_recently_played_url(cursor.as_deref());
         let value = get_provider_json(url.as_str(), access_token)?;
         let items = value.get("items").and_then(|v| v.as_array())
             .ok_or_else(|| "Spotify listening-history response did not include an items list".to_string())?;
@@ -706,7 +713,7 @@ fn fetch_spotify_recently_played(access_token: &str) -> Result<Vec<ProviderListe
                 });
             }
         }
-        let next = value.pointer("/cursors/after").and_then(|v| v.as_str());
+        let next = value.pointer("/cursors/before").and_then(|v| v.as_str());
         let has_next = value.get("next").and_then(|v| v.as_str()).is_some();
         if !has_next || next.is_none() { return Ok(listens); }
         let next = next.unwrap().to_owned();
@@ -1021,6 +1028,20 @@ mod tests {
         assert!(source.contains("fetch_youtube_playlist_pages"));
         assert!(source.contains("repeated playlist page token"));
         assert!(source.contains("10,000-item safety limit"));
+    }
+
+    #[test]
+    fn spotify_recent_history_uses_backward_cursor_for_older_pages() {
+        let first_page = spotify_recently_played_url(None);
+        let first_query = first_page.query_pairs().into_owned().collect::<std::collections::HashMap<_, _>>();
+        assert_eq!(first_query.get("limit").map(String::as_str), Some("50"));
+        assert!(!first_query.contains_key("after"));
+        assert!(!first_query.contains_key("before"));
+
+        let next_page = spotify_recently_played_url(Some("1730462400000"));
+        let query = next_page.query_pairs().into_owned().collect::<std::collections::HashMap<_, _>>();
+        assert_eq!(query.get("before").map(String::as_str), Some("1730462400000"));
+        assert!(!query.contains_key("after"));
     }
 
     #[test]
