@@ -2987,6 +2987,33 @@ fn search_audius_tracks(query: &str, sort_method: &str) -> Result<Vec<Track>, St
 }
 
 #[cfg(test)]
+mod audius_artist_album_tests {
+    use super::*;
+
+    #[test]
+    fn parses_and_deduplicates_audius_artist_albums() {
+        let payload = serde_json::json!({"data":[
+            {"id":"album-1","playlist_name":"First EP","user":{"name":"Indie Artist"}},
+            {"id":"album-1","playlist_name":"Duplicate EP","user":{"name":"Indie Artist"}},
+            {"id":"album-2","title":"Second Album"},
+            {"id":"bad id","title":"Invalid"}
+        ]});
+        let albums = parse_audius_artist_albums(&payload, "Fallback Artist").unwrap();
+        assert_eq!(albums.len(), 2);
+        assert_eq!(albums[0].title, "First EP");
+        assert_eq!(albums[0].creator, "Indie Artist");
+        assert_eq!(albums[0].provider, "audius");
+        assert_eq!(albums[1].title, "Second Album");
+        assert_eq!(albums[1].creator, "Fallback Artist");
+    }
+
+    #[test]
+    fn malformed_audius_artist_album_payload_is_not_an_empty_success() {
+        assert!(parse_audius_artist_albums(&serde_json::json!({"data":null}), "Artist").is_err());
+    }
+}
+
+#[cfg(test)]
 mod apple_music_collection_search_tests {
     use super::*;
 
