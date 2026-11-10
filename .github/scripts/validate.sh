@@ -655,6 +655,8 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/profile_imp
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/profile_import.rs 'safe_https_url'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/profile_import.rs 'fn parses_profile_identity_and_all_collection_types'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/profile_import.rs 'fn parses_spotify_playlist_export_and_preserves_order'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/profile_import.rs 'fn spotify_playlist_export_accepts_playlist_ids_and_merges_duplicate_ids'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/profile_import.rs 'fn playlists_without_stable_ids_are_not_collapsed_by_name'
 echo "Raptor Music profile migration parser contracts passed."
 
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'callback import_profile_clicked();'
