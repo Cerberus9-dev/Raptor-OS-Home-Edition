@@ -828,6 +828,7 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fo
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'seen_ids.insert(track.id.clone())'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn parse_musicbrainz_release_groups'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn musicbrainz_artist_discography'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'musicbrainz_discography_is_sorted_newest_first'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn apple_music_artist_discography'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'Apple Music · Catalog discography'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'Fetching albums, EPs and singles'
