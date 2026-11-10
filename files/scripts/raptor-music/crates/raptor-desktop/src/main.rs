@@ -810,7 +810,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 status.push_str(" · Jamendo search unavailable");
             }
             if audius_count == 0 && apple_count == 0 && jamendo_count == 0 && artist_count == 0
-                && collection_count == 0 && apple_collection_count == 0 {
+                && collection_count == 0 && apple_collection_count == 0 && mb_collection_count == 0 && mb_artist_count == 0 {
                 status = "No matching tracks, artists, albums or playlists found".to_string();
             }
             if artist_error {
@@ -939,12 +939,43 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             None => return,
         };
         if artist.provider == "musicbrainz" {
-            let status = match artist.external_url.as_deref().map(open_musicbrainz_link) {
-                Some(Ok(())) => format!("Opening {} on MusicBrainz", artist.name),
-                Some(Err(error)) => error,
-                None => "MusicBrainz artist link is unavailable".to_string(),
-            };
-            if let Some(ui) = ui_handle_profile.upgrade() { ui.set_online_search_status(status.into()); }
+            let request_generation = generation_for_profile.fetch_add(1, Ordering::AcqRel) + 1;
+            if let Some(ui) = ui_handle_profile.upgrade() {
+                ui.set_active_view("artist".into());
+                ui.set_artist_profile_name(artist.name.clone().into());
+                ui.set_artist_profile_handle("MusicBrainz · Discography".into());
+                ui.set_artist_profile_bio("Loading indexed releases…".into());
+                ui.set_artist_profile_stats("Loading discography…".into());
+                ui.set_artist_profile_status("Fetching albums, EPs and singles…".into());
+                ui.set_online_track_list(slint::ModelRc::new(slint::VecModel::from(Vec::<TrackData>::new())));
+                ui.set_selected_online_track_index(-1);
+            }
+            let ui_weak = ui_handle_profile.clone();
+            std::thread::spawn(move || {
+                let result = musicbrainz_artist_discography(&artist);
+                if generation_for_profile.load(Ordering::Acquire) != request_generation { return; }
+                let (bio, stats, status) = match result {
+                    Ok(releases) => {
+                        let count = releases.len();
+                        let lines = releases.iter().map(|release| format!("{} · {}{}", release.title, release.kind,
+                            if release.creator.is_empty() { String::new() } else { format!(" · {}", release.creator) }))
+                            .collect::<Vec<_>>();
+                        let summary = if lines.is_empty() { "No release groups are indexed for this artist yet.".to_string() }
+                            else { lines.join("\\n") };
+                        (summary, format!("{count} indexed release groups"), if count == 0 {
+                            "No indexed albums, EPs or singles found".to_string()
+                        } else { "Discography metadata loaded · open the artist's official MusicBrainz page for release credits and track listings".to_string() })
+                    }
+                    Err(error) => ("Discography information is temporarily unavailable.".to_string(), String::new(), error),
+                };
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = ui_weak.upgrade() {
+                        ui.set_artist_profile_bio(bio.into());
+                        ui.set_artist_profile_stats(stats.into());
+                        ui.set_artist_profile_status(status.into());
+                    }
+                });
+            });
             return;
         }
         if artist.provider == "apple_music" {
@@ -2527,7 +2558,7 @@ fn musicbrainz_search(query: &str, entity: &str) -> Result<serde_json::Value, St
         .redirect(reqwest::redirect::Policy::none()).build()
         .map_err(|error| format!("Could not initialize MusicBrainz catalog: {error}"))?;
     client.get(format!("https://musicbrainz.org/ws/2/{entity}"))
-        .query(&[("query", query), ("fmt", "json"), ("limit", "25")])
+        .query(&[("query", query), ("fmt", "json"), ("limit", "100")])
         .send().and_then(|response| response.error_for_status())
         .map_err(|error| format!("MusicBrainz {entity} search failed: {error}"))?
         .json().map_err(|error| format!("MusicBrainz {entity} response was unreadable: {error}"))
@@ -2550,6 +2581,14 @@ fn search_musicbrainz_artists(query: &str) -> Result<Vec<AudiusArtist>, String> 
             provider: "musicbrainz".into(),
             external_url: musicbrainz_web_url(&format!("https://musicbrainz.org/artist/{id}")) })
     }).collect())
+}
+
+fn musicbrainz_artist_discography(artist: &AudiusArtist) -> Result<Vec<AudiusCollection>, String> {
+    if artist.provider != "musicbrainz" || Uuid::parse_str(&artist.id).is_err() {
+        return Err("Invalid MusicBrainz artist identifier".to_string());
+    }
+    let payload = musicbrainz_search(&format!("arid:{}", artist.id), "release-group")?;
+    parse_musicbrainz_release_groups(&payload)
 }
 
 fn search_musicbrainz_collections(query: &str) -> Result<Vec<AudiusCollection>, String> {
