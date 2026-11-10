@@ -157,7 +157,7 @@ mod tests {
         let worker = std::thread::spawn(move || listener.wait_for_user_token(Duration::from_secs(5)));
 
         let mut page = TcpStream::connect(("127.0.0.1", port)).unwrap();
-        write!(page, "GET /?state={state} HTTP/1.1\\r\\nHost: 127.0.0.1:{port}\\r\\nConnection: close\\r\\n\\r\\n").unwrap();
+        write!(page, "GET /?state={state} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n\r\n").unwrap();
         let mut page_response = String::new();
         page.read_to_string(&mut page_response).unwrap();
         assert!(page_response.starts_with("HTTP/1.1 200 OK"));
@@ -167,7 +167,7 @@ mod tests {
         let mut callback = TcpStream::connect(("127.0.0.1", port)).unwrap();
         write!(
             callback,
-            "POST /callback HTTP/1.1\\r\\nHost: 127.0.0.1:{port}\\r\\nOrigin: http://127.0.0.1:{port}\\r\\nContent-Type: application/json\\r\\nContent-Length: {}\\r\\nConnection: close\\r\\n\\r\\n{}",
+            "POST /callback HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nOrigin: http://127.0.0.1:{port}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
             body.len(), body
         ).unwrap();
         let mut response = String::new();
