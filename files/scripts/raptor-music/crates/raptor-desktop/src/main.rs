@@ -739,6 +739,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let collection_result = collection_worker.join()
                 .unwrap_or_else(|_| Err("Collection search worker stopped unexpectedly".to_string()));
             let mut collections = collection_result.unwrap_or_default();
+            let audius_collection_count = collections.len();
             let apple_collection_result = apple_collection_worker.join()
                 .unwrap_or_else(|_| Err("Apple Music collection search worker stopped unexpectedly".to_string()));
             let apple_collection_error = apple_collection_result.is_err();
@@ -768,7 +769,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 album: if artist.provider == "apple_music" { "Apple Music".into() } else { "Audius artist profile".into() },
                 duration: "Open".into(),
             }).collect::<Vec<_>>();
-            let mut status = format!("{count} tracks · {artist_count} artists · {collection_count} Audius collections · {apple_collection_count} Apple Music albums/playlists");
+            let mut status = format!("{count} tracks · {artist_count} artists · {audius_collection_count} Audius collections · {apple_collection_count} Apple Music albums/playlists");
             if apple_collection_error && std::env::var("RAPTOR_APPLE_MUSIC_DEVELOPER_TOKEN").is_ok() {
                 status.push_str(" · Apple Music collections unavailable");
             }
