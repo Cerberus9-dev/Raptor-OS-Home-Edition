@@ -38,6 +38,9 @@ fn restore_provider_connections(ui: slint::Weak<MainWindow>) {
         ];
         let mut connected = Vec::new();
         let mut needs_attention = Vec::new();
+        if token_store::load_music_user_token().is_ok() {
+            connected.push("Apple Music");
+        }
         for (label, key, provider) in providers {
             if let Ok(bundle) = token_store::load_token_bundle(key) {
                 match refresh_provider_tokens_if_needed(provider, key, bundle) {
@@ -395,6 +398,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let db_for_connect = Arc::clone(&db);
         move || start_provider_connection(provider_auth::OAuthProvider::Spotify, ui_weak.clone(), Arc::clone(&db_for_connect))
     });
+    ui.on_connect_apple_music_clicked({
+        let ui_weak = ui_handle_provider_connect.clone();
+        let db_for_connect = Arc::clone(&db);
+        move || start_apple_music_connection(ui_weak.clone(), Arc::clone(&db_for_connect))
+    });
     ui.on_open_external_service_clicked(move |service| {
         let url = match service.as_str() {
             "spotify" => "https://open.spotify.com/",
@@ -420,6 +428,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ui.on_disconnect_spotify_clicked({
         let ui_weak = ui_handle_provider_connect.clone();
         move || disconnect_provider("spotify", ui_weak.clone())
+    });
+    ui.on_disconnect_apple_music_clicked({
+        let ui_weak = ui_handle_provider_connect.clone();
+        move || disconnect_provider("apple-music-user", ui_weak.clone())
     });
     ui.on_disconnect_tidal_clicked({
         let ui_weak = ui_handle_provider_connect.clone();
