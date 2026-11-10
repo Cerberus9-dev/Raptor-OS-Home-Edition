@@ -4,7 +4,7 @@
 //! successful login grants streaming rights, and it deliberately keeps provider
 //! credentials out of source control. Token exchange, callback parsing,
 //! refresh, profile metadata and supported playlist adapters are separate
-//! primitives; the UI lifecycle still needs to connect them.
+//! primitives that the desktop UI invokes during account linking and metadata import.
 
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use sha2::{Digest, Sha256};
