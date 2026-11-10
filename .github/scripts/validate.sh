@@ -826,7 +826,7 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn search_musicbrainz_collections'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'for page in 0..3'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'seen_track_ids.insert(track.id.clone())'
-assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'sort_method", "created_at"'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'sort", "date"'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'seen_ids.insert(track.id.clone())'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn parse_musicbrainz_release_groups'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn musicbrainz_artist_discography'
