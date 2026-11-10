@@ -483,9 +483,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let identity = combined.display_name.as_deref()
                     .or(combined.username.as_deref()).unwrap_or("Profile");
                 let mut message = format!(
-                    "{} · {} file(s) · {} playlist(s) / {} playlist tracks · {} saved tracks · {} followed artists · {} listening events · avatar {}. Preview only; nothing has been added to your library yet.",
+                    "{} · {} file(s) · {} playlist(s) / {} playlist tracks · {} saved tracks · {} followed artists · {} library artists · {} listening events · avatar {}. Preview only; nothing has been added to your library yet.",
                     identity, imported_files, summary.playlists, summary.playlist_tracks,
-                    summary.saved_tracks, summary.followed_artists, summary.listening_events,
+                    summary.saved_tracks, summary.followed_artists, summary.library_artists, summary.listening_events,
                     if summary.has_profile_image { "available" } else { "not included" }
                 );
                 if !errors.is_empty() {
@@ -526,8 +526,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let playlists = profile.playlists.iter().take(12).map(|p| format!("• {} ({} tracks)", p.name, p.tracks.len())).collect::<Vec<_>>().join("\\n");
                     let saved = profile.saved_tracks.iter().take(8).map(|t| format!("• {} — {}", t.title, t.artist)).collect::<Vec<_>>().join("\\n");
                     let artists = profile.followed_artists.iter().take(8).map(|a| a.name.clone()).collect::<Vec<_>>().join(", ");
+                    let library_artists = profile.library_artists.iter().take(8).map(|a| a.name.clone()).collect::<Vec<_>>().join(", ");
                     let history = profile.listening_history.iter().take(5).map(|h| format!("• {} — {}", h.track.title, h.track.artist)).collect::<Vec<_>>().join("\\n");
-                    format!("{} · {}\\n{} playlists · {} saved tracks · {} followed artists · {} listening events\\n\\nPLAYLISTS\\n{}\\n\\nSAVED TRACKS\\n{}\\n\\nFOLLOWED ARTISTS\\n{}\\n\\nRECENT LISTENING HISTORY\\n{}\\n\\nImported {}", record.display_name.as_deref().or(record.username.as_deref()).unwrap_or("Imported profile"), record.provider, summary.playlists, summary.saved_tracks, summary.followed_artists, summary.listening_events, if playlists.is_empty() { "No playlists in this export" } else { &playlists }, if saved.is_empty() { "No saved tracks in this export" } else { &saved }, if artists.is_empty() { "No followed artists in this export" } else { &artists }, if history.is_empty() { "No listening history in this export" } else { &history }, record.imported_at)
+                    format!("{} · {}\\n{} playlists · {} saved tracks · {} followed artists · {} library artists · {} listening events\\n\\nPLAYLISTS\\n{}\\n\\nSAVED TRACKS\\n{}\\n\\nFOLLOWED ARTISTS\\n{}\\n\\nLIBRARY ARTISTS\\n{}\\n\\nRECENT LISTENING HISTORY\\n{}\\n\\nImported {}", record.display_name.as_deref().or(record.username.as_deref()).unwrap_or("Imported profile"), record.provider, summary.playlists, summary.saved_tracks, summary.followed_artists, summary.library_artists, summary.listening_events, if playlists.is_empty() { "No playlists in this export" } else { &playlists }, if saved.is_empty() { "No saved tracks in this export" } else { &saved }, if artists.is_empty() { "No followed artists in this export" } else { &artists }, if library_artists.is_empty() { "No library artists in this export" } else { &library_artists }, if history.is_empty() { "No listening history in this export" } else { &history }, record.imported_at)
                 }
                 Err(error) => format!("This saved profile could not be read: {error}")
             },
@@ -2080,7 +2081,7 @@ fn fetch_apple_music_library_import(
         developer_token, user_token,
     ) {
         Ok(rows) => {
-            profile.followed_artists = rows.iter().filter_map(|row| {
+            profile.library_artists = rows.iter().filter_map(|row| {
                 let name = row.pointer("/attributes/name")?.as_str()?.trim();
                 if name.is_empty() { return None; }
                 Some(profile_import::ImportedArtist {
@@ -2108,7 +2109,7 @@ fn start_apple_music_connection(ui: slint::Weak<MainWindow>, db: Arc<Mutex<Libra
             let playlist_count = imported.playlists.len();
             let playlist_track_count: usize = imported.playlists.iter().map(|playlist| playlist.tracks.len()).sum();
             let saved_count = imported.saved_tracks.len();
-            let artist_count = imported.followed_artists.len();
+            let library_artist_count = imported.library_artists.len();
             let payload = serde_json::to_string(&imported)
                 .map_err(|_| "Could not prepare the Apple Music library import".to_string())?;
             let imported_id = db.lock().map_err(|_| "The local profile database is unavailable".to_string())?
@@ -2124,7 +2125,7 @@ fn start_apple_music_connection(ui: slint::Weak<MainWindow>, db: Arc<Mutex<Libra
             });
             let warning_text = if warnings.is_empty() { String::new() } else { format!(" Some sections were unavailable: {}.", warnings.join(" · ")) };
             Ok(format!(
-                "Apple Music connected and imported {} library songs · {playlist_count} playlists · {playlist_track_count} playlist tracks · {artist_count} library artists.{}",
+                "Apple Music connected and imported {} library songs · {playlist_count} playlists · {playlist_track_count} playlist tracks · {library_artist_count} library artists.{}",
                 saved_count, warning_text
             ))
         })();
