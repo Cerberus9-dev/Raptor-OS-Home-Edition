@@ -2790,7 +2790,7 @@ fn fetch_audius_artist_profile(artist: &AudiusArtist) -> Result<AudiusArtistProf
                 ("offset", offset.as_str()),
                 ("filter_tracks", "public"),
                 ("gate_condition", "ungated"),
-                ("sort_method", "created_at"),
+                ("sort", "date"),
                 ("sort_direction", "desc"),
             ])
             .send()
