@@ -2122,7 +2122,8 @@ fn start_apple_music_connection(ui: slint::Weak<MainWindow>, db: Arc<Mutex<Libra
                 .map_err(|_| "Could not open the system browser for Apple Music authorization".to_string())?;
             let user_token = listener.wait_for_user_token(Duration::from_secs(240))?;
             token_store::save_music_user_token(&user_token)?;
-            let (imported, warnings) = fetch_apple_music_library_import(&developer_token, &user_token)?;
+            let (imported, warnings) = fetch_apple_music_library_import(&developer_token, &user_token)
+                .map_err(|error| format!("Authorization was saved securely, but library import failed: {error}"))?;
             let playlist_count = imported.playlists.len();
             let playlist_track_count: usize = imported.playlists.iter().map(|playlist| playlist.tracks.len()).sum();
             let saved_count = imported.saved_tracks.len();
@@ -2133,9 +2134,6 @@ fn start_apple_music_connection(ui: slint::Weak<MainWindow>, db: Arc<Mutex<Libra
             let imported_id = db.lock().map_err(|_| "The local profile database is unavailable".to_string())?
                 .save_imported_profile("apple_music", imported.display_name.as_deref(), None, &payload)
                 .map_err(|error| format!("Could not save Apple Music library: {error}"))?;
-            if let Some(artwork) = imported.playlists.iter().find_map(|playlist| playlist.artwork_url.as_deref()) {
-                let _ = cache_profile_avatar(artwork, imported_id);
-            }
             let ui_refresh = ui.clone();
             let db_refresh = Arc::clone(&db);
             let _ = slint::invoke_from_event_loop(move || {
