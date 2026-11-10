@@ -398,6 +398,8 @@ pub struct SpotifyProfileExtras {
     pub saved_tracks: Vec<ProviderPlaylistTrack>,
     pub followed_artists: Vec<ProviderFollowedArtist>,
     pub listening_history: Vec<ProviderListen>,
+    /// Optional sections that could not be read with the account's current API access.
+    pub warnings: Vec<String>,
 }
 
 fn parse_youtube_playlist_tracks(value: &serde_json::Value) -> Result<Vec<ProviderPlaylistTrack>, String> {
@@ -716,14 +718,35 @@ fn fetch_spotify_recently_played(access_token: &str) -> Result<Vec<ProviderListe
     Err("Spotify listening-history import reached the 10,000-item safety limit.".into())
 }
 
-/// Retrieves the user's saved tracks, followed artists and recent listening
-/// history using only the corresponding read-only Spotify OAuth scopes.
-pub fn fetch_spotify_profile_extras(access_token: &str) -> Result<SpotifyProfileExtras, String> {
-    Ok(SpotifyProfileExtras {
-        saved_tracks: fetch_spotify_saved_tracks(access_token)?,
-        followed_artists: fetch_spotify_followed_artists(access_token)?,
-        listening_history: fetch_spotify_recently_played(access_token)?,
-    })
+/// Retrieves each optional Spotify profile collection independently.
+/// A permission or endpoint failure must not discard collections that were
+/// already available to the user. Errors are summarized for the UI.
+pub fn fetch_spotify_profile_extras(access_token: &str) -> SpotifyProfileExtras {
+    let mut warnings = Vec::new();
+    let saved_tracks = collect_optional_spotify_section(
+        "Saved tracks", fetch_spotify_saved_tracks(access_token), &mut warnings,
+    );
+    let followed_artists = collect_optional_spotify_section(
+        "Followed artists", fetch_spotify_followed_artists(access_token), &mut warnings,
+    );
+    let listening_history = collect_optional_spotify_section(
+        "Listening history", fetch_spotify_recently_played(access_token), &mut warnings,
+    );
+    SpotifyProfileExtras { saved_tracks, followed_artists, listening_history, warnings }
+}
+
+fn collect_optional_spotify_section<T>(
+    label: &str,
+    result: Result<Vec<T>, String>,
+    warnings: &mut Vec<String>,
+) -> Vec<T> {
+    match result {
+        Ok(items) => items,
+        Err(error) => {
+            warnings.push(format!("{label} unavailable: {error}"));
+            Vec::new()
+        }
+    }
 }
 
 /// Imports every page of playlist entries from supported metadata APIs.
