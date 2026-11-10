@@ -830,6 +830,8 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn musicbrainz_artist_discography'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'musicbrainz_discography_is_sorted_newest_first'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn apple_music_artist_discography'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn apple_music_catalog_pagination_url'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'apple_music_artist_catalog_pagination_stays_on_the_same_artist_endpoint'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'Apple Music · Catalog discography'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'Fetching albums, EPs and singles'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn musicbrainz_web_url'
