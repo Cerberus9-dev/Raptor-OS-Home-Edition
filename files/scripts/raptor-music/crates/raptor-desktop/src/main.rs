@@ -87,7 +87,12 @@ fn start_provider_connection(
             match provider {
                 provider_auth::OAuthProvider::Spotify | provider_auth::OAuthProvider::Tidal | provider_auth::OAuthProvider::YoutubeData => {
                     let provider_profile = provider_auth::fetch_provider_profile(provider, &tokens.access_token)?;
-                    let provider_playlists = provider_auth::fetch_provider_playlists(provider, &tokens.access_token)?;
+                    let mut provider_warnings = Vec::new();
+                    let provider_playlists = provider_auth::collect_optional_provider_section(
+                        "Playlists",
+                        provider_auth::fetch_provider_playlists(provider, &tokens.access_token),
+                        &mut provider_warnings,
+                    );
                     let mut imported = profile_import::ImportedProfile {
                         source: match provider {
                             provider_auth::OAuthProvider::YoutubeData => "YouTube Data API account".into(),
@@ -99,7 +104,6 @@ fn start_provider_connection(
                         avatar_url: provider_profile.avatar_url.clone(),
                         ..profile_import::ImportedProfile::default()
                     };
-                    let mut provider_warnings = Vec::new();
                     if provider == provider_auth::OAuthProvider::Spotify {
                         let extras = provider_auth::fetch_spotify_profile_extras(&tokens.access_token);
                         provider_warnings.extend(extras.warnings);
