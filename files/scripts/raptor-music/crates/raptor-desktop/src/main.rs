@@ -2112,6 +2112,34 @@ fn fetch_apple_music_library_import(
     Ok((profile, warnings))
 }
 
+fn save_apple_music_library_import(
+    imported: profile_import::ImportedProfile,
+    warnings: Vec<String>,
+    db: &Arc<Mutex<LibraryDatabase>>,
+    ui: &slint::Weak<MainWindow>,
+    action: &str,
+) -> Result<String, String> {
+    let playlist_count = imported.playlists.len();
+    let playlist_track_count: usize = imported.playlists.iter().map(|playlist| playlist.tracks.len()).sum();
+    let saved_count = imported.saved_tracks.len();
+    let library_artist_count = imported.library_artists.len();
+    let recent_count = imported.listening_history.len();
+    let payload = serde_json::to_string(&imported)
+        .map_err(|_| "Could not prepare the Apple Music library import".to_string())?;
+    db.lock().map_err(|_| "The local profile database is unavailable".to_string())?
+        .save_imported_profile("apple_music", imported.display_name.as_deref(), None, &payload)
+        .map_err(|error| format!("Could not save Apple Music library: {error}"))?;
+    let ui_refresh = ui.clone();
+    let db_refresh = Arc::clone(db);
+    let _ = slint::invoke_from_event_loop(move || {
+        if let Some(ui) = ui_refresh.upgrade() { refresh_imported_profile_list(&ui, &db_refresh); }
+    });
+    let warning_text = if warnings.is_empty() { String::new() } else { format!(" Some sections were unavailable: {}.", warnings.join(" · ")) };
+    Ok(format!(
+        "Apple Music {action}: {saved_count} library songs · {playlist_count} playlists · {playlist_track_count} playlist tracks · {library_artist_count} library artists · {recent_count} recent plays.{warning_text}"
+    ))
+}
+
 fn start_apple_music_connection(ui: slint::Weak<MainWindow>, db: Arc<Mutex<LibraryDatabase>>) {
     std::thread::spawn(move || {
         let result = (|| -> Result<String, String> {
@@ -2124,28 +2152,26 @@ fn start_apple_music_connection(ui: slint::Weak<MainWindow>, db: Arc<Mutex<Libra
             token_store::save_music_user_token(&user_token)?;
             let (imported, warnings) = fetch_apple_music_library_import(&developer_token, &user_token)
                 .map_err(|error| format!("Authorization was saved securely, but library import failed: {error}"))?;
-            let playlist_count = imported.playlists.len();
-            let playlist_track_count: usize = imported.playlists.iter().map(|playlist| playlist.tracks.len()).sum();
-            let saved_count = imported.saved_tracks.len();
-            let library_artist_count = imported.library_artists.len();
-            let recent_count = imported.listening_history.len();
-            let payload = serde_json::to_string(&imported)
-                .map_err(|_| "Could not prepare the Apple Music library import".to_string())?;
-            let imported_id = db.lock().map_err(|_| "The local profile database is unavailable".to_string())?
-                .save_imported_profile("apple_music", imported.display_name.as_deref(), None, &payload)
-                .map_err(|error| format!("Could not save Apple Music library: {error}"))?;
-            let ui_refresh = ui.clone();
-            let db_refresh = Arc::clone(&db);
-            let _ = slint::invoke_from_event_loop(move || {
-                if let Some(ui) = ui_refresh.upgrade() { refresh_imported_profile_list(&ui, &db_refresh); }
-            });
-            let warning_text = if warnings.is_empty() { String::new() } else { format!(" Some sections were unavailable: {}.", warnings.join(" · ")) };
-            Ok(format!(
-                "Apple Music connected and imported {} library songs · {playlist_count} playlists · {playlist_track_count} playlist tracks · {library_artist_count} library artists · {recent_count} recent plays.{}",
-                saved_count, warning_text
-            ))
+            save_apple_music_library_import(imported, warnings, &db, &ui, "connected and imported")
         })();
         let status = result.unwrap_or_else(|error| format!("Apple Music connection failed: {error}"));
+        let _ = slint::invoke_from_event_loop(move || {
+            if let Some(ui) = ui.upgrade() { ui.set_provider_connection_status(status.into()); }
+        });
+    });
+}
+
+fn start_apple_music_library_refresh(ui: slint::Weak<MainWindow>, db: Arc<Mutex<LibraryDatabase>>) {
+    std::thread::spawn(move || {
+        let result = (|| -> Result<String, String> {
+            let developer_token = std::env::var("RAPTOR_APPLE_MUSIC_DEVELOPER_TOKEN")
+                .map_err(|_| "Set RAPTOR_APPLE_MUSIC_DEVELOPER_TOKEN before refreshing Apple Music".to_string())?;
+            let user_token = token_store::load_music_user_token()
+                .map_err(|_| "Connect Apple Music before refreshing its library".to_string())?;
+            let (imported, warnings) = fetch_apple_music_library_import(&developer_token, &user_token)?;
+            save_apple_music_library_import(imported, warnings, &db, &ui, "library refreshed")
+        })();
+        let status = result.unwrap_or_else(|error| format!("Apple Music refresh failed: {error}"));
         let _ = slint::invoke_from_event_loop(move || {
             if let Some(ui) = ui.upgrade() { ui.set_provider_connection_status(status.into()); }
         });
