@@ -403,6 +403,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let db_for_connect = Arc::clone(&db);
         move || start_apple_music_connection(ui_weak.clone(), Arc::clone(&db_for_connect))
     });
+    ui.on_refresh_apple_music_clicked({
+        let ui_weak = ui_handle_provider_connect.clone();
+        let db_for_refresh = Arc::clone(&db);
+        move || start_apple_music_library_refresh(ui_weak.clone(), Arc::clone(&db_for_refresh))
+    });
     ui.on_open_external_service_clicked(move |service| {
         let url = match service.as_str() {
             "spotify" => "https://open.spotify.com/",
