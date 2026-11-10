@@ -681,6 +681,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let artist_query = query_for_thread.clone();
             let artist_sort_method = sort_method.clone();
             let artist_worker = std::thread::spawn(move || search_audius_artists(&artist_query, &artist_sort_method));
+            let apple_artist_query = query_for_thread.clone();
+            let apple_artist_worker = std::thread::spawn(move || search_apple_music_artists(&apple_artist_query));
             let apple_query = query_for_thread.clone();
             let apple_worker = std::thread::spawn(move || search_apple_music_tracks(&apple_query));
             let jamendo_query = query_for_thread.clone();
@@ -707,6 +709,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let collection_worker = std::thread::spawn(move || search_audius_collections(&collection_query));
             let artist_result = artist_worker.join()
                 .unwrap_or_else(|_| Err("Artist search worker stopped unexpectedly".to_string()));
+            let apple_artist_result = apple_artist_worker.join()
+                .unwrap_or_else(|_| Err("Apple Music artist search worker stopped unexpectedly".to_string()));
             let apple_result = apple_worker.join()
                 .unwrap_or_else(|_| Err("Apple Music search worker stopped unexpectedly".to_string()));
             let jamendo_result = jamendo_worker.join()
@@ -740,20 +744,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 album: item.kind.clone().into(),
                 duration: "Open".into(),
             }).collect::<Vec<_>>();
-            let artist_error = artist_result.is_err();
-            let artists = artist_result.unwrap_or_default();
+            let artist_error = artist_result.is_err() || apple_artist_result.is_err();
+            let mut artists = artist_result.unwrap_or_default();
+            let apple_artists = apple_artist_result.unwrap_or_default();
+            let apple_artist_count = apple_artists.len();
+            artists.extend(apple_artists);
             *online_artists.lock().unwrap() = artists.clone();
             let artist_count = artists.len();
             let artist_rows = artists.iter().map(|artist| TrackData {
                 id: artist.id.clone().into(), title: artist.name.clone().into(),
-                artist: format!("@{}", artist.handle).into(), album: "Audius artist profile".into(), duration: "Open".into(),
+                artist: if artist.provider == "apple_music" { "Apple Music artist".into() } else { format!("@{}", artist.handle).into() },
+                album: if artist.provider == "apple_music" { "Apple Music".into() } else { "Audius artist profile".into() },
+                duration: "Open".into(),
             }).collect::<Vec<_>>();
             let mut status = format!("{count} tracks · {artist_count} artists · {collection_count} albums/playlists");
             if apple_count > 0 {
                 status.push_str(&format!(" · {apple_count} Apple Music previews"));
-            } else if std::env::var("RAPTOR_APPLE_MUSIC_DEVELOPER_TOKEN").is_err() {
+            }
+            if apple_artist_count > 0 {
+                status.push_str(&format!(" · {apple_artist_count} Apple Music artists"));
+            }
+            if apple_count == 0 && apple_artist_count == 0 && std::env::var("RAPTOR_APPLE_MUSIC_DEVELOPER_TOKEN").is_err() {
                 status.push_str(" · Apple Music catalog not configured");
-            } else if apple_error {
+            } else if apple_error || apple_artist_result.is_err() {
                 status.push_str(" · Apple Music search unavailable");
             }
             if jamendo_count > 0 {
@@ -870,6 +883,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Some(artist) => artist,
             None => return,
         };
+        if artist.provider == "apple_music" {
+            let status = match artist.external_url.as_deref().map(open_apple_music_link) {
+                Some(Ok(())) => format!("Opening {} on Apple Music", artist.name),
+                Some(Err(error)) => error,
+                None => "Apple Music artist link is unavailable".to_string(),
+            };
+            if let Some(ui) = ui_handle_profile.upgrade() {
+                ui.set_online_search_status(status.into());
+            }
+            return;
+        }
         let request_generation = generation_for_profile.fetch_add(1, Ordering::AcqRel) + 1;
         if let Some(ui) = ui_handle_profile.upgrade() {
             ui.set_active_view("artist".into());
