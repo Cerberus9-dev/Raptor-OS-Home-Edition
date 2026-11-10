@@ -826,6 +826,8 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn search_musicbrainz_collections'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn parse_musicbrainz_release_groups'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn musicbrainz_artist_discography'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn apple_music_artist_discography'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'Apple Music · Catalog discography'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'Fetching albums, EPs and singles'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn musicbrainz_web_url'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'MusicBrainz asks clients to stay at or below one request per second'
