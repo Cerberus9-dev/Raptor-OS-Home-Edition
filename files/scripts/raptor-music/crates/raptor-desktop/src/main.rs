@@ -931,6 +931,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let artists_for_profile = Arc::clone(&online_artists);
     let tracks_for_profile = Arc::clone(&online_tracks);
+    let collections_for_profile = Arc::clone(&online_collections);
     let generation_for_profile = Arc::clone(&online_search_generation);
     let ui_handle_profile = ui.as_weak();
     ui.on_artist_selected(move |idx| {
@@ -949,29 +950,40 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ui.set_artist_profile_stats("Loading discography…".into());
                 ui.set_artist_profile_status("Fetching albums, EPs and singles…".into());
                 ui.set_online_track_list(slint::ModelRc::new(slint::VecModel::from(Vec::<TrackData>::new())));
+                ui.set_online_collection_list(slint::ModelRc::new(slint::VecModel::from(Vec::<TrackData>::new())));
                 ui.set_selected_online_track_index(-1);
             }
             let ui_weak = ui_handle_profile.clone();
             let generation = Arc::clone(&generation_for_profile);
+            let collections_state = Arc::clone(&collections_for_profile);
             std::thread::spawn(move || {
                 let result = musicbrainz_artist_discography(&artist);
                 if generation.load(Ordering::Acquire) != request_generation { return; }
-                let (bio, stats, status) = match result {
+                let (releases, bio, stats, status) = match result {
                     Ok(releases) => {
                         let count = releases.len();
-                        let lines = releases.iter().map(|release| format!("{} · {}{}", release.title, release.kind,
-                            if release.creator.is_empty() { String::new() } else { format!(" · {}", release.creator) }))
-                            .collect::<Vec<_>>();
-                        let summary = if lines.is_empty() { "No release groups are indexed for this artist yet.".to_string() }
-                            else { lines.join("\n") };
-                        (summary, format!("{count} indexed release groups"), if count == 0 {
+                        let bio = if count == 0 {
+                            "No release groups are indexed for this artist yet.".to_string()
+                        } else {
+                            "Discography metadata from MusicBrainz. Select a release below to open its official credits and track listing. These entries do not contain playable audio.".to_string()
+                        };
+                        (releases, bio, format!("{count} indexed release groups"), if count == 0 {
                             "No indexed albums, EPs or singles found".to_string()
-                        } else { "Discography metadata loaded · open the artist's official MusicBrainz page for release credits and track listings".to_string() })
+                        } else { format!("{count} releases loaded · metadata only") })
                     }
-                    Err(error) => ("Discography information is temporarily unavailable.".to_string(), String::new(), error),
+                    Err(error) => (Vec::new(), "Discography information is temporarily unavailable.".to_string(), String::new(), error),
                 };
+                let rows = releases.iter().map(|release| TrackData {
+                    id: release.id.clone().into(),
+                    title: release.title.clone().into(),
+                    artist: release.creator.clone().into(),
+                    album: release.kind.clone().into(),
+                    duration: "Open".into(),
+                }).collect::<Vec<_>>();
+                *collections_state.lock().unwrap() = releases;
                 let _ = slint::invoke_from_event_loop(move || {
                     if let Some(ui) = ui_weak.upgrade() {
+                        ui.set_online_collection_list(slint::ModelRc::new(slint::VecModel::from(rows)));
                         ui.set_artist_profile_bio(bio.into());
                         ui.set_artist_profile_stats(stats.into());
                         ui.set_artist_profile_status(status.into());
@@ -982,6 +994,57 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         if artist.provider == "apple_music" {
             let request_generation = generation_for_profile.fetch_add(1, Ordering::AcqRel) + 1;
+            if let Some(ui) = ui_handle_profile.upgrade() {
+                ui.set_active_view("artist".into());
+                ui.set_artist_profile_name(artist.name.clone().into());
+                ui.set_artist_profile_handle("Apple Music · Catalog discography".into());
+                ui.set_artist_profile_bio("Loading catalog albums…".into());
+                ui.set_artist_profile_stats("Loading discography…".into());
+                ui.set_artist_profile_status("Fetching artist albums…".into());
+                ui.set_online_track_list(slint::ModelRc::new(slint::VecModel::from(Vec::<TrackData>::new())));
+                ui.set_online_collection_list(slint::ModelRc::new(slint::VecModel::from(Vec::<TrackData>::new())));
+                ui.set_selected_online_track_index(-1);
+            }
+            let ui_weak = ui_handle_profile.clone();
+            let generation = Arc::clone(&generation_for_profile);
+            let collections_state = Arc::clone(&collections_for_profile);
+            std::thread::spawn(move || {
+                let result = apple_music_artist_discography(&artist);
+                if generation.load(Ordering::Acquire) != request_generation { return; }
+                let (albums, bio, stats, status) = match result {
+                    Ok(albums) => {
+                        let count = albums.len();
+                        let bio = if count == 0 {
+                            "No catalog albums are available for this artist in the selected storefront.".to_string()
+                        } else {
+                            "Apple Music catalog discography. Select an album below to open its official Apple Music page; full subscription playback is not provided by this catalog view.".to_string()
+                        };
+                        (albums, bio, format!("{count} catalog albums"), if count == 0 {
+                            "No albums returned by the Apple Music catalog".to_string()
+                        } else { format!("{count} albums loaded · catalog metadata") })
+                    }
+                    Err(error) => (Vec::new(), "Apple Music discography information is temporarily unavailable.".to_string(), String::new(), error),
+                };
+                let rows = albums.iter().map(|album| TrackData {
+                    id: album.id.clone().into(),
+                    title: album.title.clone().into(),
+                    artist: album.creator.clone().into(),
+                    album: album.kind.clone().into(),
+                    duration: "Open".into(),
+                }).collect::<Vec<_>>();
+                *collections_state.lock().unwrap() = albums;
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = ui_weak.upgrade() {
+                        ui.set_online_collection_list(slint::ModelRc::new(slint::VecModel::from(rows)));
+                        ui.set_artist_profile_bio(bio.into());
+                        ui.set_artist_profile_stats(stats.into());
+                        ui.set_artist_profile_status(status.into());
+                    }
+                });
+            });
+            return;
+        }
+        let request_generation = generation_for_profile.fetch_add(1, Ordering::AcqRel) + 1;
             if let Some(ui) = ui_handle_profile.upgrade() {
                 ui.set_active_view("artist".into());
                 ui.set_artist_profile_name(artist.name.clone().into());
@@ -1029,10 +1092,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             ui.set_artist_profile_stats("Loading profile…".into());
             ui.set_artist_profile_status("Loading tracks…".into());
             ui.set_online_track_list(slint::ModelRc::new(slint::VecModel::from(Vec::<TrackData>::new())));
+            ui.set_online_collection_list(slint::ModelRc::new(slint::VecModel::from(Vec::<TrackData>::new())));
             ui.set_selected_online_track_index(-1);
         }
         let ui_weak = ui_handle_profile.clone();
         let artists_tracks = Arc::clone(&tracks_for_profile);
+        let collections_state = Arc::clone(&collections_for_profile);
         let generation = Arc::clone(&generation_for_profile);
         std::thread::spawn(move || {
             let result = fetch_audius_artist_profile(&artist);
@@ -1045,15 +1110,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let rows = tracks_to_slint(&tracks);
                     *artists_tracks.lock().unwrap() = tracks;
                     let album_count = profile.albums.len();
-                    let mut bio = profile.bio.clone();
-                    if album_count > 0 {
-                        let album_lines = profile.albums.iter()
-                            .map(|album| format!("{} · {}", album.title, album.kind))
-                            .collect::<Vec<_>>();
-                        if !bio.trim().is_empty() { bio.push_str("\\n\\n"); }
-                        bio.push_str("Albums & releases\\n");
-                        bio.push_str(&album_lines.join("\\n"));
-                    }
+                    let bio = profile.bio.clone();
+                    let album_rows = profile.albums.iter().map(|album| TrackData {
+                        id: album.id.clone().into(),
+                        title: album.title.clone().into(),
+                        artist: album.creator.clone().into(),
+                        album: album.kind.clone().into(),
+                        duration: "Open".into(),
+                    }).collect::<Vec<_>>();
+                    let albums_for_state = profile.albums.clone();
                     let stats = format!("{} tracks · {} followers · {} albums", profile.track_count, profile.follower_count, album_count);
                     let status = if rows.is_empty() {
                         format!("No playable tracks available · {album_count} albums listed")
@@ -1067,6 +1132,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             ui.set_artist_profile_bio(bio.into());
                             ui.set_artist_profile_stats(stats.into());
                             ui.set_artist_profile_status(status.into());
+                            ui.set_online_collection_list(slint::ModelRc::new(slint::VecModel::from(album_rows)));
+                            *collections_state.lock().unwrap() = albums_for_state;
                             ui.set_online_track_list(slint::ModelRc::new(slint::VecModel::from(rows)));
                         }
                     });
@@ -1076,7 +1143,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         if let Some(ui) = ui_weak.upgrade() {
                             ui.set_artist_profile_bio("Artist information is temporarily unavailable.".into());
                             ui.set_artist_profile_stats("".into());
-                            ui.set_artist_profile_status("Could not load this artist's tracks. Try again.".into());
+                            ui.set_artist_profile_status("Could not load this artist's catalog. Try again.".into());
                         }
                     });
                 }
