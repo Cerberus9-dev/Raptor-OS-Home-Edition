@@ -2777,23 +2777,43 @@ fn fetch_audius_artist_profile(artist: &AudiusArtist) -> Result<AudiusArtistProf
         .and_then(serde_json::Value::as_u64)
         .unwrap_or(0);
 
-    let tracks_response = client
-        .get(format!("https://api.audius.co/v1/users/{}/tracks", artist.id))
-        .query(&[
-            ("limit", "50"),
-            ("offset", "0"),
-            ("filter_tracks", "public"),
-            ("gate_condition", "ungated"),
-            ("sort_method", "plays"),
-            ("sort_direction", "desc"),
-        ])
-        .send()
-        .and_then(|response| response.error_for_status())
-        .map_err(|error| format!("Artist tracks request failed: {error}"))?;
-    let tracks_payload: serde_json::Value = tracks_response
-        .json()
-        .map_err(|error| format!("Artist tracks response was unreadable: {error}"))?;
-    let mut tracks = parse_audius_tracks(&tracks_payload)?;
+    // Load a bounded portion of the artist's public discography, not only
+    // the first 50 most-played uploads.
+    let mut tracks = Vec::new();
+    let mut seen_track_ids = HashSet::new();
+    for page in 0..3 {
+        let offset = (page * 50).to_string();
+        let response = client
+            .get(format!("https://api.audius.co/v1/users/{}/tracks", artist.id))
+            .query(&[
+                ("limit", "50"),
+                ("offset", offset.as_str()),
+                ("filter_tracks", "public"),
+                ("gate_condition", "ungated"),
+                ("sort_method", "created_at"),
+                ("sort_direction", "desc"),
+            ])
+            .send()
+            .and_then(|response| response.error_for_status());
+        let response = match response {
+            Ok(response) => response,
+            Err(error) if page == 0 => return Err(format!("Artist tracks request failed: {error}")),
+            Err(_) => break,
+        };
+        let tracks_payload: serde_json::Value = match response.json() {
+            Ok(payload) => payload,
+            Err(error) if page == 0 => return Err(format!("Artist tracks response was unreadable: {error}")),
+            Err(_) => break,
+        };
+        let page_tracks = parse_audius_tracks(&tracks_payload)?;
+        let page_len = page_tracks.len();
+        for track in page_tracks {
+            if seen_track_ids.insert(track.id.clone()) {
+                tracks.push(track);
+            }
+        }
+        if page_len < 50 { break; }
+    }
     for track in &mut tracks {
         if track.artist == "Unknown artist" {
             track.artist = name.clone();
