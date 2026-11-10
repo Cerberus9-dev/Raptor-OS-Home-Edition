@@ -2080,13 +2080,40 @@ fn fetch_audius_artist_profile(artist: &AudiusArtist) -> Result<AudiusArtistProf
 fn merge_independent_discovery(relevant: Vec<Track>, recent: Vec<Track>) -> Vec<Track> {
     let mut seen = HashSet::new();
     let mut merged = Vec::with_capacity(relevant.len() + recent.len());
-    let max_len = relevant.len().max(recent.len());
-    for index in 0..max_len {
-        if let Some(track) = relevant.get(index) {
-            if seen.insert(track.id) { merged.push(track.clone()); }
-        }
-        if let Some(track) = recent.get(index) {
-            if seen.insert(track.id) { merged.push(track.clone()); }
+    let mut relevant_index = 0;
+    let mut recent_index = 0;
+    let mut take_relevant = true;
+
+    while relevant_index < relevant.len() || recent_index < recent.len() {
+        let source = if take_relevant {
+            if relevant_index < relevant.len() {
+                let track = &relevant[relevant_index];
+                relevant_index += 1;
+                Some(track)
+            } else if recent_index < recent.len() {
+                let track = &recent[recent_index];
+                recent_index += 1;
+                Some(track)
+            } else {
+                None
+            }
+        } else if recent_index < recent.len() {
+            let track = &recent[recent_index];
+            recent_index += 1;
+            Some(track)
+        } else if relevant_index < relevant.len() {
+            let track = &relevant[relevant_index];
+            relevant_index += 1;
+            Some(track)
+        } else {
+            None
+        };
+
+        if let Some(track) = source {
+            if seen.insert(track.id) {
+                merged.push(track.clone());
+                take_relevant = !take_relevant;
+            }
         }
     }
     merged
