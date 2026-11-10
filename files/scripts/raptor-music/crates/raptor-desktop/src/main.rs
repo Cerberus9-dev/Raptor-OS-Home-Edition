@@ -2835,13 +2835,13 @@ fn search_audius_tracks(query: &str, sort_method: &str) -> Result<Vec<Track>, St
     let mut tracks = Vec::new();
     let mut seen_ids = HashSet::new();
     for page in 0..3 {
-        let offset = page * 50;
+        let offset = (page * 50).to_string();
         let response = client
             .get("https://api.audius.co/v1/tracks/search")
             .query(&[
                 ("query", query),
                 ("limit", "50"),
-                ("offset", &offset.to_string()),
+                ("offset", offset.as_str()),
                 ("sort_method", normalized_sort_method(sort_method)),
                 ("app_name", "RaptorMusic"),
             ])
@@ -2860,7 +2860,7 @@ fn search_audius_tracks(query: &str, sort_method: &str) -> Result<Vec<Track>, St
         let page_tracks = parse_audius_tracks(&payload)?;
         let page_len = page_tracks.len();
         for track in page_tracks {
-            if seen_ids.insert(track.id) {
+            if seen_ids.insert(track.id.clone()) {
                 tracks.push(track);
             }
         }
