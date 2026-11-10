@@ -685,6 +685,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let artist_worker = std::thread::spawn(move || search_audius_artists(&artist_query, &artist_sort_method));
             let apple_artist_query = query_for_thread.clone();
             let apple_artist_worker = std::thread::spawn(move || search_apple_music_artists(&apple_artist_query));
+            let mb_artist_query = query_for_thread.clone();
+            let mb_artist_worker = std::thread::spawn(move || search_musicbrainz_artists(&mb_artist_query));
             let apple_query = query_for_thread.clone();
             let apple_worker = std::thread::spawn(move || search_apple_music_tracks(&apple_query));
             let jamendo_query = query_for_thread.clone();
@@ -710,11 +712,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let collection_query = query_for_thread.clone();
             let apple_collection_query = query_for_thread.clone();
             let apple_collection_worker = std::thread::spawn(move || search_apple_music_collections(&apple_collection_query));
+            let mb_collection_query = query_for_thread.clone();
+            let mb_collection_worker = std::thread::spawn(move || search_musicbrainz_collections(&mb_collection_query));
             let collection_worker = std::thread::spawn(move || search_audius_collections(&collection_query));
             let artist_result = artist_worker.join()
                 .unwrap_or_else(|_| Err("Artist search worker stopped unexpectedly".to_string()));
             let apple_artist_result = apple_artist_worker.join()
                 .unwrap_or_else(|_| Err("Apple Music artist search worker stopped unexpectedly".to_string()));
+            let mb_artist_result = mb_artist_worker.join()
+                .unwrap_or_else(|_| Err("MusicBrainz artist search worker stopped unexpectedly".to_string()));
             let apple_result = apple_worker.join()
                 .unwrap_or_else(|_| Err("Apple Music search worker stopped unexpectedly".to_string()));
             let jamendo_result = jamendo_worker.join()
@@ -746,6 +752,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let apple_collections = apple_collection_result.unwrap_or_default();
             let apple_collection_count = apple_collections.len();
             collections.extend(apple_collections);
+            let mb_collection_result = mb_collection_worker.join().unwrap_or_else(|_| Err("MusicBrainz release search worker stopped unexpectedly".to_string()));
+            let mb_collection_error = mb_collection_result.is_err();
+            let mb_collections = mb_collection_result.unwrap_or_default();
+            let mb_collection_count = mb_collections.len();
+            collections.extend(mb_collections);
             *online_collections.lock().unwrap() = collections.clone();
             let collection_count = collections.len();
             let collection_rows = collections.iter().map(|item| TrackData {
@@ -761,15 +772,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let apple_artists = apple_artist_result.unwrap_or_default();
             let apple_artist_count = apple_artists.len();
             artists.extend(apple_artists);
+            let mb_artist_error = mb_artist_result.is_err();
+            let mb_artists = mb_artist_result.unwrap_or_default();
+            let mb_artist_count = mb_artists.len();
+            artists.extend(mb_artists);
             *online_artists.lock().unwrap() = artists.clone();
             let artist_count = artists.len();
             let artist_rows = artists.iter().map(|artist| TrackData {
                 id: artist.id.clone().into(), title: artist.name.clone().into(),
-                artist: if artist.provider == "apple_music" { "Apple Music artist".into() } else { format!("@{}", artist.handle).into() },
-                album: if artist.provider == "apple_music" { "Apple Music".into() } else { "Audius artist profile".into() },
+                artist: match artist.provider.as_str() { "apple_music" => "Apple Music artist".into(), "musicbrainz" => "MusicBrainz artist".into(), _ => format!("@{}", artist.handle).into() },
+                album: match artist.provider.as_str() { "apple_music" => "Apple Music".into(), "musicbrainz" => "Discography metadata".into(), _ => "Audius artist profile".into() },
                 duration: "Open".into(),
             }).collect::<Vec<_>>();
-            let mut status = format!("{count} tracks · {artist_count} artists · {audius_collection_count} Audius collections · {apple_collection_count} Apple Music albums/playlists");
+            let mut status = format!("{count} tracks · {artist_count} artists · {audius_collection_count} Audius collections · {apple_collection_count} Apple Music albums/playlists · {mb_collection_count} MusicBrainz releases");
+            if mb_artist_count > 0 { status.push_str(&format!(" · {mb_artist_count} MusicBrainz artists")); }
+            if mb_collection_error { status.push_str(" · MusicBrainz release search unavailable"); }
+            if mb_artist_error { status.push_str(" · MusicBrainz artist search unavailable"); }
             if apple_collection_error && std::env::var("RAPTOR_APPLE_MUSIC_DEVELOPER_TOKEN").is_ok() {
                 status.push_str(" · Apple Music collections unavailable");
             }
@@ -853,6 +871,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ui.on_collection_selected(move |idx| {
         let collection = collections_for_select.lock().unwrap().get(idx as usize).cloned();
         let Some(collection) = collection else { return; };
+        if collection.provider == "musicbrainz" {
+            let result = collection.external_url.as_deref()
+                .ok_or_else(|| "MusicBrainz release has no verified destination".to_string())
+                .and_then(open_musicbrainz_link);
+            if let Some(ui) = ui_handle_collection.upgrade() {
+                ui.set_online_search_status(match result { Ok(()) => format!("Opened {} release details on MusicBrainz", collection.title).into(), Err(error) => error.into() });
+            }
+            return;
+        }
         if collection.provider == "apple_music" {
             let result = collection.external_url.as_deref()
                 .ok_or_else(|| "Apple Music collection has no verified destination".to_string())
@@ -911,6 +938,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Some(artist) => artist,
             None => return,
         };
+        if artist.provider == "musicbrainz" {
+            let status = match artist.external_url.as_deref().map(open_musicbrainz_link) {
+                Some(Ok(())) => format!("Opening {} on MusicBrainz", artist.name),
+                Some(Err(error)) => error,
+                None => "MusicBrainz artist link is unavailable".to_string(),
+            };
+            if let Some(ui) = ui_handle_profile.upgrade() { ui.set_online_search_status(status.into()); }
+            return;
+        }
         if artist.provider == "apple_music" {
             let status = match artist.external_url.as_deref().map(open_apple_music_link) {
                 Some(Ok(())) => format!("Opening {} on Apple Music", artist.name),
@@ -2455,6 +2491,94 @@ fn search_apple_music_artists(query: &str) -> Result<Vec<AudiusArtist>, String> 
     }).collect())
 }
 
+fn musicbrainz_web_url(value: &str) -> Option<String> {
+    let url = reqwest::Url::parse(value).ok()?;
+    let path = url.path();
+    if url.scheme() == "https" && url.host_str() == Some("musicbrainz.org")
+        && url.port_or_known_default() == Some(443)
+        && url.username().is_empty() && url.password().is_none()
+        && (path.starts_with("/artist/") || path.starts_with("/release-group/"))
+    {
+        Uuid::parse_str(path.rsplit('/').next()?).ok()?;
+        Some(url.to_string())
+    } else { None }
+}
+
+fn open_musicbrainz_link(url: &str) -> Result<(), String> {
+    let safe_url = musicbrainz_web_url(url).ok_or_else(|| "MusicBrainz returned an untrusted destination".to_string())?;
+    std::process::Command::new("gio").arg("open").arg(safe_url).spawn()
+        .map_err(|_| "Could not open MusicBrainz in the system browser".to_string())?;
+    Ok(())
+}
+
+fn musicbrainz_search(query: &str, entity: &str) -> Result<serde_json::Value, String> {
+    static REQUEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    static LAST_REQUEST: std::sync::Mutex<Option<Instant>> = std::sync::Mutex::new(None);
+    let _guard = REQUEST_LOCK.lock().map_err(|_| "MusicBrainz request lock is unavailable".to_string())?;
+    if let Some(last) = *LAST_REQUEST.lock().map_err(|_| "MusicBrainz rate-limit state is unavailable".to_string())? {
+        let elapsed = last.elapsed();
+        if elapsed < Duration::from_millis(1100) { std::thread::sleep(Duration::from_millis(1100) - elapsed); }
+    }
+    *LAST_REQUEST.lock().map_err(|_| "MusicBrainz rate-limit state is unavailable".to_string())? = Some(Instant::now());
+    let client = reqwest::blocking::Client::builder()
+        .user_agent("RaptorMusic/0.2.18 (https://github.com/Cerberus9-dev/Raptor-OS-Home-Edition)")
+        .connect_timeout(Duration::from_secs(8)).timeout(Duration::from_secs(15))
+        .redirect(reqwest::redirect::Policy::none()).build()
+        .map_err(|error| format!("Could not initialize MusicBrainz catalog: {error}"))?;
+    client.get(format!("https://musicbrainz.org/ws/2/{entity}"))
+        .query(&[("query", query), ("fmt", "json"), ("limit", "25")])
+        .send().and_then(|response| response.error_for_status())
+        .map_err(|error| format!("MusicBrainz {entity} search failed: {error}"))?
+        .json().map_err(|error| format!("MusicBrainz {entity} response was unreadable: {error}"))
+}
+
+fn search_musicbrainz_artists(query: &str) -> Result<Vec<AudiusArtist>, String> {
+    let query = query.trim();
+    if query.len() < 2 { return Ok(Vec::new()); }
+    let payload = musicbrainz_search(&format!("artist:{query}"), "artist")?;
+    let rows = payload.get("artists").and_then(serde_json::Value::as_array)
+        .ok_or_else(|| "MusicBrainz returned an unexpected artist response".to_string())?;
+    Ok(rows.iter().filter_map(|row| {
+        let id = row.get("id")?.as_str()?;
+        Uuid::parse_str(id).ok()?;
+        let name = row.get("name")?.as_str()?.trim();
+        if name.is_empty() { return None; }
+        let disambiguation = row.get("disambiguation").and_then(serde_json::Value::as_str).unwrap_or("");
+        Some(AudiusArtist { id: id.into(), name: name.into(),
+            handle: if disambiguation.is_empty() { "MusicBrainz".into() } else { format!("MusicBrainz · {disambiguation}") },
+            provider: "musicbrainz".into(),
+            external_url: musicbrainz_web_url(&format!("https://musicbrainz.org/artist/{id}")) })
+    }).collect())
+}
+
+fn search_musicbrainz_collections(query: &str) -> Result<Vec<AudiusCollection>, String> {
+    let query = query.trim();
+    if query.len() < 2 { return Ok(Vec::new()); }
+    let payload = musicbrainz_search(query, "release-group")?;
+    parse_musicbrainz_release_groups(&payload)
+}
+
+fn parse_musicbrainz_release_groups(payload: &serde_json::Value) -> Result<Vec<AudiusCollection>, String> {
+    let rows = payload.get("release-groups").and_then(serde_json::Value::as_array)
+        .ok_or_else(|| "MusicBrainz returned an unexpected release response".to_string())?;
+    Ok(rows.iter().filter_map(|row| {
+        let id = row.get("id")?.as_str()?;
+        Uuid::parse_str(id).ok()?;
+        let title = row.get("title")?.as_str()?.trim();
+        if title.is_empty() { return None; }
+        let creator = row.get("artist-credit").and_then(serde_json::Value::as_array)
+            .and_then(|credits| credits.first())
+            .and_then(|credit| credit.get("name").or_else(|| credit.get("artist").and_then(|artist| artist.get("name"))))
+            .and_then(serde_json::Value::as_str).unwrap_or("Various artists");
+        let kind = row.get("primary-type").and_then(serde_json::Value::as_str).unwrap_or("Release");
+        let date = row.get("first-release-date").and_then(serde_json::Value::as_str).unwrap_or("");
+        Some(AudiusCollection { id: id.into(), title: title.into(),
+            creator: if date.is_empty() { creator.into() } else { format!("{creator} · {date}") },
+            kind: kind.into(), provider: "musicbrainz".into(),
+            external_url: musicbrainz_web_url(&format!("https://musicbrainz.org/release-group/{id}")) })
+    }).collect())
+}
+
 fn open_apple_music_link(url: &str) -> Result<(), String> {
     let safe_url = apple_music_web_url(url)
         .ok_or_else(|| "Apple Music returned an untrusted destination".to_string())?;
@@ -3230,6 +3354,31 @@ mod apple_music_artist_link_tests {
         assert!(artist.external_url.is_some());
     }
 }
+#[cfg(test)]
+mod musicbrainz_catalog_tests {
+    use super::*;
+    #[test]
+    fn musicbrainz_links_only_allow_official_artist_and_release_group_pages() {
+        let artist = Uuid::new_v4(); let release = Uuid::new_v4();
+        assert!(musicbrainz_web_url(&format!("https://musicbrainz.org/artist/{artist}")).is_some());
+        assert!(musicbrainz_web_url(&format!("https://musicbrainz.org/release-group/{release}")).is_some());
+        assert!(musicbrainz_web_url(&format!("http://musicbrainz.org/artist/{artist}")).is_none());
+        assert!(musicbrainz_web_url(&format!("https://musicbrainz.org.attacker.invalid/artist/{artist}")).is_none());
+        assert!(musicbrainz_web_url("https://musicbrainz.org/artist/not-a-uuid").is_none());
+        assert!(musicbrainz_web_url(&format!("https://user:pass@musicbrainz.org/artist/{artist}")).is_none());
+    }
+    #[test]
+    fn musicbrainz_release_groups_are_metadata_only_collection_rows() {
+        let id = Uuid::new_v4().to_string();
+        let payload = serde_json::json!({"release-groups":[{"id":id,"title":"Independent EP",
+            "primary-type":"EP","first-release-date":"2025-04-12","artist-credit":[{"name":"Small Artist"}]}]});
+        let rows = parse_musicbrainz_release_groups(&payload).unwrap();
+        assert_eq!(rows.len(),1); assert_eq!(rows[0].title,"Independent EP");
+        assert_eq!(rows[0].provider,"musicbrainz"); assert_eq!(rows[0].kind,"EP");
+        assert!(rows[0].external_url.is_some());
+    }
+}
+
 #[cfg(test)]
 mod apple_music_pagination_tests {
     use super::*;
