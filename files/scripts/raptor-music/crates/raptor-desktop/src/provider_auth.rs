@@ -986,6 +986,25 @@ mod tests {
     }
 
     #[test]
+    fn optional_spotify_collection_failure_does_not_discard_other_collections() {
+        let mut warnings = Vec::new();
+        let saved = collect_optional_spotify_section(
+            "Saved tracks", Ok(vec!["saved-a", "saved-b"]), &mut warnings,
+        );
+        let followed: Vec<&str> = collect_optional_spotify_section(
+            "Followed artists", Err("HTTP 403".into()), &mut warnings,
+        );
+        let history = collect_optional_spotify_section(
+            "Listening history", Ok(vec!["recent-song"]), &mut warnings,
+        );
+
+        assert_eq!(saved, vec!["saved-a", "saved-b"]);
+        assert!(followed.is_empty());
+        assert_eq!(history, vec!["recent-song"]);
+        assert_eq!(warnings, vec!["Followed artists unavailable: HTTP 403"]);
+    }
+
+    #[test]
     fn token_response_parser_keeps_refresh_and_identity_tokens_optional() {
         let response: OAuthTokenResponse = serde_json::from_str(
             r#"{"access_token":"access","token_type":"Bearer","expires_in":3600,"refresh_token":"refresh","scope":"read","id_token":"identity"}"#
