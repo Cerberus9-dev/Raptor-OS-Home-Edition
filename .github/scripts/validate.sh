@@ -825,6 +825,8 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'if
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn search_musicbrainz_artists'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn search_musicbrainz_collections'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn parse_musicbrainz_release_groups'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn musicbrainz_artist_discography'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'Fetching albums, EPs and singles'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn musicbrainz_web_url'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'MusicBrainz asks clients to stay at or below one request per second'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'musicbrainz_links_only_allow_official_artist_and_release_group_pages'
