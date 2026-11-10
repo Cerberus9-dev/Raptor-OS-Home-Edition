@@ -237,7 +237,7 @@ fn disconnect_provider(provider: &'static str, ui: slint::Weak<MainWindow>) {
 }
 
 #[derive(Clone, Debug)]
-struct AudiusArtist { id: String, name: String, handle: String }
+struct AudiusArtist { id: String, name: String, handle: String, provider: String, external_url: Option<String> }
 
 #[derive(Clone, Debug)]
 struct AudiusCollection {
@@ -2281,11 +2281,71 @@ fn search_audius_artists(query: &str, sort_method: &str) -> Result<Vec<AudiusArt
         {
             return None;
         }
-        Some(AudiusArtist { id, name, handle })
+        Some(AudiusArtist { id, name, handle, provider: "audius".into(), external_url: None })
     }).collect())
 }
 
+
+fn apple_music_web_url(value: &str) -> Option<String> {
+    let url = reqwest::Url::parse(value).ok()?;
+    if url.scheme() == "https" && url.host_str() == Some("music.apple.com")
+        && url.username().is_empty() && url.password().is_none()
+    {
+        Some(url.to_string())
+    } else { None }
+}
+
+fn search_apple_music_artists(query: &str) -> Result<Vec<AudiusArtist>, String> {
+    let developer_token = std::env::var("RAPTOR_APPLE_MUSIC_DEVELOPER_TOKEN")
+        .map_err(|_| "Apple Music catalog needs a developer token".to_string())?;
+    if developer_token.trim().is_empty() { return Err("Apple Music developer token is empty".into()); }
+    let storefront = std::env::var("RAPTOR_APPLE_MUSIC_STOREFRONT")
+        .unwrap_or_else(|_| "us".into()).to_lowercase();
+    if storefront.len() != 2 || !storefront.chars().all(|ch| ch.is_ascii_lowercase()) {
+        return Err("Apple Music storefront must be a two-letter country code".into());
+    }
+    let client = reqwest::blocking::Client::builder()
+        .user_agent("RaptorMusic/0.2.18")
+        .connect_timeout(Duration::from_secs(8))
+        .timeout(Duration::from_secs(15))
+        .build().map_err(|error| format!("Could not initialize Apple Music artist search: {error}"))?;
+    let response = client.get(format!("https://api.music.apple.com/v1/catalog/{storefront}/search"))
+        .bearer_auth(developer_token.trim())
+        .query(&[("term", query.trim()), ("types", "artists"), ("limit", "25")])
+        .send().and_then(|response| response.error_for_status())
+        .map_err(|error| format!("Apple Music artist search failed: {error}"))?;
+    let payload: serde_json::Value = response.json()
+        .map_err(|error| format!("Apple Music returned unreadable artist results: {error}"))?;
+    let rows = payload.pointer("/results/artists/data").and_then(serde_json::Value::as_array)
+        .ok_or_else(|| "Apple Music returned an unexpected artist search response".to_string())?;
+    Ok(rows.iter().filter_map(|row| {
+        let id = row.get("id")?.as_str()?.trim();
+        let attributes = row.get("attributes")?;
+        let name = attributes.get("name")?.as_str()?.trim();
+        let url = apple_music_web_url(attributes.get("url")?.as_str()?)?;
+        if id.is_empty() || name.is_empty() { return None; }
+        Some(AudiusArtist {
+            id: id.to_string(),
+            name: name.to_string(),
+            handle: "Apple Music".into(),
+            provider: "apple_music".into(),
+            external_url: Some(url),
+        })
+    }).collect())
+}
+
+fn open_apple_music_link(url: &str) -> Result<(), String> {
+    let safe_url = apple_music_web_url(url)
+        .ok_or_else(|| "Apple Music returned an untrusted destination".to_string())?;
+    std::process::Command::new("gio").arg("open").arg(safe_url).spawn()
+        .map_err(|_| "Could not open Apple Music in the system browser".to_string())?;
+    Ok(())
+}
+
 fn fetch_audius_artist_profile(artist: &AudiusArtist) -> Result<AudiusArtistProfile, String> {
+    if artist.provider != "audius" {
+        return Err("This artist profile is hosted by an external music provider".into());
+    }
     if artist.id.is_empty()
         || !artist.id.chars().all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_')
     {
