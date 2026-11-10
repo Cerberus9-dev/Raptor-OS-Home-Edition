@@ -91,9 +91,11 @@ export component MainWindow inherits Window {
     callback skip_forward_clicked();
     callback save_discord_presence_clicked();
     callback connect_spotify_clicked();
+    callback connect_apple_music_clicked();
     callback open_external_service_clicked(string);
     callback connect_youtube_clicked();
     callback disconnect_spotify_clicked();
+    callback disconnect_apple_music_clicked();
     callback disconnect_tidal_clicked();
     callback disconnect_youtube_clicked();
     callback play_clicked();
@@ -427,10 +429,19 @@ export component MainWindow inherits Window {
                         }
                         Text { text: "Apple Music catalog setup"; color: #d4ed9c; font-size: 13px; font-weight: 700; }
                         Text {
-                            text: "App developers can provide RAPTOR_APPLE_MUSIC_DEVELOPER_TOKEN at launch. RAPTOR_APPLE_MUSIC_STOREFRONT is optional and defaults to us. Never place the MusicKit private key in this app or repository. Apple Music account sign-in still needs its separate MusicKit user-authorization implementation.";
+                            text: "Provide RAPTOR_APPLE_MUSIC_DEVELOPER_TOKEN at launch. RAPTOR_APPLE_MUSIC_STOREFRONT is optional and defaults to us. Never place the MusicKit private key in this app or repository. Connect Apple Music below to authorize library import.";
                             color: #879487; font-size: 11px; wrap: word-wrap;
                         }
                         Text { text: "Connect music accounts"; color: #d4ed9c; font-size: 14px; font-weight: 700; }
+                        Text {
+                            text: "Apple Music sign-in uses Apple's hosted MusicKit authorization. After approval, Raptor Music imports your library songs, playlists, playlist tracks and library artists. Your Music User Token is kept in the OS credential manager.";
+                            color: #879487; font-size: 11px; wrap: word-wrap;
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            Button { text: "Connect Apple Music"; clicked => { root.connect_apple_music_clicked(); } }
+                            Button { text: "Disconnect"; clicked => { root.disconnect_apple_music_clicked(); } }
+                        }
                         Text {
                             text: "Spotify sign-in uses user-approved OAuth scopes for account and library metadata import. Spotify tracks remain provider references; this does not stream Spotify audio inside the combined player.";
                             color: #879487; font-size: 11px; wrap: word-wrap;
