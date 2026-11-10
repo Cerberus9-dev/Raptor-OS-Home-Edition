@@ -2642,7 +2642,17 @@ fn open_musicbrainz_link(url: &str) -> Result<(), String> {
 }
 
 fn musicbrainz_search(query: &str, entity: &str) -> Result<serde_json::Value, String> {
+    musicbrainz_search_page(query, entity, 0)
+}
+
+fn musicbrainz_search_page(
+    query: &str,
+    entity: &str,
+    offset: u64,
+) -> Result<serde_json::Value, String> {
     // MusicBrainz asks clients to stay at or below one request per second.
+    // Keep the lock across waiting and the complete request so concurrent
+    // searches cannot accidentally exceed the service's shared rate limit.
     static REQUEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
     static LAST_REQUEST: std::sync::Mutex<Option<Instant>> = std::sync::Mutex::new(None);
     let _guard = REQUEST_LOCK.lock().map_err(|_| "MusicBrainz request lock is unavailable".to_string())?;
@@ -2657,7 +2667,7 @@ fn musicbrainz_search(query: &str, entity: &str) -> Result<serde_json::Value, St
         .redirect(reqwest::redirect::Policy::none()).build()
         .map_err(|error| format!("Could not initialize MusicBrainz catalog: {error}"))?;
     client.get(format!("https://musicbrainz.org/ws/2/{entity}"))
-        .query(&[("query", query), ("fmt", "json"), ("limit", "100")])
+        .query(&[("query", query), ("fmt", "json"), ("limit", "100"), ("offset", &offset.to_string())])
         .send().and_then(|response| response.error_for_status())
         .map_err(|error| format!("MusicBrainz {entity} search failed: {error}"))?
         .json().map_err(|error| format!("MusicBrainz {entity} response was unreadable: {error}"))
@@ -2686,8 +2696,53 @@ fn musicbrainz_artist_discography(artist: &AudiusArtist) -> Result<Vec<AudiusCol
     if artist.provider != "musicbrainz" || Uuid::parse_str(&artist.id).is_err() {
         return Err("Invalid MusicBrainz artist identifier".to_string());
     }
-    let payload = musicbrainz_search(&format!("arid:{}", artist.id), "release-group")?;
+
+    // Release-group searches are capped at 100 rows per request. Follow the
+    // reported count in sequential, rate-limited pages, with a hard ceiling
+    // so unusually large or malformed catalogs cannot stall the UI forever.
+    let query = format!("arid:{}", artist.id);
+    let first_page = musicbrainz_search_page(&query, "release-group", 0)?;
+    let reported_count = first_page.get("release-group-count")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or_else(|| first_page.get("release-groups")
+            .and_then(serde_json::Value::as_array)
+            .map(|rows| rows.len() as u64)
+            .unwrap_or(0));
+    let mut pages = vec![first_page];
+    let page_limit = reported_count.min(500);
+    let mut offset = 100_u64;
+    while offset < page_limit {
+        pages.push(musicbrainz_search_page(&query, "release-group", offset)?);
+        offset += 100;
+    }
+    let payload = merge_musicbrainz_release_group_pages(pages)?;
     parse_musicbrainz_release_groups(&payload)
+}
+
+fn merge_musicbrainz_release_group_pages(
+    pages: Vec<serde_json::Value>,
+) -> Result<serde_json::Value, String> {
+    let mut merged = Vec::new();
+    let mut seen = HashSet::new();
+    let mut reported_count = 0_u64;
+    for page in pages {
+        if let Some(count) = page.get("release-group-count").and_then(serde_json::Value::as_u64) {
+            reported_count = reported_count.max(count);
+        }
+        let rows = page.get("release-groups").and_then(serde_json::Value::as_array)
+            .ok_or_else(|| "MusicBrainz returned an unexpected release page".to_string())?;
+        for row in rows {
+            let id = row.get("id").and_then(serde_json::Value::as_str)
+                .ok_or_else(|| "MusicBrainz returned a release without an identifier".to_string())?;
+            if seen.insert(id.to_string()) {
+                merged.push(row.clone());
+            }
+        }
+    }
+    Ok(serde_json::json!({
+        "release-group-count": reported_count,
+        "release-groups": merged
+    }))
 }
 
 fn search_musicbrainz_collections(query: &str) -> Result<Vec<AudiusCollection>, String> {
@@ -2706,9 +2761,11 @@ fn parse_musicbrainz_release_groups(payload: &serde_json::Value) -> Result<Vec<A
         let right_date = right.get("first-release-date").and_then(serde_json::Value::as_str).unwrap_or("");
         right_date.cmp(left_date)
     });
+    let mut seen = HashSet::new();
     Ok(ordered_rows.into_iter().filter_map(|row| {
         let id = row.get("id")?.as_str()?;
         Uuid::parse_str(id).ok()?;
+        if !seen.insert(id.to_string()) { return None; }
         let title = row.get("title")?.as_str()?.trim();
         if title.is_empty() { return None; }
         let creator = row.get("artist-credit").and_then(serde_json::Value::as_array)
@@ -3639,6 +3696,35 @@ mod musicbrainz_catalog_tests {
         assert_eq!(rows.len(),1); assert_eq!(rows[0].title,"Independent EP");
         assert_eq!(rows[0].provider,"musicbrainz"); assert_eq!(rows[0].kind,"EP");
         assert!(rows[0].external_url.is_some());
+    }
+
+    #[test]
+    fn musicbrainz_discography_pages_merge_and_deduplicate_release_groups() {
+        let first = Uuid::new_v4().to_string();
+        let second = Uuid::new_v4().to_string();
+        let pages = vec![
+            serde_json::json!({"release-group-count": 201, "release-groups":[
+                {"id":first,"title":"First","primary-type":"Album"}
+            ]}),
+            serde_json::json!({"release-group-count": 201, "release-groups":[
+                {"id":first,"title":"First duplicate","primary-type":"Album"},
+                {"id":second,"title":"Second","primary-type":"EP"}
+            ]})
+        ];
+        let merged = merge_musicbrainz_release_group_pages(pages).unwrap();
+        let rows = merged.get("release-groups").unwrap().as_array().unwrap();
+        assert_eq!(merged.get("release-group-count").unwrap().as_u64(), Some(201));
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].get("id").unwrap().as_str(), Some(first.as_str()));
+        assert_eq!(rows[1].get("id").unwrap().as_str(), Some(second.as_str()));
+    }
+
+    #[test]
+    fn musicbrainz_discography_pages_reject_malformed_page_shapes() {
+        assert!(merge_musicbrainz_release_group_pages(vec![
+            serde_json::json!({"release-groups": []}),
+            serde_json::json!({"unexpected": []})
+        ]).is_err());
     }
 
     #[test]
