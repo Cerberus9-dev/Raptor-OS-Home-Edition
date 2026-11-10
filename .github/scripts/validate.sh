@@ -825,6 +825,8 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_au
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs 'pub fn refresh_access_token'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs 'pub fn fetch_provider_profile'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs 'pub fn fetch_provider_playlists'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs 'spotify_recent_history_uses_backward_cursor_for_older_pages'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs 'optional_spotify_collection_failure_does_not_discard_other_collections'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs 'parse_spotify_playlists'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs 'parse_youtube_playlists'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs 'CallbackError::InvalidState'
