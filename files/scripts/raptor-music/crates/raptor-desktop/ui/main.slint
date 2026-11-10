@@ -586,6 +586,36 @@ export component MainWindow inherits Window {
                             font-size: 13px;
                             wrap: word-wrap;
                         }
+                        Text {
+                            visible: root.online_collection_list.length > 0;
+                            text: "Albums & releases";
+                            color: #f2f5ec;
+                            font-size: 18px;
+                            font-weight: 700;
+                        }
+                        ListView {
+                            visible: root.online_collection_list.length > 0;
+                            height: 180px;
+                            for c[index] in root.online_collection_list : Rectangle {
+                                height: 48px;
+                                border-radius: 6px;
+                                background: #202b21;
+                                HorizontalLayout {
+                                    padding-left: 12px;
+                                    padding-right: 12px;
+                                    spacing: 10px;
+                                    VerticalLayout {
+                                        horizontal-stretch: 1;
+                                        spacing: 1px;
+                                        Text { text: c.title; color: #edf5fb; font-size: 12px; vertical-alignment: center; overflow: elide; }
+                                        Text { text: c.artist; color: #a5b2a3; font-size: 10px; vertical-alignment: center; overflow: elide; }
+                                    }
+                                    Text { text: c.album; color: #b4d66d; width: 80px; font-size: 10px; vertical-alignment: center; }
+                                    Text { text: "Open"; color: #b4d66d; font-size: 10px; vertical-alignment: center; }
+                                }
+                                TouchArea { clicked => { root.collection_selected(index); } }
+                            }
+                        }
                         HorizontalLayout {
                             Text {
                                 text: "Popular tracks";
