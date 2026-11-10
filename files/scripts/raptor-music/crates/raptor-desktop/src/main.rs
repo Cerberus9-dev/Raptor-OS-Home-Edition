@@ -2015,7 +2015,7 @@ fn search_jamendo_tracks(query: &str) -> Result<Vec<Track>, String> {
         .query(&[
             ("client_id", client_id),
             ("format", "json"),
-            ("limit", "25"),
+            ("limit", "50"),
             ("search", query.trim()),
             ("include", "licenses"),
             ("type", "single albumtrack"),
@@ -2830,23 +2830,45 @@ fn search_audius_tracks(query: &str, sort_method: &str) -> Result<Vec<Track>, St
         .build()
         .map_err(|error| format!("Could not initialize online search: {error}"))?;
 
-    let response = client
-        .get("https://api.audius.co/v1/tracks/search")
-        .query(&[
-            ("query", query),
-            ("limit", "50"),
-            ("offset", "0"),
-            ("sort_method", normalized_sort_method(sort_method)),
-            ("app_name", "RaptorMusic"),
-        ])
-        .send()
-        .and_then(|response| response.error_for_status())
-        .map_err(|error| format!("Audius search request failed: {error}"))?;
-
-    let payload: serde_json::Value = response
-        .json()
-        .map_err(|error| format!("Audius returned unreadable search results: {error}"))?;
-    parse_audius_tracks(&payload)
+    // Fetch three bounded pages so broad searches expose more than the first
+    // popularity/relevance slice, without creating an unbounded catalog crawl.
+    let mut tracks = Vec::new();
+    let mut seen_ids = HashSet::new();
+    for page in 0..3 {
+        let offset = page * 50;
+        let response = client
+            .get("https://api.audius.co/v1/tracks/search")
+            .query(&[
+                ("query", query),
+                ("limit", "50"),
+                ("offset", &offset.to_string()),
+                ("sort_method", normalized_sort_method(sort_method)),
+                ("app_name", "RaptorMusic"),
+            ])
+            .send()
+            .and_then(|response| response.error_for_status());
+        let response = match response {
+            Ok(response) => response,
+            Err(error) if page == 0 => return Err(format!("Audius search request failed: {error}")),
+            Err(_) => break,
+        };
+        let payload: serde_json::Value = match response.json() {
+            Ok(payload) => payload,
+            Err(error) if page == 0 => return Err(format!("Audius returned unreadable search results: {error}")),
+            Err(_) => break,
+        };
+        let page_tracks = parse_audius_tracks(&payload)?;
+        let page_len = page_tracks.len();
+        for track in page_tracks {
+            if seen_ids.insert(track.id) {
+                tracks.push(track);
+            }
+        }
+        if page_len < 50 {
+            break;
+        }
+    }
+    Ok(tracks)
 }
 
 #[cfg(test)]
