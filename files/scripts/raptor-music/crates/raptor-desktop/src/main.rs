@@ -3504,6 +3504,20 @@ mod musicbrainz_catalog_tests {
         assert_eq!(rows[0].provider,"musicbrainz"); assert_eq!(rows[0].kind,"EP");
         assert!(rows[0].external_url.is_some());
     }
+
+    #[test]
+    fn musicbrainz_discography_is_sorted_newest_first() {
+        let older = Uuid::new_v4().to_string();
+        let newer = Uuid::new_v4().to_string();
+        let payload = serde_json::json!({"release-groups":[
+            {"id":older,"title":"Older release","primary-type":"Album","first-release-date":"2020"},
+            {"id":newer,"title":"Newer release","primary-type":"Single","first-release-date":"2025"}
+        ]});
+        let rows = parse_musicbrainz_release_groups(&payload).unwrap();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].title, "Newer release");
+        assert_eq!(rows[1].title, "Older release");
+    }
 }
 
 #[cfg(test)]
