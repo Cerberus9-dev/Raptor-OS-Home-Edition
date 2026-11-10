@@ -2513,6 +2513,24 @@ fn apple_music_web_url(value: &str) -> Option<String> {
     } else { None }
 }
 
+fn apple_music_catalog_pagination_url(
+    endpoint: &str, next: &str, storefront: &str, artist_id: &str
+) -> Result<String, String> {
+    let base = reqwest::Url::parse(endpoint)
+        .map_err(|_| "Apple Music catalog pagination base URL is invalid".to_string())?;
+    let url = base.join(next)
+        .map_err(|_| "Apple Music catalog returned an invalid pagination URL".to_string())?;
+    let expected_path = format!("/v1/catalog/{storefront}/artists/{artist_id}/albums");
+    if url.scheme() != "https" || url.host_str() != Some("api.music.apple.com")
+        || url.port_or_known_default() != Some(443)
+        || !url.username().is_empty() || url.password().is_some()
+        || url.path() != expected_path || url.fragment().is_some()
+    {
+        return Err("Apple Music returned an untrusted catalog pagination URL".to_string());
+    }
+    Ok(url.to_string())
+}
+
 fn apple_music_artist_discography(artist: &AudiusArtist) -> Result<Vec<AudiusCollection>, String> {
     if artist.provider != "apple_music" || artist.id.is_empty()
         || !artist.id.chars().all(|ch| ch.is_ascii_digit()) {
@@ -2530,15 +2548,26 @@ fn apple_music_artist_discography(artist: &AudiusArtist) -> Result<Vec<AudiusCol
         .user_agent("RaptorMusic/0.2.19").connect_timeout(Duration::from_secs(8))
         .timeout(Duration::from_secs(15)).redirect(reqwest::redirect::Policy::none()).build()
         .map_err(|error| format!("Could not initialize Apple Music discography request: {error}"))?;
-    let response = client.get(format!("https://api.music.apple.com/v1/catalog/{storefront}/artists/{}/albums", artist.id))
-        .bearer_auth(developer_token.trim()).query(&[("limit", "25")])
-        .send().and_then(|response| response.error_for_status())
-        .map_err(|error| format!("Apple Music artist albums request failed: {error}"))?;
-    let data: serde_json::Value = response.json()
-        .map_err(|error| format!("Apple Music artist albums response was unreadable: {error}"))?;
-    let payload = serde_json::json!({"results":{"albums":{"data":data.get("data").cloned().unwrap_or_else(|| serde_json::Value::Array(Vec::new()))}}});
-    let mut albums = parse_apple_music_collections(&payload)?;
+    let endpoint = format!("https://api.music.apple.com/v1/catalog/{storefront}/artists/{}/albums", artist.id);
+    let mut next_url = Some(endpoint.clone());
+    let mut albums = Vec::new();
+    for _page in 0..4 {
+        let Some(url) = next_url.take() else { break; };
+        let response = client.get(&url).bearer_auth(developer_token.trim())
+            .query(if url == endpoint { &[("limit", "25")][..] } else { &[][..] })
+            .send().and_then(|response| response.error_for_status())
+            .map_err(|error| format!("Apple Music artist albums request failed: {error}"))?;
+        let payload: serde_json::Value = response.json()
+            .map_err(|error| format!("Apple Music artist albums response was unreadable: {error}"))?;
+        let normalized = serde_json::json!({"results":{"albums":{"data":payload.get("data").cloned().unwrap_or_else(|| serde_json::Value::Array(Vec::new()))}}});
+        albums.extend(parse_apple_music_collections(&normalized)?);
+        next_url = payload.get("next").and_then(serde_json::Value::as_str)
+            .map(|next| apple_music_catalog_pagination_url(&endpoint, next, &storefront, &artist.id))
+            .transpose()?;
+    }
     albums.retain(|album| album.provider == "apple_music");
+    let mut seen = HashSet::new();
+    albums.retain(|album| seen.insert(album.id.clone()));
     Ok(albums)
 }
 
@@ -3517,6 +3546,22 @@ mod musicbrainz_catalog_tests {
         assert_eq!(rows.len(), 2);
         assert_eq!(rows[0].title, "Newer release");
         assert_eq!(rows[1].title, "Older release");
+    }
+}
+
+#[cfg(test)]
+mod apple_music_catalog_pagination_tests {
+    use super::*;
+
+    #[test]
+    fn apple_music_artist_catalog_pagination_stays_on_the_same_artist_endpoint() {
+        let base = "https://api.music.apple.com/v1/catalog/us/artists/12345/albums";
+        assert!(apple_music_catalog_pagination_url(base, "/v1/catalog/us/artists/12345/albums?offset=25", "us", "12345").is_ok());
+        assert!(apple_music_catalog_pagination_url(base, "https://attacker.invalid/v1/catalog/us/artists/12345/albums", "us", "12345").is_err());
+        assert!(apple_music_catalog_pagination_url(base, "https://api.music.apple.com:8443/v1/catalog/us/artists/12345/albums", "us", "12345").is_err());
+        assert!(apple_music_catalog_pagination_url(base, "/v1/catalog/us/artists/99999/albums?offset=25", "us", "12345").is_err());
+        assert!(apple_music_catalog_pagination_url(base, "/v1/me/library/albums?offset=25", "us", "12345").is_err());
+        assert!(apple_music_catalog_pagination_url(base, "https://user:pass@api.music.apple.com/v1/catalog/us/artists/12345/albums", "us", "12345").is_err());
     }
 }
 
