@@ -256,6 +256,7 @@ struct AudiusArtistProfile {
     bio: String,
     follower_count: u64,
     track_count: u64,
+    albums: Vec<AudiusCollection>,
     tracks: Vec<Track>,
 }
 
@@ -2721,6 +2722,31 @@ fn open_apple_music_link(url: &str) -> Result<(), String> {
     Ok(())
 }
 
+fn parse_audius_artist_albums(payload: &serde_json::Value, artist_name: &str) -> Result<Vec<AudiusCollection>, String> {
+    let rows = payload.get("data").and_then(serde_json::Value::as_array)
+        .ok_or_else(|| "Audius artist albums response had an unexpected shape".to_string())?;
+    let mut albums = Vec::new();
+    let mut seen = HashSet::new();
+    for row in rows {
+        let Some(id) = row.get("id").and_then(serde_json::Value::as_str) else { continue; };
+        if id.is_empty() || !id.chars().all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_') { continue; }
+        if !seen.insert(id.to_string()) { continue; }
+        let title = row.get("playlist_name").and_then(serde_json::Value::as_str)
+            .or_else(|| row.get("title").and_then(serde_json::Value::as_str))
+            .or_else(|| row.get("name").and_then(serde_json::Value::as_str))
+            .filter(|value| !value.trim().is_empty());
+        let Some(title) = title else { continue; };
+        let creator = row.get("user").and_then(|user| user.get("name"))
+            .and_then(serde_json::Value::as_str).filter(|value| !value.trim().is_empty())
+            .unwrap_or(artist_name);
+        albums.push(AudiusCollection {
+            id: id.to_string(), title: title.trim().to_string(), creator: creator.to_string(),
+            kind: "Album".into(), provider: "audius".into(), external_url: None,
+        });
+    }
+    Ok(albums)
+}
+
 fn fetch_audius_artist_profile(artist: &AudiusArtist) -> Result<AudiusArtistProfile, String> {
     if artist.provider != "audius" {
         return Err("This artist profile is hosted by an external music provider".into());
@@ -2777,6 +2803,29 @@ fn fetch_audius_artist_profile(artist: &AudiusArtist) -> Result<AudiusArtistProf
         .and_then(serde_json::Value::as_u64)
         .unwrap_or(0);
 
+    // Load the artist's album catalog separately from individual tracks.
+    let mut albums = Vec::new();
+    for page in 0..2 {
+        let offset = (page * 50).to_string();
+        let response = client.get(format!("https://api.audius.co/v1/users/{}/albums", artist.id))
+            .query(&[("limit", "50"), ("offset", offset.as_str()), ("sort_method", "recent")])
+            .send().and_then(|response| response.error_for_status());
+        let response = match response {
+            Ok(response) => response,
+            Err(error) if page == 0 => return Err(format!("Artist albums request failed: {error}")),
+            Err(_) => break,
+        };
+        let payload: serde_json::Value = match response.json() {
+            Ok(payload) => payload,
+            Err(error) if page == 0 => return Err(format!("Artist albums response was unreadable: {error}")),
+            Err(_) => break,
+        };
+        let page_albums = parse_audius_artist_albums(&payload, &name)?;
+        let page_len = page_albums.len();
+        albums.extend(page_albums);
+        if page_len < 50 { break; }
+    }
+
     // Load a bounded portion of the artist's public discography, not only
     // the first 50 most-played uploads.
     let mut tracks = Vec::new();
@@ -2826,6 +2875,7 @@ fn fetch_audius_artist_profile(artist: &AudiusArtist) -> Result<AudiusArtistProf
         bio,
         follower_count,
         track_count,
+        albums,
         tracks,
     })
 }
