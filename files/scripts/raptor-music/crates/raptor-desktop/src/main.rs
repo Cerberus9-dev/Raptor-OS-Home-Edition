@@ -2512,6 +2512,7 @@ fn open_musicbrainz_link(url: &str) -> Result<(), String> {
 }
 
 fn musicbrainz_search(query: &str, entity: &str) -> Result<serde_json::Value, String> {
+    // MusicBrainz asks clients to stay at or below one request per second.
     static REQUEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
     static LAST_REQUEST: std::sync::Mutex<Option<Instant>> = std::sync::Mutex::new(None);
     let _guard = REQUEST_LOCK.lock().map_err(|_| "MusicBrainz request lock is unavailable".to_string())?;
