@@ -99,8 +99,10 @@ fn start_provider_connection(
                         avatar_url: provider_profile.avatar_url.clone(),
                         ..profile_import::ImportedProfile::default()
                     };
+                    let mut provider_warnings = Vec::new();
                     if provider == provider_auth::OAuthProvider::Spotify {
-                        let extras = provider_auth::fetch_spotify_profile_extras(&tokens.access_token)?;
+                        let extras = provider_auth::fetch_spotify_profile_extras(&tokens.access_token);
+                        provider_warnings.extend(extras.warnings);
                         imported.saved_tracks = extras.saved_tracks.into_iter().map(|track| {
                             profile_import::ImportedTrack {
                                 source_id: Some(track.id),
@@ -191,9 +193,14 @@ fn start_provider_connection(
                     } else {
                         "Spotify"
                     };
+                    let optional_warning_summary = if provider_warnings.is_empty() {
+                        String::new()
+                    } else {
+                        format!(" Optional data: {}.", provider_warnings.join(" · "))
+                    };
                     Ok(format!(
-                        "Imported {provider_name} profile {} · {playlist_count} playlists · {imported_track_count} playlist entries · {saved_track_count} saved tracks · {followed_artist_count} followed artists · {listening_event_count} listening events. {} playlist(s) could not be fully read. This imports metadata only; it does not grant streaming access.",
-                        provider_profile.display_name, skipped_playlists
+                        "Imported {provider_name} profile {} · {playlist_count} playlists · {imported_track_count} playlist entries · {saved_track_count} saved tracks · {followed_artist_count} followed artists · {listening_event_count} listening events. {} playlist(s) could not be fully read. This imports metadata only; it does not grant streaming access.{}",
+                        provider_profile.display_name, skipped_playlists, optional_warning_summary
                     ))
                 }
             }
