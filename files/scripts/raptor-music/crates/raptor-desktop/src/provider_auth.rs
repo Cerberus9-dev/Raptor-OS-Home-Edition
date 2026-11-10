@@ -730,19 +730,19 @@ fn fetch_spotify_recently_played(access_token: &str) -> Result<Vec<ProviderListe
 /// already available to the user. Errors are summarized for the UI.
 pub fn fetch_spotify_profile_extras(access_token: &str) -> SpotifyProfileExtras {
     let mut warnings = Vec::new();
-    let saved_tracks = collect_optional_spotify_section(
+    let saved_tracks = collect_optional_provider_section(
         "Saved tracks", fetch_spotify_saved_tracks(access_token), &mut warnings,
     );
-    let followed_artists = collect_optional_spotify_section(
+    let followed_artists = collect_optional_provider_section(
         "Followed artists", fetch_spotify_followed_artists(access_token), &mut warnings,
     );
-    let listening_history = collect_optional_spotify_section(
+    let listening_history = collect_optional_provider_section(
         "Listening history", fetch_spotify_recently_played(access_token), &mut warnings,
     );
     SpotifyProfileExtras { saved_tracks, followed_artists, listening_history, warnings }
 }
 
-fn collect_optional_spotify_section<T>(
+pub fn collect_optional_provider_section<T>(
     label: &str,
     result: Result<Vec<T>, String>,
     warnings: &mut Vec<String>,
@@ -993,15 +993,15 @@ mod tests {
     }
 
     #[test]
-    fn optional_spotify_collection_failure_does_not_discard_other_collections() {
+    fn optional_provider_collection_failure_does_not_discard_other_collections() {
         let mut warnings = Vec::new();
-        let saved = collect_optional_spotify_section(
+        let saved = collect_optional_provider_section(
             "Saved tracks", Ok(vec!["saved-a", "saved-b"]), &mut warnings,
         );
-        let followed: Vec<&str> = collect_optional_spotify_section(
+        let followed: Vec<&str> = collect_optional_provider_section(
             "Followed artists", Err("HTTP 403".into()), &mut warnings,
         );
-        let history = collect_optional_spotify_section(
+        let history = collect_optional_provider_section(
             "Listening history", Ok(vec!["recent-song"]), &mut warnings,
         );
 
