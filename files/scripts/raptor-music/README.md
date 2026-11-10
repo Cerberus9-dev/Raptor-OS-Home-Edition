@@ -13,7 +13,7 @@ Discover now queries Audius autocomplete for album and playlist matches alongsid
 
 ### Music-service account connections
 
-The provider sign-in roadmap uses each service's supported authorization method rather than collecting service passwords. TIDAL and Spotify require their own registered OAuth applications and approved use; Apple Music uses MusicKit developer and Music User Tokens; Google OAuth can authorize YouTube Data API access to a user's YouTube playlists, but it is not a YouTube Music playback/catalog API. These account connections are not yet shipped. No client secrets, private keys, or tokens are bundled in the repository. A linked account does not automatically grant Raptor Music permission to stream that service's catalog.
+Spotify and Google/YouTube Data API account authorization are available through browser-based OAuth when their respective app credentials are configured. Spotify account data can be imported as metadata, not streamed through Raptor Music. Google authorization exposes YouTube Data API metadata, not the YouTube Music catalog or playback. TIDAL is an official-service handoff only; its account linking and content integration are not enabled in the current UI. Apple Music catalog search and short previews use a developer token, but MusicKit user authorization and personal-library import are not implemented. No client secrets, private keys, or user tokens are bundled in the repository.
 
 ## Using the app
 
@@ -32,7 +32,7 @@ The provider sign-in roadmap uses each service's supported authorization method 
 
 Raptor Music currently searches Audius and can also search the Apple Music catalog when a developer token is configured. Audius provides artist discovery and public, streamable tracks. Apple Music contributes catalog matches with short preview clips where Apple supplies a preview URL; those clips are not full-song subscription playback. Apple Music preview files are restricted to Apple's preview hosts, buffered temporarily, and removed when playback ends.
 
-This is an early multi-catalog foundation, not Spotify-sized coverage yet. Album and playlist search, pagination, genre and label discovery, and more artist sources are still important next steps. Popularity should not be the only ranking signal: exact artist matches, smaller artists and newer releases need room to surface.
+This is an early multi-catalog foundation, not Spotify-sized coverage. Audius album and playlist search are implemented, alongside artist and track search; broader pagination, genre and label discovery, and more independent artist sources remain important next steps. Popularity should not be the only ranking signal: exact artist matches, smaller artists and newer releases need room to surface.
 
 The goal is a large, searchable catalog without pretending every provider grants the same rights. Each result must retain its source, artwork attribution and playback rules. Catalogs that only provide metadata must not be presented as playable, and providers that prohibit combining their content with other services must remain in their own clearly separated area. Open catalogs and providers that permit independent clients are the best route to wider discovery, especially for independent and underground artists.
 
@@ -42,7 +42,7 @@ Raptor Music has no ads, subscription requirement, app telemetry or always-runni
 
 ## Connected music accounts
 
-Raptor Music now has browser-based OAuth sign-in controls for Spotify, TIDAL and Google/YouTube Data API. Spotify sign-in imports user-authorized account and library metadata; TIDAL sign-in securely links the account and imports profile and playlist metadata through the documented v2 API when the app has the user.read and playlists.read scopes. TIDAL playlist-item import, catalog discovery and playback remain separate implementation steps. Sign-in uses provider authorization and PKCE rather than collecting service passwords. The callback listener binds only to the configured loopback IP, validates OAuth state and redirect path, and has bounded request and timeout handling. OAuth credentials are stored in the operating system credential manager (Secret Service on Linux, Windows Credential Manager, or Apple Keychain), not in the music database. Each provider has a disconnect control that removes its saved credentials.
+Spotify and Google/YouTube Data API OAuth flows are available from Settings when the required developer credentials are configured. Spotify imports user-authorized profile, playlist, saved-track, followed-artist and recent-history metadata into Imported Profiles; those references are not playable audio in Raptor Music. Google OAuth authorizes YouTube Data API access to channel and playlist/video metadata only. TIDAL is currently an external-service handoff, not an enabled account connection. OAuth uses PKCE, a loopback-only callback receiver, state and redirect validation, refresh-token support where provided, and OS credential-manager storage rather than the music database. Apple Music catalog search and preview playback use a developer token; MusicKit user authorization and personal-library import remain unimplemented. Each provider requires its own developer credentials and applicable registered redirect URI.
 
 Provider support is not interchangeable:
 
