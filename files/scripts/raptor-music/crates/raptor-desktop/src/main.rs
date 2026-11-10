@@ -980,14 +980,43 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             return;
         }
         if artist.provider == "apple_music" {
-            let status = match artist.external_url.as_deref().map(open_apple_music_link) {
-                Some(Ok(())) => format!("Opening {} on Apple Music", artist.name),
-                Some(Err(error)) => error,
-                None => "Apple Music artist link is unavailable".to_string(),
-            };
+            let request_generation = generation_for_profile.fetch_add(1, Ordering::AcqRel) + 1;
             if let Some(ui) = ui_handle_profile.upgrade() {
-                ui.set_online_search_status(status.into());
+                ui.set_active_view("artist".into());
+                ui.set_artist_profile_name(artist.name.clone().into());
+                ui.set_artist_profile_handle("Apple Music · Catalog discography".into());
+                ui.set_artist_profile_bio("Loading catalog albums…".into());
+                ui.set_artist_profile_stats("Loading discography…".into());
+                ui.set_artist_profile_status("Fetching artist albums…".into());
+                ui.set_online_track_list(slint::ModelRc::new(slint::VecModel::from(Vec::<TrackData>::new())));
+                ui.set_selected_online_track_index(-1);
             }
+            let ui_weak = ui_handle_profile.clone();
+            let generation = Arc::clone(&generation_for_profile);
+            std::thread::spawn(move || {
+                let result = apple_music_artist_discography(&artist);
+                if generation.load(Ordering::Acquire) != request_generation { return; }
+                let (bio, stats, status) = match result {
+                    Ok(albums) => {
+                        let count = albums.len();
+                        let lines = albums.iter().map(|album| format!("{} · {}",
+                            album.title, album.kind)).collect::<Vec<_>>();
+                        let summary = if lines.is_empty() { "No catalog albums are available for this artist in the selected storefront.".to_string() }
+                            else { lines.join("\\n") };
+                        (summary, format!("{count} catalog albums"), if count == 0 {
+                            "No albums returned by the Apple Music catalog".to_string()
+                        } else { "Catalog metadata loaded · open the artist on Apple Music for full credits and track listings".to_string() })
+                    }
+                    Err(error) => ("Apple Music discography information is temporarily unavailable.".to_string(), String::new(), error),
+                };
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = ui_weak.upgrade() {
+                        ui.set_artist_profile_bio(bio.into());
+                        ui.set_artist_profile_stats(stats.into());
+                        ui.set_artist_profile_status(status.into());
+                    }
+                });
+            });
             return;
         }
         let request_generation = generation_for_profile.fetch_add(1, Ordering::AcqRel) + 1;
@@ -2482,6 +2511,35 @@ fn apple_music_web_url(value: &str) -> Option<String> {
     {
         Some(url.to_string())
     } else { None }
+}
+
+fn apple_music_artist_discography(artist: &AudiusArtist) -> Result<Vec<AudiusCollection>, String> {
+    if artist.provider != "apple_music" || artist.id.is_empty()
+        || !artist.id.chars().all(|ch| ch.is_ascii_digit()) {
+        return Err("Invalid Apple Music artist identifier".to_string());
+    }
+    let developer_token = std::env::var("RAPTOR_APPLE_MUSIC_DEVELOPER_TOKEN")
+        .map_err(|_| "Apple Music catalog needs a developer token".to_string())?;
+    if developer_token.trim().is_empty() { return Err("Apple Music developer token is empty".into()); }
+    let storefront = std::env::var("RAPTOR_APPLE_MUSIC_STOREFRONT")
+        .unwrap_or_else(|_| "us".into()).to_lowercase();
+    if storefront.len() != 2 || !storefront.chars().all(|ch| ch.is_ascii_lowercase()) {
+        return Err("Apple Music storefront must be a two-letter country code".into());
+    }
+    let client = reqwest::blocking::Client::builder()
+        .user_agent("RaptorMusic/0.2.19").connect_timeout(Duration::from_secs(8))
+        .timeout(Duration::from_secs(15)).redirect(reqwest::redirect::Policy::none()).build()
+        .map_err(|error| format!("Could not initialize Apple Music discography request: {error}"))?;
+    let response = client.get(format!("https://api.music.apple.com/v1/catalog/{storefront}/artists/{}/albums", artist.id))
+        .bearer_auth(developer_token.trim()).query(&[("limit", "25")])
+        .send().and_then(|response| response.error_for_status())
+        .map_err(|error| format!("Apple Music artist albums request failed: {error}"))?;
+    let data: serde_json::Value = response.json()
+        .map_err(|error| format!("Apple Music artist albums response was unreadable: {error}"))?;
+    let payload = serde_json::json!({"results":{"albums":{"data":data.get("data").cloned().unwrap_or_else(|| serde_json::Value::Array(Vec::new()))}}});
+    let mut albums = parse_apple_music_collections(&payload)?;
+    albums.retain(|album| album.provider == "apple_music");
+    Ok(albums)
 }
 
 fn search_apple_music_artists(query: &str) -> Result<Vec<AudiusArtist>, String> {
