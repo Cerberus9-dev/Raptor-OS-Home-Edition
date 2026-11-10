@@ -245,6 +245,8 @@ struct AudiusCollection {
     title: String,
     creator: String,
     kind: String,
+    provider: String,
+    external_url: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -706,6 +708,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 search_audius_tracks(&query_for_thread, &sort_method)
             };
             let collection_query = query_for_thread.clone();
+            let apple_collection_query = query_for_thread.clone();
+            let apple_collection_worker = std::thread::spawn(move || search_apple_music_collections(&apple_collection_query));
             let collection_worker = std::thread::spawn(move || search_audius_collections(&collection_query));
             let artist_result = artist_worker.join()
                 .unwrap_or_else(|_| Err("Artist search worker stopped unexpectedly".to_string()));
@@ -734,7 +738,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let rows = tracks_to_slint(&tracks);
             let collection_result = collection_worker.join()
                 .unwrap_or_else(|_| Err("Collection search worker stopped unexpectedly".to_string()));
-            let collections = collection_result.unwrap_or_default();
+            let mut collections = collection_result.unwrap_or_default();
+            let apple_collection_result = apple_collection_worker.join()
+                .unwrap_or_else(|_| Err("Apple Music collection search worker stopped unexpectedly".to_string()));
+            let apple_collection_error = apple_collection_result.is_err();
+            let apple_collections = apple_collection_result.unwrap_or_default();
+            let apple_collection_count = apple_collections.len();
+            collections.extend(apple_collections);
             *online_collections.lock().unwrap() = collections.clone();
             let collection_count = collections.len();
             let collection_rows = collections.iter().map(|item| TrackData {
@@ -758,7 +768,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 album: if artist.provider == "apple_music" { "Apple Music".into() } else { "Audius artist profile".into() },
                 duration: "Open".into(),
             }).collect::<Vec<_>>();
-            let mut status = format!("{count} tracks · {artist_count} artists · {collection_count} albums/playlists");
+            let mut status = format!("{count} tracks · {artist_count} artists · {collection_count} Audius collections · {apple_collection_count} Apple Music albums/playlists");
+            if apple_collection_error && std::env::var("RAPTOR_APPLE_MUSIC_DEVELOPER_TOKEN").is_ok() {
+                status.push_str(" · Apple Music collections unavailable");
+            }
             if apple_count > 0 {
                 status.push_str(&format!(" · {apple_count} Apple Music previews"));
             }
@@ -838,6 +851,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ui.on_collection_selected(move |idx| {
         let collection = collections_for_select.lock().unwrap().get(idx as usize).cloned();
         let Some(collection) = collection else { return; };
+        if collection.provider == "apple_music" {
+            let result = collection.external_url.as_deref()
+                .ok_or_else(|| "Apple Music collection has no verified destination".to_string())
+                .and_then(open_apple_music_link);
+            if let Some(ui) = ui_handle_collection.upgrade() {
+                ui.set_online_search_status(match result {
+                    Ok(()) => format!("Opened {} on Apple Music", collection.title).into(),
+                    Err(error) => error.into(),
+                });
+            }
+            return;
+        }
         let request_generation = generation_for_collection.fetch_add(1, Ordering::AcqRel) + 1;
         if let Some(ui) = ui_handle_collection.upgrade() {
             ui.set_online_search_status(format!("Loading {}…", collection.title).into());
@@ -2251,10 +2276,63 @@ fn parse_audius_collections(payload: &serde_json::Value) -> Result<Vec<AudiusCol
                 .and_then(serde_json::Value::as_str).unwrap_or("Unknown artist");
             collections.push(AudiusCollection {
                 id: id.to_string(), title: title.to_string(), creator: creator.to_string(), kind: kind.to_string(),
+                provider: "audius".into(), external_url: None,
             });
         }
     }
     Ok(collections)
+}
+
+fn parse_apple_music_collections(payload: &serde_json::Value) -> Result<Vec<AudiusCollection>, String> {
+    let results = payload.get("results")
+        .ok_or_else(|| "Apple Music returned an unexpected collection search response".to_string())?;
+    let mut collections = Vec::new();
+    for (key, kind) in [("albums", "Album"), ("playlists", "Playlist")] {
+        let Some(rows) = results.get(key).and_then(serde_json::Value::as_object)
+            .and_then(|group| group.get("data")).and_then(serde_json::Value::as_array) else { continue; };
+        for row in rows.iter().take(25) {
+            let Some(id) = row.get("id").and_then(serde_json::Value::as_str).map(str::trim) else { continue; };
+            let Some(attributes) = row.get("attributes") else { continue; };
+            let Some(title) = attributes.get("name").and_then(serde_json::Value::as_str).map(str::trim) else { continue; };
+            let Some(url) = attributes.get("url").and_then(serde_json::Value::as_str)
+                .and_then(apple_music_web_url) else { continue; };
+            if id.is_empty() || title.is_empty() || id.len() > 128
+                || !id.chars().all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_') { continue; }
+            let creator = attributes.get("artistName").and_then(serde_json::Value::as_str)
+                .filter(|name| !name.trim().is_empty()).unwrap_or("Apple Music");
+            collections.push(AudiusCollection {
+                id: id.to_string(), title: title.to_string(), creator: creator.to_string(),
+                kind: kind.to_string(), provider: "apple_music".into(), external_url: Some(url),
+            });
+        }
+    }
+    Ok(collections)
+}
+
+fn search_apple_music_collections(query: &str) -> Result<Vec<AudiusCollection>, String> {
+    let developer_token = std::env::var("RAPTOR_APPLE_MUSIC_DEVELOPER_TOKEN")
+        .map_err(|_| "Apple Music catalog needs a developer token".to_string())?;
+    if developer_token.trim().is_empty() {
+        return Err("Apple Music developer token is empty".into());
+    }
+    let storefront = std::env::var("RAPTOR_APPLE_MUSIC_STOREFRONT")
+        .unwrap_or_else(|_| "us".into()).to_lowercase();
+    if storefront.len() != 2 || !storefront.chars().all(|ch| ch.is_ascii_lowercase()) {
+        return Err("Apple Music storefront must be a two-letter country code".into());
+    }
+    let client = reqwest::blocking::Client::builder()
+        .user_agent("RaptorMusic/0.2.19")
+        .connect_timeout(Duration::from_secs(8))
+        .timeout(Duration::from_secs(15))
+        .build().map_err(|error| format!("Could not initialize Apple Music collection search: {error}"))?;
+    let response = client.get(format!("https://api.music.apple.com/v1/catalog/{storefront}/search"))
+        .bearer_auth(developer_token.trim())
+        .query(&[("term", query.trim()), ("types", "albums,playlists"), ("limit", "25")])
+        .send().and_then(|response| response.error_for_status())
+        .map_err(|error| format!("Apple Music album and playlist search failed: {error}"))?;
+    let payload: serde_json::Value = response.json()
+        .map_err(|error| format!("Apple Music returned unreadable collection results: {error}"))?;
+    parse_apple_music_collections(&payload)
 }
 
 fn search_audius_collections(query: &str) -> Result<Vec<AudiusCollection>, String> {
@@ -2543,6 +2621,47 @@ fn search_audius_tracks(query: &str, sort_method: &str) -> Result<Vec<Track>, St
         .json()
         .map_err(|error| format!("Audius returned unreadable search results: {error}"))?;
     parse_audius_tracks(&payload)
+}
+
+#[cfg(test)]
+mod apple_music_collection_search_tests {
+    use super::*;
+
+    #[test]
+    fn parses_apple_music_albums_and_playlists_as_external_handoffs() {
+        let payload = serde_json::json!({"results":{
+            "albums":{"data":[{"id":"album123","attributes":{
+                "name":"Independent Album","artistName":"Independent Artist",
+                "url":"https://music.apple.com/us/album/independent-album/123"
+            }}]},
+            "playlists":{"data":[{"id":"playlist456","attributes":{
+                "name":"Fresh Finds","curatorName":"Apple Music",
+                "url":"https://music.apple.com/us/playlist/fresh-finds/456"
+            }}]}
+        }});
+        let rows = parse_apple_music_collections(&payload).expect("valid Apple Music response");
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].kind, "Album");
+        assert_eq!(rows[0].provider, "apple_music");
+        assert_eq!(rows[1].kind, "Playlist");
+        assert!(rows.iter().all(|row| row.external_url.as_deref().unwrap().starts_with("https://music.apple.com/")));
+    }
+
+    #[test]
+    fn rejects_untrusted_apple_music_collection_urls_and_bad_ids() {
+        let payload = serde_json::json!({"results":{
+            "albums":{"data":[
+                {"id":"valid123","attributes":{"name":"Bad host","artistName":"Artist","url":"https://example.com/album"}},
+                {"id":"bad/id","attributes":{"name":"Bad id","artistName":"Artist","url":"https://music.apple.com/us/album/good/123"}}
+            ]}
+        }});
+        assert!(parse_apple_music_collections(&payload).unwrap().is_empty());
+    }
+
+    #[test]
+    fn malformed_apple_music_collection_response_is_not_empty_success() {
+        assert!(parse_apple_music_collections(&serde_json::json!({"data":[]})).is_err());
+    }
 }
 
 #[cfg(test)]
