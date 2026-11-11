@@ -886,6 +886,8 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'di
 echo "=== Checking Raptor Music provider authorization foundation ==="
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'mod provider_auth;'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs 'pub fn create_pkce_pair'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'provider_auth::OAuthProvider::Tidal => "TIDAL"'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs '("TIDAL", "tidal", provider_auth::OAuthProvider::Tidal)'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs 'pub fn begin_authorization'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs 'pub fn exchange_authorization_code'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs 'pub fn parse_authorization_callback'
