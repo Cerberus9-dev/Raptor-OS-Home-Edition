@@ -2903,7 +2903,8 @@ fn fetch_audius_artist_profile(artist: &AudiusArtist) -> Result<AudiusArtistProf
 
     // Load the artist's album catalog separately from individual tracks.
     let mut albums = Vec::new();
-    for page in 0..2 {
+    let mut seen_album_ids = HashSet::new();
+    for page in 0..4 {
         let offset = (page * 50).to_string();
         let response = client.get(format!("https://api.audius.co/v1/users/{}/albums", artist.id))
             .query(&[("limit", "50"), ("offset", offset.as_str()), ("sort_method", "recent")])
@@ -2920,7 +2921,11 @@ fn fetch_audius_artist_profile(artist: &AudiusArtist) -> Result<AudiusArtistProf
         };
         let page_albums = parse_audius_artist_albums(&payload, &name)?;
         let page_len = page_albums.len();
-        albums.extend(page_albums);
+        for album in page_albums {
+            if seen_album_ids.insert(album.id.clone()) {
+                albums.push(album);
+            }
+        }
         if page_len < 50 { break; }
     }
 
@@ -2928,7 +2933,7 @@ fn fetch_audius_artist_profile(artist: &AudiusArtist) -> Result<AudiusArtistProf
     // the first 50 most-played uploads.
     let mut tracks = Vec::new();
     let mut seen_track_ids = HashSet::new();
-    for page in 0..3 {
+    for page in 0..6 {
         let offset = (page * 50).to_string();
         let response = client
             .get(format!("https://api.audius.co/v1/users/{}/tracks", artist.id))
