@@ -841,6 +841,7 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'mu
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn apple_music_artist_discography'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn apple_music_catalog_pagination_url'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'apple_music_artist_catalog_pagination_stays_on_the_same_artist_endpoint'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'for offset in [0_u32, 30, 60]'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn apple_music_catalog_search_pages'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn apple_music_search_pagination_url'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'apple_music_search_pagination_accepts_only_catalog_search_urls'
