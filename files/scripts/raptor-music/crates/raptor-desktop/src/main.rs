@@ -4011,7 +4011,7 @@ mod musicbrainz_catalog_tests {
 }
 
 #[cfg(test)]
-mod apple_music_catalog_pagination_tests {
+mod apple_music_artist_catalog_pagination_tests {
     use super::*;
 
     #[test]
