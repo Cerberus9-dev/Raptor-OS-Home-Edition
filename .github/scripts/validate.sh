@@ -816,7 +816,7 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'artist_search_page_filters_invalid_rows_and_deduplicates_across_pages'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'artist_search_page_rejects_unexpected_response_shape'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'if generation_state.load(Ordering::Acquire) == request_generation'
-assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'Prevent stale collection requests'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs '*tracks_state.lock().unwrap() = tracks;'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn search_audius_collections'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn parse_audius_collections'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn fetch_audius_collection_tracks'
