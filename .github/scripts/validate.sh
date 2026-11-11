@@ -859,6 +859,9 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'apple_music_artist_links_reject_non_apple_hosts_and_insecure_schemes'
 
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'RAPTOR_APPLE_MUSIC_DEVELOPER_TOKEN'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn fetch_apple_music_collection_tracks'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn apple_music_collection_tracks_url'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'apple_music_collection_pagination_is_limited_to_exact_album_or_playlist_endpoint'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn parse_apple_music_tracks'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'apple_music_preview'
 assert_contains files/scripts/raptor-music/crates/raptor-audio/src/player.rs 'fn download_apple_music_preview'
