@@ -882,28 +882,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             return;
         }
-        if collection.provider == "apple_music" && collection.kind == "Playlist" {
-            let result = collection.external_url.as_deref()
-                .ok_or_else(|| "Apple Music playlist has no verified destination".to_string())
-                .and_then(open_apple_music_link);
-            if let Some(ui) = ui_handle_collection.upgrade() {
-                ui.set_online_search_status(match result {
-                    Ok(()) => format!("Opened {} on Apple Music · playlist playback is not available here", collection.title).into(),
-                    Err(error) => error.into(),
-                });
-            }
-            return;
-        }
         if collection.provider == "apple_music" {
             let request_generation = generation_for_collection.fetch_add(1, Ordering::AcqRel) + 1;
             if let Some(ui) = ui_handle_collection.upgrade() {
-                ui.set_online_search_status(format!("Loading Apple Music previews for {}…", collection.title).into());
+                ui.set_online_search_status(format!("Loading Apple Music {} previews for {}…", collection.kind.to_lowercase(), collection.title).into());
             }
             let ui_weak = ui_handle_collection.clone();
             let tracks_state = Arc::clone(&tracks_for_collection);
             let generation_state = Arc::clone(&generation_for_collection);
             std::thread::spawn(move || {
-                let result = fetch_apple_music_album_tracks(&collection);
+                let result = fetch_apple_music_collection_tracks(&collection);
                 let tracks = match result {
                     Ok(tracks) => tracks,
                     Err(error) => {
@@ -2468,26 +2456,34 @@ fn search_audius_collections(query: &str) -> Result<Vec<AudiusCollection>, Strin
     parse_audius_collections(&payload)
 }
 
-fn apple_music_album_tracks_url(base: &str, next: &str, storefront: &str, album_id: &str) -> Result<String, String> {
+fn apple_music_collection_tracks_url(
+    base: &str, next: &str, storefront: &str, collection_id: &str, kind: &str
+) -> Result<String, String> {
     let base_url = reqwest::Url::parse(base)
-        .map_err(|_| "Apple Music album pagination base URL is invalid".to_string())?;
+        .map_err(|_| "Apple Music collection pagination base URL is invalid".to_string())?;
     let url = base_url.join(next)
-        .map_err(|_| "Apple Music returned an invalid album pagination URL".to_string())?;
-    let expected_path = format!("/v1/catalog/{storefront}/albums/{album_id}/tracks");
+        .map_err(|_| "Apple Music returned an invalid collection pagination URL".to_string())?;
+    let resource = match kind {
+        "Album" => "albums",
+        "Playlist" => "playlists",
+        _ => return Err("Unsupported Apple Music collection type".into()),
+    };
+    let expected_path = format!("/v1/catalog/{storefront}/{resource}/{collection_id}/tracks");
     if url.scheme() != "https" || url.host_str() != Some("api.music.apple.com")
         || url.port_or_known_default() != Some(443) || !url.username().is_empty()
         || url.password().is_some() || url.path() != expected_path || url.fragment().is_some()
     {
-        return Err("Apple Music returned an untrusted album pagination URL".into());
+        return Err("Apple Music returned an untrusted collection pagination URL".into());
     }
     Ok(url.to_string())
 }
 
-fn fetch_apple_music_album_tracks(collection: &AudiusCollection) -> Result<Vec<Track>, String> {
-    if collection.provider != "apple_music" || collection.kind != "Album"
+fn fetch_apple_music_collection_tracks(collection: &AudiusCollection) -> Result<Vec<Track>, String> {
+    if collection.provider != "apple_music"
+        || !matches!(collection.kind.as_str(), "Album" | "Playlist")
         || collection.id.is_empty() || !collection.id.chars().all(|ch| ch.is_ascii_digit())
     {
-        return Err("Invalid Apple Music album identifier".into());
+        return Err("Invalid Apple Music collection identifier".into());
     }
     let developer_token = std::env::var("RAPTOR_APPLE_MUSIC_DEVELOPER_TOKEN")
         .map_err(|_| "Apple Music catalog needs a developer token".to_string())?;
@@ -2499,27 +2495,28 @@ fn fetch_apple_music_album_tracks(collection: &AudiusCollection) -> Result<Vec<T
     if storefront.len() != 2 || !storefront.chars().all(|ch| ch.is_ascii_lowercase()) {
         return Err("Apple Music storefront must be a two-letter country code".into());
     }
+    let resource = if collection.kind == "Album" { "albums" } else { "playlists" };
     let client = reqwest::blocking::Client::builder()
-        .user_agent("RaptorMusic/0.2.20")
+        .user_agent("RaptorMusic/0.2.21")
         .connect_timeout(Duration::from_secs(8))
         .timeout(Duration::from_secs(15))
         .redirect(reqwest::redirect::Policy::none())
         .build()
-        .map_err(|error| format!("Could not initialize Apple Music album request: {error}"))?;
-    let endpoint = format!("https://api.music.apple.com/v1/catalog/{storefront}/albums/{}/tracks", collection.id);
+        .map_err(|error| format!("Could not initialize Apple Music collection request: {error}"))?;
+    let endpoint = format!("https://api.music.apple.com/v1/catalog/{storefront}/{resource}/{}/tracks", collection.id);
     let mut next_url = Some(endpoint.clone());
     let mut tracks = Vec::new();
     let mut seen_ids = HashSet::new();
     for page in 0..4 {
         let Some(url) = next_url.take() else { break; };
         let response = client.get(&url).bearer_auth(developer_token.trim())
-            .query(if page == 0 { &[( "limit", "100" )][..] } else { &[][..] })
+            .query(if page == 0 { &[("limit", "100")][..] } else { &[][..] })
             .send().and_then(|response| response.error_for_status())
             .map_err(|error| format!("Could not load {}: {error}", collection.title))?;
         let payload: serde_json::Value = response.json()
-            .map_err(|error| format!("Apple Music returned unreadable album tracks: {error}"))?;
+            .map_err(|error| format!("Apple Music returned unreadable collection tracks: {error}"))?;
         let rows = payload.get("data").and_then(serde_json::Value::as_array)
-            .ok_or_else(|| "Apple Music returned an unexpected album track listing".to_string())?;
+            .ok_or_else(|| "Apple Music returned an unexpected collection track listing".to_string())?;
         let normalized = serde_json::json!({"results":{"songs":{"data":rows}}});
         for track in parse_apple_music_tracks(&normalized)? {
             let provider_id = match &track.source {
@@ -2529,11 +2526,11 @@ fn fetch_apple_music_album_tracks(collection: &AudiusCollection) -> Result<Vec<T
             if seen_ids.insert(provider_id) { tracks.push(track); }
         }
         next_url = payload.get("next").and_then(serde_json::Value::as_str)
-            .map(|next| apple_music_album_tracks_url(&endpoint, next, &storefront, &collection.id))
+            .map(|next| apple_music_collection_tracks_url(&endpoint, next, &storefront, &collection.id, &collection.kind))
             .transpose()?;
     }
     if next_url.is_some() {
-        return Err("Apple Music album track pagination exceeded its page safety limit".into());
+        return Err("Apple Music collection pagination exceeded its page safety limit".into());
     }
     Ok(tracks)
 }
