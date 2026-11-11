@@ -1020,15 +1020,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     album: release.kind.clone().into(),
                     duration: "Open".into(),
                 }).collect::<Vec<_>>();
-                *collections_state.lock().unwrap() = releases;
-                *tracks_state.lock().unwrap() = Vec::new();
                 let _ = slint::invoke_from_event_loop(move || {
                     if let Some(ui) = ui_weak.upgrade() {
-                        ui.set_online_collection_list(slint::ModelRc::new(slint::VecModel::from(rows)));
-                        ui.set_online_track_list(slint::ModelRc::new(slint::VecModel::from(Vec::<TrackData>::new())));
-                        ui.set_artist_profile_bio(bio.into());
-                        ui.set_artist_profile_stats(stats.into());
-                        ui.set_artist_profile_status(status.into());
+                        if generation.load(Ordering::Acquire) == request_generation {
+                            *collections_state.lock().unwrap() = releases;
+                            *tracks_state.lock().unwrap() = Vec::new();
+                            ui.set_online_collection_list(slint::ModelRc::new(slint::VecModel::from(rows)));
+                            ui.set_online_track_list(slint::ModelRc::new(slint::VecModel::from(Vec::<TrackData>::new())));
+                            ui.set_artist_profile_bio(bio.into());
+                            ui.set_artist_profile_stats(stats.into());
+                            ui.set_artist_profile_status(status.into());
+                        }
                     }
                 });
                 return;
@@ -1037,8 +1039,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             if artist.provider != "audius" {
                 let _ = slint::invoke_from_event_loop(move || {
                     if let Some(ui) = ui_weak.upgrade() {
-                        ui.set_artist_profile_bio("This provider does not expose an in-app artist profile.".into());
-                        ui.set_artist_profile_status("Open the artist's official provider page instead.".into());
+                        if generation.load(Ordering::Acquire) == request_generation {
+                            ui.set_artist_profile_bio("This provider does not expose an in-app artist profile.".into());
+                            ui.set_artist_profile_status("Open the artist's official provider page instead.".into());
+                        }
                     }
                 });
                 return;
@@ -1050,7 +1054,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Ok(profile) => {
                     let tracks = profile.tracks.clone();
                     let rows = tracks_to_slint(&tracks);
-                    *tracks_state.lock().unwrap() = tracks;
                     let album_count = profile.albums.len();
                     let bio = profile.bio.clone();
                     let album_rows = profile.albums.iter().map(|album| TrackData {
@@ -1060,7 +1063,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         album: album.kind.clone().into(),
                         duration: "Open".into(),
                     }).collect::<Vec<_>>();
-                    *collections_state.lock().unwrap() = profile.albums.clone();
                     let stats = format!("{} tracks · {} followers · {} albums", profile.track_count, profile.follower_count, album_count);
                     let status = if rows.is_empty() {
                         format!("No playable tracks available · {album_count} albums listed")
@@ -1069,22 +1071,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     };
                     let _ = slint::invoke_from_event_loop(move || {
                         if let Some(ui) = ui_weak.upgrade() {
-                            ui.set_artist_profile_name(profile.name.into());
-                            ui.set_artist_profile_handle(format!("@{}", profile.handle).into());
-                            ui.set_artist_profile_bio(bio.into());
-                            ui.set_artist_profile_stats(stats.into());
-                            ui.set_artist_profile_status(status.into());
-                            ui.set_online_collection_list(slint::ModelRc::new(slint::VecModel::from(album_rows)));
-                            ui.set_online_track_list(slint::ModelRc::new(slint::VecModel::from(rows)));
+                            if generation.load(Ordering::Acquire) == request_generation {
+                                *tracks_state.lock().unwrap() = profile.tracks.clone();
+                                *collections_state.lock().unwrap() = profile.albums.clone();
+                                ui.set_artist_profile_name(profile.name.into());
+                                ui.set_artist_profile_handle(format!("@{}", profile.handle).into());
+                                ui.set_artist_profile_bio(bio.into());
+                                ui.set_artist_profile_stats(stats.into());
+                                ui.set_artist_profile_status(status.into());
+                                ui.set_online_collection_list(slint::ModelRc::new(slint::VecModel::from(album_rows)));
+                                ui.set_online_track_list(slint::ModelRc::new(slint::VecModel::from(rows)));
+                            }
                         }
                     });
                 }
                 Err(error) => {
                     let _ = slint::invoke_from_event_loop(move || {
                         if let Some(ui) = ui_weak.upgrade() {
-                            ui.set_artist_profile_bio("Artist information is temporarily unavailable.".into());
-                            ui.set_artist_profile_stats("".into());
-                            ui.set_artist_profile_status(format!("Could not load this artist's catalog: {error}").into());
+                            if generation.load(Ordering::Acquire) == request_generation {
+                                ui.set_artist_profile_bio("Artist information is temporarily unavailable.".into());
+                                ui.set_artist_profile_stats("".into());
+                                ui.set_artist_profile_status(format!("Could not load this artist's catalog: {error}").into());
+                            }
                         }
                     });
                 }
