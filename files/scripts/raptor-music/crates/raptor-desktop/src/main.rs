@@ -1942,7 +1942,7 @@ fn parse_apple_music_tracks(payload: &serde_json::Value) -> Result<Vec<Track>, S
         .ok_or_else(|| "Apple Music returned an unexpected search response".to_string())?;
 
     let mut tracks = Vec::new();
-    for row in rows.iter().take(25) {
+    for row in rows.iter().take(100) {
         let Some(attributes) = row.get("attributes") else { continue; };
         let Some(provider_track_id) = row.get("id").and_then(serde_json::Value::as_str) else { continue; };
         let Some(title) = attributes.get("name").and_then(serde_json::Value::as_str) else { continue; };
