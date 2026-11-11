@@ -896,18 +896,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     Ok(tracks) => tracks,
                     Err(error) => {
                         let _ = slint::invoke_from_event_loop(move || {
-                            if let Some(ui) = ui_weak.upgrade() { ui.set_online_search_status(error.into()); }
+                            if let Some(ui) = ui_weak.upgrade() {
+                                if generation_state.load(Ordering::Acquire) == request_generation {
+                                    ui.set_online_search_status(error.into());
+                                }
+                            }
                         });
                         return;
                     }
                 };
-                *tracks_state.lock().unwrap() = tracks.clone();
                 let rows = tracks_to_slint(&tracks);
                 let title = collection.title.clone();
                 let count = tracks.len();
                 let _ = slint::invoke_from_event_loop(move || {
                     if let Some(ui) = ui_weak.upgrade() {
                         if generation_state.load(Ordering::Acquire) == request_generation {
+                            *tracks_state.lock().unwrap() = tracks;
                             ui.set_online_track_list(slint::ModelRc::new(slint::VecModel::from(rows)));
                             ui.set_selected_online_track_index(-1);
                             ui.set_online_search_status(format!("{title} · {count} playable previews loaded (up to 4 catalog pages); full tracks remain on Apple Music").into());
@@ -931,19 +935,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Err(error) => {
                     let _ = slint::invoke_from_event_loop(move || {
                         if let Some(ui) = ui_weak.upgrade() {
-                            ui.set_online_search_status(error.into());
+                            if generation_state.load(Ordering::Acquire) == request_generation {
+                                ui.set_online_search_status(error.into());
+                            }
                         }
                     });
                     return;
                 }
             };
-            *tracks_state.lock().unwrap() = tracks.clone();
             let rows = tracks_to_slint(&tracks);
             let title = collection.title.clone();
             let count = tracks.len();
             let _ = slint::invoke_from_event_loop(move || {
                 if let Some(ui) = ui_weak.upgrade() {
                     if generation_state.load(Ordering::Acquire) == request_generation {
+                        *tracks_state.lock().unwrap() = tracks;
                         ui.set_online_track_list(slint::ModelRc::new(slint::VecModel::from(rows)));
                         ui.set_selected_online_track_index(-1);
                         ui.set_online_search_status(format!("{title} · {count} tracks").into());
