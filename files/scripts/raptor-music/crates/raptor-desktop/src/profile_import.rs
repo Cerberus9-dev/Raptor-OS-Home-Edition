@@ -228,11 +228,13 @@ fn parse_spotify_history(root: &Value) -> Result<ImportedProfile, String> {
 
     let mut seen = HashSet::new();
     profile.listening_history.retain(|listen| {
-        let key = format!(
-            "{}\\0{}\\0{}",
-            listen.track.source_id.as_deref().unwrap_or(""),
-            listen.played_at.as_deref().unwrap_or(""),
-            listen.ms_played.unwrap_or(0)
+        let key = (
+            listen.track.source_id.clone(),
+            listen.track.title.to_lowercase(),
+            listen.track.artist.to_lowercase(),
+            listen.track.album.as_deref().unwrap_or("").to_lowercase(),
+            listen.played_at.clone(),
+            listen.ms_played,
         );
         seen.insert(key)
     });
@@ -273,7 +275,16 @@ fn string(value: &Value, key: &str) -> Option<String> {
 }
 
 fn safe_https_url(value: Option<String>) -> Option<String> {
-    value.filter(|url| url.starts_with("https://") && !url.chars().any(char::is_control))
+    value.filter(|value| {
+        if value.len() > 2048 || value.chars().any(char::is_control) {
+            return false;
+        }
+        let Ok(url) = url::Url::parse(value) else { return false; };
+        url.scheme() == "https"
+            && url.host_str().is_some()
+            && url.username().is_empty()
+            && url.password().is_none()
+    })
 }
 
 fn deduplicate_profile(profile: &mut ImportedProfile) {
@@ -288,11 +299,13 @@ fn deduplicate_profile(profile: &mut ImportedProfile) {
     profile.library_artists.retain(|artist| library_artists.insert(artist.name.to_lowercase()));
     let mut listens = HashSet::new();
     profile.listening_history.retain(|listen| {
-        let key = format!(
-            "{}\\0{}\\0{}",
-            listen.track.source_id.as_deref().unwrap_or(""),
-            listen.played_at.as_deref().unwrap_or(""),
-            listen.ms_played.unwrap_or(0)
+        let key = (
+            listen.track.source_id.clone(),
+            listen.track.title.to_lowercase(),
+            listen.track.artist.to_lowercase(),
+            listen.track.album.as_deref().unwrap_or("").to_lowercase(),
+            listen.played_at.clone(),
+            listen.ms_played,
         );
         listens.insert(key)
     });
@@ -456,6 +469,28 @@ mod tests {
         ]}"#;
         let profile = parse_profile_export(json).unwrap();
         assert_eq!(profile.playlists.len(), 2);
+    }
+
+    #[test]
+    fn profile_artwork_requires_a_well_formed_https_url_without_credentials() {
+        assert_eq!(safe_https_url(Some("https://cdn.example/avatar.png".into())).as_deref(), Some("https://cdn.example/avatar.png"));
+        assert!(safe_https_url(Some("https://user:pass@cdn.example/avatar.png".into())).is_none());
+        assert!(safe_https_url(Some("https://".into())).is_none());
+        assert!(safe_https_url(Some("http://cdn.example/avatar.png".into())).is_none());
+        assert!(safe_https_url(Some(format!("https://cdn.example/{}", "a".repeat(2048)))).is_none());
+    }
+
+    #[test]
+    fn listening_history_dedup_keeps_distinct_tracks_without_provider_ids() {
+        let json = r#"[
+          {"ts":"2026-10-01T12:00:00Z","ms_played":1000,"master_metadata_track_name":"First","master_metadata_album_artist_name":"Artist"},
+          {"ts":"2026-10-01T12:00:00Z","ms_played":1000,"master_metadata_track_name":"Second","master_metadata_album_artist_name":"Artist"},
+          {"ts":"2026-10-01T12:00:00Z","ms_played":1000,"master_metadata_track_name":"First","master_metadata_album_artist_name":"Artist"}
+        ]"#;
+        let profile = parse_profile_export(json).unwrap();
+        assert_eq!(profile.listening_history.len(), 2);
+        assert_eq!(profile.listening_history[0].track.title, "First");
+        assert_eq!(profile.listening_history[1].track.title, "Second");
     }
 
     #[test]
