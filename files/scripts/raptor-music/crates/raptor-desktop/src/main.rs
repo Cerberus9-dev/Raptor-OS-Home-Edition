@@ -762,17 +762,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let collection_rows = collections.iter().map(|item| TrackData {
                 id: item.id.clone().into(),
                 title: item.title.clone().into(),
-                artist: format!("{} · {} · {}", if item.provider == "apple_music" { "Apple Music" } else { "Audius" }, item.creator, item.kind).into(),
+                artist: format!("{} · {} · {}", collection_provider_label(&item.provider), item.creator, item.kind).into(),
                 album: item.kind.clone().into(),
                 duration: "Open".into(),
             }).collect::<Vec<_>>();
             let apple_artist_error = apple_artist_result.is_err();
-            let artist_error = artist_result.is_err() || apple_artist_error;
+            let mb_artist_error = mb_artist_result.is_err();
+            let artist_error = artist_result.is_err() || apple_artist_error || mb_artist_error;
             let mut artists = artist_result.unwrap_or_default();
             let apple_artists = apple_artist_result.unwrap_or_default();
             let apple_artist_count = apple_artists.len();
             artists.extend(apple_artists);
-            let mb_artist_error = mb_artist_result.is_err();
             let mb_artists = mb_artist_result.unwrap_or_default();
             let mb_artist_count = mb_artists.len();
             artists.extend(mb_artists);
@@ -2596,6 +2596,15 @@ fn parse_audius_artist_search_page(
     Ok(artists)
 }
 
+fn collection_provider_label(provider: &str) -> &'static str {
+    match provider {
+        "apple_music" => "Apple Music",
+        "musicbrainz" => "MusicBrainz",
+        "audius" => "Audius",
+        _ => "External catalog",
+    }
+}
+
 fn search_audius_artists(query: &str, sort_method: &str) -> Result<Vec<AudiusArtist>, String> {
     let query = query.trim();
     if query.is_empty() { return Ok(Vec::new()); }
@@ -3311,6 +3320,19 @@ mod apple_music_collection_search_tests {
     #[test]
     fn malformed_apple_music_collection_response_is_not_empty_success() {
         assert!(parse_apple_music_collections(&serde_json::json!({"data":[]})).is_err());
+    }
+}
+
+#[cfg(test)]
+mod collection_provider_label_tests {
+    use super::*;
+
+    #[test]
+    fn collection_rows_name_the_actual_catalog_provider() {
+        assert_eq!(collection_provider_label("audius"), "Audius");
+        assert_eq!(collection_provider_label("apple_music"), "Apple Music");
+        assert_eq!(collection_provider_label("musicbrainz"), "MusicBrainz");
+        assert_eq!(collection_provider_label("unknown"), "External catalog");
     }
 }
 
