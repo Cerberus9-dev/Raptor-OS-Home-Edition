@@ -812,6 +812,7 @@ echo "=== Checking Raptor Music provider integrations ==="
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn merge_independent_discovery'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'independent_discovery_interleaves_and_deduplicates_sources'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'text: "Independent"'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'A malformed later page must not erase tracks from valid earlier pages.'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn parse_audius_artist_search_page'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'artist_search_page_filters_invalid_rows_and_deduplicates_across_pages'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'artist_search_page_rejects_unexpected_response_shape'
