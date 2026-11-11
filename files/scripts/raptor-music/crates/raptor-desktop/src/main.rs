@@ -3049,7 +3049,12 @@ fn fetch_audius_artist_profile(artist: &AudiusArtist) -> Result<AudiusArtistProf
             Err(error) if page == 0 => return Err(format!("Artist albums response was unreadable: {error}")),
             Err(_) => break,
         };
-        let page_albums = parse_audius_artist_albums(&payload, &name)?;
+        let page_albums = match parse_audius_artist_albums(&payload, &name) {
+            Ok(albums) => albums,
+            Err(error) if page == 0 => return Err(error),
+            // Keep the earlier valid releases if a later catalog page is malformed.
+            Err(_) => break,
+        };
         let page_len = page_albums.len();
         for album in page_albums {
             if seen_album_ids.insert(album.id.clone()) {
@@ -3087,7 +3092,12 @@ fn fetch_audius_artist_profile(artist: &AudiusArtist) -> Result<AudiusArtistProf
             Err(error) if page == 0 => return Err(format!("Artist tracks response was unreadable: {error}")),
             Err(_) => break,
         };
-        let page_tracks = parse_audius_tracks(&tracks_payload)?;
+        let page_tracks = match parse_audius_tracks(&tracks_payload) {
+            Ok(tracks) => tracks,
+            Err(error) if page == 0 => return Err(error),
+            // A later malformed page should not hide tracks already loaded.
+            Err(_) => break,
+        };
         let page_len = page_tracks.len();
         for track in page_tracks {
             if seen_track_ids.insert(track.id.clone()) {
