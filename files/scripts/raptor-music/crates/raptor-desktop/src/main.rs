@@ -3195,7 +3195,12 @@ fn search_audius_tracks(query: &str, sort_method: &str) -> Result<Vec<Track>, St
             Err(error) if page == 0 => return Err(format!("Audius returned unreadable search results: {error}")),
             Err(_) => break,
         };
-        let page_tracks = parse_audius_tracks(&payload)?;
+        let page_tracks = match parse_audius_tracks(&payload) {
+            Ok(tracks) => tracks,
+            Err(error) if page == 0 => return Err(error),
+            // A malformed later page must not erase tracks from valid earlier pages.
+            Err(_) => break,
+        };
         let page_len = page_tracks.len();
         for track in page_tracks {
             if seen_ids.insert(track.id.clone()) {
