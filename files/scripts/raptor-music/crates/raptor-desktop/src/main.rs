@@ -34,6 +34,7 @@ fn restore_provider_connections(ui: slint::Weak<MainWindow>) {
     std::thread::spawn(move || {
         let providers = [
             ("Spotify", "spotify", provider_auth::OAuthProvider::Spotify),
+            ("TIDAL", "tidal", provider_auth::OAuthProvider::Tidal),
             ("YouTube account", "youtube", provider_auth::OAuthProvider::YoutubeData),
         ];
         let mut connected = Vec::new();
@@ -196,10 +197,10 @@ fn start_provider_connection(
                             refresh_imported_profile_list(&ui, &db_for_refresh);
                         }
                     });
-                    let provider_name = if provider == provider_auth::OAuthProvider::YoutubeData {
-                        "YouTube account"
-                    } else {
-                        "Spotify"
+                    let provider_name = match provider {
+                        provider_auth::OAuthProvider::Spotify => "Spotify",
+                        provider_auth::OAuthProvider::Tidal => "TIDAL",
+                        provider_auth::OAuthProvider::YoutubeData => "YouTube account",
                     };
                     let optional_warning_summary = if provider_warnings.is_empty() {
                         String::new()
