@@ -936,42 +936,52 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ui_handle_profile = ui.as_weak();
     ui.on_artist_selected(move |idx| {
         let artist = artists_for_profile.lock().unwrap().get(idx as usize).cloned();
-        let artist = match artist {
-            Some(artist) => artist,
-            None => return,
-        };
-        if artist.provider == "musicbrainz" {
-            let request_generation = generation_for_profile.fetch_add(1, Ordering::AcqRel) + 1;
-            if let Some(ui) = ui_handle_profile.upgrade() {
-                ui.set_active_view("artist".into());
-                ui.set_artist_profile_name(artist.name.clone().into());
-                ui.set_artist_profile_handle("MusicBrainz · Discography".into());
-                ui.set_artist_profile_bio("Loading indexed releases…".into());
-                ui.set_artist_profile_stats("Loading discography…".into());
-                ui.set_artist_profile_status("Fetching albums, EPs and singles…".into());
-                ui.set_online_track_list(slint::ModelRc::new(slint::VecModel::from(Vec::<TrackData>::new())));
-                ui.set_online_collection_list(slint::ModelRc::new(slint::VecModel::from(Vec::<TrackData>::new())));
-                ui.set_selected_online_track_index(-1);
-            }
-            let ui_weak = ui_handle_profile.clone();
-            let generation = Arc::clone(&generation_for_profile);
-            let collections_state = Arc::clone(&collections_for_profile);
-            std::thread::spawn(move || {
-                let result = musicbrainz_artist_discography(&artist);
+        let artist = match artist { Some(artist) => artist, None => return };
+        let request_generation = generation_for_profile.fetch_add(1, Ordering::AcqRel) + 1;
+        let ui_weak = ui_handle_profile.clone();
+        let generation = Arc::clone(&generation_for_profile);
+        let collections_state = Arc::clone(&collections_for_profile);
+        let tracks_state = Arc::clone(&tracks_for_profile);
+
+        if let Some(ui) = ui_handle_profile.upgrade() {
+            ui.set_active_view("artist".into());
+            ui.set_artist_profile_name(artist.name.clone().into());
+            ui.set_artist_profile_handle(format!("@{}", artist.handle).into());
+            ui.set_artist_profile_bio("Loading artist catalog…".into());
+            ui.set_artist_profile_stats("Loading profile…".into());
+            ui.set_artist_profile_status("Loading releases and tracks…".into());
+            ui.set_online_track_list(slint::ModelRc::new(slint::VecModel::from(Vec::<TrackData>::new())));
+            ui.set_online_collection_list(slint::ModelRc::new(slint::VecModel::from(Vec::<TrackData>::new())));
+            ui.set_selected_online_track_index(-1);
+        }
+
+        std::thread::spawn(move || {
+            if artist.provider == "musicbrainz" || artist.provider == "apple_music" {
+                let result = if artist.provider == "musicbrainz" {
+                    musicbrainz_artist_discography(&artist)
+                } else {
+                    apple_music_artist_discography(&artist)
+                };
                 if generation.load(Ordering::Acquire) != request_generation { return; }
+                let provider = artist.provider.clone();
                 let (releases, bio, stats, status) = match result {
                     Ok(releases) => {
                         let count = releases.len();
-                        let bio = if count == 0 {
-                            "No release groups are indexed for this artist yet.".to_string()
+                        let bio = if provider == "musicbrainz" {
+                            "Discography metadata from MusicBrainz. Select a release to open its official credits and track listing. These entries do not contain playable audio.".to_string()
                         } else {
-                            "Discography metadata from MusicBrainz. Select a release below to open its official credits and track listing. These entries do not contain playable audio.".to_string()
+                            "Apple Music catalog releases. Select a release to open its official Apple Music page; subscription playback is not provided here.".to_string()
                         };
-                        (releases, bio, format!("{count} indexed release groups"), if count == 0 {
-                            "No indexed albums, EPs or singles found".to_string()
-                        } else { format!("{count} releases loaded · metadata only") })
+                        let status = if count == 0 {
+                            "No indexed releases found".to_string()
+                        } else if provider == "musicbrainz" {
+                            format!("{count} releases loaded · metadata only")
+                        } else {
+                            format!("{count} Apple Music releases loaded · official handoff")
+                        };
+                        (releases, bio, format!("{count} indexed releases"), status)
                     }
-                    Err(error) => (Vec::new(), "Discography information is temporarily unavailable.".to_string(), String::new(), error),
+                    Err(error) => (Vec::new(), "Artist discography is temporarily unavailable.".to_string(), String::new(), error),
                 };
                 let rows = releases.iter().map(|release| TrackData {
                     id: release.id.clone().into(),
@@ -981,44 +991,36 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     duration: "Open".into(),
                 }).collect::<Vec<_>>();
                 *collections_state.lock().unwrap() = releases;
+                *tracks_state.lock().unwrap() = Vec::new();
                 let _ = slint::invoke_from_event_loop(move || {
                     if let Some(ui) = ui_weak.upgrade() {
                         ui.set_online_collection_list(slint::ModelRc::new(slint::VecModel::from(rows)));
+                        ui.set_online_track_list(slint::ModelRc::new(slint::VecModel::from(Vec::<TrackData>::new())));
                         ui.set_artist_profile_bio(bio.into());
                         ui.set_artist_profile_stats(stats.into());
                         ui.set_artist_profile_status(status.into());
                     }
                 });
-            });
-            return;
-        }
-        if artist.provider == "apple_music" {
-            let request_generation = generation_for_profile.fetch_add(1, Ordering::AcqRel) + 1;
-        if let Some(ui) = ui_handle_profile.upgrade() {
-            ui.set_active_view("artist".into());
-            ui.set_artist_profile_name(artist.name.clone().into());
-            ui.set_artist_profile_handle(format!("@{}", artist.handle).into());
-            ui.set_artist_profile_bio("Loading artist information…".into());
-            ui.set_artist_profile_stats("Loading profile…".into());
-            ui.set_artist_profile_status("Loading tracks…".into());
-            ui.set_online_track_list(slint::ModelRc::new(slint::VecModel::from(Vec::<TrackData>::new())));
-            ui.set_online_collection_list(slint::ModelRc::new(slint::VecModel::from(Vec::<TrackData>::new())));
-            ui.set_selected_online_track_index(-1);
-        }
-        let ui_weak = ui_handle_profile.clone();
-        let artists_tracks = Arc::clone(&tracks_for_profile);
-        let collections_state = Arc::clone(&collections_for_profile);
-        let generation = Arc::clone(&generation_for_profile);
-        std::thread::spawn(move || {
-            let result = fetch_audius_artist_profile(&artist);
-            if generation.load(Ordering::Acquire) != request_generation {
                 return;
             }
+
+            if artist.provider != "audius" {
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = ui_weak.upgrade() {
+                        ui.set_artist_profile_bio("This provider does not expose an in-app artist profile.".into());
+                        ui.set_artist_profile_status("Open the artist's official provider page instead.".into());
+                    }
+                });
+                return;
+            }
+
+            let result = fetch_audius_artist_profile(&artist);
+            if generation.load(Ordering::Acquire) != request_generation { return; }
             match result {
                 Ok(profile) => {
                     let tracks = profile.tracks.clone();
                     let rows = tracks_to_slint(&tracks);
-                    *artists_tracks.lock().unwrap() = tracks;
+                    *tracks_state.lock().unwrap() = tracks;
                     let album_count = profile.albums.len();
                     let bio = profile.bio.clone();
                     let album_rows = profile.albums.iter().map(|album| TrackData {
@@ -1028,7 +1030,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         album: album.kind.clone().into(),
                         duration: "Open".into(),
                     }).collect::<Vec<_>>();
-                    let albums_for_state = profile.albums.clone();
+                    *collections_state.lock().unwrap() = profile.albums.clone();
                     let stats = format!("{} tracks · {} followers · {} albums", profile.track_count, profile.follower_count, album_count);
                     let status = if rows.is_empty() {
                         format!("No playable tracks available · {album_count} albums listed")
@@ -1043,17 +1045,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             ui.set_artist_profile_stats(stats.into());
                             ui.set_artist_profile_status(status.into());
                             ui.set_online_collection_list(slint::ModelRc::new(slint::VecModel::from(album_rows)));
-                            *collections_state.lock().unwrap() = albums_for_state;
                             ui.set_online_track_list(slint::ModelRc::new(slint::VecModel::from(rows)));
                         }
                     });
                 }
-                Err(_error) => {
+                Err(error) => {
                     let _ = slint::invoke_from_event_loop(move || {
                         if let Some(ui) = ui_weak.upgrade() {
                             ui.set_artist_profile_bio("Artist information is temporarily unavailable.".into());
                             ui.set_artist_profile_stats("".into());
-                            ui.set_artist_profile_status("Could not load this artist's catalog. Try again.".into());
+                            ui.set_artist_profile_status(format!("Could not load this artist's catalog: {error}").into());
                         }
                     });
                 }
