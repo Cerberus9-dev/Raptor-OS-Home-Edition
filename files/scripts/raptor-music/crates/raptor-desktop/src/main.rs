@@ -2559,6 +2559,28 @@ fn fetch_audius_collection_tracks(collection: &AudiusCollection) -> Result<Vec<T
     parse_audius_tracks(&payload)
 }
 
+fn parse_audius_artist_search_page(
+    payload: &serde_json::Value,
+    seen: &mut HashSet<String>,
+) -> Result<Vec<AudiusArtist>, String> {
+    let data = payload.get("data").and_then(serde_json::Value::as_array)
+        .ok_or_else(|| "Audius returned an unexpected artist search response".to_string())?;
+    let mut artists = Vec::new();
+    for entry in data {
+        let Some(id) = entry.get("id").and_then(serde_json::Value::as_str).map(str::to_string) else { continue; };
+        let Some(handle) = entry.get("handle").and_then(serde_json::Value::as_str).map(str::to_string) else { continue; };
+        let Some(name) = entry.get("name").and_then(serde_json::Value::as_str)
+            .filter(|name| !name.trim().is_empty())
+            .or_else(|| entry.get("handle").and_then(serde_json::Value::as_str)) else { continue; };
+        if id.is_empty() || !id.chars().all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_')
+            || handle.is_empty() || handle.contains('/') || !seen.insert(id.clone()) {
+            continue;
+        }
+        artists.push(AudiusArtist { id, name: name.to_string(), handle, provider: "audius".into(), external_url: None });
+    }
+    Ok(artists)
+}
+
 fn search_audius_artists(query: &str, sort_method: &str) -> Result<Vec<AudiusArtist>, String> {
     let query = query.trim();
     if query.is_empty() { return Ok(Vec::new()); }
@@ -2590,24 +2612,12 @@ fn search_audius_artists(query: &str, sort_method: &str) -> Result<Vec<AudiusArt
             Err(error) if offset == 0 => return Err(format!("Audius returned unreadable artist results: {error}")),
             Err(_) => break,
         };
-        let data = match payload.get("data").and_then(serde_json::Value::as_array) {
-            Some(data) => data,
+        let page_count = match payload.get("data").and_then(serde_json::Value::as_array) {
+            Some(data) => data.len(),
             None if offset == 0 => return Err("Audius returned an unexpected artist search response".into()),
             None => break,
         };
-        let page_count = data.len();
-        for entry in data {
-            let Some(id) = entry.get("id").and_then(serde_json::Value::as_str).map(str::to_string) else { continue; };
-            let Some(handle) = entry.get("handle").and_then(serde_json::Value::as_str).map(str::to_string) else { continue; };
-            let Some(name) = entry.get("name").and_then(serde_json::Value::as_str)
-                .filter(|name| !name.trim().is_empty())
-                .or_else(|| entry.get("handle").and_then(serde_json::Value::as_str)) else { continue; };
-            if id.is_empty() || !id.chars().all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_')
-                || handle.is_empty() || handle.contains('/') || !seen.insert(id.clone()) {
-                continue;
-            }
-            artists.push(AudiusArtist { id, name: name.to_string(), handle, provider: "audius".into(), external_url: None });
-        }
+        artists.extend(parse_audius_artist_search_page(&payload, &mut seen)?);
         if page_count < 30 { break; }
     }
     Ok(artists)
@@ -3451,6 +3461,39 @@ mod jamendo_search_tests {
     #[test]
     fn rejects_unexpected_jamendo_payload() {
         assert!(parse_jamendo_tracks(&serde_json::json!({"oops": []})).is_err());
+    }
+}
+
+#[cfg(test)]
+mod audius_artist_search_tests {
+    use super::*;
+
+    #[test]
+    fn artist_search_page_filters_invalid_rows_and_deduplicates_across_pages() {
+        let mut seen = HashSet::new();
+        let first = serde_json::json!({"data":[
+            {"id":"artist-1","name":"femtanyl","handle":"femtanyl"},
+            {"id":"artist-1","name":"Duplicate","handle":"duplicate"},
+            {"id":"bad/id","name":"Invalid","handle":"invalid"},
+            {"id":"artist-2","name":"","handle":"artist_two"}
+        ]});
+        let second = serde_json::json!({"data":[
+            {"id":"artist-1","name":"femtanyl duplicate","handle":"femtanyl"},
+            {"id":"artist-3","name":"New Artist","handle":"new_artist"}
+        ]});
+        let mut artists = parse_audius_artist_search_page(&first, &mut seen).unwrap();
+        artists.extend(parse_audius_artist_search_page(&second, &mut seen).unwrap());
+        assert_eq!(artists.len(), 3);
+        assert_eq!(artists[0].name, "femtanyl");
+        assert_eq!(artists[1].name, "artist_two");
+        assert_eq!(artists[2].name, "New Artist");
+    }
+
+    #[test]
+    fn artist_search_page_rejects_unexpected_response_shape() {
+        let error = parse_audius_artist_search_page(&serde_json::json!({"results": []}), &mut HashSet::new())
+            .expect_err("unexpected provider shape must not appear as empty success");
+        assert!(error.contains("unexpected artist search response"));
     }
 }
 
