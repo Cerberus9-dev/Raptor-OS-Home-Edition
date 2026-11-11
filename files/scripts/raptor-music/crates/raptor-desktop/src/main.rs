@@ -2461,11 +2461,12 @@ fn search_audius_artists(query: &str, sort_method: &str) -> Result<Vec<AudiusArt
     let mut artists = Vec::new();
     let mut seen = HashSet::new();
     for offset in [0_u32, 30, 60] {
+        let offset_value = offset.to_string();
         let response = client.get("https://api.audius.co/v1/users/search")
             .query(&[
                 ("query", query),
                 ("limit", "30"),
-                ("offset", &offset.to_string()),
+                ("offset", offset_value.as_str()),
                 ("sort_method", normalized_sort_method(sort_method)),
             ])
             .send().and_then(|response| response.error_for_status())
