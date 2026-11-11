@@ -3953,12 +3953,17 @@ mod apple_music_pagination_tests {
     }
     
     #[test]
-    fn apple_music_album_pagination_is_limited_to_exact_album_endpoint() {
-        let base = "https://api.music.apple.com/v1/catalog/us/albums/123456/tracks";
-        assert!(apple_music_album_tracks_url(base, "?offset=100", "us", "123456").is_ok());
-        assert!(apple_music_album_tracks_url(base, "https://evil.example/steal", "us", "123456").is_err());
-        assert!(apple_music_album_tracks_url(base, "https://api.music.apple.com/v1/catalog/us/albums/999/tracks", "us", "123456").is_err());
-        assert!(apple_music_album_tracks_url(base, "http://api.music.apple.com/v1/catalog/us/albums/123456/tracks", "us", "123456").is_err());
+    fn apple_music_collection_pagination_is_limited_to_exact_album_or_playlist_endpoint() {
+        let album = "https://api.music.apple.com/v1/catalog/us/albums/123456/tracks";
+        assert!(apple_music_collection_tracks_url(album, "?offset=100", "us", "123456", "Album").is_ok());
+        assert!(apple_music_collection_tracks_url(album, "https://evil.example/steal", "us", "123456", "Album").is_err());
+        assert!(apple_music_collection_tracks_url(album, "https://api.music.apple.com/v1/catalog/us/albums/999/tracks", "us", "123456", "Album").is_err());
+        assert!(apple_music_collection_tracks_url(album, "http://api.music.apple.com/v1/catalog/us/albums/123456/tracks", "us", "123456", "Album").is_err());
+
+        let playlist = "https://api.music.apple.com/v1/catalog/us/playlists/789012/tracks";
+        assert!(apple_music_collection_tracks_url(playlist, "?offset=100", "us", "789012", "Playlist").is_ok());
+        assert!(apple_music_collection_tracks_url(playlist, "https://api.music.apple.com/v1/catalog/us/albums/789012/tracks", "us", "789012", "Playlist").is_err());
+        assert!(apple_music_collection_tracks_url(playlist, "?offset=100", "us", "789012", "Unknown").is_err());
     }
 
 }
