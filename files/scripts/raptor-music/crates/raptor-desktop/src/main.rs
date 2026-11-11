@@ -742,7 +742,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let jamendo_count = jamendo_tracks.len();
             tracks.extend(jamendo_tracks);
             let count = tracks.len();
-            *online_tracks.lock().unwrap() = tracks.clone();
             let rows = tracks_to_slint(&tracks);
             let collection_result = collection_worker.join()
                 .unwrap_or_else(|_| Err("Collection search worker stopped unexpectedly".to_string()));
@@ -759,7 +758,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let mb_collections = mb_collection_result.unwrap_or_default();
             let mb_collection_count = mb_collections.len();
             collections.extend(mb_collections);
-            *online_collections.lock().unwrap() = collections.clone();
             let collection_count = collections.len();
             let collection_rows = collections.iter().map(|item| TrackData {
                 id: item.id.clone().into(),
@@ -778,7 +776,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let mb_artists = mb_artist_result.unwrap_or_default();
             let mb_artist_count = mb_artists.len();
             artists.extend(mb_artists);
-            *online_artists.lock().unwrap() = artists.clone();
             let artist_count = artists.len();
             let artist_rows = artists.iter().map(|artist| TrackData {
                 id: artist.id.clone().into(), title: artist.name.clone().into(),
@@ -786,6 +783,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 album: match artist.provider.as_str() { "apple_music" => "Apple Music".into(), "musicbrainz" => "Discography metadata".into(), _ => "Audius artist profile".into() },
                 duration: "Open".into(),
             }).collect::<Vec<_>>();
+            // All provider workers have now completed. Recheck before publishing any
+            // shared models so a newly typed query cannot inherit stale search state.
+            if generation.load(Ordering::Acquire) != request_generation {
+                return;
+            }
+            *online_tracks.lock().unwrap() = tracks;
+            *online_collections.lock().unwrap() = collections;
+            *online_artists.lock().unwrap() = artists;
             let mut status = format!("{count} tracks · {artist_count} artists · {audius_collection_count} Audius collections · {apple_collection_count} Apple Music albums/playlists · {mb_collection_count} MusicBrainz releases");
             if mb_artist_count > 0 { status.push_str(&format!(" · {mb_artist_count} MusicBrainz artists")); }
             if mb_collection_error { status.push_str(" · MusicBrainz release search unavailable"); }
@@ -820,10 +825,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             let _ = slint::invoke_from_event_loop(move || {
                 if let Some(ui) = ui_weak.upgrade() {
-                    ui.set_online_track_list(slint::ModelRc::new(slint::VecModel::from(rows)));
-                    ui.set_online_artist_list(slint::ModelRc::new(slint::VecModel::from(artist_rows)));
-                    ui.set_online_collection_list(slint::ModelRc::new(slint::VecModel::from(collection_rows)));
-                    ui.set_online_search_status(status.into());
+                    if generation.load(Ordering::Acquire) == request_generation {
+                        ui.set_online_track_list(slint::ModelRc::new(slint::VecModel::from(rows)));
+                        ui.set_online_artist_list(slint::ModelRc::new(slint::VecModel::from(artist_rows)));
+                        ui.set_online_collection_list(slint::ModelRc::new(slint::VecModel::from(collection_rows)));
+                        ui.set_online_search_status(status.into());
+                    }
                 }
             });
         });
