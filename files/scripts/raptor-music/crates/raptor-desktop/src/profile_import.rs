@@ -207,21 +207,29 @@ fn parse_spotify_history(root: &Value) -> Result<ImportedProfile, String> {
     };
 
     for row in rows {
-        let title = string(row, "master_metadata_track_name");
-        let artist = string(row, "master_metadata_album_artist_name");
+        // Spotify has shipped two materially different extended-history
+        // schemas. Newer endsong exports use snake_case metadata fields;
+        // older StreamingHistory_music exports use camelCase fields.
+        let title = string(row, "master_metadata_track_name")
+            .or_else(|| string(row, "trackName"));
+        let artist = string(row, "master_metadata_album_artist_name")
+            .or_else(|| string(row, "artistName"));
         // Podcast episodes and rows without music metadata are deliberately
         // skipped rather than being mislabeled as songs.
         let (Some(title), Some(artist)) = (title, artist) else { continue };
         let track = ImportedTrack {
-            source_id: string(row, "spotify_track_uri"),
+            source_id: string(row, "spotify_track_uri")
+                .or_else(|| string(row, "trackURI")),
             title,
             artist,
-            album: string(row, "master_metadata_album_album_name"),
+            album: string(row, "master_metadata_album_album_name")
+                .or_else(|| string(row, "albumName")),
         };
         profile.listening_history.push(ImportedListen {
             track,
-            played_at: string(row, "ts"),
-            ms_played: row.get("ms_played").and_then(Value::as_u64),
+            played_at: string(row, "ts").or_else(|| string(row, "endTime")),
+            ms_played: row.get("ms_played").and_then(Value::as_u64)
+                .or_else(|| row.get("msPlayed").and_then(Value::as_u64)),
             play_count: 1,
         });
     }
@@ -544,6 +552,29 @@ mod tests {
         assert_eq!(profile.listening_history[0].played_at.as_deref(), Some("2026-10-01T12:00:00Z"));
         assert_eq!(profile.listening_history[1].track.title, "Another Track");
         assert_eq!(profile.listening_history[1].track.album, None);
+    }
+
+    #[test]
+    fn parses_legacy_spotify_streaming_history_camel_case_export() {
+        let json = r#"[
+          {"endTime":"2021-05-02 13:45","msPlayed":212000,
+           "trackName":"Basement Track","artistName":"Underground Artist",
+           "albumName":"Demo EP","trackURI":"spotify:track:legacy"},
+          {"endTime":"2021-05-02 13:50","msPlayed":80000,
+           "trackName":"Second Track","artistName":"Another Artist",
+           "albumName":"","trackURI":"spotify:track:legacy-2"},
+          {"endTime":"2021-05-02 13:55","msPlayed":1000,
+           "episodeName":"Podcast"}
+        ]"#;
+        let profile = parse_profile_export(json).unwrap();
+        assert_eq!(profile.listening_history.len(), 2);
+        let first = &profile.listening_history[0];
+        assert_eq!(first.track.title, "Basement Track");
+        assert_eq!(first.track.artist, "Underground Artist");
+        assert_eq!(first.track.album.as_deref(), Some("Demo EP"));
+        assert_eq!(first.track.source_id.as_deref(), Some("spotify:track:legacy"));
+        assert_eq!(first.played_at.as_deref(), Some("2021-05-02 13:45"));
+        assert_eq!(first.ms_played, Some(212000));
     }
 
     #[test]
