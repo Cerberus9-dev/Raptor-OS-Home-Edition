@@ -55,7 +55,7 @@ Until each provider's access and terms are confirmed, Raptor Music will not scra
 
 ## Importing a music profile
 
-The import flow is for supported account-data exports, not password-based account access. Choose the JSON export files, review the profile information and collections Raptor Music can read, then confirm the import. The app can save the imported profile so it can be opened again later from **Imported Profiles**.
+The import flow is for supported account-data exports, not password-based account access. Choose the JSON export files, review the profile information and collections Raptor Music can read, then confirm the import. Spotify extended listening-history imports accept both the newer `endsong` snake_case schema and the older `StreamingHistory_music` camelCase schema; podcast-only rows are skipped. The app can save the imported profile so it can be opened again later from **Imported Profiles**.
 
 The current importer understands Raptor Music profile packages and supported Spotify JSON exports. Depending on what the source files contain, an import can include:
 
