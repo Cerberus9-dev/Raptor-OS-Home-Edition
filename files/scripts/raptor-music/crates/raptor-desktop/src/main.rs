@@ -2451,37 +2451,46 @@ fn fetch_audius_collection_tracks(collection: &AudiusCollection) -> Result<Vec<T
 }
 
 fn search_audius_artists(query: &str, sort_method: &str) -> Result<Vec<AudiusArtist>, String> {
+    let query = query.trim();
+    if query.is_empty() { return Ok(Vec::new()); }
     let client = reqwest::blocking::Client::builder()
-        .user_agent("RaptorMusic/0.2.18")
+        .user_agent("RaptorMusic/0.2.19")
         .connect_timeout(Duration::from_secs(8))
         .timeout(Duration::from_secs(15))
-        .build()
-        .map_err(|error| format!("Could not initialize artist search: {error}"))?;
-    let response = client.get("https://api.audius.co/v1/users/search")
-        .query(&[("query", query), ("limit", "30"), ("offset", "0"), ("sort_method", normalized_sort_method(sort_method))])
-        .send().and_then(|response| response.error_for_status())
-        .map_err(|error| format!("Audius artist search failed: {error}"))?;
-    let payload: serde_json::Value = response.json()
-        .map_err(|error| format!("Audius returned unreadable artist results: {error}"))?;
-    let data = payload.get("data").and_then(serde_json::Value::as_array)
-        .ok_or_else(|| "Audius returned an unexpected artist search response".to_string())?;
-    Ok(data.iter().filter_map(|entry| {
-        let id = entry.get("id")?.as_str()?.to_string();
-        let handle = entry.get("handle")?.as_str()?.to_string();
-        let name = entry.get("name").and_then(serde_json::Value::as_str)
-            .filter(|name| !name.trim().is_empty())
-            .or_else(|| entry.get("handle").and_then(serde_json::Value::as_str))?.to_string();
-        if id.is_empty()
-            || !id.chars().all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_')
-            || handle.is_empty()
-            || handle.contains('/')
-        {
-            return None;
+        .build().map_err(|error| format!("Could not initialize artist search: {error}"))?;
+    let mut artists = Vec::new();
+    let mut seen = HashSet::new();
+    for offset in [0_u32, 30, 60] {
+        let response = client.get("https://api.audius.co/v1/users/search")
+            .query(&[
+                ("query", query),
+                ("limit", "30"),
+                ("offset", &offset.to_string()),
+                ("sort_method", normalized_sort_method(sort_method)),
+            ])
+            .send().and_then(|response| response.error_for_status())
+            .map_err(|error| format!("Audius artist search failed: {error}"))?;
+        let payload: serde_json::Value = response.json()
+            .map_err(|error| format!("Audius returned unreadable artist results: {error}"))?;
+        let data = payload.get("data").and_then(serde_json::Value::as_array)
+            .ok_or_else(|| "Audius returned an unexpected artist search response".to_string())?;
+        let page_count = data.len();
+        for entry in data {
+            let Some(id) = entry.get("id").and_then(serde_json::Value::as_str).map(str::to_string) else { continue; };
+            let Some(handle) = entry.get("handle").and_then(serde_json::Value::as_str).map(str::to_string) else { continue; };
+            let Some(name) = entry.get("name").and_then(serde_json::Value::as_str)
+                .filter(|name| !name.trim().is_empty())
+                .or_else(|| entry.get("handle").and_then(serde_json::Value::as_str)) else { continue; };
+            if id.is_empty() || !id.chars().all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_')
+                || handle.is_empty() || handle.contains('/') || !seen.insert(id.clone()) {
+                continue;
+            }
+            artists.push(AudiusArtist { id, name: name.to_string(), handle, provider: "audius".into(), external_url: None });
         }
-        Some(AudiusArtist { id, name, handle, provider: "audius".into(), external_url: None })
-    }).collect())
+        if page_count < 30 { break; }
+    }
+    Ok(artists)
 }
-
 
 fn apple_music_search_pagination_url(endpoint: &str, next: &str, storefront: &str) -> Result<String, String> {
     let base = reqwest::Url::parse(endpoint)
@@ -3136,6 +3145,25 @@ mod apple_music_collection_search_tests {
     #[test]
     fn malformed_apple_music_collection_response_is_not_empty_success() {
         assert!(parse_apple_music_collections(&serde_json::json!({"data":[]})).is_err());
+    }
+}
+
+#[cfg(test)]
+mod audius_artist_pagination_tests {
+    use super::*;
+
+    #[test]
+    fn audius_artist_pages_are_bounded_and_deduplicated_by_provider_id() {
+        let first = AudiusArtist { id: "artist-1".into(), name: "First".into(), handle: "first".into(), provider: "audius".into(), external_url: None };
+        let duplicate = AudiusArtist { id: "artist-1".into(), name: "First duplicate".into(), handle: "first".into(), provider: "audius".into(), external_url: None };
+        let second = AudiusArtist { id: "artist-2".into(), name: "Second".into(), handle: "second".into(), provider: "audius".into(), external_url: None };
+        let mut seen = HashSet::new();
+        let merged = [first, duplicate, second].into_iter()
+            .filter(|artist| seen.insert(artist.id.clone()))
+            .collect::<Vec<_>>();
+        assert_eq!(merged.len(), 2);
+        assert_eq!(merged[0].name, "First");
+        assert_eq!(merged[1].name, "Second");
     }
 }
 
