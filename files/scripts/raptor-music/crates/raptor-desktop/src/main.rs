@@ -910,7 +910,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         if generation_state.load(Ordering::Acquire) == request_generation {
                             ui.set_online_track_list(slint::ModelRc::new(slint::VecModel::from(rows)));
                             ui.set_selected_online_track_index(-1);
-                            ui.set_online_search_status(format!("{title} · {count} playable previews available; remaining tracks open on Apple Music").into());
+                            ui.set_online_search_status(format!("{title} · {count} playable previews loaded (up to 4 catalog pages); full tracks remain on Apple Music").into());
                         }
                     }
                 });
@@ -2529,9 +2529,8 @@ fn fetch_apple_music_collection_tracks(collection: &AudiusCollection) -> Result<
             .map(|next| apple_music_collection_tracks_url(&endpoint, next, &storefront, &collection.id, &collection.kind))
             .transpose()?;
     }
-    if next_url.is_some() {
-        return Err("Apple Music collection pagination exceeded its page safety limit".into());
-    }
+    // Return the bounded partial listing when the collection exceeds four
+    // catalog pages; large public playlists must not fail wholesale.
     Ok(tracks)
 }
 
