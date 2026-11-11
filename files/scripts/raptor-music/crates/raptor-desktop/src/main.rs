@@ -3953,5 +3953,15 @@ mod apple_music_pagination_tests {
         assert!(apple_music_pagination_url(&base, "http://api.music.apple.com/v1/me/library/songs").is_err());
         assert!(apple_music_pagination_url(&base, "https://api.music.apple.com/v1/catalog/us/songs").is_err());
     }
+    
+    #[test]
+    fn apple_music_album_pagination_is_limited_to_exact_album_endpoint() {
+        let base = "https://api.music.apple.com/v1/catalog/us/albums/123456/tracks";
+        assert!(apple_music_album_tracks_url(base, "?offset=100", "us", "123456").is_ok());
+        assert!(apple_music_album_tracks_url(base, "https://evil.example/steal", "us", "123456").is_err());
+        assert!(apple_music_album_tracks_url(base, "https://api.music.apple.com/v1/catalog/us/albums/999/tracks", "us", "123456").is_err());
+        assert!(apple_music_album_tracks_url(base, "http://api.music.apple.com/v1/catalog/us/albums/123456/tracks", "us", "123456").is_err());
+    }
+
 }
 
