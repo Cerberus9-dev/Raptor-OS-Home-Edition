@@ -2563,7 +2563,7 @@ fn search_audius_artists(query: &str, sort_method: &str) -> Result<Vec<AudiusArt
     let query = query.trim();
     if query.is_empty() { return Ok(Vec::new()); }
     let client = reqwest::blocking::Client::builder()
-        .user_agent("RaptorMusic/0.2.19")
+        .user_agent("RaptorMusic/0.2.22")
         .connect_timeout(Duration::from_secs(8))
         .timeout(Duration::from_secs(15))
         .build().map_err(|error| format!("Could not initialize artist search: {error}"))?;
@@ -2578,12 +2578,23 @@ fn search_audius_artists(query: &str, sort_method: &str) -> Result<Vec<AudiusArt
                 ("offset", offset_value.as_str()),
                 ("sort_method", normalized_sort_method(sort_method)),
             ])
-            .send().and_then(|response| response.error_for_status())
-            .map_err(|error| format!("Audius artist search failed: {error}"))?;
-        let payload: serde_json::Value = response.json()
-            .map_err(|error| format!("Audius returned unreadable artist results: {error}"))?;
-        let data = payload.get("data").and_then(serde_json::Value::as_array)
-            .ok_or_else(|| "Audius returned an unexpected artist search response".to_string())?;
+            .send().and_then(|response| response.error_for_status());
+        let response = match response {
+            Ok(response) => response,
+            Err(error) if offset == 0 => return Err(format!("Audius artist search failed: {error}")),
+            // Preserve useful first-page results when a later catalog page is unavailable.
+            Err(_) => break,
+        };
+        let payload: serde_json::Value = match response.json() {
+            Ok(payload) => payload,
+            Err(error) if offset == 0 => return Err(format!("Audius returned unreadable artist results: {error}")),
+            Err(_) => break,
+        };
+        let data = match payload.get("data").and_then(serde_json::Value::as_array) {
+            Some(data) => data,
+            None if offset == 0 => return Err("Audius returned an unexpected artist search response".into()),
+            None => break,
+        };
         let page_count = data.len();
         for entry in data {
             let Some(id) = entry.get("id").and_then(serde_json::Value::as_str).map(str::to_string) else { continue; };
