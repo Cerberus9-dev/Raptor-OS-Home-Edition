@@ -2039,21 +2039,15 @@ fn search_apple_music_tracks(query: &str) -> Result<Vec<Track>, String> {
     if storefront.len() != 2 || !storefront.chars().all(|ch| ch.is_ascii_lowercase()) {
         return Err("Apple Music storefront must be a two-letter country code".to_string());
     }
-    let client = reqwest::blocking::Client::builder()
-        .user_agent("RaptorMusic/0.2.18")
-        .connect_timeout(Duration::from_secs(8))
-        .timeout(Duration::from_secs(15))
-        .build()
-        .map_err(|error| format!("Could not initialize Apple Music search: {error}"))?;
-    let response = client.get(format!("https://api.music.apple.com/v1/catalog/{storefront}/search"))
-        .bearer_auth(developer_token)
-        .query(&[("term", query.trim()), ("types", "songs"), ("limit", "25")])
-        .send()
-        .and_then(|response| response.error_for_status())
-        .map_err(|error| format!("Apple Music catalog search failed: {error}"))?;
-    let payload: serde_json::Value = response.json()
-        .map_err(|error| format!("Apple Music returned unreadable search results: {error}"))?;
-    parse_apple_music_tracks(&payload)
+    let pages = apple_music_catalog_search_pages(&storefront, developer_token, query.trim(), "songs", 4)?;
+    let mut tracks = Vec::new();
+    let mut seen = HashSet::new();
+    for payload in pages {
+        for track in parse_apple_music_tracks(&payload)? {
+            if seen.insert(track.id) { tracks.push(track); }
+        }
+    }
+    Ok(tracks)
 }
 
 
@@ -2407,19 +2401,17 @@ fn search_apple_music_collections(query: &str) -> Result<Vec<AudiusCollection>, 
     if storefront.len() != 2 || !storefront.chars().all(|ch| ch.is_ascii_lowercase()) {
         return Err("Apple Music storefront must be a two-letter country code".into());
     }
-    let client = reqwest::blocking::Client::builder()
-        .user_agent("RaptorMusic/0.2.19")
-        .connect_timeout(Duration::from_secs(8))
-        .timeout(Duration::from_secs(15))
-        .build().map_err(|error| format!("Could not initialize Apple Music collection search: {error}"))?;
-    let response = client.get(format!("https://api.music.apple.com/v1/catalog/{storefront}/search"))
-        .bearer_auth(developer_token.trim())
-        .query(&[("term", query.trim()), ("types", "albums,playlists"), ("limit", "25")])
-        .send().and_then(|response| response.error_for_status())
-        .map_err(|error| format!("Apple Music album and playlist search failed: {error}"))?;
-    let payload: serde_json::Value = response.json()
-        .map_err(|error| format!("Apple Music returned unreadable collection results: {error}"))?;
-    parse_apple_music_collections(&payload)
+    let pages = apple_music_catalog_search_pages(&storefront, developer_token.trim(), query.trim(), "albums,playlists", 4)?;
+    let mut collections = Vec::new();
+    let mut seen = HashSet::new();
+    for payload in pages {
+        for collection in parse_apple_music_collections(&payload)? {
+            if seen.insert((collection.provider.clone(), collection.id.clone())) {
+                collections.push(collection);
+            }
+        }
+    }
+    Ok(collections)
 }
 
 fn search_audius_collections(query: &str) -> Result<Vec<AudiusCollection>, String> {
@@ -2490,6 +2482,58 @@ fn search_audius_artists(query: &str, sort_method: &str) -> Result<Vec<AudiusArt
     }).collect())
 }
 
+
+fn apple_music_search_pagination_url(endpoint: &str, next: &str, storefront: &str) -> Result<String, String> {
+    let base = reqwest::Url::parse(endpoint)
+        .map_err(|_| "Apple Music search endpoint is invalid".to_string())?;
+    let url = base.join(next)
+        .map_err(|_| "Apple Music returned an invalid search pagination URL".to_string())?;
+    let expected_path = format!("/v1/catalog/{storefront}/search");
+    if url.scheme() != "https" || url.host_str() != Some("api.music.apple.com")
+        || url.port_or_known_default() != Some(443)
+        || !url.username().is_empty() || url.password().is_some()
+        || url.path() != expected_path || url.fragment().is_some()
+    {
+        return Err("Apple Music returned an untrusted search pagination URL".to_string());
+    }
+    Ok(url.to_string())
+}
+
+fn apple_music_catalog_search_pages(
+    storefront: &str, developer_token: &str, query: &str, types: &str, max_pages: usize,
+) -> Result<Vec<serde_json::Value>, String> {
+    if max_pages == 0 || max_pages > 8 {
+        return Err("Apple Music search page limit must be between 1 and 8".to_string());
+    }
+    let endpoint = format!("https://api.music.apple.com/v1/catalog/{storefront}/search");
+    let client = reqwest::blocking::Client::builder()
+        .user_agent("RaptorMusic/0.2.19")
+        .connect_timeout(Duration::from_secs(8)).timeout(Duration::from_secs(15))
+        .redirect(reqwest::redirect::Policy::none()).build()
+        .map_err(|error| format!("Could not initialize Apple Music search: {error}"))?;
+    let mut next_url = Some(endpoint.clone());
+    let mut pages = Vec::new();
+    let mut seen_urls = HashSet::new();
+    for page_index in 0..max_pages {
+        let Some(url) = next_url.take() else { break; };
+        if !seen_urls.insert(url.clone()) {
+            return Err("Apple Music repeated a search pagination URL".to_string());
+        }
+        let mut request = client.get(&url).bearer_auth(developer_token);
+        if page_index == 0 {
+            request = request.query(&[("term", query), ("types", types), ("limit", "25")]);
+        }
+        let response = request.send().and_then(|response| response.error_for_status())
+            .map_err(|error| format!("Apple Music catalog search failed: {error}"))?;
+        let payload: serde_json::Value = response.json()
+            .map_err(|error| format!("Apple Music returned unreadable search results: {error}"))?;
+        let next = payload.get("results").and_then(|results| results.get("next"))
+            .or_else(|| payload.get("next")).and_then(serde_json::Value::as_str);
+        next_url = next.map(|next| apple_music_search_pagination_url(&endpoint, next, storefront)).transpose()?;
+        pages.push(payload);
+    }
+    Ok(pages)
+}
 
 fn apple_music_web_url(value: &str) -> Option<String> {
     let url = reqwest::Url::parse(value).ok()?;
@@ -3092,6 +3136,26 @@ mod apple_music_collection_search_tests {
     #[test]
     fn malformed_apple_music_collection_response_is_not_empty_success() {
         assert!(parse_apple_music_collections(&serde_json::json!({"data":[]})).is_err());
+    }
+}
+
+#[cfg(test)]
+mod apple_music_catalog_pagination_tests {
+    use super::*;
+
+    #[test]
+    fn apple_music_search_pagination_accepts_only_catalog_search_urls() {
+        let endpoint = "https://api.music.apple.com/v1/catalog/us/search";
+        assert!(apple_music_search_pagination_url(endpoint, "?offset=25", "us").is_ok());
+        assert!(apple_music_search_pagination_url(endpoint, "https://example.com/steal", "us").is_err());
+        assert!(apple_music_search_pagination_url(endpoint, "https://api.music.apple.com/v1/me/library/songs", "us").is_err());
+        assert!(apple_music_search_pagination_url(endpoint, "https://api.music.apple.com:8443/v1/catalog/us/search?offset=25", "us").is_err());
+    }
+
+    #[test]
+    fn apple_music_search_pagination_rejects_invalid_page_limits() {
+        assert!(apple_music_catalog_search_pages("us", "token", "artist", "songs", 0).is_err());
+        assert!(apple_music_catalog_search_pages("us", "token", "artist", "songs", 9).is_err());
     }
 }
 
