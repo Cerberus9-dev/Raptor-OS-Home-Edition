@@ -816,6 +816,8 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'A 
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn parse_audius_artist_search_page'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'artist_search_page_filters_invalid_rows_and_deduplicates_across_pages'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'A later malformed page should not hide tracks already loaded.'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'All provider workers have now completed.'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'if generation.load(Ordering::Acquire) == request_generation'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'A later malformed page should not hide releases already loaded.'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'if generation.load(Ordering::Acquire) == request_generation'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'artist_search_page_rejects_unexpected_response_shape'
