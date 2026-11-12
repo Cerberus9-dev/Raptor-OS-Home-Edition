@@ -278,13 +278,13 @@ if section_start is None:
 else:
     section_end = next(
         (index for index in range(section_start + 1, len(lines))
-         if re.match(r"^\\s*\\[", lines[index])),
+         if re.match(r"^\s*\[", lines[index])),
         len(lines),
     )
     updated = []
     inserted = False
     for line in lines[section_start:section_end]:
-        if re.match(r"^\\s*#?\\s*AutomaticUpdatePolicy\\s*=", line, re.IGNORECASE):
+        if re.match(r"^\s*#?\s*AutomaticUpdatePolicy\s*=", line, re.IGNORECASE):
             if not inserted:
                 updated.append("AutomaticUpdatePolicy=check")
                 inserted = True
@@ -295,7 +295,7 @@ else:
     lines[section_start:section_end] = updated
 
 config.parent.mkdir(parents=True, exist_ok=True)
-config.write_text("\\n".join(lines).rstrip() + "\\n", encoding="utf-8")
+config.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 RAPTOR_OSTREE_CONFIG
 systemctl enable rpm-ostreed-automatic.timer
 
