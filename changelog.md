@@ -1,71 +1,33 @@
 # Changelog
 
-### Raptor Music discovery
-- Added Audius autocomplete album and playlist search results in a separate Discover section; selecting a collection loads its tracks into the online player list.
-- Documented provider-specific account authorization boundaries and the distinction between account linking, catalog access, and playback rights.
-
-
-### Raptor Music discovery
-- Added an Independent sort option that alternates relevance-ranked and recent Audius search results, deduplicating tracks so emerging and lower-play-count artists are not crowded out by popularity sorting.
-
-
-## Raptor Music
-
-- Added Apple Music catalog song search when the app developer configures a MusicKit developer token. Search results with official preview clips can play short, temporary previews; this does not claim full Apple Music subscription playback.
-- Added URL and redirect-host checks for Apple Music preview downloads, plus size limits and temporary-file cleanup.
-- Added provider availability notes to Settings and documented the Apple Music developer-token setup and current Spotify, YouTube Music and TIDAL boundaries.
-- Expanded Discord IPC discovery to cover native and common Flatpak runtime socket locations, plus an optional explicit socket path for unusual client setups.
-- Removed the arbitrary two-character search gate so short artist, song and keyword queries can be sent to online discovery. Search continues to query artists and tracks together.
-- Clarified the search field and status text for artist, song and keyword searches.
-
-
-- Added a separate personal phrase field to Discord Rich Presence. The current track title and artist still fill in automatically.
-- Fixed profile imports so normalized playlist packages with a `tracks` array keep their playlist tracks when multiple export files are merged.
-- Documented the provider-specific account and catalog restrictions that shape future Spotify, Apple Music, YouTube Music and TIDAL support.
-
-
-## v3.0 fixes: app packaging
-
-- Packaged the Raptor Shroudly Rust/Slint app with its own launcher, desktop entry, and icon. The image build checks that these files are present.
-- Updated the welcome screen to explain the difference between standard Wine and the optional Proton/UMU game launcher.
-- The Shroudly dashboard reports local app detection. Network routing remains disabled.
-
-## v3.0 fixes: suspend and resume
-
-- Removed unused CPU-governor and power-profile units. Power Profiles Daemon remains responsible for CPU and firmware power settings.
-- Removed the unused resume marker and duplicate lid-open service. The existing systemd-sleep hook handles touchpad, Wi-Fi, and Bluetooth recovery.
-- Kept Wi-Fi and Bluetooth recovery in the post-resume hook instead of running the same work from multiple services.
-- Corrected the Steam shader-cache check. Raptor leaves Steam's shader pre-caching setting at its default.
-- Added CI checks to catch removed service units if they are added to the image recipe again.
-
-## v3.0 fixes: gaming defaults
-
-- Removed global Steam HTTP/2, connection-count, and write-buffer overrides. These settings depend on the network and are better handled as troubleshooting steps.
-- Removed GameMode's global AMD and NVIDIA performance-level overrides. GPU power policy stays with the driver and the selected system power profile.
-
-## Wine and Proton
-
-- Added per-launch logs for Wine and Proton, including the target file, file permissions, runtime version, prefix, and launch output. The error notification points to the log.
-- Reused the cached Steam Linux Runtime between Proton launches and checked for runtime updates once a day.
-- Added a way to register applications installed through Protontricks, including a manual option for older prefixes.
-- Added MSI installer support through UMU/Proton and KDE file associations for Wine and Proton.
-- Resolved executable paths before launch and exposed non-home folders to the Steam Runtime for removable and secondary drives.
-- Changed ZRAM compression to LZ4 to reduce CPU overhead on slower processors. Compression is lower than with zstd.
-
 ## [Unreleased]
-- Add profile import to Raptor Music for supported Raptor profile packages and Spotify JSON exports. Users can select multiple files, review the information found, confirm the import, and reopen saved imports in the Imported Profiles view.
-- Keep imported playlists, saved tracks, followed artists and listening history together as separate saved profiles. Imports can be merged and deduplicated; exports without a stable username remain separate. Imported entries do not become local audio files.
-- Keep online discovery and the offline Local Library separate. Discover searches Audius for tracks and artists; local searches stay on the device.
-- Improve Music navigation, empty-library and empty-queue guidance, and selection-aware playlist, queue and playback controls.
-- Expand online track results, keep artist and track sorting consistent, and open artist profiles inside Raptor Music.
-- Add an optional Raptor Flight Deck KDE Plasma 6 panel preset. It creates a compact bottom panel without changing or removing the user's existing panels.
-- Make track rows start playback on a single click in both Discover and Local Library. A direct song selection is added to the queue and starts immediately, even when other tracks are already queued.
-- Add a three-dot song menu for adding a track straight to the queue or to any existing playlist.
-- Add one-tap 15-second rewind and skip controls to the player dock.
-- Add optional Discord Rich Presence settings. Users supply their own Discord application Client ID, enable or disable sharing, and customize the details and state lines with `{title}` and `{artist}` placeholders. Activity is sent over the local Discord RPC socket and is off by default.
-### v3.0.0
 
-Version 3.0 groups the larger changes to performance, gaming, audio, Cortex, updates, hardware recovery, first-run setup, and image distribution. It also includes fixes to the Raptor apps and their build checks.
+Changes made after v3.0.0 will be recorded here.
+
+## [v3.0.0] - 2026-11-12
+
+Major release covering the desktop apps, gaming and Windows compatibility, hardware recovery, performance defaults, first-run setup, and image distribution.
+
+### Raptor Music
+
+- Added Audius discovery for tracks, artists, albums, and playlists. The Independent sort mixes relevance and recent results instead of ranking only by popularity.
+- Added Apple Music catalog search and short official previews when a MusicKit developer token is configured. Preview URLs and redirects are validated, downloads are size-limited, and temporary files are cleaned up.
+- Added Spotify export and supported Raptor profile imports. Users can review data before importing and keep playlists, saved tracks, followed artists, and listening history in separate saved profiles. Importing metadata does not create local audio files.
+- Improved playlist merging, artist pages, search for short queries, queue controls, direct track selection, and the three-dot add-to-queue/playlist menu.
+- Added optional Discord Rich Presence with a user-supplied application ID and custom details. Sharing is off by default; playback title and artist can be inserted into the activity text.
+- Expanded Discord IPC discovery for native and common Flatpak socket locations, with an optional explicit socket path.
+- Kept local files and online provider results separate. MusicBrainz supplies release metadata, not audio; Spotify and Google account connections support metadata import; TIDAL remains an external handoff. These integrations do not provide full subscription streaming from those services.
+
+### Desktop and system
+
+- Added the optional Raptor Flight Deck panel layout for KDE Plasma 6.
+- Packaged the custom Raptor Shroudly application with its own launcher, desktop entry, and icon. Its current dashboard detects supported local apps; network routing and traffic steering are not implemented.
+- Added the one-time Raptor OS welcome dialog ahead of the browser, chat-client, and optional-app setup.
+- Kept ordinary Windows applications on standard Wine and added the optional UMU/Proton launch path for games. Added launch logs, MSI handling, and Protontricks application registration.
+- Consolidated suspend/resume recovery for touchpad, Wi-Fi, Bluetooth, and mute LEDs. Recovery respects devices and radios the user has intentionally disabled.
+- Removed global Steam network overrides and vendor-specific GameMode GPU power overrides. Steam and graphics drivers retain their own defaults unless a user applies a specific workaround.
+- Added and refined Cortex GPU/fan telemetry, power-profile integration, bounded memory reclaim, and low-memory application settings.
+- Expanded validation and image-build checks for the Raptor applications, service configuration, embedded scripts, and published image contents.
 
 ### Raptor Music desktop experience
 - Replaced fixed Slint window dimensions with preferred initial dimensions and minimum size constraints, allowing KDE/X11 window managers to resize and maximize the player normally.
