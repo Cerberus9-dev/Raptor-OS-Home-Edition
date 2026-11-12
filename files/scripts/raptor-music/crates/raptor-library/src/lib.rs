@@ -55,7 +55,7 @@ fn provider_source_kind(provider_id: &str) -> AudioSourceKind {
     }
 }
 
-fn legacy_track_to_unified(track: &Track) -> UnifiedTrack {
+pub fn normalize_legacy_track(track: &Track) -> UnifiedTrack {
     let (source, source_track_id, access, target) = match &track.source {
         PlaybackSource::LocalFile { path } => (
             AudioSourceKind::Local,
@@ -573,8 +573,8 @@ impl LibraryDatabase {
 
             let track = match encoded {
                 Some(json) => serde_json::from_str::<UnifiedTrack>(&json)
-                    .unwrap_or_else(|_| legacy_track_to_unified(&legacy)),
-                None => legacy_track_to_unified(&legacy),
+                    .unwrap_or_else(|_| normalize_legacy_track(&legacy)),
+                None => normalize_legacy_track(&legacy),
             };
             normalized.push(track);
         }
