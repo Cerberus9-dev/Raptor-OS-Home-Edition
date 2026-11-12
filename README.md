@@ -176,7 +176,7 @@ Gallery-style wallpaper picker — click any thumbnail to apply it, including fi
 
 ## Raptor Music
 
-Raptor Music is a Rust/Slint desktop player with a SQLite library, local playlists, queue management, and local-file playback. Online discovery uses Audius for public tracks and artist pages, Apple Music for catalog search and short previews (with a configured developer token), and MusicBrainz for release metadata. MusicBrainz provides metadata only; it does not provide audio. Spotify and Google account connections support metadata import. TIDAL is an external-service handoff. These integrations do not provide full subscription streaming inside Raptor Music. Online tracks remain separate from the Local Library. Data is stored under `$XDG_DATA_HOME/raptor-music/` or `~/.local/share/raptor-music/`.
+Raptor Music is a Rust/Slint desktop player with a SQLite library, local playlists, queue management, and local-file playback. Online discovery uses Audius for public tracks and artist pages, Apple Music for catalog search and short previews (with a configured developer token), and MusicBrainz for release metadata. MusicBrainz adds release metadata but no audio. Spotify and Google account connections support metadata import. TIDAL is an external-service handoff. These integrations do not provide full subscription streaming inside Raptor Music. Online tracks remain separate from the Local Library. Data is stored under `$XDG_DATA_HOME/raptor-music/` or `~/.local/share/raptor-music/`.
 
 ## Release pipeline (maintainers)
 
