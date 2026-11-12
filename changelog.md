@@ -622,7 +622,7 @@ Raptor OS v3.0.0 updates the desktop apps, gaming and Windows compatibility, har
   detected" when none exist. Cortex only reads; it never writes fan speed,
   curves or PWM, so the removal of manual fan control above still stands.
 
-## [v2.7.0] - 2026-10-01 (Major Feature Expansion — Cortex Unification, App Picker Overhaul, Battery, Tasks)
+## [v2.7.0] - 2026-10-01 (Cortex, App Picker, Battery, and Tasks)
 
 ### Changed
 
@@ -1095,7 +1095,7 @@ Raptor OS v3.0.0 updates the desktop apps, gaming and Windows compatibility, har
   with the reasoning documented in the file itself — it needs `sudo`, and its
   `/tmp` install logs are meant to stay readable for troubleshooting
 
-## [v2.6.7] - 2026-07-12 (Power Saving Overhaul, RAM Reduction, Cortex Expansion)
+## [v2.6.7] - 2026-07-12 (Power Profiles, Memory Use, and Cortex Updates)
 
 ### Fixed
 
@@ -1152,7 +1152,7 @@ Raptor OS v3.0.0 updates the desktop apps, gaming and Windows compatibility, har
 
 ### Added
 
-#### Power Saving — major overhaul
+#### Power profiles and background-process handling
 
 - **Energy Performance Preference (EPP)** — new `_apply_epp()` helper writes
   to `/sys/devices/system/cpu/cpufreq/policy*/energy_performance_preference`
@@ -1207,7 +1207,7 @@ Raptor OS v3.0.0 updates the desktop apps, gaming and Windows compatibility, har
   off after 2 min at 70% brightness / suspends after 10 min; Low Battery
   dims after 30 s / 30% brightness / suspends after 5 min with hibernate
 
-#### Raptor Cortex — expanded features
+#### Raptor Cortex — controls and telemetry
 
 - **Temperature monitoring** — CPU temperature, GPU temperature, and CPU
   frequency rows added to the System Memory stats panel. Temperature labels
@@ -1232,7 +1232,7 @@ Raptor OS v3.0.0 updates the desktop apps, gaming and Windows compatibility, har
   background. Never auto-runs Swap Pressure Flush or Deep Clean. Shows next
   scheduled time in the UI. Persists across launches
 
-#### Raptor GPU Profiler — full GTK4/Adwaita rewrite
+#### Raptor GPU Profiler — GTK4/Adwaita interface
 
 - Replaced the bash TUI with a proper GTK4/Adwaita graphical app installed at
   `/usr/bin/raptor-gpu-profiler`. Matches Cortex's visual style exactly:
@@ -1272,7 +1272,7 @@ Raptor OS v3.0.0 updates the desktop apps, gaming and Windows compatibility, har
 - gamemode.ini: added `nv_powermizer_mode=1` for NVIDIA persistence, added
   `gamescope` to supervisor whitelist, added `[script]` section
 
-#### HUD theme — full green colour overhaul (stamp v9)
+#### HUD theme — green palette update (stamp v9)
 
 - All accent colours changed from dodger blue (`#1e90ff` / `30,144,255`) to
   neon green (`#33FF33` / `51,255,51`) across 54 locations: colour scheme,
@@ -1301,7 +1301,7 @@ Raptor OS v3.0.0 updates the desktop apps, gaming and Windows compatibility, har
   system-wide; fixed `ExecStart` path in `raptor-gpu-profile.service`
   (was `/usr/bin/raptor-gpu-profile.sh`, should be `/usr/lib/raptor/gpu-detect.sh`)
 
-## [v2.6.6] - 2026-06-23 (Launcher Fix, Window Buttons, Firstboot Polish)
+## [v2.6.6] - 2026-06-23 (Launcher, Window Buttons, and First-Run Setup)
 
 ### Fixed
 
@@ -1392,7 +1392,7 @@ Raptor OS v3.0.0 updates the desktop apps, gaming and Windows compatibility, har
   from the default 1 M. Open-world games and heavily modded titles (Skyrim,
   Minecraft with large mod packs) can exhaust the default limit on startup
 
-## [v2.6.4] - 2026-06-19 (Boot Stability, Final HUD Fix & Smaller Install)
+## [v2.6.4] - 2026-06-19 (Boot, HUD, and Install Size)
 
 ### Fixed
 
@@ -1608,11 +1608,11 @@ Raptor OS v3.0.0 updates the desktop apps, gaming and Windows compatibility, har
   MangoHud, and gamemode configs); BBR congestion control, CAKE qdisc, TCP buffer
   tuning, and Cloudflare DoT DNS now reliably deploy with every build
 
-## [v2.6] - 2026-06-11 (Full System Overhaul — Gaming, Audio, Network & Bug Sweep)
+## [v2.6] - 2026-06-11 (Gaming, Audio, Network, and Fixes)
 
 ### Fixed
 
-#### Critical — Firstboot & Services (were silently broken on all Wayland installs)
+#### Firstboot and services — Wayland startup fixes
 - **`raptor-firstboot.service` never ran on Wayland** — `ConditionEnvironment=DISPLAY`
   evaluates false on every Bazzite Wayland boot since `DISPLAY` is never set; replaced
   with `ConditionEnvironment=XDG_RUNTIME_DIR` which is present in both Wayland and X11
@@ -1630,7 +1630,7 @@ Raptor OS v3.0.0 updates the desktop apps, gaming and Windows compatibility, har
 - **Stamp files required root** — both firstboot scripts wrote stamps to `/var/lib/raptor/`
   which is not writable from a user service; moved to `~/.local/share/raptor/`
 
-#### Critical — Cortex Profile Switching (buttons appeared broken)
+#### Cortex profile switching
 - **Profile mode always showed "Balanced" active on launch** — `_current_mode` was
   hardcoded to `"balanced"` at startup with no system detection; if the actual mode
   differed, the wrong button was disabled and clicking the correct mode appeared to
@@ -1640,7 +1640,7 @@ Raptor OS v3.0.0 updates the desktop apps, gaming and Windows compatibility, har
 - **`set_use_markup(True)` on `Adw.ActionRow`** — unreliable in libadwaita; removed
   in favour of sensitivity and opacity changes that are guaranteed to work
 
-#### Critical — Taskbar / HUD theme never applied on Plasma 6
+#### Taskbar and HUD theme on Plasma 6
 - **All `kwriteconfig5` calls in `apply-plasma-panel.sh` do nothing on Plasma 6** —
   KDE 6 ignores kwriteconfig5 writes entirely; replaced with a `kwc()` shim that
   calls `kwriteconfig6` first with `kwriteconfig5` as a fallback
@@ -1723,7 +1723,7 @@ Raptor OS v3.0.0 updates the desktop apps, gaming and Windows compatibility, har
   "Update Flatpaks" when only Flatpak updates exist (no reboot triggered for apps-only updates)
 - New `flatpak-update-helper` script with polkit policy and sudoers entry
 
-#### Firstboot App Picker (Complete Rewrite)
+#### Firstboot App Picker
 - **20 optional Flatpak apps** across five categories: Communication (Telegram, Signal,
   Slack, Zoom), Productivity (VSCodium, ONLYOFFICE, Bitwarden, Joplin, MarkText, Calibre),
   Creative (Blender, Shotcut, Boatswain), Development (Godot Engine, GitHub Desktop, Pods),
@@ -1741,7 +1741,7 @@ Raptor OS v3.0.0 updates the desktop apps, gaming and Windows compatibility, har
   on systems with free RAM and it never shrinks), limits renderer processes to 2
   (~80–120 MB each), enables VA-API hardware video decode for video calls and streams
 
-#### Firefox Memory Overhaul
+#### Firefox memory settings
 - New `/etc/firefox/policies/policies.json` system-wide defaults: memory cache capped
   at 64 MB (was 256 MB in user.js — 4× too large), content process count reduced from
   8 to 4, `browser.tabs.unloadOnLowMemory` enabled, media cache capped at 32 MB,
@@ -1790,7 +1790,7 @@ Raptor OS v3.0.0 updates the desktop apps, gaming and Windows compatibility, har
   Mono font; shows FPS, frametime graph, GPU/CPU stats + temps + clocks, VRAM, and
   Proton/Wine version; FPS colour thresholds at 45 and 60 fps; toggle with Shift+F12
 
-#### Gamemode Full Configuration
+#### GameMode configuration
 - New `/etc/gamemode.ini`: AMD GPU power level raised to `high` while gaming (unlocks
   boost clocks and higher TDP budget); game processes reniced to -10; screensaver/DPMS
   inhibited during gaming; Steam, Heroic, Lutris, and Bottles registered as valid
@@ -1885,7 +1885,7 @@ Raptor OS v3.0.0 updates the desktop apps, gaming and Windows compatibility, har
 - Comments in `recipe.yml` updated to note that zram sizing is now handled by
   `zram-generator.conf` at runtime rather than `raptor-performance.sh` at build time
 
-## [v2.4] - 2026-05-20 (Full Script Overhaul)
+## [v2.4] - 2026-05-20 (First-Run Setup, Update Manager, and Service Fixes)
 
 ### Fixed
 - **Critical:** `raptor-firstboot.service` targeted `graphical.target` (system-level) instead
@@ -2026,7 +2026,7 @@ Raptor OS v3.0.0 updates the desktop apps, gaming and Windows compatibility, har
   sudo call, Razer Cortex-style per-service game mode toggles added, gamemode hooks
   integrated for automatic suspend/resume on game launch and exit
 
-## [v2.2] - 2026-05-07 (Major Fix)
+## [v2.2] - 2026-05-07 (Memory and sysctl Fixes)
 
 ### Fixed
 - **Critical:** `vm.overcommit_memory` corrected from mode 1 (always overcommit) to mode 0
@@ -2076,14 +2076,14 @@ Raptor OS v3.0.0 updates the desktop apps, gaming and Windows compatibility, har
 
 ### Fixed
 - GPU detection now correctly identifies AMD/ATI cards including iGPUs like Cezanne
-- Firefox RAM usage significantly reduced via aggressive memory limits in defaults/pref
+- Reduced Firefox's default memory limits in defaults/pref to lower RAM use.
 - Firefox telemetry and background tasks disabled to reduce memory overhead
 - Hardware video decoding enabled in Firefox for lower CPU usage
 
-## [v2.0] - 2026-05-04 (Major Update)
+## [v2.0] - 2026-05-04 (GPU Profiles, Memory, and Wi-Fi Fixes)
 
 ### Added
-- (Skipped to v2.0 as this was a major update mainly focusing on performance)
+- Version numbering moved to v2.0 for this performance-focused release.
 - Automatic GPU vendor detection (AMD/NVIDIA/Intel/iGPU)
 - Per-vendor GPU optimization profiles
 - Performance Mode toggle with GUI — choose Auto or Max Performance
@@ -2092,7 +2092,7 @@ Raptor OS v3.0.0 updates the desktop apps, gaming and Windows compatibility, har
 - Split build scripts into raptor-hud, raptor-performance, raptor-gaming and raptor-gpu-profile
 - Raptor Profile Switcher app — switch between Auto and Max Performance GPU profiles from the app menu
 - Shotcut video editor
-- Made ZRAM dynamic based on available RAM for better performance
+- Set ZRAM size based on available RAM.
 
 ### Fixed
 - WiFi randomly disconnecting and not reconnecting

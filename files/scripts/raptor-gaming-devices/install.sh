@@ -59,7 +59,7 @@ KERNEL=="event[0-9]*", SUBSYSTEM=="input", MODE="0660", GROUP="input", TAG+="uac
 EOF
 
 # ── Logitech G Hub Flatpak override (for users who install it) ───────────────
-# This ensures G Hub can access USB devices when installed as Flatpak
+# Grant G Hub USB access when it is installed as a Flatpak.
 cat << 'EOF' > /usr/share/flatpak/overrides/com.logitech.GHub
 [Context]
 devices=all
@@ -67,8 +67,8 @@ filesystems=xdg-run/udev:ro
 EOF
 
 # ── Razer Chroma/peripherals support ────────────────────────────────────────
-# openrazer-meta and polychromatic are offered in app picker; this ensures
-# the daemon can access devices
+# The app picker offers openrazer-meta and Polychromatic. Grant the daemon
+# access to connected devices.
 cat << 'EOF' > /usr/share/flatpak/overrides/org.openrazer.client
 [Context]
 devices=all
