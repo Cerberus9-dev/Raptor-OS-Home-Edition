@@ -30,7 +30,7 @@ Raptor Tasks stores tasks locally and supports search and filters. Raptor Wallpa
 
 ## Gaming and power defaults
 
-Steam's download protocol, shader-cache and storage settings are left entirely at Steam's defaults. GameMode does not force vendor-specific GPU power states globally. Controller access rules remain available, but USB autosuspend is left to the kernel by default to avoid unnecessary idle power draw; device-specific workarounds should be applied only when a reproducible issue calls for them.
+Raptor leaves Steam's network and shader-cache settings at their defaults and does not force vendor-specific GPU power states through GameMode. Controller access rules remain available. USB autosuspend follows kernel defaults except for device-specific recovery settings.
 
 ## Wi-Fi power management
 
@@ -41,9 +41,8 @@ NetworkManager keeps its normal Wi-Fi power-saving and scan-MAC privacy defaults
 GameMode is available when a game requests it natively or is launched with `gamemoderun %command%`. Raptor does not enable GameMode's global GPU performance-level overrides: upstream labels these at-your-own-risk changes, and forcing them across mixed AMD/NVIDIA hardware is not a safe universal default. The system power profile and graphics driver retain control.
 
 - Leave Steam's shader pre-caching at its own default unless troubleshooting a specific issue; disabling it can increase first-run shader compilation stutter.
-- If Steam's store/library interface or Big Picture is sluggish while games themselves run smoothly, check **Steam → Settings → Interface → Enable GPU accelerated rendering in web views**, restart Steam, and compare. Bazzite documents this as a workaround for sluggish Big Picture rendering, but notes that some NVIDIA setups may show menu-rendering artifacts; revert the toggle if that happens.
-- Steam downloads can be limited by CPU decompression, verification, and storage write speed—not only network bandwidth. A slow displayed download rate during heavy disk activity does not automatically mean Wi-Fi is broken.
-- Raptor leaves Steam's download protocol, connection count, write buffer, and shader-cache settings at Steam's defaults (shader pre-caching remains enabled). Disabling HTTP/2 or increasing connections can help specific network configurations, but these are troubleshooting workarounds—not universal performance defaults. If downloads are slow, compare CPU decompression/verification and disk activity before changing network settings.
+- If Steam's store/library interface or Big Picture is sluggish while games run normally, try **Steam → Settings → Interface → Enable GPU accelerated rendering in web views**, then restart Steam. Some NVIDIA setups may show menu-rendering artifacts; turn the option back off if they appear.
+- Downloads can be limited by CPU decompression, verification, or storage write speed as well as network bandwidth. Check CPU and disk activity before changing network settings.
 
 ## System Requirements
 
@@ -199,7 +198,7 @@ Raptor Shroudly is the custom native desktop dashboard included in the image. It
 
 ### GPU
 - **Auto GPU detection** at boot — AMD, NVIDIA, Intel and hybrid configurations; selects supported GPU environment and driver settings. CPU power policy is handled separately by power-profiles-daemon
-- **Cortex hardware telemetry** — reports detected GPU model, utilization, active clock and dedicated VRAM where the driver exposes those counters; fan RPM/percentage is read-only and shown only when firmware/driver sensors are available. No unsupported fan-control or overclocking writes are attempted.
+- **Cortex telemetry** — reports GPU model, utilization, clock, VRAM, and available fan sensors. Fan readings are read-only; Cortex does not write fan speeds or overclock settings.
 - **Shader compilation** — driver and game behavior varies by GPU and Mesa version; no fixed performance improvement is claimed.
 - **Mesa GL threading** is enabled for Wine/Proton where supported; native applications keep driver defaults to avoid global compatibility regressions
 - **`WINE_FULLSCREEN_FSR` and `DXVK_ASYNC` not set globally** — both caused flickering in OpenGL games (Project Zomboid). Set per-game in Steam launch options instead
@@ -227,7 +226,7 @@ Raptor Shroudly is the custom native desktop dashboard included in the image. It
 - **ZRAM** — enabled for compressed swap in memory. Capacity and compression behavior are controlled by the image's zram-generator configuration; actual results depend on available RAM, workload, and CPU speed.
 - **Baloo** — filename-only indexing with full-text content indexing disabled and a reduced worker count
 - **Cortex One-Click Boost** — applies the Performance power profile, pauses configured optional indexers, and requests bounded memory reclaim only under pressure
-- **No blanket cache flushes, routine OOM-score changes or forced compaction** as a supposed memory booster
+- Cortex does not flush all caches, change process OOM scores, or force memory compaction as routine optimization.
 - **4 GB support remains an unverified optimization target**. Actual idle footprint, browser workload, game performance and sustained memory pressure must be benchmarked on physical low-memory hardware before claiming a 4 GB smooth-use guarantee
 
 ### Audio
@@ -242,9 +241,9 @@ Raptor Shroudly is the custom native desktop dashboard included in the image. It
 - **Bounded Wi-Fi recovery** — NetworkManager gets time to complete normal association; a watchdog now detects activation states stuck for about three minutes, serializes recovery attempts, bounds CLI calls, and uses a radio reset only after checking for a likely saved network. Automatic driver reloads are avoided because they can disrupt hardware and are reserved for explicit recovery. Resume recovery remains separate and respects the user's Wi-Fi-off choice
 
 ### Input
-- **USB autosuspend disabled** for HID devices and Bluetooth adapters specifically — excluded from Cortex's power-mode switching entirely, so a Bluetooth mouse/keyboard can never be swept into a suspended state by a mode change
-- **Stuck-cursor fix after lid close** — udev device re-enumeration and KWin config reload run on resume so the trackpad/pointing device reinitialises cleanly instead of leaving the cursor frozen
-- **Hardware recovery after suspend** (`raptor-hardware-fixes.sh`) — re-binds the touchpad driver, reconnects Wi-Fi and Bluetooth with escalating steps, and links the mute LEDs, so nothing comes back from sleep dead
+- **Bluetooth recovery** — the resume hook checks the controller and restarts the Bluetooth stack when needed. Other USB devices retain the kernel's normal autosuspend policy.
+- **Touchpad recovery** — the resume hook rebinds the touchpad driver when required.
+- **Hardware recovery after suspend** (`raptor-hardware-fixes.sh`) — reconnects Wi-Fi and Bluetooth with bounded recovery steps and syncs mute LEDs with audio state.
 
 ---
 
