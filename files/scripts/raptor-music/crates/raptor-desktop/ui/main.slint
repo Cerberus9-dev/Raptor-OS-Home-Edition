@@ -1,4 +1,4 @@
-import { Button, LineEdit, ListView, Slider } from "std-widgets.slint";
+import { Button, CheckBox, LineEdit, ListView, Slider } from "std-widgets.slint";
 
 export struct TrackData {
     id: string,
@@ -68,6 +68,8 @@ export component MainWindow inherits Window {
     in-out property <string> discord_custom_phrase: "Jamming out to";
     in-out property <string> discord_presence_status: "Discord Rich Presence is off";
     in-out property <string> provider_connection_status: "No music-service accounts connected";
+    in-out property <bool> apple_catalog_enabled: false;
+    in-out property <bool> jamendo_catalog_enabled: false;
 
     callback scan_directory_clicked();
     callback import_profile_clicked();
@@ -91,6 +93,7 @@ export component MainWindow inherits Window {
     callback skip_backward_clicked();
     callback skip_forward_clicked();
     callback save_discord_presence_clicked();
+    callback save_provider_catalog_settings_clicked();
     callback connect_spotify_clicked();
     callback connect_apple_music_clicked();
     callback refresh_apple_music_clicked();
@@ -423,6 +426,17 @@ export component MainWindow inherits Window {
                         visible: root.active_view == "settings";
                         spacing: 12px;
                         Text { text: "Music providers"; color: #f2f5ec; font-size: 21px; font-weight: 700; }
+                        Text { text: "Optional catalogue sources"; color: #d4ed9c; font-size: 13px; font-weight: 700; }
+                        Text {
+                            text: "These sources are off by default. Turn on only the catalogues you want included in Discover. Your choices are saved locally.";
+                            color: #879487; font-size: 11px; wrap: word-wrap;
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            CheckBox { text: "Apple Music catalogue"; checked <=> root.apple_catalog_enabled; }
+                            CheckBox { text: "Jamendo catalogue"; checked <=> root.jamendo_catalog_enabled; }
+                            Button { text: "Save provider settings"; clicked => { root.save_provider_catalog_settings_clicked(); } }
+                        }
                         HorizontalLayout {
                             spacing: 8px;
                             Button { text: "Open Spotify"; clicked => { root.open_external_service_clicked("spotify"); } }
