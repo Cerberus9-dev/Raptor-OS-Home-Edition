@@ -1,3 +1,5 @@
+pub mod rodio;
+
 use raptor_core::models::{
     AudioSourceKind, PlaybackAccess, PlaybackSource as EnginePlaybackSource,
     PlayerState, UnifiedTrack,
