@@ -47,14 +47,23 @@ impl AudioBackend for RodioBackend {
         }
 
         self.state = PlayerState::Loading;
-        let bytes = self.client.get(url).send()
+        let response = self.client.get(url).send()
             .map_err(|error| PlaybackError::Backend(error.to_string()))?
             .error_for_status()
-            .map_err(|error| PlaybackError::Backend(error.to_string()))?
-            .bytes()
+            .map_err(|error| PlaybackError::Backend(error.to_string()))?;
+        const MAX_BUFFER_BYTES: u64 = 512 * 1024 * 1024;
+        if response.content_length().is_some_and(|length| length > MAX_BUFFER_BYTES) {
+            self.state = PlayerState::Error;
+            return Err(PlaybackError::Backend("Audio response exceeds the 512 MiB safety limit".into()));
+        }
+        let bytes = response.bytes()
             .map_err(|error| PlaybackError::Backend(error.to_string()))?
             .to_vec();
 
+        if bytes.len() as u64 > MAX_BUFFER_BYTES {
+            self.state = PlayerState::Error;
+            return Err(PlaybackError::Backend("Audio response exceeds the 512 MiB safety limit".into()));
+        }
         if bytes.is_empty() {
             self.state = PlayerState::Error;
             return Err(PlaybackError::Backend("The provider returned an empty audio response".into()));
