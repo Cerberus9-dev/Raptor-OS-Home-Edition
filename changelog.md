@@ -1,5 +1,29 @@
 # Changelog
 
+### Raptor Music discovery
+- Added Audius autocomplete album and playlist search results in a separate Discover section; selecting a collection loads its tracks into the online player list.
+- Documented provider-specific account authorization boundaries and the distinction between account linking, catalog access, and playback rights.
+
+
+### Raptor Music discovery
+- Added an Independent sort option that alternates relevance-ranked and recent Audius search results, deduplicating tracks so emerging and lower-play-count artists are not crowded out by popularity sorting.
+
+
+## Raptor Music
+
+- Added Apple Music catalog song search when the app developer configures a MusicKit developer token. Search results with official preview clips can play short, temporary previews; this does not claim full Apple Music subscription playback.
+- Added URL and redirect-host checks for Apple Music preview downloads, plus size limits and temporary-file cleanup.
+- Added provider availability notes to Settings and documented the Apple Music developer-token setup and current Spotify, YouTube Music and TIDAL boundaries.
+- Expanded Discord IPC discovery to cover native and common Flatpak runtime socket locations, plus an optional explicit socket path for unusual client setups.
+- Removed the arbitrary two-character search gate so short artist, song and keyword queries can be sent to online discovery. Search continues to query artists and tracks together.
+- Clarified the search field and status text for artist, song and keyword searches.
+
+
+- Added a separate personal phrase field to Discord Rich Presence. The current track title and artist still fill in automatically.
+- Fixed profile imports so normalized playlist packages with a `tracks` array keep their playlist tracks when multiple export files are merged.
+- Documented the provider-specific account and catalog restrictions that shape future Spotify, Apple Music, YouTube Music and TIDAL support.
+
+
 ## v3.0 fixes: app packaging
 
 - Packaged the Raptor Shroudly Rust/Slint app with its own launcher, desktop entry, and icon. The image build checks that these files are present.
@@ -29,9 +53,16 @@
 - Changed ZRAM compression to LZ4 to reduce CPU overhead on slower processors. Compression is lower than with zstd.
 
 ## [Unreleased]
-- Add separate Audius artist-profile results to Raptor Music online discovery. Selecting an artist opens the public Audius profile; local-library results remain separate.
-- Add an optional Raptor Flight Deck KDE Plasma 6 panel preset. It creates a compact bottom panel with the standard launcher, workspace pager, task manager, system tray and clock, without deleting or altering the user's existing panels. Available from the desktop right-click menu under Add Panel.
-
+- Add profile import to Raptor Music for supported Raptor profile packages and Spotify JSON exports. Users can select multiple files, review the information found, confirm the import, and reopen saved imports in the Imported Profiles view.
+- Keep imported playlists, saved tracks, followed artists and listening history together as separate saved profiles. Imports can be merged and deduplicated; exports without a stable username remain separate. Imported entries do not become local audio files.
+- Keep online discovery and the offline Local Library separate. Discover searches Audius for tracks and artists; local searches stay on the device.
+- Improve Music navigation, empty-library and empty-queue guidance, and selection-aware playlist, queue and playback controls.
+- Expand online track results, keep artist and track sorting consistent, and open artist profiles inside Raptor Music.
+- Add an optional Raptor Flight Deck KDE Plasma 6 panel preset. It creates a compact bottom panel without changing or removing the user's existing panels.
+- Make track rows start playback on a single click in both Discover and Local Library. A direct song selection is added to the queue and starts immediately, even when other tracks are already queued.
+- Add a three-dot song menu for adding a track straight to the queue or to any existing playlist.
+- Add one-tap 15-second rewind and skip controls to the player dock.
+- Add optional Discord Rich Presence settings. Users supply their own Discord application Client ID, enable or disable sharing, and customize the details and state lines with `{title}` and `{artist}` placeholders. Activity is sent over the local Discord RPC socket and is off by default.
 ### v3.0.0
 
 Version 3.0 groups the larger changes to performance, gaming, audio, Cortex, updates, hardware recovery, first-run setup, and image distribution. It also includes fixes to the Raptor apps and their build checks.

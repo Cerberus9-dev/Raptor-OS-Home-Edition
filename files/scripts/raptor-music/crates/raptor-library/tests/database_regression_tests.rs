@@ -155,11 +155,37 @@ fn version_one_queue_migrates_without_losing_track_relationship() {
         let version: i32 = db.conn.query_row(
             "SELECT MAX(version) FROM schema_migrations", [], |row| row.get(0)
         ).unwrap();
-        assert_eq!(version, 2);
+        // Version 3 adds isolated imported-profile storage after the v1 queue migration.
+        assert_eq!(version, 3);
     }
     cleanup(&path);
 }
 
+
+#[test]
+fn apple_music_library_refresh_updates_the_existing_connected_profile() {
+    let path = db_path("apple_music_refresh");
+    {
+        let db = LibraryDatabase::new(&path).unwrap();
+        let first = db.save_imported_profile(
+            "apple_music", Some("Apple Music Library"), Some("connected-account"),
+            r#"{"saved_tracks":[{"title":"First"}]}"#,
+        ).unwrap();
+        let refreshed = db.save_imported_profile(
+            "apple_music", Some("Apple Music Library"), Some("connected-account"),
+            r#"{"saved_tracks":[{"title":"Second"}]}"#,
+        ).unwrap();
+
+        assert_eq!(first, refreshed);
+        let profiles = db.get_imported_profiles().unwrap();
+        assert_eq!(profiles.iter().filter(|profile| profile.provider == "apple_music").count(), 1);
+        assert_eq!(
+            db.get_imported_profile_payload(first).unwrap().as_deref(),
+            Some(r#"{"saved_tracks":[{"title":"Second"}]}"#),
+        );
+    }
+    cleanup(&path);
+}
 
 #[test]
 fn playlist_names_must_not_be_empty() {

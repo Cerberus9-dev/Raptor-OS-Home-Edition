@@ -13,6 +13,13 @@ export struct PlaylistData {
     name: string,
 }
 
+export struct ImportedProfileData {
+    id: string,
+    name: string,
+    subtitle: string,
+    avatar: image,
+}
+
 export component MainWindow inherits Window {
     title: "Raptor Music";
     preferred-width: 1180px;
@@ -24,16 +31,22 @@ export component MainWindow inherits Window {
     in-out property <[TrackData]> track_list: [];
     in-out property <[TrackData]> online_track_list: [];
     in-out property <[TrackData]> online_artist_list: [];
-    in-out property <string> online_search_status: "Type 2+ characters to search Audius";
+    in-out property <[TrackData]> online_collection_list: [];
+    in-out property <string> online_search_status: "Search artist names, song titles or keywords";
+    in-out property <string> online_sort_method: "relevant";
     in-out property <int> selected_online_track_index: -1;
     in-out property <[TrackData]> queue_list: [];
     in-out property <[PlaylistData]> playlist_list: [];
+    in-out property <[ImportedProfileData]> imported_profile_list: [];
+    in-out property <string> imported_profile_detail: "Select an imported profile to inspect its playlists, saved tracks, artists and listening history.";
     in-out property <string> new_playlist_name: "";
     in-out property <int> selected_playlist_index: -1;
     in-out property <int> selected_track_index: -1;
     in-out property <string> search_query: "";
     in-out property <int> selected_queue_index: -1;
     in-out property <int> playing_queue_index: -1;
+    in-out property <int> menu_track_index: -1;
+    in-out property <string> menu_track_source: "";
     in-out property <string> current_track_title: "Choose something to play";
     in-out property <string> current_track_artist: "Your music, your library";
     in-out property <string> progress_label: "0:00 / 0:00";
@@ -41,11 +54,31 @@ export component MainWindow inherits Window {
     in-out property <float> playback_position_secs: 0;
     in-out property <bool> is_seeking: false;
     in-out property <string> player_state_label: "Ready";
+    in-out property <string> active_view: "discover";
+    in-out property <string> artist_profile_name: "";
+    in-out property <string> artist_profile_handle: "";
+    in-out property <string> artist_profile_bio: "";
+    in-out property <string> artist_profile_stats: "";
+    in-out property <string> artist_profile_status: "";
+    in-out property <string> profile_import_status: "Import a profile export to preview what can be transferred";
+    in-out property <bool> discord_presence_enabled: false;
+    in-out property <string> discord_client_id: "";
+    in-out property <string> discord_details_template: "{title}";
+    in-out property <string> discord_state_template: "by {artist}";
+    in-out property <string> discord_custom_phrase: "Jamming out to";
+    in-out property <string> discord_presence_status: "Discord Rich Presence is off";
+    in-out property <string> provider_connection_status: "No music-service accounts connected";
 
     callback scan_directory_clicked();
+    callback import_profile_clicked();
+    callback confirm_profile_import_clicked();
+    callback imported_profile_selected(int);
+    callback refresh_imported_profiles_clicked();
+    callback delete_imported_profile_clicked();
     callback track_selected(int);
     callback online_track_selected(int);
     callback artist_selected(int);
+    callback collection_selected(int);
     callback search_changed(string);
     callback queue_selected(int);
     callback playlist_selected(int);
@@ -54,6 +87,19 @@ export component MainWindow inherits Window {
     callback load_playlist_clicked();
     callback remove_queue_clicked();
     callback add_to_queue_clicked();
+    callback track_menu_action(int, string, string, int);
+    callback skip_backward_clicked();
+    callback skip_forward_clicked();
+    callback save_discord_presence_clicked();
+    callback connect_spotify_clicked();
+    callback connect_apple_music_clicked();
+    callback refresh_apple_music_clicked();
+    callback open_external_service_clicked(string);
+    callback connect_youtube_clicked();
+    callback disconnect_spotify_clicked();
+    callback disconnect_apple_music_clicked();
+    callback disconnect_tidal_clicked();
+    callback disconnect_youtube_clicked();
     callback play_clicked();
     callback seek_clicked(float);
     callback previous_clicked();
@@ -117,23 +163,121 @@ export component MainWindow inherits Window {
                         font-size: 11px;
                         font-weight: 700;
                     }
-                    Text {
-                        text: "Home";
-                        color: #edf2e7;
-                        font-size: 15px;
-                        font-weight: 700;
+                    Rectangle {
+                        height: 36px;
+                        border-radius: 6px;
+                        background: root.active_view == "discover" ? #34482a : transparent;
+                        Text {
+                            text: "Discover";
+                            color: root.active_view == "discover" ? #d4ed9c : #c1cbc0;
+                            x: 10px;
+                            vertical-alignment: center;
+                            font-size: 14px;
+                            font-weight: root.active_view == "discover" ? 700 : 500;
+                        }
+                        TouchArea {
+                            clicked => {
+                                root.active_view = "discover";
+                                root.search_changed(root.search_query);
+                            }
+                        }
+                    }
+                    Rectangle {
+                        height: 36px;
+                        border-radius: 6px;
+                        background: #263329;
+                        Text {
+                            text: "Import profile…";
+                            color: #d4ed9c;
+                            x: 10px;
+                            vertical-alignment: center;
+                            font-size: 14px;
+                            font-weight: 600;
+                        }
+                        TouchArea {
+                            clicked => { root.import_profile_clicked(); }
+                        }
                     }
                     Text {
-                        text: "Search & discover";
-                        color: #b0bdb0;
-                        font-size: 14px;
+                        text: root.profile_import_status;
+                        color: #9eae9d;
+                        font-size: 10px;
+                        wrap: word-wrap;
+                    }
+                    Rectangle {
+                        height: 34px;
+                        border-radius: 6px;
+                        background: #35472d;
+                        Text {
+                            text: "Confirm profile import";
+                            color: #d4ed9c;
+                            x: 10px;
+                            vertical-alignment: center;
+                            font-size: 12px;
+                            font-weight: 600;
+                        }
+                        TouchArea {
+                            clicked => { root.confirm_profile_import_clicked(); }
+                        }
+                    }
+                    Rectangle {
+                        height: 36px;
+                        border-radius: 6px;
+                        background: root.active_view == "imported-profiles" ? #34482a : transparent;
+                        Text {
+                            text: "Imported profiles";
+                            color: root.active_view == "imported-profiles" ? #d4ed9c : #c1cbc0;
+                            x: 10px;
+                            vertical-alignment: center;
+                            font-size: 14px;
+                            font-weight: root.active_view == "imported-profiles" ? 700 : 500;
+                        }
+                        TouchArea {
+                            clicked => {
+                                root.active_view = "imported-profiles";
+                                root.refresh_imported_profiles_clicked();
+                            }
+                        }
+                    }
+                    Rectangle {
+                        height: 36px;
+                        border-radius: 6px;
+                        background: root.active_view == "settings" ? #34482a : transparent;
+                        Text {
+                            text: "Settings";
+                            color: root.active_view == "settings" ? #d4ed9c : #c1cbc0;
+                            x: 10px;
+                            vertical-alignment: center;
+                            font-size: 14px;
+                            font-weight: root.active_view == "settings" ? 700 : 500;
+                        }
+                        TouchArea { clicked => { root.active_view = "settings"; } }
+                    }
+                    Rectangle {
+                        height: 36px;
+                        border-radius: 6px;
+                        background: root.active_view == "library" ? #34482a : transparent;
+                        Text {
+                            text: "Local library";
+                            color: root.active_view == "library" ? #d4ed9c : #c1cbc0;
+                            x: 10px;
+                            vertical-alignment: center;
+                            font-size: 14px;
+                            font-weight: root.active_view == "library" ? 700 : 500;
+                        }
+                        TouchArea {
+                            clicked => {
+                                root.active_view = "library";
+                                root.search_changed(root.search_query);
+                            }
+                        }
                     }
                     Rectangle { height: 1px; background: #354237; }
                     HorizontalLayout {
                         Text {
-                            text: "Your Library";
-                            color: #edf2e7;
-                            font-size: 14px;
+                            text: "PLAYLISTS";
+                            color: #879487;
+                            font-size: 11px;
                             font-weight: 700;
                             vertical-alignment: center;
                         }
@@ -193,10 +337,12 @@ export component MainWindow inherits Window {
                     }
                     Button {
                         text: "Add selected track";
+                        enabled: root.selected_playlist_index >= 0 && (root.selected_track_index >= 0 || root.selected_online_track_index >= 0);
                         clicked => { root.add_to_playlist_clicked(); }
                     }
                     Button {
                         text: "Play selected playlist";
+                        enabled: root.selected_playlist_index >= 0;
                         clicked => { root.load_playlist_clicked(); }
                     }
                 }
@@ -211,18 +357,174 @@ export component MainWindow inherits Window {
                     spacing: 16px;
 
                     Text {
-                        text: "Your music, organized.";
+                        text: root.active_view == "discover" ? "Find your next favorite." : (root.active_view == "artist" ? root.artist_profile_name : "Your music, organized.");
                         color: #f2f5ec;
                         font-size: 29px;
                         font-weight: 700;
                     }
                     Text {
-                        text: "Search your local collection and browse streamable tracks from Audius.";
+                        text: root.active_view == "discover"
+                            ? "Explore tracks and independent artists from across the online catalog."
+                            : (root.active_view == "artist" ? "Artist profile and available tracks." : "Your local files stay separate from online discovery.");
                         color: #b0bdb0;
                         font-size: 13px;
                     }
 
+                    VerticalLayout {
+                        visible: root.active_view == "imported-profiles";
+                        spacing: 12px;
+                        HorizontalLayout {
+                            Text { text: "Connected profiles"; color: #f2f5ec; font-size: 19px; font-weight: 700; }
+                            Rectangle { horizontal-stretch: 1; }
+                            Button { text: "Refresh"; clicked => { root.refresh_imported_profiles_clicked(); } }
+                        }
+                        Text {
+                            text: "Imported accounts stay separate from your local files and playlists.";
+                            color: #879487;
+                            font-size: 11px;
+                        }
+                        ListView {
+                            height: 190px;
+                            for p[index] in root.imported_profile_list : Rectangle {
+                                height: 54px;
+                                border-radius: 7px;
+                                background: #202b21;
+                                HorizontalLayout {
+                                    padding-left: 12px; padding-right: 12px; spacing: 10px;
+                                    Image {
+                                        source: p.avatar;
+                                        width: 42px;
+                                        height: 42px;
+                                    }
+                                    VerticalLayout {
+                                        horizontal-stretch: 1; spacing: 2px;
+                                        Text { text: p.name; color: #edf5fb; font-size: 13px; font-weight: 600; vertical-alignment: center; overflow: elide; }
+                                        Text { text: p.subtitle; color: #9eae9d; font-size: 10px; vertical-alignment: center; overflow: elide; }
+                                    }
+                                    Text { text: "View"; color: #b4d66d; font-size: 11px; vertical-alignment: center; }
+                                }
+                                TouchArea { clicked => { root.imported_profile_selected(index); } }
+                            }
+                        }
+                        Text {
+                            text: root.imported_profile_detail;
+                            color: #c1cbc0;
+                            font-size: 12px;
+                            wrap: word-wrap;
+                            vertical-stretch: 1;
+                        }
+                        Button {
+                            text: "Remove selected profile";
+                            clicked => { root.delete_imported_profile_clicked(); }
+                        }
+                    }
+
+                    VerticalLayout {
+                        visible: root.active_view == "settings";
+                        spacing: 12px;
+                        Text { text: "Music providers"; color: #f2f5ec; font-size: 21px; font-weight: 700; }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            Button { text: "Open Spotify"; clicked => { root.open_external_service_clicked("spotify"); } }
+                            Button { text: "Open Apple Music"; clicked => { root.open_external_service_clicked("apple_music"); } }
+                            Button { text: "Open YouTube Music"; clicked => { root.open_external_service_clicked("youtube_music"); } }
+                        }
+                        Text {
+                            text: "Raptor Music connects accounts through provider sign-in, never by collecting service passwords. Account linking, library import, catalog search and playback are separate capabilities and depend on each provider's API permissions.";
+                            color: #a5b2a3; font-size: 12px; wrap: word-wrap;
+                        }
+                        Text { text: "Apple Music catalog setup"; color: #d4ed9c; font-size: 13px; font-weight: 700; }
+                        Text {
+                            text: "Provide RAPTOR_APPLE_MUSIC_DEVELOPER_TOKEN at launch. RAPTOR_APPLE_MUSIC_STOREFRONT is optional and defaults to us. Never place the MusicKit private key in this app or repository. Connect Apple Music below to authorize library import.";
+                            color: #879487; font-size: 11px; wrap: word-wrap;
+                        }
+                        Text { text: "Connect music accounts"; color: #d4ed9c; font-size: 14px; font-weight: 700; }
+                        Text {
+                            text: "Apple Music sign-in uses Apple's hosted MusicKit authorization. After approval, Raptor Music imports your library songs, playlists, playlist tracks and library artists. Your Music User Token is kept in the OS credential manager.";
+                            color: #879487; font-size: 11px; wrap: word-wrap;
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            Button { text: "Connect Apple Music"; clicked => { root.connect_apple_music_clicked(); } }
+                            Button { text: "Refresh Library"; clicked => { root.refresh_apple_music_clicked(); } }
+                            Button { text: "Disconnect"; clicked => { root.disconnect_apple_music_clicked(); } }
+                        }
+                        Text {
+                            text: "Spotify sign-in uses user-approved OAuth scopes for account and library metadata import. Spotify tracks remain provider references; this does not stream Spotify audio inside the combined player.";
+                            color: #879487; font-size: 11px; wrap: word-wrap;
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            Button { text: "Connect Spotify"; clicked => { root.connect_spotify_clicked(); } }
+                            Button { text: "Disconnect"; clicked => { root.disconnect_spotify_clicked(); } }
+                        }
+                        Text {
+                            text: "Fallback catalogs: Audius is integrated for in-app search and playback. Jamendo search is available with RAPTOR_JAMENDO_CLIENT_ID; selecting a result opens its licensed Jamendo page. These are the built-in alternatives when a provider cannot be combined in-app.";
+                            color: #879487; font-size: 11px; wrap: word-wrap;
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            Button { text: "Open Audius"; clicked => { root.open_external_service_clicked("audius"); } }
+                            Button { text: "Open Jamendo"; clicked => { root.open_external_service_clicked("jamendo"); } }
+                        }
+                        Text {
+                            text: "TIDAL content cannot be mixed into Raptor Music's combined catalog under the current developer guidelines. Use the official TIDAL service separately unless express written approval covers a deeper integration.";
+                            color: #879487; font-size: 11px; wrap: word-wrap;
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            Button { text: "Open TIDAL"; clicked => { root.open_external_service_clicked("tidal"); } }
+                            Button { text: "Disconnect"; clicked => { root.disconnect_tidal_clicked(); } }
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            Button { text: "Connect YouTube account"; clicked => { root.connect_youtube_clicked(); } }
+                            Button { text: "Disconnect"; clicked => { root.disconnect_youtube_clicked(); } }
+                        }
+                        Text { text: root.provider_connection_status; color: #b4d66d; font-size: 11px; wrap: word-wrap; }
+                        Rectangle { height: 1px; background: #354236; }
+                        Text { text: "Discord Rich Presence"; color: #f2f5ec; font-size: 21px; font-weight: 700; }
+                        Text {
+                            text: "Show what you're listening to in Discord and compatible clients. Raptor Music connects to a local Discord RPC socket; it does not send your music history to a Raptor server.";
+                            color: #a5b2a3; font-size: 12px; wrap: word-wrap;
+                        }
+                        Text { text: "Application Client ID"; color: #d4ed9c; font-size: 12px; font-weight: 700; }
+                        LineEdit {
+                            placeholder-text: "Paste your Discord application's Client ID";
+                            text <=> root.discord_client_id;
+                            font-size: 13px;
+                        }
+                        Text { text: "Personal phrase · shown before the track title"; color: #d4ed9c; font-size: 12px; font-weight: 700; }
+                        LineEdit {
+                            placeholder-text: "Jamming out to";
+                            text <=> root.discord_custom_phrase;
+                            font-size: 13px;
+                        }
+                        Text { text: "Track line · {title} and {artist} fill in automatically"; color: #d4ed9c; font-size: 12px; font-weight: 700; }
+                        LineEdit {
+                            placeholder-text: "{title}";
+                            text <=> root.discord_details_template;
+                            font-size: 13px;
+                        }
+                        Text { text: "Artist line · use {title} and {artist}"; color: #d4ed9c; font-size: 12px; font-weight: 700; }
+                        LineEdit {
+                            placeholder-text: "by {artist}";
+                            text <=> root.discord_state_template;
+                            font-size: 13px;
+                        }
+                        HorizontalLayout {
+                            spacing: 8px;
+                            Button {
+                                text: root.discord_presence_enabled ? "Turn Rich Presence off" : "Turn Rich Presence on";
+                                clicked => { root.discord_presence_enabled = !root.discord_presence_enabled; root.save_discord_presence_clicked(); }
+                            }
+                            Button { text: "Save settings"; clicked => { root.save_discord_presence_clicked(); } }
+                        }
+                        Text { text: root.discord_presence_status; color: #a5b2a3; font-size: 11px; wrap: word-wrap; }
+                    }
+
                     Rectangle {
+                        visible: root.active_view == "discover" || root.active_view == "library";
                         height: 44px;
                         background: #273229;
                         border-radius: 8px;
@@ -237,7 +539,9 @@ export component MainWindow inherits Window {
                                 vertical-alignment: center;
                             }
                             LineEdit {
-                                placeholder-text: "Songs, artists, albums or genres";
+                                placeholder-text: root.active_view == "discover"
+                                    ? "Search artists, songs and keywords"
+                                    : "Search your local library";
                                 text <=> root.search_query;
                                 font-size: 14px;
                                 horizontal-stretch: 1;
@@ -247,12 +551,124 @@ export component MainWindow inherits Window {
                     }
 
                     Text {
-                        text: "Local matches update as you type · Online results are from Audius";
+                        visible: root.active_view != "artist";
+                        text: root.active_view == "discover"
+                            ? "Search online catalog results here; your local files remain in Your Library."
+                            : "Search matches across local titles, artists and album names.";
                         color: #879487;
                         font-size: 11px;
                     }
 
+                    VerticalLayout {
+                        visible: root.active_view == "artist";
+                        spacing: 10px;
+                        Button {
+                            text: "Back to Discover";
+                            clicked => {
+                                root.active_view = "discover";
+                                root.search_changed(root.search_query);
+                            }
+                        }
+                        Text {
+                            text: root.artist_profile_name;
+                            color: #f2f5ec;
+                            font-size: 28px;
+                            font-weight: 700;
+                        }
+                        Text {
+                            text: root.artist_profile_handle;
+                            color: #b4d66d;
+                            font-size: 13px;
+                        }
+                        Text {
+                            text: root.artist_profile_stats;
+                            color: #879487;
+                            font-size: 11px;
+                        }
+                        Text {
+                            text: root.artist_profile_bio;
+                            color: #c1cbc0;
+                            font-size: 13px;
+                            wrap: word-wrap;
+                        }
+                        Text {
+                            visible: root.online_collection_list.length > 0;
+                            text: "Albums & releases";
+                            color: #f2f5ec;
+                            font-size: 18px;
+                            font-weight: 700;
+                        }
+                        ListView {
+                            visible: root.online_collection_list.length > 0;
+                            height: 180px;
+                            for c[index] in root.online_collection_list : Rectangle {
+                                height: 48px;
+                                border-radius: 6px;
+                                background: #202b21;
+                                HorizontalLayout {
+                                    padding-left: 12px;
+                                    padding-right: 12px;
+                                    spacing: 10px;
+                                    VerticalLayout {
+                                        horizontal-stretch: 1;
+                                        spacing: 1px;
+                                        Text { text: c.title; color: #edf5fb; font-size: 12px; vertical-alignment: center; overflow: elide; }
+                                        Text { text: c.artist; color: #a5b2a3; font-size: 10px; vertical-alignment: center; overflow: elide; }
+                                    }
+                                    Text { text: c.album; color: #b4d66d; width: 80px; font-size: 10px; vertical-alignment: center; }
+                                    Text { text: "Open"; color: #b4d66d; font-size: 10px; vertical-alignment: center; }
+                                }
+                                TouchArea { clicked => { root.collection_selected(index); } }
+                            }
+                        }
+                        HorizontalLayout {
+                            Text {
+                                text: "Popular tracks";
+                                color: #f2f5ec;
+                                font-size: 18px;
+                                font-weight: 700;
+                            }
+                            Rectangle { horizontal-stretch: 1; }
+                            Text {
+                                text: root.artist_profile_status;
+                                color: #879487;
+                                font-size: 11px;
+                                vertical-alignment: center;
+                            }
+                        }
+                        ListView {
+                            visible: root.online_track_list.length > 0;
+                            vertical-stretch: 1;
+                            for t[index] in root.online_track_list : Rectangle {
+                                height: 48px;
+                                border-radius: 6px;
+                                background: index == root.selected_online_track_index ? #34482a : #202b21;
+                                HorizontalLayout {
+                                    padding-left: 12px;
+                                    padding-right: 12px;
+                                    spacing: 10px;
+                                    VerticalLayout {
+                                        horizontal-stretch: 1;
+                                        spacing: 1px;
+                                        Text { text: t.title; color: #edf5fb; font-size: 12px; vertical-alignment: center; overflow: elide; }
+                                        Text { text: t.artist; color: #a5b2a3; font-size: 10px; vertical-alignment: center; overflow: elide; }
+                                        TouchArea { clicked => { root.online_track_selected(index); root.play_clicked(); } }
+                                    }
+                                    Text { text: t.album; color: #a5b2a3; width: 110px; font-size: 10px; vertical-alignment: center; overflow: elide; }
+                                    Text { text: t.duration; color: #a5b2a3; width: 48px; font-size: 10px; vertical-alignment: center; }
+                                    Button { text: "⋮"; clicked => { root.menu_track_index = index; root.menu_track_source = "online"; } }
+                                }
+                            }
+                        }
+                        Button {
+                            text: "Add selected track to queue";
+                            enabled: root.selected_online_track_index >= 0;
+                            clicked => { root.add_to_queue_clicked(); }
+                        }
+                    }
+
                     HorizontalLayout {
+                        visible: root.active_view == "library";
                         Text {
                             text: "Local library";
                             color: #f2f5ec;
@@ -271,6 +687,7 @@ export component MainWindow inherits Window {
 
                     // Column headings
                     HorizontalLayout {
+                        visible: root.active_view == "library";
                         padding-left: 12px;
                         padding-right: 12px;
                         height: 28px;
@@ -280,7 +697,14 @@ export component MainWindow inherits Window {
                         Text { text: "TIME"; color: #879487; width: 52px; font-size: 11px; }
                     }
 
+                    Text {
+                        visible: root.active_view == "library" && root.track_list.length == 0;
+                        text: "No matching local tracks. Import a folder or try a different search.";
+                        color: #879487;
+                        font-size: 13px;
+                    }
                     ListView {
+                        visible: root.active_view == "library" && root.track_list.length > 0;
                         vertical-stretch: 1;
                         for t[index] in root.track_list : Rectangle {
                             height: 52px;
@@ -314,6 +738,7 @@ export component MainWindow inherits Window {
                                         vertical-alignment: center;
                                         overflow: elide;
                                     }
+                                    TouchArea { clicked => { root.track_selected(index); root.play_clicked(); } }
                                 }
                                 Text {
                                     text: t.album;
@@ -330,14 +755,15 @@ export component MainWindow inherits Window {
                                     vertical-alignment: center;
                                     font-size: 11px;
                                 }
+                                Button { text: "⋮"; clicked => { root.menu_track_index = index; root.menu_track_source = "local"; } }
                             }
-                            TouchArea { clicked => { root.track_selected(index); } }
                         }
                     }
 
                     HorizontalLayout {
+                        visible: root.active_view == "discover";
                         Text {
-                            text: "Online discovery · Audius";
+                            text: "Online discovery";
                             color: #f2f5ec;
                             font-size: 18px;
                             font-weight: 700;
@@ -352,8 +778,17 @@ export component MainWindow inherits Window {
                         }
                     }
 
-                    Text { text: "Artists"; color: #f2f5ec; font-size: 18px; font-weight: 700; }
+                    HorizontalLayout {
+                        visible: root.active_view == "discover";
+                        Text { text: "Sort"; color: #879487; font-size: 11px; vertical-alignment: center; }
+                        Button { text: "Relevant"; clicked => { root.online_sort_method = "relevant"; root.search_changed(root.search_query); } }
+                        Button { text: "Popular"; clicked => { root.online_sort_method = "popular"; root.search_changed(root.search_query); } }
+                        Button { text: "Recent"; clicked => { root.online_sort_method = "recent"; root.search_changed(root.search_query); } }
+                        Button { text: "Independent"; clicked => { root.online_sort_method = "independent"; root.search_changed(root.search_query); } }
+                    }
+                    Text { visible: root.active_view == "discover"; text: "Artists"; color: #f2f5ec; font-size: 18px; font-weight: 700; }
                     ListView {
+                        visible: root.active_view == "discover" && root.online_artist_list.length > 0;
                         height: 104px;
                         for a[index] in root.online_artist_list : Rectangle {
                             height: 48px; border-radius: 6px; background: #202b21;
@@ -371,8 +806,29 @@ export component MainWindow inherits Window {
                             TouchArea { clicked => { root.artist_selected(index); } }
                         }
                     }
-                    Text { text: "Tracks"; color: #f2f5ec; font-size: 18px; font-weight: 700; }
+                    Text { visible: root.active_view == "discover" && root.online_collection_list.length > 0; text: "Albums & playlists"; color: #f2f5ec; font-size: 18px; font-weight: 700; }
                     ListView {
+                        visible: root.active_view == "discover" && root.online_collection_list.length > 0;
+                        height: 150px;
+                        for c[index] in root.online_collection_list : Rectangle {
+                            height: 48px; border-radius: 6px; background: #202b21;
+                            HorizontalLayout {
+                                padding-left: 12px; padding-right: 12px; spacing: 10px;
+                                Rectangle { width: 32px; height: 32px; border-radius: 5px; background: #34412c;
+                                    Text { text: c.album == "Album" ? "▣" : "≡"; color: #c5d99a; font-size: 16px; horizontal-alignment: center; vertical-alignment: center; }
+                                }
+                                VerticalLayout { horizontal-stretch: 1; spacing: 1px;
+                                    Text { text: c.title; color: #edf5fb; font-size: 12px; vertical-alignment: center; overflow: elide; }
+                                    Text { text: c.artist; color: #a5b2a3; font-size: 10px; vertical-alignment: center; overflow: elide; }
+                                }
+                                Text { text: "Open"; color: #b4d66d; font-size: 10px; vertical-alignment: center; }
+                            }
+                            TouchArea { clicked => { root.collection_selected(index); } }
+                        }
+                    }
+                    Text { visible: root.active_view == "discover"; text: "Tracks"; color: #f2f5ec; font-size: 18px; font-weight: 700; }
+                    ListView {
+                        visible: root.active_view == "discover" && root.online_track_list.length > 0;
                         vertical-stretch: 1;
                         for t[index] in root.online_track_list : Rectangle {
                             height: 48px;
@@ -412,6 +868,7 @@ export component MainWindow inherits Window {
                                         vertical-alignment: center;
                                         overflow: elide;
                                     }
+                                    TouchArea { clicked => { root.online_track_selected(index); root.play_clicked(); } }
                                 }
                                 Text {
                                     text: t.album;
@@ -428,12 +885,13 @@ export component MainWindow inherits Window {
                                     vertical-alignment: center;
                                     font-size: 10px;
                                 }
+                                Button { text: "⋮"; clicked => { root.menu_track_index = index; root.menu_track_source = "online"; } }
                             }
-                            TouchArea { clicked => { root.online_track_selected(index); } }
                         }
                     }
 
                     HorizontalLayout {
+                        visible: root.active_view == "discover";
                         spacing: 8px;
                         Button {
                             text: "Add selected to queue";
@@ -492,9 +950,38 @@ export component MainWindow inherits Window {
                             TouchArea { clicked => { root.queue_selected(index); } }
                         }
                     }
+                    Text {
+                        visible: root.queue_list.length == 0;
+                        text: "Nothing queued";
+                        color: #879487;
+                        font-size: 11px;
+                    }
                     Button {
                         text: "Remove from queue";
+                        enabled: root.selected_queue_index >= 0;
                         clicked => { root.remove_queue_clicked(); }
+                    }
+                    VerticalLayout {
+                        visible: root.menu_track_index >= 0;
+                        spacing: 4px;
+                        Rectangle { height: 1px; background: #354237; }
+                        Text { text: "Song options"; color: #d4ed9c; font-size: 12px; font-weight: 700; }
+                        Button {
+                            text: "Add to queue";
+                            clicked => {
+                                root.track_menu_action(root.menu_track_index, root.menu_track_source, "queue", -1);
+                                root.menu_track_index = -1;
+                            }
+                        }
+                        Text { text: "Add to playlist"; color: #a5b2a3; font-size: 11px; }
+                        for p[index] in root.playlist_list : Button {
+                            text: p.name;
+                            clicked => {
+                                root.track_menu_action(root.menu_track_index, root.menu_track_source, "playlist", index);
+                                root.menu_track_index = -1;
+                            }
+                        }
+                        Button { text: "Close"; clicked => { root.menu_track_index = -1; } }
                     }
                 }
             }
@@ -551,10 +1038,12 @@ export component MainWindow inherits Window {
                     HorizontalLayout {
                         alignment: center;
                         spacing: 12px;
-                        Button { text: "Previous"; clicked => { root.previous_clicked(); } }
-                        Button { text: "Play / Pause"; clicked => { root.play_clicked(); } }
-                        Button { text: "Next"; clicked => { root.next_clicked(); } }
-                        Button { text: "Stop"; clicked => { root.stop_clicked(); } }
+                        Button { text: "−15s"; enabled: root.duration_secs > 0; clicked => { root.skip_backward_clicked(); } }
+                        Button { text: "Previous"; enabled: root.playing_queue_index > 0 || root.selected_queue_index > 0; clicked => { root.previous_clicked(); } }
+                        Button { text: root.player_state_label == "Playing" ? "Pause" : "Play"; clicked => { root.play_clicked(); } }
+                        Button { text: "Next"; enabled: root.queue_list.length > 1 && (root.playing_queue_index < root.queue_list.length - 1 || root.selected_queue_index < root.queue_list.length - 1); clicked => { root.next_clicked(); } }
+                        Button { text: "+15s"; enabled: root.duration_secs > 0; clicked => { root.skip_forward_clicked(); } }
+                        Button { text: "Stop"; enabled: root.player_state_label == "Playing" || root.player_state_label == "Paused" || root.player_state_label == "Loading"; clicked => { root.stop_clicked(); } }
                     }
                     Slider {
                         minimum: 0;

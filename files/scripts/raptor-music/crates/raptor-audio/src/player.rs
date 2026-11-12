@@ -83,6 +83,64 @@ fn download_audius_track(track_id: &str) -> Result<tempfile::NamedTempFile, Stri
     Ok(temp)
 }
 
+fn is_apple_preview_url(value: &str) -> bool {
+    let Ok(url) = reqwest::Url::parse(value) else { return false; };
+    url.scheme() == "https"
+        && matches!(url.host_str(), Some("audio-ssl.itunes.apple.com" | "audio.itunes.apple.com"))
+        && url.username().is_empty()
+        && url.password().is_none()
+}
+
+fn download_apple_music_preview(preview_url: &str) -> Result<tempfile::NamedTempFile, String> {
+    const MAX_PREVIEW_BYTES: u64 = 32 * 1024 * 1024;
+    if !is_apple_preview_url(preview_url) {
+        return Err("Apple Music returned an unsupported preview URL".into());
+    }
+
+    let client = reqwest::blocking::Client::builder()
+        .user_agent("RaptorMusic/0.2.18")
+        .connect_timeout(Duration::from_secs(8))
+        .timeout(Duration::from_secs(45))
+        .build()
+        .map_err(|error| format!("Could not initialize Apple Music preview: {error}"))?;
+    let response = client.get(preview_url).send()
+        .and_then(|response| response.error_for_status())
+        .map_err(|error| format!("Apple Music preview is unavailable: {error}"))?;
+
+    // Check the final URL too: do not let redirects turn a catalog preview
+    // into an arbitrary remote download.
+    if !is_apple_preview_url(response.url().as_str()) {
+        return Err("Apple Music preview redirected to an unsupported host".into());
+    }
+    if response.content_length().is_some_and(|length| length > MAX_PREVIEW_BYTES) {
+        return Err("Apple Music preview exceeded the 32 MiB limit".into());
+    }
+
+    let cache_root = std::env::var_os("XDG_CACHE_HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".cache")))
+        .unwrap_or_else(std::env::temp_dir);
+    let stream_dir = cache_root.join("raptor-music").join("previews");
+    let temp_dir = if std::fs::create_dir_all(&stream_dir).is_ok() {
+        stream_dir
+    } else {
+        std::env::temp_dir()
+    };
+    let mut temp = tempfile::Builder::new()
+        .prefix("apple-preview-")
+        .suffix(".m4a")
+        .tempfile_in(temp_dir)
+        .map_err(|error| format!("Could not create Apple Music preview buffer: {error}"))?;
+    let mut limited = response.take(MAX_PREVIEW_BYTES + 1);
+    let copied = std::io::copy(&mut limited, &mut temp)
+        .map_err(|error| format!("Apple Music preview download failed: {error}"))?;
+    if copied == 0 || copied > MAX_PREVIEW_BYTES {
+        return Err("Apple Music returned an empty or oversized preview".into());
+    }
+    temp.flush().map_err(|error| format!("Could not finish Apple Music preview: {error}"))?;
+    Ok(temp)
+}
+
 pub struct AudioPlayer {
     command_tx: Sender<PlayerCommand>,
     event_rx: Receiver<PlayerEvent>,
@@ -257,6 +315,30 @@ impl AudioPlayer {
                             .as_ref()
                             .map(|file| file.path().to_path_buf())
                             .ok_or_else(|| "Online audio buffer was not created".to_string())
+                    }
+                    PlaybackSource::RemoteStream { provider_id, provider_track_id }
+                        if provider_id == "apple_music_preview" =>
+                    {
+                        if remote_audio_file.is_none() {
+                            match download_apple_music_preview(provider_track_id) {
+                                Ok(file) => remote_audio_file = Some(file),
+                                Err(error) => {
+                                    *state.lock().unwrap() = PlayerState::Error;
+                                    let _ = event_tx.send(PlayerEvent::PlaybackFailed {
+                                        session_token,
+                                        error_message: error,
+                                    });
+                                    let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
+                                    active_session_token = None;
+                                    remote_audio_file = None;
+                                    break 'play_session;
+                                }
+                            }
+                        }
+                        remote_audio_file
+                            .as_ref()
+                            .map(|file| file.path().to_path_buf())
+                            .ok_or_else(|| "Apple Music preview buffer was not created".to_string())
                     }
                     PlaybackSource::RemoteStream { provider_id, .. } => {
                         Err(format!("Unsupported online music provider: {provider_id}"))
@@ -848,6 +930,21 @@ impl AudioPlayer {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod apple_preview_url_tests {
+    use super::is_apple_preview_url;
+
+    #[test]
+    fn accepts_only_https_apple_preview_hosts() {
+        assert!(is_apple_preview_url("https://audio-ssl.itunes.apple.com/preview.m4a"));
+        assert!(is_apple_preview_url("https://audio.itunes.apple.com/preview.m4a"));
+        assert!(!is_apple_preview_url("http://audio-ssl.itunes.apple.com/preview.m4a"));
+        assert!(!is_apple_preview_url("https://example.com/preview.m4a"));
+        assert!(!is_apple_preview_url("https://audio-ssl.itunes.apple.com.evil.example/preview.m4a"));
+        assert!(!is_apple_preview_url("https://user@audio-ssl.itunes.apple.com/preview.m4a"));
     }
 }
 

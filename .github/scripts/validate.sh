@@ -142,6 +142,47 @@ assert_contains files/scripts/raptor-wine/install.sh "wine --version"
 assert_contains files/scripts/raptor-wine/install.sh "umu-run --version"
 assert_contains files/scripts/raptor-wine/install.sh "stat -Lc 'Permissions: %A (%a)  Size: %s bytes'"
 
+echo "=== Checking Raptor Music provider authorization contracts ==="
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs "fetch_spotify_playlist_pages"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs "fetch_youtube_playlist_pages"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "search_jamendo_tracks"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "parse_jamendo_tracks"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "RAPTOR_JAMENDO_CLIENT_ID"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "open_jamendo_track"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "on_open_external_service_clicked"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint "Open TIDAL"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint "Open YouTube Music"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint "Open Jamendo"
+assert_not_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint "Connect TIDAL"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "creativecommons.org"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint "Fallback catalogs: Audius"
+
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs "parse_authorization_callback"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/callback_listener.rs "address.is_loopback()"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/callback_listener.rs "request.len() < 8192"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/apple_music_auth.rs "MusicKit.getInstance()"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/apple_music_auth.rs "wait_for_user_token"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "fetch_apple_music_library_import"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "apple_music_pagination_url"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "apple_music_pagination_only_accepts_https_api_paths_without_credentials_or_custom_ports"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'Some("connected-account")'
+assert_contains files/scripts/raptor-music/crates/raptor-library/tests/database_regression_tests.rs "apple_music_library_refresh_updates_the_existing_connected_profile"
+assert_contains files/scripts/raptor-music/crates/raptor-library/tests/database_regression_tests.rs "assert_eq!(version, 3)"
+
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "start_apple_music_library_refresh"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint "refresh_apple_music_clicked"
+
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "recent/played/tracks?limit=30&types=songs"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "parses_library_and_recent_played_track_resources_without_inventing_timestamps"
+
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "Music-User-Token"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/token_store.rs "save_music_user_token"
+
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/token_store.rs "set_password"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/token_store.rs "get_password"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/token_store.rs "delete_credential"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/Cargo.toml 'keyring = { version = "3.6.3"'
+
 echo "=== Checking first-boot recovery contracts ==="
 assert_contains files/system_files/raptor-browser-choice.sh "browser choice deferred; it will retry on the next login"
 assert_contains files/system_files/raptor-chat-choice.sh "chat client choice deferred; it will retry on the next login"
@@ -184,13 +225,40 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint '
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'preferred-height: 760px;'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'import { Button, LineEdit, ListView, Slider }'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'LineEdit {'
-assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'placeholder-text: "Songs, artists, albums or genres";'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'placeholder-text: root.active_view == "discover"'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'min-width: 860px;'
-assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Online discovery · Audius'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Online discovery'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'in-out property <string> active_view: "discover";'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'root.active_view = "library";'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'No matching local tracks. Import a folder or try a different search.'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Nothing queued'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'if ui.get_active_view() != "discover"'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'Online discovery is available in the Discover tab'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'https://api.audius.co/v1/users/search'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'ui.on_artist_selected'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fetch_audius_artist_profile'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'for page in 0..4'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'for page in 0..6'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'seen_album_ids'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Connect Spotify'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'callback connect_spotify_clicked();'
+assert_not_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'approval pending'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Connect YouTube account'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'avatar: image'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'source: p.avatar;'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn cache_profile_avatar'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'is_approved_profile_artwork_host'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'profile_artwork_host_allowlist_accepts_provider_cdns_without_suffix_spoofing'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'host.ends_with(".googleusercontent.com")'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'slint::Image::load_from_path'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fetch_spotify_profile_extras'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'on_connect_spotify_clicked'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs '("Spotify", "spotify", provider_auth::OAuthProvider::Spotify)'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'save_imported_profile'
+assert_not_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'SoundCloud'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'artist_profile_bio'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'online_artist_list'
-assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Local matches update as you type'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Search matches across local titles, artists and album names.'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'vertical-stretch: 1;'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'parse_audius_tracks'
 
@@ -595,6 +663,54 @@ fi
 rm -f "$gpu_tmp"
 echo "Boot-time GPU detection contracts passed."
 
+echo "=== Checking Raptor Music profile migration parser ==="
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'mod profile_import;'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/profile_import.rs 'pub fn parse_profile_export'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/profile_import.rs 'parse_spotify_playlists'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/profile_import.rs 'parse_spotify_library'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/profile_import.rs 'parse_spotify_history'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/profile_import.rs 'master_metadata_track_name'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/profile_import.rs 'ms_played: Option<u64>'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/profile_import.rs 'fn parses_spotify_extended_streaming_history_array'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/profile_import.rs 'fn skips_non_music_rows_in_spotify_history'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/profile_import.rs 'safe_https_url'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/profile_import.rs 'fn parses_profile_identity_and_all_collection_types'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/profile_import.rs 'fn parses_spotify_playlist_export_and_preserves_order'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/profile_import.rs 'fn parses_spotify_your_library_export_string_fields'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/profile_import.rs 'fn spotify_playlist_export_accepts_playlist_ids_and_merges_duplicate_ids'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/profile_import.rs 'fn playlists_without_stable_ids_are_not_collapsed_by_name'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/profile_import.rs 'library_artists'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/profile_import.rs 'older_saved_profiles_without_library_artists_remain_readable'
+
+echo "Raptor Music profile migration parser contracts passed."
+
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'callback import_profile_clicked();'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Import profile…'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'profile_import_status'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'pick_files()'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'profile_import::parse_profile_export'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'Preview only; nothing has been added to your library yet.'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/profile_import.rs 'pub fn merge(&mut self, mut other: ImportedProfile)'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/profile_import.rs 'fn merges_multiple_export_documents_without_duplicate_tracks_or_artists'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/profile_import.rs 'Serialize, Deserialize'
+assert_contains files/scripts/raptor-music/crates/raptor-library/src/lib.rs 'CREATE TABLE IF NOT EXISTS imported_profiles'
+assert_contains files/scripts/raptor-music/crates/raptor-library/src/lib.rs 'pub fn save_imported_profile'
+assert_contains files/scripts/raptor-music/crates/raptor-library/src/lib.rs 'pub fn get_imported_profiles'
+assert_contains files/scripts/raptor-music/crates/raptor-library/src/lib.rs 'pub fn delete_imported_profile'
+assert_contains files/scripts/raptor-music/crates/raptor-library/src/lib.rs 'imported_profiles_persist_separately_and_can_be_replaced_or_removed'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'ui.on_confirm_profile_import_clicked'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'serde_json::to_string(&profile)'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Confirm profile import'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Imported profiles'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'imported_profile_selected'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'refresh_imported_profile_list'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'get_imported_profile_payload'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'on_delete_imported_profile_clicked'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'Confirm removal: click Remove selected profile once more'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'delete_imported_profile(profile_id)'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Remove selected profile'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'callback delete_imported_profile_clicked();'
+
 echo "=== Checking embedded Raptor Cortex Python ==="
 cortex_tmp="$(mktemp --suffix=.py)"
 awk "/^cat << 'PYEOF' > \/usr\/bin\/raptor-cortex$/ { inside=1; next } /^PYEOF$/ && inside { exit } inside { print }" files/scripts/raptor-cortex/install.sh > "$cortex_tmp"
@@ -685,3 +801,133 @@ assert_contains files/system_files/plasma-layout-templates/raptor-flightdeck/met
 assert_contains files/system_files/plasma-layout-templates/raptor-flightdeck/contents/layout.js 'org.kde.plasma.taskmanager'
 assert_contains files/system_files/plasma-layout-templates/raptor-flightdeck/contents/layout.js 'org.kde.plasma.systemtray'
 assert_contains recipes/recipe.yml 'org.raptor.flightdeck'
+
+echo "=== Checking Raptor Music one-tap controls ==="
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'root.online_track_selected(index); root.play_clicked();'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'root.track_selected(index); root.play_clicked();'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'callback track_menu_action(int, string, string, int);'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'text: "Song options"'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'root.skip_backward_clicked();'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'root.skip_forward_clicked();'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'ui.on_track_menu_action'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'if direct_selection'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'ui.on_skip_backward_clicked'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'ui.on_skip_forward_clicked'
+
+echo "=== Checking Raptor Music provider integrations ==="
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn merge_independent_discovery'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'independent_discovery_interleaves_and_deduplicates_sources'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'text: "Independent"'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'A malformed later page must not erase tracks from valid earlier pages.'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn parse_audius_artist_search_page'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'artist_search_page_filters_invalid_rows_and_deduplicates_across_pages'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'A later malformed page should not hide tracks already loaded.'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'All provider workers have now completed.'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'if generation.load(Ordering::Acquire) == request_generation'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'Keep the earlier valid releases if a later catalog page is malformed.'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'if generation.load(Ordering::Acquire) == request_generation'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'artist_search_page_rejects_unexpected_response_shape'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'if generation_state.load(Ordering::Acquire) == request_generation'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs '*tracks_state.lock().unwrap() = tracks;'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn search_audius_collections'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn parse_audius_collections'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn fetch_audius_collection_tracks'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'audius_collection_search_tests'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Albums & playlists'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'callback collection_selected(int);'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn search_apple_music_tracks'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn parse_apple_music_collections'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn search_apple_music_collections'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'apple_music_collection_search_tests'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'apple_music_collection_links_reject_custom_ports_and_credentials'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'collection.provider == "apple_music"'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'collection_provider_label(&item.provider)'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn collection_provider_label(provider: &str)'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'collection_rows_name_the_actual_catalog_provider'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn search_musicbrainz_artists'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn search_musicbrainz_collections'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'for page in 0..3'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'seen_track_ids.insert(track.id.clone())'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn parse_audius_artist_albums'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'parses_and_deduplicates_audius_artist_albums'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Albums & releases'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'root.collection_selected(index)'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'sort", "date"'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'seen_ids.insert(track.id.clone())'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn parse_musicbrainz_release_groups'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn musicbrainz_artist_discography'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn musicbrainz_search_page'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn merge_musicbrainz_release_group_pages'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'musicbrainz_discography_pages_merge_and_deduplicate_release_groups'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'musicbrainz_discography_is_sorted_newest_first'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn apple_music_artist_discography'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn apple_music_catalog_pagination_url'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'apple_music_artist_catalog_pagination_stays_on_the_same_artist_endpoint'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'for offset in [0_u32, 30, 60]'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn apple_music_catalog_search_pages'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn apple_music_search_pagination_url'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'apple_music_search_pagination_accepts_only_catalog_search_urls'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'artist.provider == "musicbrainz" || artist.provider == "apple_music"'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'Loading releases and tracks'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn musicbrainz_web_url'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'MusicBrainz asks clients to stay at or below one request per second'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'musicbrainz_links_only_allow_official_artist_and_release_group_pages'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'musicbrainz_release_groups_are_metadata_only_collection_rows'
+assert_contains files/scripts/raptor-music/README.md 'MusicBrainz release-group matches are shown as metadata-only releases'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn search_apple_music_artists'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'apple_music_artist_links_reject_non_apple_hosts_and_insecure_schemes'
+
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'RAPTOR_APPLE_MUSIC_DEVELOPER_TOKEN'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn fetch_apple_music_collection_tracks'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn apple_music_collection_tracks_url'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'apple_music_collection_pagination_is_limited_to_exact_album_or_playlist_endpoint'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn parse_apple_music_tracks'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'apple_music_preview'
+assert_contains files/scripts/raptor-music/crates/raptor-audio/src/player.rs 'fn download_apple_music_preview'
+assert_contains files/scripts/raptor-music/crates/raptor-audio/src/player.rs 'is_apple_preview_url'
+assert_contains files/scripts/raptor-music/crates/raptor-audio/src/player.rs 'accepts_only_https_apple_preview_hosts'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Music providers'
+assert_contains files/scripts/raptor-music/README.md 'short preview clips'
+echo "Raptor Music provider checks passed."
+
+echo "=== Checking Raptor Music Discord Rich Presence ==="
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'text: "Discord Rich Presence"'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'discord_client_id'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'discord_details_template'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'discord_state_template'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'discord_custom_phrase'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Personal phrase'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'discord_custom_phrase'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn send_discord_presence'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'append_discord_socket_candidates'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'DISCORD_IPC_PATH'
+assert_not_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'chars().count() < 2'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn update_discord_from_database'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'discord_presence_templates_replace_track_placeholders'
+
+echo "=== Checking Raptor Music provider authorization foundation ==="
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'mod provider_auth;'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs 'pub fn create_pkce_pair'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'provider_auth::OAuthProvider::Tidal => "TIDAL"'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs 'pub fn begin_authorization'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs 'pub fn exchange_authorization_code'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs 'pub fn parse_authorization_callback'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs 'pub fn refresh_access_token'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs 'pub fn fetch_provider_profile'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs 'pub fn fetch_provider_playlists'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs 'spotify_recent_history_uses_backward_cursor_for_older_pages'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs 'optional_provider_collection_failure_does_not_discard_other_collections'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs 'parse_spotify_playlists'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs 'parse_youtube_playlists'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs 'CallbackError::InvalidState'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs 'OAuthTokenResponse'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs 'RAPTOR_TIDAL_SCOPES'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs 'pub fn validate_callback_state'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs 'Self::Spotify'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs 'Self::Tidal'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs 'Self::YoutubeData'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs 'code_challenge_method'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs 'InvalidCallbackState'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/Cargo.toml 'sha2 = "0.10"'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs 'RAPTOR_GOOGLE_CLIENT_ID'
+echo "Raptor Music provider authorization foundation contracts passed."
