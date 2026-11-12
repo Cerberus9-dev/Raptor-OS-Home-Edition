@@ -73,7 +73,7 @@ jobs:
       group: ${{ github.workflow }}-${{ github.ref }}
       cancel-in-progress: ${{ github.event_name == 'push' || github.event_name == 'pull_request' }}
     permissions:
-      contents: write
+      contents: read
       packages: write
       id-token: write
 

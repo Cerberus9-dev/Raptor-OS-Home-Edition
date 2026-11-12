@@ -2,7 +2,6 @@
 set -euo pipefail
 
 # Raptor OS Command Cheatsheet: one app (GUI, with search) for Bazzite/Fedora Atomic.
-# There used to be a second, terminal-only copy with the same commands; it is gone.
 # Run `raptor-cheatsheet` from a terminal or open it from the app menu.
 
 mkdir -p /usr/bin /usr/share/applications /usr/share/icons/hicolor/scalable/apps
