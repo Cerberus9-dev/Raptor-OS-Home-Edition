@@ -187,7 +187,9 @@ fn parse_spotify_library(root: &Value) -> Result<ImportedProfile, String> {
         .ok_or_else(|| "No saved tracks were found in this export".to_string())?;
     let mut profile = ImportedProfile { source: "Spotify export".into(), ..ImportedProfile::default() };
     profile.saved_tracks = rows.iter().filter_map(|row| {
-        let track = row.get("track").unwrap_or(row);
+        // YourLibrary.json stores "track" as a string on the row itself;
+        // playlist/library API-shaped exports may instead nest a track object.
+        let track = row.get("track").filter(|value| value.is_object()).unwrap_or(row);
         parse_spotify_track(track)
     }).collect();
     deduplicate_profile(&mut profile);
