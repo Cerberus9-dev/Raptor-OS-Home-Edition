@@ -147,7 +147,7 @@ assert_contains files/scripts/raptor-music/crates/raptor-audio/src/adapters/spot
 assert_contains files/scripts/raptor-music/crates/raptor-audio/src/adapters/spotify.rs 'PlaybackAccess::ExternalHandoff'
 assert_contains files/scripts/raptor-music/crates/raptor-audio/src/adapters/youtube.rs 'https://www.googleapis.com/youtube/v3/search'
 assert_contains files/scripts/raptor-music/crates/raptor-audio/src/adapters/youtube.rs 'PlaybackAccess::EmbeddedPlayer'
-assert_contains files/scripts/raptor-music/crates/raptor-audio/src/adapters/bandcamp.rs 'Bandcamp handoff must be an HTTPS Bandcamp URL'
+assert_contains files/scripts/raptor-music/crates/raptor-audio/src/adapters/bandcamp.rs 'Bandcamp playback must use its official HTTPS embedded player'
 assert_contains files/scripts/raptor-music/crates/raptor-audio/src/backend/rodio.rs 'raptor-rodio-output'
 assert_contains files/scripts/raptor-music/crates/raptor-audio/src/backend/rodio.rs 'MAX_STREAM_BYTES'
 assert_contains files/scripts/raptor-music/crates/raptor-audio/src/backend/rodio.rs '64 * 1024'
