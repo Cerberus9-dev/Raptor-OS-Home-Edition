@@ -2,15 +2,12 @@
 set -e
 
 # =============================================================================
-# Raptor Cortex v4.2 — Unified Memory & Performance Management
-# • RAM optimization with page cache management, compaction, zram recompress
-# • Background service trimming/restoring for gaming
-# • Seamless performance mode switching (no login required)
-# • Game mode auto-suspend/resume via Cortex patterns
-# • Power Profiles integration (KDE Powerdevil remains the CPU-policy owner)
-# • Per-mode kernel tuning (power/balanced/performance)
-# • Battery slider passthrough via power-profiles-daemon
-# • PCIe ASPM, NVMe power states, USB autosuspend, runtime PM
+# Raptor Cortex — system performance and hardware controls
+# • CPU/GPU telemetry and power-profile controls
+# • Pressure-aware memory reclaim
+# • Optional Game Mode suspend/resume
+# • PCIe and NVMe power settings where supported
+# • KDE Powerdevil and power-profiles-daemon retain CPU policy
 # =============================================================================
 
 # ── Custom icon ───────────────────────────────────────────────────────────────
