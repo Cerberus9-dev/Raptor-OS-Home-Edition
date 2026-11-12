@@ -6,11 +6,11 @@ Changes made after v3.0.0 will be recorded here.
 
 ## [v3.0.0] - 2026-11-12
 
-Major release covering the desktop apps, gaming and Windows compatibility, hardware recovery, performance defaults, first-run setup, and image distribution.
+Raptor OS v3.0.0 updates the desktop apps, gaming and Windows compatibility, hardware recovery, performance defaults, first-run setup, and image build.
 
 ### Raptor Music
 
-- Added Audius discovery for tracks, artists, albums, and playlists. The Independent sort mixes relevance and recent results instead of ranking only by popularity.
+- Added Audius search for tracks, artists, albums, and playlists. Independent sort combines relevance-ranked and recent results.
 - Added Apple Music catalog search and short official previews when a MusicKit developer token is configured. Preview URLs and redirects are validated, downloads are size-limited, and temporary files are cleaned up.
 - Added Spotify export and supported Raptor profile imports. Users can review data before importing and keep playlists, saved tracks, followed artists, and listening history in separate saved profiles. Importing metadata does not create local audio files.
 - Improved playlist merging, artist pages, search for short queries, queue controls, direct track selection, and the three-dot add-to-queue/playlist menu.
@@ -31,25 +31,25 @@ Major release covering the desktop apps, gaming and Windows compatibility, hardw
 
 ### Raptor Music desktop experience
 - Replaced fixed Slint window dimensions with preferred initial dimensions and minimum size constraints, allowing KDE/X11 window managers to resize and maximize the player normally.
-- Reworked the interface into a Raptor-branded graphite-and-sage desktop player, with clearer browse/library/queue hierarchy, a more prominent global search, and a persistent playback dock. The visual language uses familiar desktop-media conventions without Spotify logos, artwork, or copied branding.
-- Allowed the local-library and Audius result lists expand with the available window height instead of trapping results in short fixed-height panes. Clarify that local results are searched locally and online results come from Audius; this is not a Spotify-sized licensed streaming catalog.
+- Reworked the player interface with graphite-and-sage styling, separate browse/library/queue views, global search, and a persistent playback dock.
+- Made the Local Library and Audius result lists expand with the window. Local searches stay on-device; online searches query Audius.
 
 ### Low-memory application tuning
 - **Firefox:** reduce the default content-process ceiling from four to two (web-isolated from two to one), halve in-memory page/media cache defaults, seed a usable default profile on first launch, and apply preferences to both native and Flatpak profile locations. Existing user-set values are preserved rather than overwritten. This trades some parallel page isolation/throughput for lower baseline RAM on low-memory systems.
 - **Discord, Equibop and Vesktop:** on systems with 8 GiB RAM or less, use a four-renderer ceiling while preserving GPU acceleration, Chromium sandboxing, and voice/video features. Discord uses Flathub's `discord-flags.conf`; Equibop and Vesktop use their persistent flags files. Existing user-specified Discord or Equibop renderer limits are preserved. Do not impose a hard V8 heap cap or disable WebRTC.
-- **Raptor Cortex:** slow idle sensor polling from every eight seconds to every fifteen seconds to reduce repeated hardware-probe wakeups. This changes telemetry refresh cadence, not gaming performance.
+- **Raptor Cortex:** changed idle sensor polling from eight to fifteen seconds to reduce hardware-probe wakeups.
 - **Raptor Proton:** derive the default prefix from its selected GAMEID and reclaim an idle Proton wineserver through UMU's selected Proton environment (`umu-run wineboot -k`) only when no other process using that exact prefix remains. This avoids invoking an unrelated host Wine server and preserves concurrent Windows apps sharing a prefix. Fix the generated helper's process-ID expansion so it can correctly exclude its own launcher when checking for active apps.
 
 ### Raptor Cortex telemetry
 - Fixed GPU summary detection by importing the regex module used by Linux DRM device discovery, restoring adapter model, utilization, clock, and exposed memory reporting.
 - Expanded read-only fan telemetry to report standard hwmon RPM sensors, NVIDIA driver fan percentages, and PWM-only sensors with an explicit duty-cycle label instead of misrepresenting them as RPM.
-- Added regression coverage with synthetic AMD-style DRM and hwmon RPM/PWM fixtures; hardware without an exposed tachometer or PWM sensor remains reported as unavailable rather than guessed.
+- Added tests for AMD-style DRM and hwmon RPM/PWM data. If hardware exposes no fan sensor, Cortex reports the reading as unavailable.
 
 ### Raptor Music online search and playback
 - Added debounced online track discovery through Audius alongside the existing local-library search; local queries still work offline and local files remain on-device.
 - Filtered online results to public, available, streamable tracks, preserve stable provider IDs in the library, and allow selected online results to enter the normal playback queue.
 - Added bounded download-to-cache playback for Audius MP3 streams, with a 256 MiB safety limit, short request timeouts, and automatic temporary-file cleanup. Buffers are written to the per-user cache rather than the typical RAM-backed runtime directory.
-- Added regression tests for streamability/access filtering, malformed responses, and stable remote track IDs. Audius adds an online catalog but does not provide Spotify's complete catalog or guarantee every artist/track is available.
+- Added tests for streamability filtering, malformed responses, and stable remote track IDs. Audius availability varies by artist and track; it is not a complete licensed streaming catalog.
 
 ### Boot-time hardware detection and service cleanup
 - Removed blanket USB autosuspend disable rules for HID, Bluetooth and USB audio devices; controller permissions remain, but idle power behavior stays with the kernel unless a device-specific issue requires a workaround.
@@ -58,8 +58,8 @@ Major release covering the desktop apps, gaming and Windows compatibility, hardw
 - Moved Wi-Fi power-save handling from a forced global override to an opt-in Raptor Cortex setting. NetworkManager defaults and scan-MAC randomization are preserved for battery life and privacy; users with adapter-specific reconnect/latency problems can disable 802.11 power saving from the GUI.
 - Added a bounded privileged helper that atomically updates the NetworkManager override, reloads configuration, restores the previous file on reload failure, and tells users to reconnect for the active connection to adopt the change.
 
-- Added CI coverage for the embedded Python application entry points, including Raptor Cortex, so malformed Python cannot hide inside an otherwise valid shell installer.
-- Added a regression guard against introducing a global `systemd-udev-settle.service` dependency, which has been reported to add substantial boot latency and is discouraged by systemd.
+- Added CI checks that extract and compile the embedded Python entry points, including Raptor Cortex.
+- Added a regression check that prevents the image from depending on `systemd-udev-settle.service`.
 
 - GPU detection now performs one bounded PCI display-device probe instead of repeatedly invoking `lspci`; the optional verbose AMD iGPU probe is also bounded.
 - NVIDIA power queries and changes have time limits and safely tolerate an unavailable or unresponsive driver utility instead of holding the boot-critical service indefinitely.
@@ -104,7 +104,7 @@ Major release covering the desktop apps, gaming and Windows compatibility, hardw
 
 - Refined the Raptor HUD palette from bright electric blue toward flight-deck navy, graphite, instrument cyan, caution amber, and operational green.
 - Extended the GTK3/GTK4 theme with consistent Adwaita cards, navigation sidebars, toolbars, status pages, and semantic status colors so first-party GTK apps inherit a more coherent aerospace interface.
-- Updated theme metadata and first-login service descriptions to identify the aviation-inspired Raptor OS visual system. The design stays restrained and readable rather than turning the desktop into a novelty cockpit.
+- Updated theme metadata and first-login service descriptions to use the Raptor flight-deck theme.
 - Added a fifth bundled **Raptor Flight Deck** wallpaper: a dark aerospace grid, navigation/radar markings, and a clean top-down aircraft outline, available in Raptor Wallpaper without changing the user's selected background automatically.
 
 ### Cortex and GPU telemetry reliability
@@ -161,7 +161,7 @@ Major release covering the desktop apps, gaming and Windows compatibility, hardw
 - Expanded Ark defaults to common bzip2/gzip/xz/zstd, cpio, ISO, CAB, RPM/DEB, Java archive, and comic-book archive MIME types so supported formats open in the archive manager instead of being misrouted to Dolphin.
 - Restored common Dolphin archive actions through Raptor-owned KIO service menus: Extract Here, Extract To, and Create Archive call Ark's documented batch/add interfaces directly. The slow upstream per-selection plugins stay disabled; drag-and-drop extraction remains unavailable.
 - Kept the existing conservative Dolphin safeguards: archive content metadata extraction and the slow archive context-menu plugins remain disabled to avoid known selection/context-menu hangs. This intentionally trades those context-menu entries for responsiveness; archive opening remains through Ark.
-- Added image-build checks that Ark and unzip are present. This does not claim to fix every upstream Ark extraction or multi-volume ZIP bug.
+- Added image-build checks for Ark and unzip.
 
 ### Cortex control-center redesign
 
