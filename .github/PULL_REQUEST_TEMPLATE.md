@@ -10,6 +10,13 @@ What issue or need does this address?
 
 List the checks run and link to their results. Mark anything still running or requiring a real-device test.
 
+## Review
+
+- [ ] User-facing wording and code comments were checked for filler, repetition, promotional claims, and generic phrasing.
+- [ ] Technical comments explain behavior or constraints and were kept where useful.
+- [ ] README, changelog, version references, and feature descriptions match the implementation.
+- [ ] No stale instructions, obsolete markers, placeholders, or unsupported claims remain.
+
 ## Limitations
 
 List known gaps or compatibility concerns. Remove this section if there are none.
