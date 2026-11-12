@@ -1,7 +1,7 @@
 use super::{AudioBackend, PlaybackError, PlaybackSource};
 use raptor_core::models::{PlaybackAccess, PlayerState};
 use rodio::{Decoder, OutputStream, OutputStreamHandle, Sink};
-use std::io::Cursor;
+use std::io::{Cursor, Read};
 use std::sync::mpsc::{self, Receiver, Sender, SyncSender};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
@@ -144,14 +144,17 @@ impl RodioBackend {
             return Err("Rodio accepts HTTPS streams only".into());
         }
 
-        let response = client.get(url).send()
+        let mut response = client.get(url).send()
             .map_err(|error| error.to_string())?
             .error_for_status()
             .map_err(|error| error.to_string())?;
         if response.content_length().is_some_and(|length| length > MAX_BUFFER_BYTES) {
             return Err("Audio response exceeds the 512 MiB safety limit".into());
         }
-        let bytes = response.bytes().map_err(|error| error.to_string())?.to_vec();
+        let mut bytes = Vec::new();
+        response.take(MAX_BUFFER_BYTES + 1)
+            .read_to_end(&mut bytes)
+            .map_err(|error| error.to_string())?;
         if bytes.len() as u64 > MAX_BUFFER_BYTES {
             return Err("Audio response exceeds the 512 MiB safety limit".into());
         }
