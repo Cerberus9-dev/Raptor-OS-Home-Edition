@@ -359,7 +359,7 @@ SUDOERS_FILE          = "/etc/sudoers.d/raptor-update"
 # forever, and the helper output is streamed live meanwhile.
 CHECK_TIMEOUT         = 1860
 
-# Comprehensive ANSI/VT100 escape sequence stripper:
+# Remove ANSI/VT100 escape sequences from command output:
 #   CSI  ESC [ <params> <letter>
 #   OSC  ESC ] ... BEL  or  ESC ] ... ESC \
 #   ESC + single printable char (ESC M, ESC c, …)
