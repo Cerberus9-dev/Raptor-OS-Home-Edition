@@ -53,6 +53,15 @@ pub enum PlaybackError {
 pub trait AudioSource: Send + Sync {
     fn source_kind(&self) -> AudioSourceKind;
 
+    fn provider_id(&self) -> &'static str {
+        match self.source_kind() {
+            AudioSourceKind::Spotify => "spotify",
+            AudioSourceKind::YouTube => "youtube",
+            AudioSourceKind::Bandcamp => "bandcamp",
+            AudioSourceKind::Local => "local",
+        }
+    }
+
     /// Search through the provider's supported API or wrapper interface.
     /// Provider response objects must be normalized before they leave the adapter.
     fn search(&self, _query: &str) -> Result<Vec<UnifiedTrack>, PlaybackError> {
@@ -227,7 +236,7 @@ impl RaptorPlayer {
                 if content_id.trim().is_empty() {
                     return Err(PlaybackError::EmptyUri);
                 }
-                self.backend.open_embedded(&format!("{:?}", track.source), content_id)
+                self.backend.open_embedded(source.provider_id(), content_id)
             }
             PlaybackAccess::ExternalHandoff => {
                 if resolved.uri.trim().is_empty() {
