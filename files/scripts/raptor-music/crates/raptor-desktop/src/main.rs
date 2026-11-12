@@ -3238,8 +3238,8 @@ fn search_audius_tracks(query: &str, sort_method: &str) -> Result<Vec<Track>, St
         .build()
         .map_err(|error| format!("Could not initialize online search: {error}"))?;
 
-    // Fetch three bounded pages so broad searches expose more than the first
-    // popularity/relevance slice, without creating an unbounded catalog crawl.
+    // Fetch six bounded pages so broad searches cover more of the catalog
+    // without creating an unbounded background crawl.
     let mut tracks = Vec::new();
     let mut seen_ids = HashSet::new();
     for page in 0..6 {
