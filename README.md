@@ -30,6 +30,14 @@ Raptor Tasks stores tasks locally with search and filters. Raptor Wallpaper prov
 
 ## Gaming and power defaults
 
+When a game requests GameMode, Raptor OS suppresses notification popups and reduces KDE animation duration. The GameMode end hook restores the previous notification state and animation setting. These desktop changes do not alter network settings.
+
+## Raptor Update Manager
+
+System updates use rpm-ostree's local status and cached update information rather than resolving an image on every manual check. System and user Flatpak update checks run concurrently with bounded timeouts. Choose **Update & Reboot** to start a system update; the machine restarts after the new deployment is staged. Flatpak-only updates do not require a reboot.
+
+
+
 Raptor leaves Steam's network and shader-cache settings at their defaults and does not force vendor-specific GPU power states through GameMode. Controller access rules remain available. USB autosuspend follows kernel defaults except for device-specific recovery settings.
 
 ## Wi-Fi power management
@@ -94,7 +102,7 @@ rpm-ostree rebase ostree-image-signed:docker://ghcr.io/cerberus9-dev/raptor-os:l
 systemctl reboot
 ```
 
-> **Already on Raptor OS?** Save your work, then open **Raptor Update Manager** and choose **Update & Reboot**. The update starts immediately, and the system restarts as soon as the new deployment is staged. Flatpak-only updates do not require a reboot.
+> **Already on Raptor OS?** Open **Raptor Update Manager** and choose **Update & Reboot** to update the system image and Flatpaks.
 
 ---
 
@@ -176,7 +184,11 @@ Wallpaper picker with a thumbnail grid. Select an image to apply it; the gallery
 
 ## Raptor Music
 
-Raptor Music is being refactored into a wrapper-first application. Raptor owns the unified library, queue, metadata model and playback controls; provider adapters own authentication, search, availability checks and provider-approved playback resolution. The intended primary integrations are Spotify, YouTube and Bandcamp, with local files remaining first-class. A provider may supply a native stream, an embedded player, an external handoff, a preview, or no playback at all; the app must preserve that distinction rather than treating every catalogue result as an audio URL. Existing Audius, Jamendo and Apple Music catalogue paths are optional legacy connectors and are not required by the wrapper architecture. Jamendo is not a core dependency. The audio crate now includes a Spotify Web API search adapter (metadata plus official handoff only), a YouTube Data API search adapter (embedded-player targets only), a limited Bandcamp URL-handoff adapter, and a Rodio backend for authorized HTTPS direct/preview sources. The YouTube embedded-player surface is not yet implemented, Bandcamp search remains unavailable without an authorized API, and the existing Slint screens, queue and desktop provider calls are not yet fully migrated to the normalized model. Rodio copies authorized HTTPS responses to an unnamed temporary file in 64 KiB chunks before decoding. RAM use stays bounded, but playback waits for the download to finish. MusicBrainz is a metadata-only discovery source; it does not provide audio playback. The optional Apple Music connector can provide short previews when a developer token is configured; it does not grant full subscription playback. Raptor Music does not bypass provider subscriptions, ads, DRM or playback restrictions. The database is stored under `$XDG_DATA_HOME/raptor-music/` or `~/.local/share/raptor-music/`.
+Raptor Music uses a provider-neutral `UnifiedTrack` model for online discovery state, persistent provider-track records and queue playback resolution. Slint receives lightweight display rows derived from those records; the queue resolves IDs back through the normalized model before handing a source to the current audio engine. A small compatibility conversion remains at the CPAL player boundary while the decoder API is migrated.
+
+Spotify catalogue search uses the Web API and the official Spotify handoff. Expired OAuth grants are refreshed through the provider token endpoint, with access and refresh tokens kept in the operating-system credential store. YouTube Data API search requires `RAPTOR_YOUTUBE_API_KEY`; selected videos open in a Raptor Music-owned WebKit window containing YouTube's official embedded player and controls. Bandcamp search uses the public autocomplete endpoint served by Bandcamp's website. That endpoint is undocumented and can change; playback uses Bandcamp's official embedded player and respects the artist's streaming and purchase settings. Raptor does not extract protected media URLs or bypass provider restrictions.
+
+Rodio now copies authorized HTTPS responses to an unnamed temporary file in 64 KiB chunks, then decodes from that file. This bounds application RAM use rather than allocating a full-track byte vector; it is disk-backed buffering, not progressive network playback. The existing CPAL streaming paths also use temporary disk files. Audius, Jamendo and Apple Music remain optional catalogue connectors; Apple Music previews still depend on the user's MusicKit authorization. MusicBrainz remains metadata-only. Raptor Music does not bypass subscriptions, ads, DRM or playback restrictions. The database is stored under `$XDG_DATA_HOME/raptor-music/` or `~/.local/share/raptor-music/`.
 
 ## Release pipeline (maintainers)
 
@@ -190,11 +202,7 @@ The first-boot chooser offers the official Discord client, Vesktop, Equibop, and
 
 ## Raptor Shroudly
 
-Raptor OS packages the original Linux **Shroudly** desktop application from the pinned upstream source at [umutxyp/Shroudly](https://github.com/umutxyp/Shroudly). The original Electron/Next.js interface, visual design, Linux networking integration and application behavior are retained; Raptor OS does not replace the upstream UI with a separate dashboard.
-
-The upstream project is copyright **Codeshare Technology Ltd** and is distributed under its MIT license. The upstream source and license remain included in this repository.
-
-When a game requests GameMode, Raptor OS suppresses notification popups and reduces KDE animation duration. The GameMode end hook restores the previous notification state and animation setting. These desktop changes are separate from Shroudly's network-compatibility modes.
+Raptor Shroudly is the custom native desktop dashboard included in the image. It detects supported game clients and desktop apps; it does not freeze, kill or modify them. Network routing, proxy/tunnel operation and per-app traffic steering are not implemented, so the app does not claim that traffic protection is active. The project is inspired by the original Shroudly project by **umutxyp / Codeshare Technology Ltd**; the upstream desktop app is not bundled.
 
 ---
 
