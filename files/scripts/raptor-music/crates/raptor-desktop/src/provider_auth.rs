@@ -797,11 +797,22 @@ pub fn fetch_provider_playlist_tracks(
                 url.query_pairs_mut().append_pair("limit", "50")
                     .append_pair("offset", &(page * 50).to_string());
                 let value = get_provider_json(url.as_str(), access_token)?;
-                let batch = parse_spotify_playlist_tracks(&value)?;
+                let mut batch = parse_spotify_playlist_tracks(&value)?;
                 let count = batch.len();
+                // Fallback row IDs must remain unique across pages; the local
+                // index alone repeats from zero on every request.
+                for (index, track) in batch.iter_mut().enumerate() {
+                    if track.id.starts_with("spotify-unavailable-row-") {
+                        track.id = format!("spotify-unavailable-row-{}", page * 50 + index);
+                    }
+                }
+                let has_next = value.get("next").and_then(|v| v.as_str()).is_some();
                 tracks.extend(batch);
-                if value.get("next").and_then(|v| v.as_str()).is_none() || count == 0 {
+                if !has_next {
                     return Ok(tracks);
+                }
+                if count == 0 {
+                    return Err("Spotify reported another playlist page but returned no rows; import stopped rather than marking the playlist complete.".into());
                 }
             }
             Err("Spotify playlist import reached the 10,000-track safety limit.".into())
