@@ -190,7 +190,11 @@ The first-boot chooser offers the official Discord client, Vesktop, Equibop, and
 
 ## Raptor Shroudly
 
-Raptor Shroudly is the custom native desktop dashboard included in the image. It detects supported game clients and desktop apps; it does not freeze, kill or modify them. Network routing, proxy/tunnel operation and per-app traffic steering are not implemented, so the app does not claim that traffic protection is active. The project is inspired by the original Shroudly project by **umutxyp / Codeshare Technology Ltd**; the upstream desktop app is not bundled.
+Raptor OS packages the original Linux **Shroudly** desktop application from the pinned upstream source at [umutxyp/Shroudly](https://github.com/umutxyp/Shroudly). The original Electron/Next.js interface, visual design, Linux networking integration and application behavior are retained; Raptor OS does not replace the upstream UI with a separate dashboard.
+
+The upstream project is copyright **Codeshare Technology Ltd** and is distributed under its MIT license. The upstream source and license remain included in this repository.
+
+Raptor OS also extends GameMode at the desktop level. While a GameMode session is active, notification popups are inhibited and KDE animation duration is reduced. When the session ends, the previous animation setting and notification state are restored. This is separate from Shroudly's own network-compatibility modes.
 
 ---
 
