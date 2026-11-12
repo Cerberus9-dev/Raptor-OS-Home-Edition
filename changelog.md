@@ -1,6 +1,7 @@
 # Changelog
 
 ### Raptor Music discovery
+- Updated Spotify playlist metadata import to the current `/items` API, using the documented 50-item page size and the renamed `item` response field. The import remains metadata-only and Spotify only exposes playlist entries to the playlist owner or collaborators through this endpoint.
 - Expanded Jamendo search to four pages of up to 200 results each and added direct in-app playback through Jamendo's documented stream endpoint. Playback follows only HTTPS redirects to Jamendo storage hosts, enforces a 256 MiB buffer limit, and keeps the track's Creative Commons license in its catalog label.
 - Increased catalog search depth: Audius now checks up to 300 results per query, Apple Music search and artist discographies follow up to eight pages, and Jamendo keeps up to 50 licensed results. Results remain subject to each provider's API access and availability.
 - Added Audius autocomplete album and playlist search results in a separate Discover section; selecting a collection loads its tracks into the online player list.
