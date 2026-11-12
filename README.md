@@ -94,7 +94,7 @@ rpm-ostree rebase ostree-image-signed:docker://ghcr.io/cerberus9-dev/raptor-os:l
 systemctl reboot
 ```
 
-> **Already on Raptor OS?** Open **Raptor Update Manager** and choose **Update & Reboot** to update the system image and Flatpaks.
+> **Already on Raptor OS?** Open **Raptor Update Manager** and choose **Update & Reboot**. The update starts immediately; the system reboots as soon as the new deployment is staged. Flatpak-only updates do not require a reboot.
 
 ---
 
