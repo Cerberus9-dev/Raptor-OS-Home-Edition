@@ -105,3 +105,30 @@ impl AudioSource for SpotifyAdapter {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn spotify_search_record_normalizes_metadata_and_keeps_handoff_access() {
+        let track = SpotifyAdapter::parse_track(&serde_json::json!({
+            "id": "spotify-track-id",
+            "name": "Night Drive",
+            "artists": [{"name": "Independent Artist"}],
+            "album": {
+                "name": "After Hours",
+                "images": [{"url": "https://images.example.test/cover.jpg"}]
+            },
+            "duration_ms": 184_500,
+            "external_ids": {"isrc": "USABC2600001"}
+        })).expect("valid Spotify track");
+
+        assert_eq!(track.source, AudioSourceKind::Spotify);
+        assert_eq!(track.title, "Night Drive");
+        assert_eq!(track.duration_secs, Some(184));
+        assert_eq!(track.isrc.as_deref(), Some("USABC2600001"));
+        assert_eq!(track.access, PlaybackAccess::ExternalHandoff);
+        assert!(matches!(track.target, PlaybackTarget::ExternalHandoff { .. }));
+    }
+}
