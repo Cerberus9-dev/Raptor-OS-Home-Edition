@@ -84,7 +84,7 @@ jobs:
           # Pull-request validation must test the proposed head, not silently
           # fall back to the base branch. Push and dispatch events use github.sha.
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          submodules: false
+          submodules: recursive
 
       # Fail fast on repository syntax/contracts before expensive upstream app builds.
       - name: Lint all GitHub Actions workflows
@@ -154,8 +154,6 @@ jobs:
               libegl1-mesa-dev \
               libgles2-mesa-dev \
               libgtk-3-dev \
-              libwebkit2gtk-4.1-dev \
-              libayatana-appindicator3-dev \
               libudev-dev \
               libdbus-1-dev; do
             if [[ "$install_attempt" -ge 3 ]]; then
@@ -173,25 +171,69 @@ jobs:
       - name: Test Raptor Music workspace
         run: cargo test --workspace --manifest-path files/scripts/raptor-music/Cargo.toml
 
-      - name: Build and test custom Raptor Shroudly
+      - name: Set up Node.js for upstream Shroudly
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: files/scripts/shroudly-raptor/upstream/package-lock.json
+
+      - name: Build original Shroudly desktop app
+        working-directory: files/scripts/shroudly-raptor/upstream
+        env:
+          NEXT_TELEMETRY_DISABLED: 1
         run: |
-          cargo build --release --workspace --manifest-path files/scripts/shroudly-raptor/Cargo.toml
-          cargo test --workspace --manifest-path files/scripts/shroudly-raptor/Cargo.toml
-          install -Dm755 files/scripts/shroudly-raptor/target/release/shroudly-raptor files/staging/raptor-shroudly
-          test -x files/staging/raptor-shroudly
+          set -euo pipefail
+          npm ci
+          npm run build:core
+          npm run check:translations
+          npm run build
+          npm run test:net
+          npx electron-builder --linux dir --x64 --publish never
+
+          APP_DIR="$PWD/dist/linux-unpacked"
+          APP_BIN="$(find "$APP_DIR" -maxdepth 1 -type f -executable -printf '%f\n' | grep -i -x 'shroudly' | head -n1 || true)"
+          if [[ -z "$APP_BIN" ]]; then
+            echo "::error::Could not find the original Shroudly Electron executable in dist/linux-unpacked."
+            find "$APP_DIR" -maxdepth 1 -type f -printf '%f\n' | sort
+            exit 1
+          fi
+
+          STAGE="$GITHUB_WORKSPACE/files/staging"
+          rm -rf "$STAGE/raptor-shroudly-app"
+          install -d "$STAGE/raptor-shroudly-app"
+          cp -a "$APP_DIR/." "$STAGE/raptor-shroudly-app/"
+          printf '#!/usr/bin/env bash\nset -euo pipefail\nexec /opt/raptor-shroudly/%s "$@"\n' "$APP_BIN" > "$STAGE/raptor-shroudly"
+          chmod 0755 "$STAGE/raptor-shroudly"
+          install -Dm0644 public/icon.png "$STAGE/raptor-shroudly-icon.png"
+          install -Dm0644 LICENSE "$STAGE/raptor-shroudly-license"
+          install -Dm0644 scripts/linux/me.codeshare.shroudly.policy "$STAGE/raptor-shroudly-policy"
+          test -x "$STAGE/raptor-shroudly"
+          test -s "$STAGE/raptor-shroudly-app/resources/app.asar"
+          test -s "$STAGE/raptor-shroudly-icon.png"
+          test -s "$STAGE/raptor-shroudly-license"
+          test -s "$STAGE/raptor-shroudly-policy"
 
       - name: Verify and include Raptor app payloads in the image context
         run: |
           set -euo pipefail
           test -x files/staging/raptor-music
           test -x files/staging/raptor-shroudly
+          test -s files/staging/raptor-shroudly-app/resources/app.asar
+          test -s files/staging/raptor-shroudly-icon.png
+          test -s files/staging/raptor-shroudly-license
+          test -s files/staging/raptor-shroudly-policy
 
           # Force-add generated, gitignored staging files so Git-backed
           # build contexts retain both custom Raptor application binaries.
           git add -f -- files/staging
           git ls-files --error-unmatch \
             files/staging/raptor-music \
-            files/staging/raptor-shroudly >/dev/null
+            files/staging/raptor-shroudly \
+            files/staging/raptor-shroudly-app/resources/app.asar \
+            files/staging/raptor-shroudly-icon.png \
+            files/staging/raptor-shroudly-license \
+            files/staging/raptor-shroudly-policy >/dev/null
           echo "Verified both custom Raptor app binaries and added them to the BlueBuild context."
 
           # BlueBuild's Git-backed files context is created from HEAD, not the
@@ -276,11 +318,12 @@ jobs:
             check_file x /usr/bin/raptor-music
             check_file s /usr/share/applications/raptor-music.desktop
             check_file s /usr/share/icons/hicolor/scalable/apps/raptor-music.svg
-            rpm -q webkit2gtk4.1 >/dev/null
-            echo "VERIFIED: WebKitGTK runtime for embedded provider playback"
             check_file x /usr/bin/raptor-shroudly
+            check_file s /opt/raptor-shroudly/resources/app.asar
             check_file s /usr/share/applications/raptor-shroudly.desktop
-            check_file s /usr/share/icons/hicolor/scalable/apps/raptor-shroudly.svg
+            check_file s /usr/share/pixmaps/shroudly.png
+            check_file s /usr/share/licenses/raptor-shroudly/LICENSE
+            check_file s /usr/share/polkit-1/actions/me.codeshare.shroudly.policy
           '
           echo "Published image contains both custom Raptor app payloads."
 

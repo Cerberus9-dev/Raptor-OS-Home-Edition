@@ -30,6 +30,14 @@ Raptor Tasks stores tasks locally with search and filters. Raptor Wallpaper prov
 
 ## Gaming and power defaults
 
+When a game requests GameMode, Raptor OS suppresses notification popups and reduces KDE animation duration. The GameMode end hook restores the previous notification state and animation setting. These desktop changes do not alter network settings.
+
+## Raptor Update Manager
+
+System updates use rpm-ostree's local status and cached update information rather than resolving an image on every manual check. System and user Flatpak update checks run concurrently with bounded timeouts. Choose **Update & Reboot** to start a system update; the machine restarts after the new deployment is staged. Flatpak-only updates do not require a reboot.
+
+
+
 Raptor leaves Steam's network and shader-cache settings at their defaults and does not force vendor-specific GPU power states through GameMode. Controller access rules remain available. USB autosuspend follows kernel defaults except for device-specific recovery settings.
 
 ## Wi-Fi power management

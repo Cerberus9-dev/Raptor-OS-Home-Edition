@@ -56,9 +56,9 @@ THE RAPTOR OS APP SUITE
 
 • Raptor Music — manage and play your local music library and playlists.
 
-• Raptor Shroudly — the custom Raptor OS application-compatibility dashboard.
-  It detects supported game clients and desktop apps without suspending them.
-  Network routing is not active in this build; no traffic is silently redirected.
+• Shroudly — the upstream network-privacy app, packaged for Raptor OS.
+  It can help work around deep-packet-inspection (DPI) blocking. Some features
+  change proxy or network settings; review its prompts before enabling them.
 
 • Raptor Wine — run Windows applications with the familiar Wine workflow.
 
@@ -311,20 +311,26 @@ cat << 'BTNAME' > /usr/lib/raptor/bt-name
 #!/bin/bash
 set -u
 command -v bluetoothctl >/dev/null 2>&1 || exit 0
-controllers=""
-# bluetooth.service can become active before the controller is enumerated.
-# Retry briefly instead of permanently marking this oneshot complete too early.
+controllers=()
+# Query BlueZ for every controller; do not assume a controller index or order.
 for attempt in {1..10}; do
-    controllers="$(timeout 3 bluetoothctl list 2>/dev/null | awk '/^Controller / {print $2}')"
-    [[ -n "$controllers" ]] && break
+    mapfile -t controllers < <(timeout 3 bluetoothctl list 2>/dev/null | awk '/^Controller / {print $2}')
+    (("${#controllers[@]}" > 0)) && break
     sleep 2
 done
-[[ -n "$controllers" ]] || { echo "No BlueZ controllers appeared; systemd will retry later." >&2; exit 1; }
-while IFS= read -r mac; do
+(("${#controllers[@]}" > 0)) || { echo "No BlueZ controllers appeared; systemd will retry later." >&2; exit 1; }
+
+for mac in "${controllers[@]}"; do
     [[ "$mac" =~ ^([[:xdigit:]]{2}:){5}[[:xdigit:]]{2}$ ]] || continue
-    printf 'select %s\nsystem-alias Raptor OS Bluetooth\n' "$mac" |
+    alias="Raptor OS Bluetooth"
+    # Keep multiple adapters distinguishable without exposing kernel names
+    # such as hci0 or assuming which controller is the primary one.
+    if (("${#controllers[@]}" > 1)); then
+        alias+=" (${mac})"
+    fi
+    printf 'select %s\nsystem-alias %s\n' "$mac" "$alias" |
         timeout 8 bluetoothctl >/dev/null 2>&1 || true
-done <<< "$controllers"
+done
 BTNAME
 chmod 0755 /usr/lib/raptor/bt-name
 

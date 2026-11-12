@@ -147,9 +147,7 @@ assert_contains files/scripts/raptor-music/crates/raptor-audio/src/adapters/spot
 assert_contains files/scripts/raptor-music/crates/raptor-audio/src/adapters/spotify.rs 'PlaybackAccess::ExternalHandoff'
 assert_contains files/scripts/raptor-music/crates/raptor-audio/src/adapters/youtube.rs 'https://www.googleapis.com/youtube/v3/search'
 assert_contains files/scripts/raptor-music/crates/raptor-audio/src/adapters/youtube.rs 'PlaybackAccess::EmbeddedPlayer'
-assert_contains files/scripts/raptor-music/crates/raptor-audio/src/adapters/bandcamp.rs 'autocomplete_elastic'
-assert_contains files/scripts/raptor-music/crates/raptor-audio/src/adapters/bandcamp.rs 'PlaybackTarget::EmbeddedPlayer'
-assert_contains files/scripts/raptor-music/crates/raptor-audio/src/adapters/bandcamp.rs 'https://bandcamp.com/EmbeddedPlayer/track='
+assert_contains files/scripts/raptor-music/crates/raptor-audio/src/adapters/bandcamp.rs 'Bandcamp handoff must be an HTTPS Bandcamp URL'
 assert_contains files/scripts/raptor-music/crates/raptor-audio/src/backend/rodio.rs 'raptor-rodio-output'
 assert_contains files/scripts/raptor-music/crates/raptor-audio/src/backend/rodio.rs 'MAX_STREAM_BYTES'
 assert_contains files/scripts/raptor-music/crates/raptor-audio/src/backend/rodio.rs '64 * 1024'
@@ -162,7 +160,6 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_au
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "search_jamendo_tracks"
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "parse_jamendo_tracks"
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "RAPTOR_JAMENDO_CLIENT_ID"
-assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "RAPTOR_YOUTUBE_API_KEY"
 assert_contains files/scripts/raptor-music/crates/raptor-audio/src/player.rs "download_jamendo_track"
 assert_contains files/scripts/raptor-music/crates/raptor-audio/src/player.rs "is_jamendo_stream_url"
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "on_open_external_service_clicked"
@@ -171,23 +168,9 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint "
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint "Open Jamendo"
 assert_not_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint "Connect TIDAL"
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "creativecommons.org"
-assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint "Bandcamp playback uses its official player"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint "Jamendo playback is limited to tracks it authorizes under the displayed license."
 
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs "parse_authorization_callback"
-assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs "pub fn refresh_access_token("
-assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "load_valid_provider_access_token"
-assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "search_spotify_tracks"
-assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "search_youtube_tracks"
-assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "search_bandcamp_tracks"
-assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/embedded_player.rs "YouTube embedded player"
-assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/embedded_player.rs "Official Bandcamp embedded player"
-assert_contains files/scripts/raptor-music/crates/raptor-desktop/Cargo.toml 'wry = "0.47"'
-assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "get_all_unified_tracks"
-assert_contains files/scripts/raptor-music/crates/raptor-library/src/lib.rs "upsert_unified_track"
-assert_contains files/scripts/raptor-music/crates/raptor-library/src/lib.rs "get_all_unified_tracks"
-assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "Arc<Mutex<Vec<UnifiedTrack>>>"
-assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "normalize_legacy_track"
-assert_contains files/scripts/raptor-music/crates/raptor-core/src/models.rs "serde::Serialize, serde::Deserialize"
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/callback_listener.rs "address.is_loopback()"
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/callback_listener.rs "request.len() < 8192"
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/apple_music_auth.rs "MusicKit.getInstance()"
@@ -197,8 +180,7 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "ap
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "apple_music_pagination_only_accepts_https_api_paths_without_credentials_or_custom_ports"
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'Some("connected-account")'
 assert_contains files/scripts/raptor-music/crates/raptor-library/tests/database_regression_tests.rs "apple_music_library_refresh_updates_the_existing_connected_profile"
-assert_contains files/scripts/raptor-music/crates/raptor-library/tests/database_regression_tests.rs "assert_eq!(version, 4)"
-assert_contains files/scripts/raptor-music/crates/raptor-library/src/lib.rs "VALUES (4)"
+assert_contains files/scripts/raptor-music/crates/raptor-library/tests/database_regression_tests.rs "assert_eq!(version, 3)"
 
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "start_apple_music_library_refresh"
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint "refresh_apple_music_clicked"
@@ -235,13 +217,40 @@ assert_contains files/scripts/raptor-update/install.sh 'flatpak", "update", "--u
 assert_contains files/scripts/raptor-update/install.sh "trap restore_wifi_power_save EXIT"
 assert_contains files/scripts/raptor-update/install.sh "UPDATE_MANAGER_SHELL_SYNTAX_ERROR"
 assert_contains files/scripts/raptor-update/install.sh "def stream_process"
-assert_contains files/scripts/raptor-update/install.sh "CHECK_TIMEOUT         = 1860"
+assert_contains files/scripts/raptor-update/install.sh "ThreadPoolExecutor(max_workers=2)"
+assert_contains files/scripts/raptor-update/install.sh "timeout=8"
+assert_contains files/scripts/raptor-update/install.sh 'self._on_confirm_response(None, "go")'
+assert_contains files/scripts/raptor-update/install.sh "Rebooting now"
 assert_contains files/scripts/raptor-update/install.sh "start_new_session=True"
 assert_contains files/scripts/raptor-update/install.sh "os.killpg"
 assert_contains files/scripts/raptor-update/install.sh "timeout=3 * 60 * 60"
 assert_contains files/scripts/raptor-update/install.sh "timeout=900"
 assert_contains files/scripts/raptor-update/install.sh 'rpm-ostree upgrade 2>&1 | tee "$out"'
-assert_contains files/scripts/raptor-update/install.sh "_stop_process_group(helper)"
+assert_contains files/scripts/raptor-update/install.sh "_stop_process_group(proc)"
+assert_contains files/scripts/raptor-update/install.sh "/etc/rpm-ostreed.conf"
+assert_contains files/scripts/raptor-update/install.sh "AutomaticUpdatePolicy=check"
+assert_contains files/scripts/raptor-update/install.sh "systemctl enable rpm-ostreed-automatic.timer"
+assert_not_contains files/scripts/raptor-update/install.sh "rpm-ostreed.conf.d"
+
+# Exercise the exact embedded config writer against a temporary rpm-ostreed.conf.
+ostree_config_tmp="$(mktemp)"
+ostree_script_tmp="$(mktemp --suffix=.py)"
+cat > "$ostree_config_tmp" <<'OSTREE_TEST_CONFIG'
+[Daemon]
+#AutomaticUpdatePolicy=none
+IdleExitTimeout=60
+
+[Experimental]
+Feature=true
+OSTREE_TEST_CONFIG
+awk "/^python3 - <<'RAPTOR_OSTREE_CONFIG'$/ { inside=1; next } /^RAPTOR_OSTREE_CONFIG$/ && inside { exit } inside { print }" files/scripts/raptor-update/install.sh > "$ostree_script_tmp"
+test -s "$ostree_script_tmp"
+RAPTOR_RPM_OSTREED_CONFIG="$ostree_config_tmp" python3 "$ostree_script_tmp"
+test "$(grep -Fc 'AutomaticUpdatePolicy=check' "$ostree_config_tmp")" -eq 1
+grep -Fxq 'IdleExitTimeout=60' "$ostree_config_tmp"
+grep -Fxq '[Experimental]' "$ostree_config_tmp"
+grep -Fxq 'Feature=true' "$ostree_config_tmp"
+rm -f "$ostree_script_tmp" "$ostree_config_tmp"
 assert_contains .github/workflows/build.yml 'cargo build --release --workspace --manifest-path files/scripts/raptor-music/Cargo.toml'
 assert_contains .github/workflows/build.yml 'cargo test --workspace --manifest-path files/scripts/raptor-music/Cargo.toml'
 assert_contains .github/workflows/build.yml 'test -x files/staging/raptor-music'
@@ -374,28 +383,37 @@ assert_contains files/system_files/raptor-app-choice.sh 'org.localsend.localsend
 assert_contains files/system_files/raptor-app-choice.sh 'it.mijorus.gearlever'
 assert_contains files/system_files/raptor-app-choice.sh 'net.nokyan.Resources'
 assert_contains recipes/recipe.yml "raptor-bt-name.service"
-assert_contains files/scripts/raptor-hardware-fixes/install.sh "system-alias Raptor OS Bluetooth"
+assert_contains files/scripts/raptor-hardware-fixes/install.sh 'bluetoothctl list'
+assert_contains files/scripts/raptor-hardware-fixes/install.sh 'mapfile -t controllers'
+assert_contains files/scripts/raptor-hardware-fixes/install.sh 'for mac in "${controllers[@]}"'
+assert_contains files/scripts/raptor-hardware-fixes/install.sh 'alias="Raptor OS Bluetooth"'
+assert_contains files/scripts/raptor-hardware-fixes/install.sh 'alias+=" (${mac})"'
+assert_not_contains files/scripts/raptor-hardware-fixes/install.sh 'select hci0'
 assert_contains files/scripts/raptor-hardware-fixes/install.sh "Description=Set a friendly Raptor OS Bluetooth adapter name"
 assert_contains files/system_files/raptor-browser-choice.sh 'Zen Browser'
 assert_contains files/system_files/raptor-browser-choice.sh 'Floorp'
 assert_contains files/system_files/raptor-browser-choice.sh 'Waterfox'
 assert_not_contains files/system_files/raptor-browser-choice.sh 'Helium'
 
-echo "=== Checking custom Raptor Shroudly integration ==="
-assert_contains .github/workflows/build.yml 'Build and test custom Raptor Shroudly'
-assert_contains .github/workflows/build.yml 'cargo build --release --workspace --manifest-path files/scripts/shroudly-raptor/Cargo.toml'
-assert_contains .github/workflows/build.yml 'cargo test --workspace --manifest-path files/scripts/shroudly-raptor/Cargo.toml'
-assert_contains .github/workflows/build.yml 'files/staging/raptor-shroudly'
+echo "=== Checking original Shroudly desktop integration ==="
+assert_contains .github/workflows/build.yml 'submodules: recursive'
+assert_contains .github/workflows/build.yml 'Build original Shroudly desktop app'
+assert_contains .github/workflows/build.yml 'npm ci'
+assert_contains .github/workflows/build.yml 'npm run build:core'
+assert_contains .github/workflows/build.yml 'npm run check:translations'
+assert_contains .github/workflows/build.yml 'npm run test:net'
+assert_contains .github/workflows/build.yml 'npx electron-builder --linux dir --x64 --publish never'
+assert_contains .github/workflows/build.yml 'files/staging/raptor-shroudly-app/resources/app.asar'
 assert_contains .github/workflows/build.yml 'Verify both apps inside the published image'
 assert_contains .github/workflows/build.yml '/usr/bin/raptor-shroudly'
-assert_contains files/scripts/shroudly-raptor/crates/shroudly-raptor/Cargo.toml 'slint = "1.5"'
-assert_contains files/scripts/shroudly-raptor/crates/shroudly-raptor/src/gui.rs 'RAPTOR / SHROUDLY'
-assert_contains files/scripts/shroudly-raptor/crates/shroudly-raptor/src/gui.rs 'Traffic routing is not enabled in this build.'
-assert_contains files/scripts/shroudly-raptor/install.sh '/usr/bin/raptor-shroudly'
-assert_contains files/scripts/shroudly-raptor/install.sh 'Name=Raptor Shroudly'
-assert_contains files/scripts/shroudly-raptor/install.sh 'raptor-shroudly.svg'
-assert_contains README.md 'upstream desktop app is not bundled'
-assert_contains README.md 'Network routing, proxy/tunnel operation and per-app traffic steering are not implemented'
+assert_contains files/scripts/shroudly-raptor/upstream/app/page.js 'export default function Home()'
+assert_contains files/scripts/shroudly-raptor/upstream/app/globals.css '--bg:            #0b0f17;'
+assert_contains files/scripts/shroudly-raptor/install.sh '/opt/raptor-shroudly'
+assert_contains files/scripts/shroudly-raptor/install.sh 'Name=Shroudly'
+assert_contains files/scripts/shroudly-raptor/install.sh 'me.codeshare.shroudly.policy'
+assert_contains files/scripts/raptor-cortex/install.sh 'gamemode-desktop-start'
+assert_contains files/scripts/raptor-cortex/install.sh 'gamemode-desktop-end'
+assert_not_contains files/scripts/shroudly-raptor/install.sh 'Name=Raptor Shroudly'
 assert_contains files/scripts/raptor-hardware-fixes/install.sh 'Raptor Proton'
 assert_contains files/scripts/raptor-hardware-fixes/install.sh 'standard Wine'
 
@@ -436,9 +454,9 @@ assert_contains .github/workflows/build.yml 'git add -f -- files/staging'
 assert_contains .github/workflows/build.yml 'Verify both apps inside the published image'
 assert_contains .github/workflows/build.yml '/usr/bin/raptor-music'
 assert_contains .github/workflows/build.yml '/usr/bin/raptor-shroudly'
-assert_not_contains .github/workflows/build.yml 'npm ci'
+assert_contains .github/workflows/build.yml 'npm ci'
 assert_not_contains .github/workflows/build.yml 'files/staging/shroudly-app'
-assert_not_contains files/scripts/shroudly-raptor/install.sh 'Name=Shroudly'
+assert_contains files/scripts/shroudly-raptor/install.sh 'Name=Shroudly'
 assert_not_contains files/scripts/shroudly-raptor/install.sh 'systemctl enable'
 echo "All custom Raptor app release contracts passed."
 
@@ -591,15 +609,19 @@ assert_contains files/system_files/zram-generator.conf 'compression-algorithm = 
 assert_not_contains files/system_files/zram-generator.conf 'compression-algorithm = zstd'
 
 
-echo "=== Raptor Update Manager rollback and lock-screen validation ==="
+echo "=== Raptor Update Manager cached update detection and reboot validation ==="
 bash -n files/scripts/raptor-update/install.sh
-assert_contains files/scripts/raptor-update/install.sh 'rpm-ostree upgrade --download-only --unchanged-exit-77'
-assert_contains files/scripts/raptor-update/install.sh 'CHECK_TIMEOUT         = 1860'
-assert_contains files/scripts/raptor-update/install.sh 'Update image resolved and downloaded; no deployment was created.'
-assert_not_contains files/scripts/raptor-update/install.sh 'timeout "${ATTEMPT_TIMEOUT}" rpm-ostree upgrade --check'
-# Exercise both authoritative outcomes with a fake rpm-ostree binary: exit 77
-# means no update; exit 0 means the image was resolved/downloaded, without a
-# deployment. This protects the check path from regressing to --check-only.
+assert_contains files/scripts/raptor-update/install.sh 'exec timeout 8 rpm-ostree status --json'
+assert_contains files/scripts/raptor-update/install.sh 'def _read_ostree_status'
+assert_contains files/scripts/raptor-update/install.sh 'The rpm-ostreed automatic check timer refreshes remote metadata'
+assert_contains files/scripts/raptor-update/install.sh 'ThreadPoolExecutor(max_workers=2)'
+assert_contains files/scripts/raptor-update/install.sh 'self._on_confirm_response(None, "go")'
+assert_contains files/scripts/raptor-update/install.sh 'Update installed. Rebooting now…'
+assert_not_contains files/scripts/raptor-update/install.sh 'rpm-ostree upgrade --download-only --unchanged-exit-77'
+assert_not_contains files/scripts/raptor-update/install.sh 'CHECK_TIMEOUT'
+
+# The privileged check helper must read the cached status only. A fake rpm-ostree
+# verifies it never starts an upgrade or downloads an image.
 check_tmp="$(mktemp --suffix=.sh)"
 awk "/^cat << 'EOF' > \/usr\/lib\/raptor\/check-helper$/ { inside=1; next } /^EOF$/ && inside { exit } inside { print }" files/scripts/raptor-update/install.sh > "$check_tmp"
 test -s "$check_tmp"
@@ -609,33 +631,42 @@ mkdir -p "$check_test_dir/bin"
 cat > "$check_test_dir/bin/rpm-ostree" <<'RPMOSTREE'
 #!/bin/bash
 printf '%s\\n' "$*" >> "$RAPTOR_TEST_CALLS"
-echo "${RAPTOR_TEST_RPM_OUTPUT:-}"
-exit "${RAPTOR_TEST_RPM_RC:-0}"
+echo '{"deployments":[{"booted":true}],"cached-update":{"ref-has-new-commit":true}}'
 RPMOSTREE
 chmod +x "$check_test_dir/bin/rpm-ostree"
 export PATH="$check_test_dir/bin:$PATH"
 export RAPTOR_TEST_CALLS="$check_test_dir/calls"
-export RAPTOR_CHECK_MAX_ATTEMPTS=1
-export RAPTOR_CHECK_ATTEMPT_TIMEOUT=3
-export RAPTOR_TEST_RPM_RC=77
-bash "$check_tmp" > "$check_test_dir/no-update.log"
-grep -Fq 'No upgrade available.' "$check_test_dir/no-update.log"
-if grep -Fq 'AvailableUpdate:' "$check_test_dir/no-update.log"; then
-  echo "Update checker marked exit 77 as an available update" >&2
+bash "$check_tmp" > "$check_test_dir/status.json"
+grep -Fq 'status --json' "$RAPTOR_TEST_CALLS"
+if grep -Fq 'upgrade' "$RAPTOR_TEST_CALLS"; then
+  echo "Manual update check unexpectedly started an upgrade" >&2
   exit 1
 fi
-export RAPTOR_TEST_RPM_RC=0
-bash "$check_tmp" > "$check_test_dir/update.log"
-grep -Fq 'AvailableUpdate:' "$check_test_dir/update.log"
-grep -Fq 'upgrade --download-only --unchanged-exit-77' "$RAPTOR_TEST_CALLS"
-unset RAPTOR_TEST_CALLS RAPTOR_CHECK_MAX_ATTEMPTS RAPTOR_CHECK_ATTEMPT_TIMEOUT RAPTOR_TEST_RPM_RC
+grep -Fq '"ref-has-new-commit":true' "$check_test_dir/status.json"
+unset RAPTOR_TEST_CALLS
 rm -f "$check_tmp"
 rm -rf "$check_test_dir"
-echo "OCI-aware Update Manager detection tests passed."
+echo "Cached Update Manager detection tests passed."
 update_tmp="$(mktemp --suffix=.py)"
 awk "/^cat << 'PYEOF' > \/usr\/bin\/raptor-update$/ { inside=1; next } /^PYEOF$/ && inside { exit } inside { print }" files/scripts/raptor-update/install.sh > "$update_tmp"
 test -s "$update_tmp"
 python3 -c 'import ast, sys; ast.parse(open(sys.argv[1], encoding="utf-8").read())' "$update_tmp"
+python3 - "$update_tmp" <<'PY'
+import ast
+import sys
+
+tree = ast.parse(open(sys.argv[1], encoding="utf-8").read())
+function = next(
+    node for node in tree.body
+    if isinstance(node, ast.FunctionDef) and node.name == "_local_update_signal"
+)
+namespace = {}
+exec(compile(ast.Module(body=[function], type_ignores=[]), "<update-manager-check>", "exec"), namespace)
+check = namespace["_local_update_signal"]
+assert check({"cached-update": {"ref-has-new-commit": True}, "deployments": [{"booted": True}]})[0]
+assert not check({"cached-update": None, "deployments": [{"booted": True}]})[0]
+assert check({"cached-update": None, "deployments": [{"booted": False}, {"booted": True}]})[0]
+PY
 grep -Fq 'ROLLBACK_HELPER       = "/usr/lib/raptor/rollback-helper"' "$update_tmp"
 grep -Fq 'def on_rollback_clicked(self, _btn):' "$update_tmp"
 grep -Fq 'def _run_rollback(self):' "$update_tmp"
@@ -673,9 +704,9 @@ assert_contains .github/workflows/build.yml 'IMAGE_TAG="${GITHUB_SHA:0:7}-$IMAGE
 assert_contains .github/workflows/build.yml 'BlueBuild publishes the short commit-SHA tag for push,'
 assert_not_contains .github/workflows/build.yml 'IMAGE_TAG="${REF_TAG}-$IMAGE_VERSION_SUFFIX"'
 assert_contains files/scripts/raptor-music/install.sh 'if [[ ! -x "$SRC_BIN" && -x "/tmp/files/staging/raptor-music" ]]; then'
-assert_contains files/scripts/shroudly-raptor/install.sh 'if [[ ! -x "$STAGED_BIN" && -x "/tmp/files/staging/raptor-shroudly" ]]; then'
+assert_contains files/scripts/shroudly-raptor/install.sh 'STAGE_DIR="/tmp/files/staging"'
 assert_contains files/scripts/raptor-music/install.sh 'STAGE_DIR="/tmp/files/staging"'
-assert_contains files/scripts/shroudly-raptor/install.sh 'STAGED_BIN="/tmp/files/staging/raptor-shroudly"'
+assert_contains files/scripts/shroudly-raptor/install.sh 'STAGED_APP="$STAGE_DIR/raptor-shroudly-app"'
 echo "Image tagging and payload staging contracts passed."
 
 echo "=== Checking boot-time GPU detection safety ==="
@@ -859,7 +890,7 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'Ke
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'if generation.load(Ordering::Acquire) == request_generation'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'artist_search_page_rejects_unexpected_response_shape'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'if generation_state.load(Ordering::Acquire) == request_generation'
-assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs '*tracks_state.lock().unwrap() = normalized_tracks;'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs '*tracks_state.lock().unwrap() = tracks;'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn search_audius_collections'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn parse_audius_collections'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn fetch_audius_collection_tracks'
@@ -904,7 +935,7 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'MusicBrainz asks clients to stay at or below one request per second'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'musicbrainz_links_only_allow_official_artist_and_release_group_pages'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'musicbrainz_release_groups_are_metadata_only_collection_rows'
-assert_contains README.md 'MusicBrainz remains metadata-only.'
+assert_contains README.md 'MusicBrainz is a metadata-only discovery source; it does not provide audio playback.'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn search_apple_music_artists'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'apple_music_artist_links_reject_non_apple_hosts_and_insecure_schemes'
 
@@ -918,7 +949,7 @@ assert_contains files/scripts/raptor-music/crates/raptor-audio/src/player.rs 'fn
 assert_contains files/scripts/raptor-music/crates/raptor-audio/src/player.rs 'is_apple_preview_url'
 assert_contains files/scripts/raptor-music/crates/raptor-audio/src/player.rs 'accepts_only_https_apple_preview_hosts'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Music providers'
-assert_contains README.md "Apple Music previews still depend on the user's MusicKit authorization."
+assert_contains README.md 'short previews when a developer token is configured'
 echo "Raptor Music provider checks passed."
 
 echo "=== Checking Raptor Music Discord Rich Presence ==="

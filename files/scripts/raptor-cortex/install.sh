@@ -761,20 +761,100 @@ EOF
 systemctl --global enable raptor-unfreeze.timer 2>/dev/null || true
 
 # ── Gamemode hooks ────────────────────────────────────────────────────────────
+cat << 'EOF' > /usr/lib/raptor/gamemode-desktop-start
+#!/bin/bash
+# Keep KDE quiet while a GameMode session is active. These are per-user
+# settings and are restored to their exact previous values on gamemode-end.
+set -u
+STATE_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/raptor-game-mode-desktop"
+mkdir -p "$STATE_DIR" || exit 0
+[ -f "$STATE_DIR/active" ] && exit 0
+touch "$STATE_DIR/active"
+
+KREAD="$(command -v kreadconfig6 || command -v kreadconfig5 || true)"
+KWRITE="$(command -v kwriteconfig6 || command -v kwriteconfig5 || true)"
+QDBUS="$(command -v qdbus6 || command -v qdbus || true)"
+
+if [[ -n "$KREAD" && -n "$KWRITE" ]]; then
+    previous="$("$KREAD" --file kdeglobals --group KDE --key AnimationDurationFactor --default __raptor_unset__ 2>/dev/null || printf '__raptor_unset__')"
+    printf '%s\n' "$previous" > "$STATE_DIR/animation-factor"
+    "$KWRITE" --file kdeglobals --group KDE --key AnimationDurationFactor 0 2>/dev/null || true
+    [[ -n "$QDBUS" ]] && "$QDBUS" org.kde.KWin /KWin reconfigure >/dev/null 2>&1 || true
+fi
+
+# Use the standard freedesktop notification inhibition API. It suppresses
+# popups without stopping the notification daemon or discarding notifications.
+if [[ -n "$QDBUS" ]]; then
+    "$QDBUS" org.freedesktop.Notifications /org/freedesktop/Notifications \
+        org.freedesktop.Notifications.Inhibit "Raptor Game Mode" "A game is active" \
+        > "$STATE_DIR/notification-cookie" 2>/dev/null || true
+fi
+if [[ ! -s "$STATE_DIR/notification-cookie" ]] && command -v gdbus >/dev/null 2>&1; then
+    gdbus call --session --dest org.freedesktop.Notifications \
+        --object-path /org/freedesktop/Notifications \
+        --method org.freedesktop.Notifications.Inhibit \
+        "Raptor Game Mode" "A game is active" \
+        > "$STATE_DIR/notification-cookie" 2>/dev/null || true
+fi
+exit 0
+EOF
+chmod +x /usr/lib/raptor/gamemode-desktop-start
+
+cat << 'EOF' > /usr/lib/raptor/gamemode-desktop-end
+#!/bin/bash
+# Undo only the changes made by gamemode-desktop-start.
+set -u
+STATE_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/raptor-game-mode-desktop"
+[[ -f "$STATE_DIR/active" ]] || exit 0
+
+QDBUS="$(command -v qdbus6 || command -v qdbus || true)"
+if [[ -s "$STATE_DIR/notification-cookie" ]]; then
+    cookie="$(cat "$STATE_DIR/notification-cookie")"
+    # qdbus returns the integer directly; gdbus prints a tuple such as (uint32 4,).
+    if [[ "$cookie" =~ uint32[[:space:]]+([0-9]+) ]]; then
+        cookie="${BASH_REMATCH[1]}"
+    else
+        cookie="${cookie//[^0-9]/}"
+    fi
+    if [[ -n "$cookie" && -n "$QDBUS" ]]; then
+        "$QDBUS" org.freedesktop.Notifications /org/freedesktop/Notifications \
+            org.freedesktop.Notifications.UnInhibit "$cookie" >/dev/null 2>&1 || true
+    elif [[ -n "$cookie" ]] && command -v gdbus >/dev/null 2>&1; then
+        gdbus call --session --dest org.freedesktop.Notifications \
+            --object-path /org/freedesktop/Notifications \
+            --method org.freedesktop.Notifications.UnInhibit "$cookie" >/dev/null 2>&1 || true
+    fi
+fi
+
+KWRITE="$(command -v kwriteconfig6 || command -v kwriteconfig5 || true)"
+if [[ -n "$KWRITE" && -f "$STATE_DIR/animation-factor" ]]; then
+    previous="$(cat "$STATE_DIR/animation-factor")"
+    if [[ "$previous" == "__raptor_unset__" ]]; then
+        "$KWRITE" --file kdeglobals --group KDE --key AnimationDurationFactor --delete 2>/dev/null || true
+    else
+        "$KWRITE" --file kdeglobals --group KDE --key AnimationDurationFactor "$previous" 2>/dev/null || true
+    fi
+    [[ -n "$QDBUS" ]] && "$QDBUS" org.kde.KWin /KWin reconfigure >/dev/null 2>&1 || true
+fi
+rm -rf "$STATE_DIR"
+exit 0
+EOF
+chmod +x /usr/lib/raptor/gamemode-desktop-end
+
 cat << 'EOF' > /usr/lib/raptor/gamemode-start
 #!/bin/bash
-# Single source of truth: Cortex pauses only configured optional indexers and
-# applies its bounded AC-only wake-latency constraint. No duplicate STOP loop.
-# Avoid compaction, zram recompression and OOM-score changes on every launch.
+# Keep notifications and desktop animations out of the way, then pause only
+# the optional background work selected in Raptor Cortex.
+/usr/lib/raptor/gamemode-desktop-start || true
 exec sudo -n /usr/lib/raptor/cortex-helper trim-background
 EOF
 chmod +x /usr/lib/raptor/gamemode-start
 
 cat << 'EOF' > /usr/lib/raptor/gamemode-end
 #!/bin/bash
-# Restore exactly the process set that Cortex paused. The helper owns both
-# lists and the Game Mode marker, avoiding duplicate or drifting resume logic.
-exec sudo -n /usr/lib/raptor/cortex-helper restore-background
+# Resume the exact process set Cortex paused, then restore desktop settings.
+sudo -n /usr/lib/raptor/cortex-helper restore-background || true
+/usr/lib/raptor/gamemode-desktop-end || true
 EOF
 chmod +x /usr/lib/raptor/gamemode-end
 
@@ -3328,6 +3408,8 @@ RAPTOR_EXPECTED_PAYLOAD="
 /usr/lib/raptor/unfreeze
 /usr/lib/raptor/gamemode-start
 /usr/lib/raptor/gamemode-end
+/usr/lib/raptor/gamemode-desktop-start
+/usr/lib/raptor/gamemode-desktop-end
 /usr/share/applications/raptor-cortex.desktop
 "
 raptor_missing=""
@@ -3347,7 +3429,9 @@ for raptor_shell in \
     /usr/lib/raptor/safe-signal \
     /usr/lib/raptor/unfreeze \
     /usr/lib/raptor/gamemode-start \
-    /usr/lib/raptor/gamemode-end; do
+    /usr/lib/raptor/gamemode-end \
+    /usr/lib/raptor/gamemode-desktop-start \
+    /usr/lib/raptor/gamemode-desktop-end; do
     if ! bash -n "$raptor_shell"; then
         echo "CORTEX_SHELL_SYNTAX_ERROR:$raptor_shell" >&2
         exit 1

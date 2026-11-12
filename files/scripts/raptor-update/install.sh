@@ -177,64 +177,10 @@ chmod +x /usr/lib/raptor/update-helper
 
 cat << 'EOF' > /usr/lib/raptor/check-helper
 #!/bin/bash
-# Check for newer OCI image updates without creating a deployment.
-#
-# rpm-ostree upgrade --check can report "no update" on container-native
-# images even while a normal upgrade finds a newer image. This is an upstream
-# limitation of the check-only path. Resolve the same transaction as a normal
-# upgrade, but use --download-only so Check never creates a deployment,
-# changes the boot default, or reboots. --unchanged-exit-77 distinguishes the
-# no-update case from a successfully resolved/downloaded update.
-#
-# A check can therefore download the image layers (reusing the cache when
-# possible). The Update button subsequently runs the ordinary upgrade command
-# to create the pending deployment.
-MAX_ATTEMPTS="${RAPTOR_CHECK_MAX_ATTEMPTS:-2}"
-ATTEMPT_TIMEOUT="${RAPTOR_CHECK_ATTEMPT_TIMEOUT:-900}"  # image downloads may be large
-RETRY_SLEEP="${RAPTOR_CHECK_RETRY_SLEEP:-5}"
-
-echo "Raptor OS Update Check — resolving the real upgrade transaction"
-for try in $(seq 1 "${MAX_ATTEMPTS}"); do
-    echo "── Update resolution attempt ${try}/${MAX_ATTEMPTS} ──"
-    out="$(mktemp)"
-    timeout "${ATTEMPT_TIMEOUT}" rpm-ostree upgrade --download-only --unchanged-exit-77 2>&1 | tee "$out"
-    rc=${PIPESTATUS[0]}
-
-    if [ "$rc" -eq 77 ]; then
-        rm -f "$out"
-        echo "No upgrade available."
-        exit 0
-    fi
-
-    if [ "$rc" -eq 0 ]; then
-        if grep -qiE "no updates? available|no upgrade available" "$out"; then
-            rm -f "$out"
-            echo "No upgrade available."
-            exit 0
-        fi
-        rm -f "$out"
-        echo "Update image resolved and downloaded; no deployment was created."
-        echo "AvailableUpdate:"
-        echo "A system update is available. Select Update & Reboot to stage it."
-        exit 0
-    fi
-
-    if [ "$rc" -eq 124 ]; then
-        echo "Update resolution timed out after ${ATTEMPT_TIMEOUT} seconds."
-    else
-        echo "Update resolution failed (exit ${rc})."
-    fi
-    tail -n 8 "$out" || true
-    rm -f "$out"
-
-    if [ "$try" -lt "$MAX_ATTEMPTS" ]; then
-        echo "Retrying in ${RETRY_SLEEP} seconds…"
-        sleep "$RETRY_SLEEP"
-    fi
-done
-
-echo "Could not resolve the update transaction. No deployment was changed."
-exit 1
+# Return rpm-ostree's cached state only. The automatic metadata timer performs
+# remote refreshes; this helper must never download an image during a manual check.
+set -euo pipefail
+exec timeout 8 rpm-ostree status --json
 EOF
 chmod +x /usr/lib/raptor/check-helper
 
@@ -308,18 +254,50 @@ else
 fi
 
 # ── Background update check ───────────────────────────────────────────────────
-# Keep rpm-ostree's cached-update state warm. With AutomaticUpdatePolicy=check
-# the rpm-ostreed-automatic timer periodically refreshes the remote metadata
-# and records whether a newer deployment exists, so `rpm-ostree status --json`
-# gives correct answers even between GUI refreshes. (policy=check only *checks*;
-# it never stages or downloads the update — the GUI still drives the real
-# update + reboot through update-helper.)
-mkdir -p /etc/rpm-ostreed.conf.d
-cat << 'EOF' > /etc/rpm-ostreed.conf.d/raptor-auto-check.conf
-[Daemon]
-AutomaticUpdatePolicy=check
-EOF
-systemctl enable rpm-ostreed-automatic.timer 2>/dev/null || true
+# rpm-ostree reads /etc/rpm-ostreed.conf directly; it does not load a conf.d
+# directory. Enable metadata-only checks and the timer so the GUI's local status
+# read has a current result. This policy checks availability but does not stage
+# or apply updates.
+python3 - <<'RAPTOR_OSTREE_CONFIG'
+import os
+import re
+from pathlib import Path
+
+config = Path(os.environ.get("RAPTOR_RPM_OSTREED_CONFIG", "/etc/rpm-ostreed.conf"))
+lines = config.read_text(encoding="utf-8").splitlines() if config.exists() else []
+section_start = next(
+    (index for index, line in enumerate(lines)
+     if line.strip().lower() == "[daemon]"),
+    None,
+)
+
+if section_start is None:
+    if lines and lines[-1].strip():
+        lines.append("")
+    lines.extend(["[Daemon]", "AutomaticUpdatePolicy=check"])
+else:
+    section_end = next(
+        (index for index in range(section_start + 1, len(lines))
+         if re.match(r"^\s*\[", lines[index])),
+        len(lines),
+    )
+    updated = []
+    inserted = False
+    for line in lines[section_start:section_end]:
+        if re.match(r"^\s*#?\s*AutomaticUpdatePolicy\s*=", line, re.IGNORECASE):
+            if not inserted:
+                updated.append("AutomaticUpdatePolicy=check")
+                inserted = True
+            continue
+        updated.append(line)
+    if not inserted:
+        updated.insert(1, "AutomaticUpdatePolicy=check")
+    lines[section_start:section_end] = updated
+
+config.parent.mkdir(parents=True, exist_ok=True)
+config.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+RAPTOR_OSTREE_CONFIG
+systemctl enable rpm-ostreed-automatic.timer
 
 # ── Python GUI ────────────────────────────────────────────────────────────────
 cat << 'PYEOF' > /usr/bin/raptor-update
@@ -339,14 +317,13 @@ import sys
 import re
 import signal
 from queue import Queue, Empty
+from concurrent.futures import ThreadPoolExecutor
 import os
 import shutil
 import time
 
 CHANGELOG_URL         = "https://raw.githubusercontent.com/Cerberus9-dev/Raptor-OS-Home-Edition/refs/heads/main/changelog.md"
 UPDATE_HELPER         = "/usr/lib/raptor/update-helper"
-CHECK_HELPER          = "/usr/lib/raptor/check-helper"
-CHECK_ACTION          = "io.github.cerberus9dev.raptorupdate.check"
 FLATPAK_UPDATE_HELPER = "/usr/lib/raptor/flatpak-update-helper"
 REBOOT_HELPER         = "/usr/lib/raptor/reboot-helper"
 ROLLBACK_HELPER       = "/usr/lib/raptor/rollback-helper"
@@ -357,7 +334,6 @@ SUDOERS_FILE          = "/etc/sudoers.d/raptor-update"
 # bounds itself to 3 × 150 s attempts + back-off, so this always outlives it —
 # the outer bound is a safety net so a stuck network can never hang the GUI
 # forever, and the helper output is streamed live meanwhile.
-CHECK_TIMEOUT         = 1860
 
 # Remove ANSI/VT100 escape sequences from command output:
 #   CSI  ESC [ <params> <letter>
@@ -397,182 +373,86 @@ def fetch_changelog():
     )
 
 
-def _local_update_signal():
-    """Read only local state (no network) for a pending update.
-
-    Returns (has_update: bool, message: str) or (False, "") when nothing
-    local is conclusive. Looks for a cached-update flag and for a staged
-    deployment that has not been booted — both are visible without touching
-    the network, which matters when the refresh itself just failed."""
+def _read_ostree_status():
+    """Read rpm-ostree's cached state without refreshing remotes or downloading layers."""
     try:
-        import json
         result = subprocess.run(
             ["rpm-ostree", "status", "--json"],
-            capture_output=True, text=True, timeout=60,
+            capture_output=True, text=True, timeout=8,
         )
         if result.returncode != 0:
-            return False, ""
-        status = json.loads(result.stdout)
-        deployments = status.get("deployments", [])
-        # cached-update is a bool on older rpm-ostree and a dict on newer.
-        for deployment in deployments:
-            if deployment.get("cached-update"):
-                return True, "A system update is available; its image is downloaded."
-        # A staged-but-not-booted deployment: the newest deployment (index 0)
-        # is not the one currently booted, so a newer base image is already
-        # on disk — only a reboot is missing.
-        if deployments and not deployments[0].get("booted"):
-            return True, "System update downloaded — reboot to apply it."
-    except Exception:
-        pass
-    return False, ""
+            detail = (result.stderr or result.stdout or "").strip()
+            return None, f"Could not read local rpm-ostree state: {detail or result.returncode}"
+        import json
+        return json.loads(result.stdout), ""
+    except subprocess.TimeoutExpired:
+        return None, "Reading local rpm-ostree state timed out."
+    except FileNotFoundError:
+        return None, "rpm-ostree not found — is this an OSTree system?"
+    except Exception as exc:
+        return None, f"Could not read local rpm-ostree state: {exc}"
+
+
+def _local_update_signal(status=None):
+    """Inspect one already-read status document; never perform a network check here."""
+    if status is None:
+        status, error = _read_ostree_status()
+        if status is None:
+            return False, error
+
+    cached_update = status.get("cached-update")
+    if isinstance(cached_update, dict) and cached_update.get("ref-has-new-commit"):
+        return True, "A system update is available."
+
+    deployments = status.get("deployments", [])
+    if deployments and not deployments[0].get("booted"):
+        return True, "System update downloaded — reboot to apply it."
+
+    return False, "No system update is currently cached. Background metadata checks keep this state refreshed."
 
 
 def check_for_updates(emit=None):
-    """Resolve the real rpm-ostree update transaction without staging it.
+    """Check the local rpm-ostree cache only.
 
-    The check-only rpm-ostree path is unreliable on some OCI/container-native
-    images: it can report no update while a normal upgrade finds one. The
-    privileged check-helper therefore runs
-    `rpm-ostree upgrade --download-only --unchanged-exit-77`. This follows
-    the same image resolution as a normal upgrade and may download image
-    layers, but it does not create a deployment, change the boot default, or
-    reboot. Exit 77 means no update; exit 0 means the update was resolved and
-    downloaded. The Update button then runs the normal upgrade command to
-    stage the pending deployment.
-
-    The GUI streams helper output live and applies a hard wall-clock timeout.
-    Local cached-update and staged-deployment signals are still checked so a
-    refresh failure cannot hide an update already known to rpm-ostree.
-
-    Returns (has_update: bool, message: str)."""
-    refresh_out = ""
-    refresh_rc = -1
-    try:
-        helper = run_privileged(CHECK_HELPER, action_id=CHECK_ACTION)
-    except RuntimeError as exc:
-        # A missing auth agent must not hide an update that is already cached
-        # or staged locally; report the local deployment state first.
-        local_has, local_msg = _local_update_signal()
-        if local_has:
-            return True, local_msg
-        return False, f"Could not start update check ({exc})."
-
-    deadline = time.monotonic() + CHECK_TIMEOUT
-    lines = Queue()
-
-    def _read_helper_output():
-        try:
-            for line in helper.stdout:
-                lines.put(line)
-        finally:
-            lines.put(None)
-
-    # A reader thread owns TextIOWrapper reads and forwards complete lines
-    # through a queue. Timeout enforcement is independent of buffered text I/O.
-    threading.Thread(target=_read_helper_output, daemon=True).start()
-    while True:
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            refresh_rc = "timeout"
-            break
-        try:
-            line = lines.get(timeout=remaining)
-        except Empty:
-            refresh_rc = "timeout"
-            break
-        if line is None:
-            break
-        if emit is not None:
-            emit(line)
-        refresh_out += line
-
-    if refresh_rc == "timeout":
-        try:
-            _stop_process_group(helper)
-        except Exception:
-            pass
-    else:
-        try:
-            refresh_rc = helper.wait(timeout=max(1, deadline - time.monotonic()))
-        except subprocess.TimeoutExpired:
-            try:
-                _stop_process_group(helper)
-            except Exception:
-                pass
-            refresh_rc = "timeout"
-
-    # Clean result codes: 0 or 77 both mean "the check ran and we know the
-    # answer" (which code a given rpm-ostree build uses varies), and the
-    # helper exits 0 on any completed check via the verdict fallback.
-    if refresh_rc == "timeout":
-        return False, "Update check timed out while refreshing metadata."
-    if isinstance(refresh_rc, int) and refresh_rc not in (0, 77):
-        # Belt-and-braces: trust a verdict in the output even if the helper
-        # surfaced a quirky exit code — a printed "no update" / "update
-        # available" means the check reached an answer, not a failure.
-        verdict_ok = re.search(
-            r"(?mi)^\s*(?:No\s+updates?\s+available|No\s+upgrade\s+available"
-            r"|Available\s*Update)\s*:?",
-            refresh_out,
-        )
-        if not verdict_ok:
-            # 4) Refresh failed — but do NOT hide an update already known locally.
-            local_has, local_msg = _local_update_signal()
-            if local_has:
-                return True, local_msg
-            tail = [l for l in refresh_out.splitlines() if l.strip()]
-            detail = tail[-1] if tail else f"exit {refresh_rc}"
-            return False, f"Could not refresh update state ({detail})."
-
-    # 1) Explicit announcement in the check output ("AvailableUpdate:").
-    if re.search(r"(?mi)^\s*Available\s*Update\s*:", refresh_out):
-        return True, "A system update is available; its image is downloaded."
-
-    # 2) + 3) local signals: cached-update flag / staged-but-not-booted.
-    local_has, local_msg = _local_update_signal()
-    if local_has:
-        return local_has, local_msg
-    if local_msg:
-        return local_has, local_msg
-    try:
-        import json
-        result = subprocess.run(
-            ["rpm-ostree", "status", "--json"],
-            capture_output=True, text=True, timeout=60,
-        )
-        if result.returncode != 0:
-            return False, f"Could not check for updates (exit {result.returncode})."
-    except subprocess.TimeoutExpired:
-        return False, "Update check timed out."
-    except FileNotFoundError:
-        return False, "rpm-ostree not found — is this an OSTree system?"
-    except Exception as e:
-        return False, f"Error: {e}"
-    return False, "System is up to date."
+    The rpm-ostreed automatic check timer refreshes remote metadata in the
+    background. The GUI reads its cached result instead of resolving and
+    downloading an entire OCI image every time the user opens Update Manager.
+    """
+    status, error = _read_ostree_status()
+    if status is None:
+        return False, error
+    has_update, message = _local_update_signal(status)
+    if emit is not None:
+        emit("Read cached rpm-ostree status; no remote request or image download was started.\n")
+    return has_update, message
 
 
 def check_flatpak_updates():
-    """Check system and per-user Flatpak installations independently."""
+    """Check system and per-user Flatpak installations concurrently."""
     if not _have("flatpak"):
         return False, 0, ""
-    total = 0
-    errors = []
-    for scope in ("--system", "--user"):
+
+    def check_scope(scope):
         try:
             result = subprocess.run(
                 ["flatpak", "remote-ls", "--app", "--updates", scope],
-                capture_output=True, text=True, timeout=30,
+                capture_output=True, text=True, timeout=12,
             )
             if result.returncode != 0:
                 detail = (result.stderr or result.stdout or "").strip()
-                errors.append(f"{scope[2:]}: {detail or 'check failed'}")
-                continue
-            total += sum(1 for line in result.stdout.splitlines() if line.strip())
+                return 0, f"{scope[2:]}: {detail or 'check failed'}"
+            count = sum(1 for line in result.stdout.splitlines() if line.strip())
+            return count, ""
         except subprocess.TimeoutExpired:
-            errors.append(f"{scope[2:]}: check timed out")
+            return 0, f"{scope[2:]}: check timed out"
         except Exception as exc:
-            errors.append(f"{scope[2:]}: {exc}")
+            return 0, f"{scope[2:]}: {exc}"
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(check_scope, ("--system", "--user")))
+
+    total = sum(count for count, _error in results)
+    errors = [error for _count, error in results if error]
     if total:
         return True, total, f"{total} Flatpak app{'s' if total != 1 else ''} can be updated across system and user installs."
     if errors:
@@ -1031,8 +911,13 @@ class RaptorUpdateWindow(Adw.ApplicationWindow):
         def _emit(line):
             GLib.idle_add(self._append_console, line)
         GLib.idle_add(self._append_console, "── Checking for updates ──\n")
-        ostree_has, ostree_msg      = check_for_updates(emit=_emit)
-        fp_has, _fp_n, fp_msg       = check_flatpak_updates()
+        # The OSTree result is a local cache read; Flatpak's independent
+        # remote checks run alongside it rather than serially.
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            ostree_future = pool.submit(check_for_updates, _emit)
+            flatpak_future = pool.submit(check_flatpak_updates)
+            ostree_has, ostree_msg = ostree_future.result()
+            fp_has, _fp_n, fp_msg = flatpak_future.result()
         GLib.idle_add(self._on_check_done, ostree_has, ostree_msg, fp_has, fp_msg)
 
     def _on_check_done(self, ostree_has, ostree_msg, fp_has, fp_msg):
@@ -1105,30 +990,9 @@ class RaptorUpdateWindow(Adw.ApplicationWindow):
     def on_update_clicked(self, btn):
         if self._update_running:
             return
-        needs_reboot = self._ostree_has_update
-        heading   = "Update & Reboot?" if needs_reboot else "Update Flatpak Apps?"
-        body      = (
-            "Raptor OS will update and reboot when complete.\nSave any open work first."
-            if needs_reboot else
-            "Flatpak apps will be updated. No reboot required."
-        )
-        btn_label = "Update & Reboot" if needs_reboot else "Update Now"
-        # Adw.AlertDialog (libadwaita ≥ 1.5); fall back to deprecated MessageDialog.
-        try:
-            dialog = Adw.AlertDialog(heading=heading, body=body)
-            dialog.add_response("cancel", "Cancel")
-            dialog.add_response("go", btn_label)
-            dialog.set_response_appearance("go", Adw.ResponseAppearance.SUGGESTED)
-            dialog.connect("response", self._on_confirm_response)
-            dialog.present(self)
-        except AttributeError:
-            dialog = Adw.MessageDialog(
-                transient_for=self, heading=heading, body=body)
-            dialog.add_response("cancel", "Cancel")
-            dialog.add_response("go", btn_label)
-            dialog.set_response_appearance("go", Adw.ResponseAppearance.SUGGESTED)
-            dialog.connect("response", self._on_confirm_response)
-            dialog.present()
+        # One click starts the update. A successful system update reboots
+        # automatically as soon as rpm-ostree has staged the deployment.
+        self._on_confirm_response(None, "go")
 
     def _on_confirm_response(self, dialog, response):
         if response != "go":
@@ -1276,15 +1140,14 @@ class RaptorUpdateWindow(Adw.ApplicationWindow):
         self.check_btn.set_sensitive(True)
 
     def _on_update_success(self):
-        self._update_running = False
         self.update_spinner.stop()
-        self._append_log("\n✓ System update complete. Rebooting in 15 seconds…\n")
+        self._append_log("\n✓ System update staged. Rebooting now…\n")
         self._set_status(
-            "Update complete! Rebooting in 15 seconds…",
+            "Update installed. Rebooting now…",
             "emblem-ok-symbolic", "success")
-        self.subtitle.set_text("Update installed successfully.")
-        self.cancel_reboot_btn.set_visible(True)
-        self._countdown(15)
+        self.subtitle.set_text("Restarting to apply the update.")
+        self.cancel_reboot_btn.set_visible(False)
+        threading.Thread(target=self._do_reboot, daemon=True).start()
 
     def _countdown(self, secs):
         if self._reboot_cancelled:
@@ -1331,14 +1194,23 @@ class RaptorUpdateWindow(Adw.ApplicationWindow):
         try:
             proc = run_privileged(REBOOT_HELPER)
             try:
-                proc.wait(timeout=15)
+                rc = proc.wait(timeout=15)
+                if rc not in (0, None):
+                    raise RuntimeError(f"systemctl reboot exited with status {rc}")
             except subprocess.TimeoutExpired:
                 pass  # system is going down — expected
         except Exception as e:
-            GLib.idle_add(self._append_log, f"\nERROR rebooting: {e}\n")
-            GLib.idle_add(self._set_status,
-                "Could not reboot automatically — please reboot manually.",
-                "dialog-warning-symbolic", "warning")
+            GLib.idle_add(self._on_reboot_failed, str(e))
+
+    def _on_reboot_failed(self, detail):
+        self._update_running = False
+        self.check_btn.set_sensitive(True)
+        self.update_btn.set_sensitive(False)
+        self._set_status(
+            "The update is staged, but automatic reboot failed. Restart manually.",
+            "dialog-warning-symbolic", "warning")
+        self.subtitle.set_text("Update staged; a manual restart is required.")
+        self._append_log(f"\nReboot error: {detail}\n")
 
     def on_cancel_reboot(self, btn):
         self._reboot_cancelled = True

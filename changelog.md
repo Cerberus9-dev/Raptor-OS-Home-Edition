@@ -4,6 +4,14 @@
 
 Changes made after v3.0.0 will be recorded here.
 
+### GameMode desktop behavior
+- Added GameMode hooks that suppress notification popups and reduce KDE animation duration while a game session is active, then restore the previous user settings when the session ends.
+
+### Raptor Update Manager
+- Changed system update detection to use rpm-ostree's cached local status instead of resolving and downloading an OCI image on every manual check.
+- Run system and user Flatpak update checks concurrently with bounded timeouts.
+- Removed the pre-update confirmation step. Choosing Update & Reboot starts the update, and a successfully staged system update triggers an immediate reboot. Flatpak-only updates do not reboot.
+
 ### Raptor Music provider integration
 - Added Bandcamp track search through the public autocomplete endpoint used by Bandcamp's website. The endpoint is undocumented and may change; playback uses the official embedded player rather than extracting protected media URLs.
 - Added an in-app WebKit player window for YouTube's official embedded player, including playback controls. YouTube catalogue search requires `RAPTOR_YOUTUBE_API_KEY`.
