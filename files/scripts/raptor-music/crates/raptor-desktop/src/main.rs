@@ -284,7 +284,7 @@ struct AudiusArtistProfile {
 }
 
 use raptor_audio::player::AudioPlayer;
-use raptor_audio::adapters::{BandcampAdapter, YouTubeAdapter};
+use raptor_audio::adapters::{BandcampAdapter, SpotifyAdapter, YouTubeAdapter};
 use raptor_audio::backend::AudioSource;
 use raptor_audio::decoder::AudioDecoder;
 use raptor_library::{LibraryDatabase, QueueEntry};
@@ -753,6 +753,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let apple_worker = std::thread::spawn(move || search_apple_music_tracks(&apple_query));
             let jamendo_query = query_for_thread.clone();
             let jamendo_worker = std::thread::spawn(move || search_jamendo_tracks(&jamendo_query));
+            let spotify_query = query_for_thread.clone();
+            let spotify_worker = std::thread::spawn(move || search_spotify_tracks(&spotify_query));
             let youtube_query = query_for_thread.clone();
             let youtube_worker = std::thread::spawn(move || search_youtube_tracks(&youtube_query));
             let bandcamp_query = query_for_thread.clone();
@@ -791,6 +793,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .unwrap_or_else(|_| Err("Apple Music search worker stopped unexpectedly".to_string()));
             let jamendo_result = jamendo_worker.join()
                 .unwrap_or_else(|_| Err("Jamendo search worker stopped unexpectedly".to_string()));
+            let spotify_result = spotify_worker.join()
+                .unwrap_or_else(|_| Err("Spotify search worker stopped unexpectedly".to_string()));
             let youtube_result = youtube_worker.join()
                 .unwrap_or_else(|_| Err("YouTube search worker stopped unexpectedly".to_string()));
             let bandcamp_result = bandcamp_worker.join()
@@ -809,6 +813,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let jamendo_tracks = jamendo_result.unwrap_or_default();
             let jamendo_count = jamendo_tracks.len();
             tracks.extend(jamendo_tracks);
+            let spotify_error = spotify_result.is_err();
+            let spotify_tracks = spotify_result.unwrap_or_default();
+            let spotify_count = spotify_tracks.len();
+            tracks.extend(spotify_tracks);
             let youtube_error = youtube_result.is_err();
             let youtube_tracks = youtube_result.unwrap_or_default();
             let youtube_count = youtube_tracks.len();
@@ -892,6 +900,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             } else if jamendo_error {
                 status.push_str(" · Jamendo search unavailable");
             }
+            if spotify_count > 0 {
+                status.push_str(&format!(" · {spotify_count} Spotify tracks"));
+            } else if spotify_error && token_store::load_token_bundle("spotify").is_err() {
+                status.push_str(" · Connect Spotify to search its catalogue");
+            } else if spotify_error {
+                status.push_str(" · Spotify search unavailable");
+            }
             if youtube_count > 0 {
                 status.push_str(&format!(" · {youtube_count} YouTube videos"));
             } else if youtube_error && std::env::var("RAPTOR_YOUTUBE_API_KEY").is_err() {
@@ -904,7 +919,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             } else if bandcamp_error {
                 status.push_str(" · Bandcamp search unavailable");
             }
-            if audius_count == 0 && apple_count == 0 && jamendo_count == 0 && youtube_count == 0 && bandcamp_count == 0 && artist_count == 0
+            if audius_count == 0 && apple_count == 0 && jamendo_count == 0 && spotify_count == 0 && youtube_count == 0 && bandcamp_count == 0 && artist_count == 0
                 && collection_count == 0 && apple_collection_count == 0 && mb_collection_count == 0 && mb_artist_count == 0 {
                 status = "No matching tracks, artists, albums or playlists found".to_string();
             }
@@ -1530,6 +1545,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ui.set_selected_online_track_index(-1);
         refresh_queue_list(&ui, &db_for_play);
         ui.set_player_state_label("Loading".into());
+        if let PlaybackSource::Unknown { raw_type } = &target_source {
+            if let Some(url) = raw_type.strip_prefix("external-handoff:") {
+                let parsed = match url::Url::parse(url) {
+                    Ok(parsed) if parsed.scheme() == "https"
+                        && parsed.host_str() == Some("open.spotify.com")
+                        && parsed.path().starts_with("/track/") => parsed,
+                    _ => {
+                        ui.set_player_state_label("Spotify returned an invalid handoff URL".into());
+                        return;
+                    }
+                };
+                match std::process::Command::new("gio").arg("open").arg(parsed.as_str()).spawn() {
+                    Ok(_) => ui.set_player_state_label("Opened in the official Spotify player".into()),
+                    Err(_) => ui.set_player_state_label("Could not open Spotify in the system browser".into()),
+                }
+                *session_token_for_play.lock().unwrap() = None;
+                *active_entry_for_play.lock().unwrap() = Some(target_queue_entry_id);
+                return;
+            }
+        }
+
         let embedded_target = match &target_source {
             PlaybackSource::RemoteStream { provider_id, provider_track_id }
                 if provider_id == "youtube" || provider_id == "bandcamp" =>
@@ -3782,6 +3818,16 @@ fn unified_track_to_legacy_track(track: UnifiedTrack) -> Track {
         duration_secs: track.duration_secs,
         source,
     }
+}
+
+fn search_spotify_tracks(query: &str) -> Result<Vec<Track>, String> {
+    let access_token = load_valid_provider_access_token(
+        provider_auth::OAuthProvider::Spotify, "spotify"
+    )?;
+    let adapter = SpotifyAdapter::new(access_token).map_err(|error| error.to_string())?;
+    adapter.search(query)
+        .map(|tracks| tracks.into_iter().map(unified_track_to_legacy_track).collect())
+        .map_err(|error| error.to_string())
 }
 
 fn search_youtube_tracks(query: &str) -> Result<Vec<Track>, String> {
