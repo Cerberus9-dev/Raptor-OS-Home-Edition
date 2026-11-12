@@ -268,9 +268,9 @@ Raptor OS v3.0.0 updates the desktop apps, gaming and Windows compatibility, har
 - Installation does not enable a service or login autostart and does not change proxy settings. The app is launched explicitly by the user; upstream protection modes remain user-controlled and Advanced mode requests administrator authorization.
 - The separate incomplete Raptor Rust application-monitor prototype is not installed or advertised as the upstream Shroudly application.
 
-### November 4–5 work consolidated into v3.0.0 — Raptor Music Expansion, Hardware Recovery & CI Reliability
+### Raptor Music, hardware recovery, and build fixes
 
-### Updates
+#### Added and changed
 
 - **Raptor Music in-library search:** added a live, case-insensitive search across track title, artist, and album. Search results retain their real track IDs, so adding a filtered result to a playlist or queue and playing it no longer uses the filtered row number as an index into the unfiltered database.
 
@@ -316,7 +316,7 @@ Raptor OS v3.0.0 updates the desktop apps, gaming and Windows compatibility, har
 
 - **Raptor Music queue controls:** added previous/next controls that select and start the adjacent queue entry, while the main play control pauses/resumes the current entry rather than restarting it. The home-page feature description now reflects the XDG database location and scanner formats.
 
-### Fixed
+#### Fixed
 
 - **Rapid-push cancellation no longer lets delayed events cancel newer builds.** A lightweight preflight compares each push SHA with the live branch head; superseded events skip before entering the image-build concurrency group. The changelog is included in the push path filter so a final changelog-only commit still starts the build for the latest complete source tree.
 
