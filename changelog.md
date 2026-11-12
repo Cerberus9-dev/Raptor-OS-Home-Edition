@@ -20,7 +20,7 @@ Changes made after v3.0.0 will be recorded here.
 - Added Spotify Web API search and metadata normalization with official Spotify handoff targets; no unrestricted Spotify stream URL is fabricated.
 - Added YouTube Data API search with normalized video metadata and embedded-player targets. The desktop embedded-player surface remains to be implemented.
 - Added a limited Bandcamp adapter for validated HTTPS Bandcamp handoff URLs. General Bandcamp search and direct streaming are not claimed.
-- Added `RodioBackend` for HTTPS direct/preview sources. It currently buffers responses in memory with a 512 MiB cap; low-memory streaming remains future work.
+- Changed `RodioBackend` to copy authorized HTTPS responses to an unnamed temporary file in 64 KiB chunks before decoding. This bounds RAM use, but playback still waits for the download to finish.
 - Kept Audius, Jamendo and Apple Music as optional existing integrations. Full migration of the Slint UI, queue and legacy desktop provider calls to the normalized model remains outstanding.
 - Added explicit provider-access errors and routing tests. Workspace build and CI verification are still required before merge.
 
