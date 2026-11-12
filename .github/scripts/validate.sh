@@ -149,7 +149,9 @@ assert_contains files/scripts/raptor-music/crates/raptor-audio/src/adapters/yout
 assert_contains files/scripts/raptor-music/crates/raptor-audio/src/adapters/youtube.rs 'PlaybackAccess::EmbeddedPlayer'
 assert_contains files/scripts/raptor-music/crates/raptor-audio/src/adapters/bandcamp.rs 'Bandcamp handoff must be an HTTPS Bandcamp URL'
 assert_contains files/scripts/raptor-music/crates/raptor-audio/src/backend/rodio.rs 'raptor-rodio-output'
-assert_contains files/scripts/raptor-music/crates/raptor-audio/src/backend/rodio.rs 'MAX_BUFFER_BYTES'
+assert_contains files/scripts/raptor-music/crates/raptor-audio/src/backend/rodio.rs 'MAX_STREAM_BYTES'
+assert_contains files/scripts/raptor-music/crates/raptor-audio/src/backend/rodio.rs '64 * 1024'
+assert_contains files/scripts/raptor-music/crates/raptor-audio/src/backend/rodio.rs 'tempfile::tempfile()'
 assert_contains files/scripts/raptor-music/crates/raptor-audio/Cargo.toml 'rodio = "0.20"'
 
 echo "=== Checking Raptor Music provider authorization contracts ==="
