@@ -408,3 +408,87 @@ mod playlist_resolution_tests {
         assert_eq!(resolved[1].status, PlaylistResolutionStatus::Unmatched);
     }
 }
+
+
+/// Provider-neutral source identity used at the Raptor UI and playback boundary.
+/// Provider wrapper response types must be converted into this model in adapters.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AudioSourceKind {
+    Spotify,
+    YouTube,
+    Bandcamp,
+    Local,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlaybackAccess {
+    DirectStream,
+    EmbeddedPlayer,
+    ExternalHandoff,
+    PreviewOnly,
+    Unavailable,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PlaybackTarget {
+    Native(PlaybackSource),
+    EmbeddedPlayer { provider_id: String, content_id: String },
+    ExternalHandoff { url: String },
+    Unavailable,
+}
+
+/// The normalized track model exposed to the desktop UI and playback queue.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnifiedTrack {
+    pub id: Uuid,
+    pub source: AudioSourceKind,
+    pub source_track_id: String,
+    pub title: String,
+    pub artists: Vec<String>,
+    pub album: Option<String>,
+    pub artwork_url: Option<String>,
+    pub duration_secs: Option<u64>,
+    pub isrc: Option<String>,
+    pub access: PlaybackAccess,
+    pub target: PlaybackTarget,
+}
+
+/// Small provider-neutral DTO. Each Spotify/YouTube/Bandcamp adapter maps its
+/// own wrapper response into this type; wrapper-specific structs never reach UI.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProviderTrackRecord {
+    pub source: AudioSourceKind,
+    pub source_track_id: String,
+    pub title: String,
+    pub artists: Vec<String>,
+    pub album: Option<String>,
+    pub artwork_url: Option<String>,
+    pub duration_secs: Option<u64>,
+    pub isrc: Option<String>,
+}
+
+impl UnifiedTrack {
+    pub fn from_provider(
+        record: ProviderTrackRecord,
+        access: PlaybackAccess,
+        target: PlaybackTarget,
+    ) -> Self {
+        let id = Uuid::new_v5(
+            &Uuid::NAMESPACE_URL,
+            format!("{:?}:{}", record.source, record.source_track_id).as_bytes(),
+        );
+        Self {
+            id,
+            source: record.source,
+            source_track_id: record.source_track_id,
+            title: record.title,
+            artists: record.artists,
+            album: record.album,
+            artwork_url: record.artwork_url,
+            duration_secs: record.duration_secs,
+            isrc: record.isrc,
+            access,
+            target,
+        }
+    }
+}
