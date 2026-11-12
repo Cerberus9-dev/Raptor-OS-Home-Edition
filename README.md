@@ -94,7 +94,7 @@ rpm-ostree rebase ostree-image-signed:docker://ghcr.io/cerberus9-dev/raptor-os:l
 systemctl reboot
 ```
 
-> **Already on Raptor OS?** Open **Raptor Update Manager** and choose **Update & Reboot**. The update starts immediately; the system reboots as soon as the new deployment is staged. Flatpak-only updates do not require a reboot.
+> **Already on Raptor OS?** Save your work, then open **Raptor Update Manager** and choose **Update & Reboot**. The update starts immediately, and the system restarts as soon as the new deployment is staged. Flatpak-only updates do not require a reboot.
 
 ---
 
@@ -194,7 +194,7 @@ Raptor OS packages the original Linux **Shroudly** desktop application from the 
 
 The upstream project is copyright **Codeshare Technology Ltd** and is distributed under its MIT license. The upstream source and license remain included in this repository.
 
-Raptor OS also extends GameMode at the desktop level. While a GameMode session is active, notification popups are inhibited and KDE animation duration is reduced. When the session ends, the previous animation setting and notification state are restored. This is separate from Shroudly's own network-compatibility modes.
+When a game requests GameMode, Raptor OS suppresses notification popups and reduces KDE animation duration. The GameMode end hook restores the previous notification state and animation setting. These desktop changes are separate from Shroudly's network-compatibility modes.
 
 ---
 
