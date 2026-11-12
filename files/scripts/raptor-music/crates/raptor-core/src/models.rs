@@ -276,3 +276,118 @@ mod catalogue_matching_tests {
         assert!(rank_catalogue_candidates(&target(), &rows).is_empty());
     }
 }
+
+
+/// Result for one playlist position. Rows are intentionally represented by
+/// occurrence index rather than recording ID so repeated songs remain intact.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PlaylistResolutionStatus {
+    FullPlaybackAvailable { provider_id: String, provider_track_id: String },
+    PreviewOnly,
+    ExternalHandoff,
+    Unavailable,
+    NeedsReview,
+    Unmatched,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlaylistOccurrenceResolution {
+    pub occurrence_index: usize,
+    pub identity: TrackIdentity,
+    pub status: PlaylistResolutionStatus,
+    pub candidates: Vec<CatalogueMatch>,
+}
+
+/// Resolve a catalogue result set against every playlist occurrence. The
+/// caller supplies the candidates gathered from provider adapters for each
+/// occurrence. This function never removes duplicates and never upgrades a
+/// preview or handoff into full playback.
+pub fn resolve_playlist_occurrences(
+    occurrences: &[TrackIdentity],
+    candidates_by_occurrence: &[Vec<CatalogueCandidate>],
+) -> Vec<PlaylistOccurrenceResolution> {
+    occurrences.iter().enumerate().map(|(index, identity)| {
+        let candidates = candidates_by_occurrence.get(index).map(Vec::as_slice).unwrap_or(&[]);
+        let ranked = rank_catalogue_candidates(identity, candidates);
+        let status = if let Some(candidate) = select_unambiguous_full_playback(&ranked) {
+            PlaylistResolutionStatus::FullPlaybackAvailable {
+                provider_id: candidate.provider_id.clone(),
+                provider_track_id: candidate.provider_track_id.clone(),
+            }
+        } else if ranked.iter().any(|item| item.confidence == MatchConfidence::NeedsReview) {
+            PlaylistResolutionStatus::NeedsReview
+        } else if ranked.iter().any(|item| item.candidate.playback == CataloguePlayback::PreviewOnly) {
+            PlaylistResolutionStatus::PreviewOnly
+        } else if ranked.iter().any(|item| item.candidate.playback == CataloguePlayback::ExternalHandoff) {
+            PlaylistResolutionStatus::ExternalHandoff
+        } else if ranked.iter().any(|item| item.candidate.playback == CataloguePlayback::Unavailable) {
+            PlaylistResolutionStatus::Unavailable
+        } else {
+            PlaylistResolutionStatus::Unmatched
+        };
+        PlaylistOccurrenceResolution {
+            occurrence_index: index,
+            identity: identity.clone(),
+            status,
+            candidates: ranked,
+        }
+    }).collect()
+}
+
+#[cfg(test)]
+mod playlist_resolution_tests {
+    use super::*;
+
+    fn identity(title: &str) -> TrackIdentity {
+        TrackIdentity { title: title.into(), artist: "Artist".into(), isrc: Some("USABC2600001".into()), duration_secs: Some(180) }
+    }
+
+    fn candidate(provider: &str, playback: CataloguePlayback) -> CatalogueCandidate {
+        CatalogueCandidate {
+            provider_id: provider.into(),
+            provider_track_id: format!("{provider}-id"),
+            title: "Song".into(),
+            artist: "Artist".into(),
+            isrc: Some("USABC2600001".into()),
+            duration_secs: Some(180),
+            playback,
+        }
+    }
+
+    #[test]
+    fn keeps_duplicate_playlist_occurrences_as_separate_results() {
+        let rows = vec![identity("Song"), identity("Song"), identity("Other")];
+        let candidates = vec![
+            vec![candidate("audius", CataloguePlayback::FullLength)],
+            vec![candidate("audius", CataloguePlayback::FullLength)],
+            vec![],
+        ];
+        let resolved = resolve_playlist_occurrences(&rows, &candidates);
+        assert_eq!(resolved.len(), 3);
+        assert_eq!(resolved[0].occurrence_index, 0);
+        assert_eq!(resolved[1].occurrence_index, 1);
+        assert_eq!(resolved[0].status, resolved[1].status);
+        assert_eq!(resolved[2].status, PlaylistResolutionStatus::Unmatched);
+    }
+
+    #[test]
+    fn does_not_treat_preview_or_handoff_as_full_playback() {
+        let rows = vec![identity("Song"), identity("Song")];
+        let candidates = vec![
+            vec![candidate("apple_music", CataloguePlayback::PreviewOnly)],
+            vec![candidate("tidal", CataloguePlayback::ExternalHandoff)],
+        ];
+        let resolved = resolve_playlist_occurrences(&rows, &candidates);
+        assert_eq!(resolved[0].status, PlaylistResolutionStatus::PreviewOnly);
+        assert_eq!(resolved[1].status, PlaylistResolutionStatus::ExternalHandoff);
+    }
+
+    #[test]
+    fn reports_candidate_batch_missing_for_an_occurrence_as_unmatched() {
+        let rows = vec![identity("Song"), identity("Song")];
+        let candidates = vec![vec![candidate("audius", CataloguePlayback::FullLength)]];
+        let resolved = resolve_playlist_occurrences(&rows, &candidates);
+        assert_eq!(resolved.len(), 2);
+        assert_eq!(resolved[1].status, PlaylistResolutionStatus::Unmatched);
+    }
+}
