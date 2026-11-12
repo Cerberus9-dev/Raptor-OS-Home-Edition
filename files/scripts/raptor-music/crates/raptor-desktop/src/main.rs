@@ -960,7 +960,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ui.on_online_track_selected(move |idx| {
         let track = online_tracks_for_select.lock().unwrap().get(idx as usize).cloned();
         if let Some(track) = track {
-            let saved = db_for_online_select.lock().unwrap().upsert_track(&track).is_ok();
+            let normalized = raptor_library::normalize_legacy_track(&track);
+            let saved = db_for_online_select.lock().unwrap().upsert_unified_track(&normalized).is_ok();
             if !saved {
                 if let Some(ui) = ui_handle_online_select.upgrade() {
                     ui.set_player_state_label("Could not add online track to your library".into());
@@ -1434,7 +1435,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             id.and_then(|id| db_lock.get_all_tracks().unwrap_or_default().into_iter().find(|track| track.id == id))
         };
         let track = match track { Some(track) => track, None => return };
-        if source == "online" && db_lock.upsert_track(&track).is_err() {
+        let normalized = raptor_library::normalize_legacy_track(&track);
+        if source == "online" && db_lock.upsert_unified_track(&normalized).is_err() {
             ui.set_player_state_label("Could not save this online track".into());
             return;
         }
@@ -1501,7 +1503,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let (target_source, target_id, target_queue_entry_id) = {
             let db_lock = db_for_play.lock().unwrap();
             let queue_entries = db_lock.get_queue().unwrap_or_default();
-            let all_tracks = db_lock.get_all_tracks().unwrap_or_default();
+            // The queue resolves every row through UnifiedTrack. The CPAL
+            // engine remains behind a narrow compatibility conversion until
+            // the decoder/backend API is fully switched over.
+            let all_tracks = db_lock.get_all_unified_tracks().unwrap_or_default();
 
             if direct_selection {
                 let selected_id = *selected_id_for_play.lock().unwrap();
@@ -1521,14 +1526,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     return;
                 }
                 ui.set_selected_queue_index((queue.len() - 1) as i32);
-                (track.source, track.id, entry.queue_entry_id)
+                let engine_track = unified_track_to_legacy_track(track.clone());
+                (engine_track.source, track.id, entry.queue_entry_id)
             } else if !queue_entries.is_empty() {
                 let qidx = ui.get_selected_queue_index();
                 let target_qidx = if qidx >= 0 && (qidx as usize) < queue_entries.len() { qidx as usize } else { 0 };
                 let entry = &queue_entries[target_qidx];
                 let track = all_tracks.iter().find(|t| t.id == entry.track_id).cloned();
                 match track {
-                    Some(t) => (t.source, t.id, entry.queue_entry_id),
+                    Some(t) => {
+                        let engine_track = unified_track_to_legacy_track(t.clone());
+                        (engine_track.source, t.id, entry.queue_entry_id)
+                    },
                     None => return,
                 }
             } else {
