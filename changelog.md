@@ -1,5 +1,11 @@
 # Changelog
 
+### Raptor Music wrapper-first direction
+- Shifted the product direction toward a wrapper-first experience. Raptor owns the unified interface, library, queue, normalized track model, playback controls and app-level state; provider adapters connect the supported provider experiences behind that boundary.
+- Spotify, YouTube and Bandcamp are the primary provider integrations under this direction. Their authentication, metadata and playback capabilities remain provider-specific and must use supported APIs, embedded players, handoffs or authorized streams.
+- Local files remain a first-class source. Existing Audius, Jamendo and Apple Music catalogue integrations are optional connectors, not required dependencies of the wrapper architecture. Keep them available only where they add value; this direction does not require Jamendo to be the core playback catalogue.
+- Historical discovery entries below describe what was previously implemented; they do not define the new provider priority or guarantee full-catalogue playback.
+
 ### Raptor Music playback routing
 - Added `RaptorPlayer` to route each normalized track through the adapter matching its source, resolve an authorized playback target, and pass a provider-neutral playback request to `AudioBackend`.
 - Added typed playback errors for missing adapters, unavailable tracks, unsupported handoff/embedded playback, empty targets, and backend failures.
