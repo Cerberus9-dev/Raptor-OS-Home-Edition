@@ -215,7 +215,10 @@ assert_contains files/scripts/raptor-update/install.sh 'flatpak", "update", "--u
 assert_contains files/scripts/raptor-update/install.sh "trap restore_wifi_power_save EXIT"
 assert_contains files/scripts/raptor-update/install.sh "UPDATE_MANAGER_SHELL_SYNTAX_ERROR"
 assert_contains files/scripts/raptor-update/install.sh "def stream_process"
-assert_contains files/scripts/raptor-update/install.sh "CHECK_TIMEOUT         = 1860"
+assert_contains files/scripts/raptor-update/install.sh "ThreadPoolExecutor(max_workers=2)"
+assert_contains files/scripts/raptor-update/install.sh "timeout=8"
+assert_contains files/scripts/raptor-update/install.sh 'self._on_confirm_response(None, "go")'
+assert_contains files/scripts/raptor-update/install.sh "Rebooting now"
 assert_contains files/scripts/raptor-update/install.sh "start_new_session=True"
 assert_contains files/scripts/raptor-update/install.sh "os.killpg"
 assert_contains files/scripts/raptor-update/install.sh "timeout=3 * 60 * 60"
@@ -575,15 +578,19 @@ assert_contains files/system_files/zram-generator.conf 'compression-algorithm = 
 assert_not_contains files/system_files/zram-generator.conf 'compression-algorithm = zstd'
 
 
-echo "=== Raptor Update Manager rollback and lock-screen validation ==="
+echo "=== Raptor Update Manager cached update detection and reboot validation ==="
 bash -n files/scripts/raptor-update/install.sh
-assert_contains files/scripts/raptor-update/install.sh 'rpm-ostree upgrade --download-only --unchanged-exit-77'
-assert_contains files/scripts/raptor-update/install.sh 'CHECK_TIMEOUT         = 1860'
-assert_contains files/scripts/raptor-update/install.sh 'Update image resolved and downloaded; no deployment was created.'
-assert_not_contains files/scripts/raptor-update/install.sh 'timeout "${ATTEMPT_TIMEOUT}" rpm-ostree upgrade --check'
-# Exercise both authoritative outcomes with a fake rpm-ostree binary: exit 77
-# means no update; exit 0 means the image was resolved/downloaded, without a
-# deployment. This protects the check path from regressing to --check-only.
+assert_contains files/scripts/raptor-update/install.sh 'exec timeout 8 rpm-ostree status --json'
+assert_contains files/scripts/raptor-update/install.sh 'def _read_ostree_status'
+assert_contains files/scripts/raptor-update/install.sh 'The rpm-ostreed automatic check timer refreshes remote metadata'
+assert_contains files/scripts/raptor-update/install.sh 'ThreadPoolExecutor(max_workers=2)'
+assert_contains files/scripts/raptor-update/install.sh 'self._on_confirm_response(None, "go")'
+assert_contains files/scripts/raptor-update/install.sh 'Update installed. Rebooting now…'
+assert_not_contains files/scripts/raptor-update/install.sh 'rpm-ostree upgrade --download-only --unchanged-exit-77'
+assert_not_contains files/scripts/raptor-update/install.sh 'CHECK_TIMEOUT'
+
+# The privileged check helper must read the cached status only. A fake rpm-ostree
+# verifies it never starts an upgrade or downloads an image.
 check_tmp="$(mktemp --suffix=.sh)"
 awk "/^cat << 'EOF' > \/usr\/lib\/raptor\/check-helper$/ { inside=1; next } /^EOF$/ && inside { exit } inside { print }" files/scripts/raptor-update/install.sh > "$check_tmp"
 test -s "$check_tmp"
@@ -593,29 +600,22 @@ mkdir -p "$check_test_dir/bin"
 cat > "$check_test_dir/bin/rpm-ostree" <<'RPMOSTREE'
 #!/bin/bash
 printf '%s\\n' "$*" >> "$RAPTOR_TEST_CALLS"
-echo "${RAPTOR_TEST_RPM_OUTPUT:-}"
-exit "${RAPTOR_TEST_RPM_RC:-0}"
+echo '{"deployments":[{"booted":true,"cached-update":true}]}'
 RPMOSTREE
 chmod +x "$check_test_dir/bin/rpm-ostree"
 export PATH="$check_test_dir/bin:$PATH"
 export RAPTOR_TEST_CALLS="$check_test_dir/calls"
-export RAPTOR_CHECK_MAX_ATTEMPTS=1
-export RAPTOR_CHECK_ATTEMPT_TIMEOUT=3
-export RAPTOR_TEST_RPM_RC=77
-bash "$check_tmp" > "$check_test_dir/no-update.log"
-grep -Fq 'No upgrade available.' "$check_test_dir/no-update.log"
-if grep -Fq 'AvailableUpdate:' "$check_test_dir/no-update.log"; then
-  echo "Update checker marked exit 77 as an available update" >&2
+bash "$check_tmp" > "$check_test_dir/status.json"
+grep -Fq 'status --json' "$RAPTOR_TEST_CALLS"
+if grep -Fq 'upgrade' "$RAPTOR_TEST_CALLS"; then
+  echo "Manual update check unexpectedly started an upgrade" >&2
   exit 1
 fi
-export RAPTOR_TEST_RPM_RC=0
-bash "$check_tmp" > "$check_test_dir/update.log"
-grep -Fq 'AvailableUpdate:' "$check_test_dir/update.log"
-grep -Fq 'upgrade --download-only --unchanged-exit-77' "$RAPTOR_TEST_CALLS"
-unset RAPTOR_TEST_CALLS RAPTOR_CHECK_MAX_ATTEMPTS RAPTOR_CHECK_ATTEMPT_TIMEOUT RAPTOR_TEST_RPM_RC
+grep -Fq '"cached-update":true' "$check_test_dir/status.json"
+unset RAPTOR_TEST_CALLS
 rm -f "$check_tmp"
 rm -rf "$check_test_dir"
-echo "OCI-aware Update Manager detection tests passed."
+echo "Cached Update Manager detection tests passed."
 update_tmp="$(mktemp --suffix=.py)"
 awk "/^cat << 'PYEOF' > \/usr\/bin\/raptor-update$/ { inside=1; next } /^PYEOF$/ && inside { exit } inside { print }" files/scripts/raptor-update/install.sh > "$update_tmp"
 test -s "$update_tmp"
