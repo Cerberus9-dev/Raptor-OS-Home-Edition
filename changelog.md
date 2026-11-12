@@ -4,6 +4,16 @@
 
 Changes made after v3.0.0 will be recorded here.
 
+### Shroudly desktop integration
+- Replaced the temporary Rust dashboard package with the original Linux Shroudly Electron desktop application from the pinned upstream submodule.
+- Kept the upstream UI, styling, Linux integration, application behavior and MIT license intact. Raptor OS supplies the launcher and desktop packaging without re-skinning the app.
+- Added GameMode desktop hooks that inhibit notification popups and reduce KDE animation duration while a GameMode session is active, then restore the prior user setting when it ends.
+
+### Raptor Update Manager
+- Changed system update detection to read rpm-ostree's cached local status instead of resolving and downloading an OCI image on every manual check.
+- Run system and user Flatpak update checks concurrently with bounded timeouts.
+- Removed the pre-update confirmation step. One click starts the update, and a successfully staged system update triggers an immediate reboot. Flatpak-only updates do not reboot.
+
 ### Raptor Music wrapper-first architecture
 - Added a normalized `UnifiedTrack` provider boundary and explicit playback-access states. Provider search metadata is not treated as permission to play.
 - Added the `AudioSource` adapter contract and `RaptorPlayer` routing for direct streams, previews, embedded players, external handoffs and unavailable items.
