@@ -158,12 +158,20 @@ fn parse_spotify_playlists(root: &Value) -> Result<ImportedProfile, String> {
         // normalized profile packages that store tracks[] directly.
         let tracks = row.get("items").or_else(|| row.get("tracks"))
             .and_then(Value::as_array)
-            .map(|items| items.iter().filter_map(|item| {
-                if let Some(track) = item.get("track") {
+            .map(|items| items.iter().enumerate().map(|(index, item)| {
+                let parsed = if let Some(track) = item.get("track") {
                     parse_spotify_track(track)
                 } else {
                     parse_normalized_track(item).or_else(|| parse_spotify_track(item))
-                }
+                };
+                // Preserve unavailable/deleted rows from account exports too.
+                // A placeholder keeps the original playlist position visible.
+                parsed.unwrap_or_else(|| ImportedTrack {
+                    source_id: Some(format!("spotify-export-unavailable-row-{index}")),
+                    title: "Unavailable or removed Spotify item".into(),
+                    artist: "Unknown artist".into(),
+                    album: None,
+                })
             }).collect())
             .unwrap_or_default();
         profile.playlists.push(ImportedPlaylist {
@@ -302,10 +310,9 @@ fn safe_https_url(value: Option<String>) -> Option<String> {
 }
 
 fn deduplicate_profile(profile: &mut ImportedProfile) {
+    // Playlist rows are ordered occurrences, not a set: repeated tracks are
+    // intentional and must remain at their original positions.
     deduplicate_playlists(&mut profile.playlists);
-    for playlist in &mut profile.playlists {
-        deduplicate_tracks(&mut playlist.tracks);
-    }
     deduplicate_tracks(&mut profile.saved_tracks);
     let mut artists = HashSet::new();
     profile.followed_artists.retain(|artist| artists.insert(artist.name.to_lowercase()));
@@ -345,8 +352,9 @@ fn deduplicate_playlists(playlists: &mut Vec<ImportedPlaylist>) {
             if existing.artwork_url.is_none() {
                 existing.artwork_url = playlist.artwork_url.take();
             }
+            // Merge duplicate playlist containers without collapsing repeated
+            // song occurrences inside the playlist.
             existing.tracks.append(&mut playlist.tracks);
-            deduplicate_tracks(&mut existing.tracks);
         } else {
             positions.insert(source_id, merged.len());
             merged.push(playlist);
@@ -487,6 +495,22 @@ mod tests {
         assert_eq!(profile.saved_tracks[0].artist, "femtanyl");
         assert_eq!(profile.saved_tracks[0].album.as_deref(), Some("REACTOR"));
         assert_eq!(profile.saved_tracks[0].source_id.as_deref(), Some("spotify:track:abc"));
+    }
+
+    #[test]
+    fn spotify_playlist_rows_preserve_repeated_tracks_and_unavailable_positions() {
+        let json = r#"{"playlists":[{"playlist_id":"playlist-123","name":"Mix","items":[
+          {"track":{"trackName":"Repeat","artistName":"A","trackUri":"spotify:track:repeat"}},
+          {"track":null},
+          {"track":{"trackName":"Repeat","artistName":"A","trackUri":"spotify:track:repeat"}}
+        ]}]}"#;
+        let profile = parse_profile_export(json).unwrap();
+        let tracks = &profile.playlists[0].tracks;
+        assert_eq!(tracks.len(), 3);
+        assert_eq!(tracks[0].title, "Repeat");
+        assert_eq!(tracks[1].title, "Unavailable or removed Spotify item");
+        assert_eq!(tracks[2].title, "Repeat");
+        assert_eq!(tracks[0].source_id, tracks[2].source_id);
     }
 
     #[test]
