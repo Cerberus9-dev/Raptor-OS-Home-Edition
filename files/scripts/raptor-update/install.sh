@@ -258,7 +258,7 @@ fi
 # directory. Enable metadata-only checks and the timer so the GUI's local status
 # read has a current result. This policy checks availability but does not stage
 # or apply updates.
-python3 - <<'PY'
+python3 - <<'RAPTOR_OSTREE_CONFIG'
 import os
 import re
 from pathlib import Path
@@ -296,7 +296,7 @@ else:
 
 config.parent.mkdir(parents=True, exist_ok=True)
 config.write_text("\\n".join(lines).rstrip() + "\\n", encoding="utf-8")
-PY
+RAPTOR_OSTREE_CONFIG
 systemctl enable rpm-ostreed-automatic.timer
 
 # ── Python GUI ────────────────────────────────────────────────────────────────
