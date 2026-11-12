@@ -1,18 +1,33 @@
 use super::{AudioBackend, PlaybackError, PlaybackSource};
 use raptor_core::models::{PlaybackAccess, PlayerState};
-use rodio::{Decoder, OutputStream, Sink};
+use rodio::{Decoder, OutputStream, OutputStreamHandle, Sink};
 use std::io::Cursor;
+use std::sync::mpsc::{self, Receiver, Sender, SyncSender};
+use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
-/// Native Rodio backend for authorized HTTP(S) direct streams and previews.
+const MAX_BUFFER_BYTES: u64 = 512 * 1024 * 1024;
+
+enum Command {
+    Load(PlaybackSource, SyncSender<Result<(), String>>),
+    Play(SyncSender<Result<(), String>>),
+    Pause(SyncSender<Result<(), String>>),
+    Stop(SyncSender<Result<(), String>>),
+    Seek(Duration, SyncSender<Result<(), String>>),
+    Position(SyncSender<Duration>),
+    State(SyncSender<PlayerState>),
+    Shutdown,
+}
+
+/// Native Rodio backend for authorized HTTPS direct streams and previews.
 ///
-/// The backend intentionally rejects embedded-player and handoff targets:
-/// those must be handled by a provider player surface or the desktop shell.
+/// Rodio 0.20's OutputStream is thread-affine and is not Send. The backend
+/// therefore owns a command channel while a dedicated worker owns the output
+/// stream, handle and sink for their entire lifetime. Embedded-player and
+/// external-handoff targets stay outside the native audio engine.
 pub struct RodioBackend {
-    _stream: Option<OutputStream>,
-    sink: Option<Sink>,
-    client: reqwest::blocking::Client,
-    state: PlayerState,
+    commands: Sender<Command>,
+    worker: Option<JoinHandle<()>>,
 }
 
 impl RodioBackend {
@@ -22,100 +37,195 @@ impl RodioBackend {
             .user_agent(concat!("RaptorMusic/", env!("CARGO_PKG_VERSION")))
             .build()
             .map_err(|error| PlaybackError::Backend(error.to_string()))?;
-        Ok(Self { _stream: None, sink: None, client, state: PlayerState::Idle })
+
+        let (commands, receiver) = mpsc::channel();
+        let (ready_tx, ready_rx) = mpsc::sync_channel(1);
+        let worker = thread::Builder::new()
+            .name("raptor-rodio-output".into())
+            .spawn(move || {
+                match OutputStream::try_default() {
+                    Ok((stream, stream_handle)) => {
+                        let _ = ready_tx.send(Ok(()));
+                        Self::run_worker(receiver, stream, stream_handle, client);
+                    }
+                    Err(error) => {
+                        let _ = ready_tx.send(Err(error.to_string()));
+                    }
+                }
+            })
+            .map_err(|error| PlaybackError::Backend(error.to_string()))?;
+
+        match ready_rx.recv() {
+            Ok(Ok(())) => Ok(Self { commands, worker: Some(worker) }),
+            Ok(Err(error)) => {
+                let _ = worker.join();
+                Err(PlaybackError::Backend(error))
+            }
+            Err(error) => {
+                let _ = worker.join();
+                Err(PlaybackError::Backend(error.to_string()))
+            }
+        }
     }
 
-    fn active_sink(&self) -> Result<&Sink, PlaybackError> {
-        self.sink.as_ref().ok_or_else(|| PlaybackError::Backend("No track is loaded".into()))
+    fn run_worker(
+        receiver: Receiver<Command>,
+        _stream: OutputStream,
+        stream_handle: OutputStreamHandle,
+        client: reqwest::blocking::Client,
+    ) {
+        let mut sink: Option<Sink> = None;
+
+        while let Ok(command) = receiver.recv() {
+            match command {
+                Command::Load(source, reply) => {
+                    let result = Self::load_source(&client, &stream_handle, &mut sink, &source);
+                    let _ = reply.send(result);
+                }
+                Command::Play(reply) => {
+                    let result = sink.as_ref()
+                        .ok_or_else(|| "No track is loaded".to_owned())
+                        .map(|active| active.play());
+                    let _ = reply.send(result);
+                }
+                Command::Pause(reply) => {
+                    let result = sink.as_ref()
+                        .ok_or_else(|| "No track is loaded".to_owned())
+                        .map(|active| active.pause());
+                    let _ = reply.send(result);
+                }
+                Command::Stop(reply) => {
+                    if let Some(active) = sink.take() { active.stop(); }
+                    let _ = reply.send(Ok(()));
+                }
+                Command::Seek(position, reply) => {
+                    let result = sink.as_ref()
+                        .ok_or_else(|| "No track is loaded".to_owned())
+                        .and_then(|active| active.try_seek(position).map_err(|error| error.to_string()));
+                    let _ = reply.send(result);
+                }
+                Command::Position(reply) => {
+                    let position = sink.as_ref().map(Sink::get_pos).unwrap_or_default();
+                    let _ = reply.send(position);
+                }
+                Command::State(reply) => {
+                    let state = match sink.as_ref() {
+                        None => PlayerState::Idle,
+                        Some(active) if active.empty() => PlayerState::Idle,
+                        Some(active) if active.is_paused() => PlayerState::Paused,
+                        Some(_) => PlayerState::Playing,
+                    };
+                    let _ = reply.send(state);
+                }
+                Command::Shutdown => {
+                    if let Some(active) = sink.take() { active.stop(); }
+                    break;
+                }
+            }
+        }
+    }
+
+    fn load_source(
+        client: &reqwest::blocking::Client,
+        stream_handle: &OutputStreamHandle,
+        sink: &mut Option<Sink>,
+        source: &PlaybackSource,
+    ) -> Result<(), String> {
+        match source.access {
+            PlaybackAccess::DirectStream | PlaybackAccess::PreviewOnly => {}
+            PlaybackAccess::Unavailable => return Err("Track is unavailable".into()),
+            PlaybackAccess::EmbeddedPlayer | PlaybackAccess::ExternalHandoff => {
+                return Err("Embedded and handoff targets are not native audio streams".into());
+            }
+        }
+
+        let url = reqwest::Url::parse(&source.uri).map_err(|error| error.to_string())?;
+        if url.scheme() != "https" {
+            return Err("Rodio accepts HTTPS streams only".into());
+        }
+
+        let response = client.get(url).send()
+            .map_err(|error| error.to_string())?
+            .error_for_status()
+            .map_err(|error| error.to_string())?;
+        if response.content_length().is_some_and(|length| length > MAX_BUFFER_BYTES) {
+            return Err("Audio response exceeds the 512 MiB safety limit".into());
+        }
+        let bytes = response.bytes().map_err(|error| error.to_string())?.to_vec();
+        if bytes.len() as u64 > MAX_BUFFER_BYTES {
+            return Err("Audio response exceeds the 512 MiB safety limit".into());
+        }
+        if bytes.is_empty() {
+            return Err("The provider returned an empty audio response".into());
+        }
+
+        let decoder = Decoder::new(Cursor::new(bytes))
+            .map_err(|error| format!("Unsupported audio response: {error}"))?;
+        let replacement = Sink::try_new(stream_handle).map_err(|error| error.to_string())?;
+        replacement.append(decoder);
+        if let Some(previous) = sink.replace(replacement) { previous.stop(); }
+        Ok(())
+    }
+
+    fn request(
+        &self,
+        build: impl FnOnce(SyncSender<Result<(), String>>) -> Command,
+    ) -> Result<(), PlaybackError> {
+        let (reply_tx, reply_rx) = mpsc::sync_channel(1);
+        self.commands.send(build(reply_tx))
+            .map_err(|error| PlaybackError::Backend(error.to_string()))?;
+        reply_rx.recv()
+            .map_err(|error| PlaybackError::Backend(error.to_string()))?
+            .map_err(PlaybackError::Backend)
     }
 }
 
 impl AudioBackend for RodioBackend {
     fn load(&mut self, source: &PlaybackSource) -> Result<(), PlaybackError> {
-        match source.access {
-            PlaybackAccess::DirectStream | PlaybackAccess::PreviewOnly => {}
-            PlaybackAccess::Unavailable => return Err(PlaybackError::Unavailable),
-            PlaybackAccess::EmbeddedPlayer | PlaybackAccess::ExternalHandoff => {
-                return Err(PlaybackError::UnsupportedAccess);
-            }
+        if source.access == PlaybackAccess::Unavailable {
+            return Err(PlaybackError::Unavailable);
         }
-
-        let url = reqwest::Url::parse(&source.uri)
-            .map_err(|error| PlaybackError::SourceResolution(error.to_string()))?;
-        if url.scheme() != "https" {
-            return Err(PlaybackError::SourceResolution("Rodio accepts HTTPS streams only".into()));
-        }
-
-        self.state = PlayerState::Loading;
-        let response = self.client.get(url).send()
-            .map_err(|error| PlaybackError::Backend(error.to_string()))?
-            .error_for_status()
-            .map_err(|error| PlaybackError::Backend(error.to_string()))?;
-        const MAX_BUFFER_BYTES: u64 = 512 * 1024 * 1024;
-        if response.content_length().is_some_and(|length| length > MAX_BUFFER_BYTES) {
-            self.state = PlayerState::Error;
-            return Err(PlaybackError::Backend("Audio response exceeds the 512 MiB safety limit".into()));
-        }
-        let bytes = response.bytes()
-            .map_err(|error| PlaybackError::Backend(error.to_string()))?
-            .to_vec();
-
-        if bytes.len() as u64 > MAX_BUFFER_BYTES {
-            self.state = PlayerState::Error;
-            return Err(PlaybackError::Backend("Audio response exceeds the 512 MiB safety limit".into()));
-        }
-        if bytes.is_empty() {
-            self.state = PlayerState::Error;
-            return Err(PlaybackError::Backend("The provider returned an empty audio response".into()));
-        }
-
-        let decoder = Decoder::new(Cursor::new(bytes))
-            .map_err(|error| PlaybackError::Backend(format!("Unsupported audio response: {error}")))?;
-        let (stream, stream_handle) = OutputStream::try_default()
-            .map_err(|error| PlaybackError::Backend(error.to_string()))?;
-        let sink = Sink::try_new(&stream_handle)
-            .map_err(|error| PlaybackError::Backend(error.to_string()))?;
-        sink.append(decoder);
-
-        self.sink = Some(sink);
-        self._stream = Some(stream);
-        self.state = PlayerState::Playing;
-        Ok(())
+        self.request(|reply| Command::Load(source.clone(), reply))
     }
 
     fn play(&mut self) -> Result<(), PlaybackError> {
-        self.active_sink()?.play();
-        self.state = PlayerState::Playing;
-        Ok(())
+        self.request(Command::Play)
     }
 
     fn pause(&mut self) -> Result<(), PlaybackError> {
-        self.active_sink()?.pause();
-        self.state = PlayerState::Paused;
-        Ok(())
+        self.request(Command::Pause)
     }
 
     fn stop(&mut self) -> Result<(), PlaybackError> {
-        if let Some(sink) = self.sink.take() { sink.stop(); }
-        self._stream = None;
-        self.state = PlayerState::Idle;
-        Ok(())
+        self.request(Command::Stop)
     }
 
     fn seek(&mut self, position: Duration) -> Result<(), PlaybackError> {
-        self.active_sink()?.try_seek(position)
-            .map_err(|error| PlaybackError::Backend(error.to_string()))
+        self.request(|reply| Command::Seek(position, reply))
     }
 
     fn position(&self) -> Duration {
-        self.sink.as_ref().map(Sink::get_pos).unwrap_or_default()
+        let (reply_tx, reply_rx) = mpsc::sync_channel(1);
+        if self.commands.send(Command::Position(reply_tx)).is_err() {
+            return Duration::ZERO;
+        }
+        reply_rx.recv_timeout(Duration::from_millis(250)).unwrap_or(Duration::ZERO)
     }
 
     fn state(&self) -> PlayerState {
-        if self.sink.as_ref().is_some_and(Sink::empty) {
-            PlayerState::Idle
-        } else {
-            self.state
+        let (reply_tx, reply_rx) = mpsc::sync_channel(1);
+        if self.commands.send(Command::State(reply_tx)).is_err() {
+            return PlayerState::Error;
+        }
+        reply_rx.recv_timeout(Duration::from_millis(250)).unwrap_or(PlayerState::Error)
+    }
+}
+
+impl Drop for RodioBackend {
+    fn drop(&mut self) {
+        let _ = self.commands.send(Command::Shutdown);
+        if let Some(worker) = self.worker.take() {
+            let _ = worker.join();
         }
     }
 }
