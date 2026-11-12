@@ -88,11 +88,20 @@ pub fn open_provider_player(provider: &str, content_id: &str) -> Result<(), Stri
             let url = url::Url::parse(content_id)
                 .map_err(|_| "Bandcamp returned an invalid embedded-player URL".to_string())?;
             if url.scheme() != "https" || url.host_str() != Some("bandcamp.com")
-                || !url.path().starts_with("/EmbeddedPlayer/")
+                || url.query().is_some() || url.fragment().is_some()
+                || !url.path().starts_with("/EmbeddedPlayer/track=")
             {
                 return Err("Raptor Music only opens official Bandcamp embedded-player URLs".into());
             }
-            ("Raptor Music · Bandcamp".to_string(), bandcamp_html(content_id))
+            let track_id = url.path()
+                .strip_prefix("/EmbeddedPlayer/track=")
+                .and_then(|value| value.split('/').next())
+                .filter(|value| !value.is_empty() && value.chars().all(|ch| ch.is_ascii_digit()))
+                .ok_or_else(|| "Bandcamp returned an invalid embedded track ID".to_string())?;
+            let safe_embed = format!(
+                "https://bandcamp.com/EmbeddedPlayer/track={track_id}/size=large/bgcol=333333/linkcol=0f91ff/tracklist=false/transparent=true/"
+            );
+            ("Raptor Music · Bandcamp".to_string(), bandcamp_html(&safe_embed))
         }
         _ => return Err("No embedded player is registered for this provider".into()),
     };
