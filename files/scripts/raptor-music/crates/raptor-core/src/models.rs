@@ -314,7 +314,13 @@ pub fn resolve_playlist_occurrences(
                 provider_id: candidate.provider_id.clone(),
                 provider_track_id: candidate.provider_track_id.clone(),
             }
-        } else if ranked.iter().any(|item| item.confidence == MatchConfidence::NeedsReview) {
+        } else if ranked.iter().any(|item| {
+            item.confidence == MatchConfidence::NeedsReview
+                || (item.confidence >= MatchConfidence::ExactMetadata
+                    && item.candidate.playback == CataloguePlayback::FullLength)
+        }) {
+            // Strong metadata with multiple conflicting full-length recordings
+            // is ambiguous, not unmatched. Keep it visible for manual review.
             PlaylistResolutionStatus::NeedsReview
         } else if ranked.iter().any(|item| item.candidate.playback == CataloguePlayback::PreviewOnly) {
             PlaylistResolutionStatus::PreviewOnly
@@ -380,6 +386,17 @@ mod playlist_resolution_tests {
         let resolved = resolve_playlist_occurrences(&rows, &candidates);
         assert_eq!(resolved[0].status, PlaylistResolutionStatus::PreviewOnly);
         assert_eq!(resolved[1].status, PlaylistResolutionStatus::ExternalHandoff);
+    }
+
+    #[test]
+    fn ambiguous_full_length_candidates_require_manual_review() {
+        let rows = vec![identity("Song")];
+        let mut first = candidate("provider-a", CataloguePlayback::FullLength);
+        let mut second = candidate("provider-b", CataloguePlayback::FullLength);
+        first.isrc = None;
+        second.isrc = None;
+        let resolved = resolve_playlist_occurrences(&rows, &[vec![first, second]]);
+        assert_eq!(resolved[0].status, PlaylistResolutionStatus::NeedsReview);
     }
 
     #[test]
