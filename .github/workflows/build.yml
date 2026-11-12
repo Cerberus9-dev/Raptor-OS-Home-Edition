@@ -192,10 +192,10 @@ jobs:
           npx electron-builder --linux dir --x64 --publish never
 
           APP_DIR="$PWD/dist/linux-unpacked"
-          APP_BIN="$(find "$APP_DIR" -maxdepth 1 -type f -executable -printf '%f\\n' | grep -i -x 'shroudly' | head -n1 || true)"
+          APP_BIN="$(find "$APP_DIR" -maxdepth 1 -type f -executable -printf '%f\n' | grep -i -x 'shroudly' | head -n1 || true)"
           if [[ -z "$APP_BIN" ]]; then
             echo "::error::Could not find the original Shroudly Electron executable in dist/linux-unpacked."
-            find "$APP_DIR" -maxdepth 1 -type f -printf '%f\\n' | sort
+            find "$APP_DIR" -maxdepth 1 -type f -printf '%f\n' | sort
             exit 1
           fi
 
@@ -203,7 +203,7 @@ jobs:
           rm -rf "$STAGE/raptor-shroudly-app"
           install -d "$STAGE/raptor-shroudly-app"
           cp -a "$APP_DIR/." "$STAGE/raptor-shroudly-app/"
-          printf '#!/usr/bin/env bash\\nset -euo pipefail\\nexec /opt/raptor-shroudly/%s "$@"\\n' "$APP_BIN" > "$STAGE/raptor-shroudly"
+          printf '#!/usr/bin/env bash\nset -euo pipefail\nexec /opt/raptor-shroudly/%s "$@"\n' "$APP_BIN" > "$STAGE/raptor-shroudly"
           chmod 0755 "$STAGE/raptor-shroudly"
           install -Dm0644 public/icon.png "$STAGE/raptor-shroudly-icon.png"
           install -Dm0644 LICENSE "$STAGE/raptor-shroudly-license"
