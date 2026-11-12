@@ -1,20 +1,15 @@
 # Changelog
 
-### Raptor Music wrapper-first direction
-- Shifted the product direction toward a wrapper-first experience. Raptor owns the unified interface, library, queue, normalized track model, playback controls and app-level state; provider adapters connect the supported provider experiences behind that boundary.
-- Spotify, YouTube and Bandcamp are the primary provider integrations under this direction. Their authentication, metadata and playback capabilities remain provider-specific and must use supported APIs, embedded players, handoffs or authorized streams.
-- Local files remain a first-class source. Existing Audius, Jamendo and Apple Music catalogue integrations are optional connectors, not required dependencies of the wrapper architecture. Keep them available only where they add value; this direction does not require Jamendo to be the core playback catalogue.
-- Historical discovery entries below describe what was previously implemented; they do not define the new provider priority or guarantee full-catalogue playback.
+### Raptor Music wrapper-first architecture
+- Established `UnifiedTrack` as the normalized provider-boundary model for metadata, source identity and playback access. Spotify, YouTube and Bandcamp response DTOs are converted inside `raptor-core::providers`; provider-specific response types are not intended to reach Slint or queue code.
+- Expanded `AudioSource` with provider identity, normalized search, playback resolution and a separate authorized-stream operation. The adapter contract keeps search metadata distinct from permission to play.
+- Expanded `AudioBackend` with distinct native-load, embedded-player and external-handoff routes. `RaptorPlayer` now dispatches by `PlaybackAccess` instead of sending every result to CPAL.
+- Added explicit errors for unavailable items, missing adapters, unsupported search, unsupported embedded/handoff surfaces, empty targets and backend failures.
+- Added tests for direct routing, unavailable items, missing adapters, embedded/handoff dispatch and backend control delegation.
+- The current CPAL adapter only handles direct/preview sources. Embedded and external routes are interface extension points; working provider-specific player surfaces and live Spotify/YouTube/Bandcamp clients are not yet complete.
+- Local files remain first-class. Audius, Jamendo and Apple Music remain optional legacy catalogue connectors; Jamendo is not a required dependency and its direct-stream path is not the basis of the wrapper architecture.
+- Full migration of the existing Slint screens, queue and desktop provider calls onto the single normalized model remains outstanding. Do not treat the architecture skeleton as a completed end-to-end wrapper.
 
-### Raptor Music playback routing
-- Added `RaptorPlayer` to route each normalized track through the adapter matching its source, resolve an authorized playback target, and pass a provider-neutral playback request to `AudioBackend`.
-- Added typed playback errors for missing adapters, unavailable tracks, unsupported handoff/embedded playback, empty targets, and backend failures.
-- Added delegated play, pause, stop and seek controls, plus backend state and position access.
-- Added routing tests for adapter selection, unavailable tracks, missing adapters and backend control delegation.
-
-### Raptor Music provider architecture
-- Added a provider-neutral `UnifiedTrack` model with Spotify, YouTube and Bandcamp metadata adapters. Provider response types stop at the adapter boundary; the UI-facing model carries normalized metadata, playback access and an explicit playback target.
-- Added the `AudioBackend` contract and an adapter for the existing CPAL player. Native playback rejects embedded-player, external-handoff and unavailable targets instead of treating every provider result as a stream.
 
 ### Raptor Music discovery
 - Updated Spotify playlist metadata import to the current `/items` API, using the documented 50-item page size and the renamed `item` response field. The import remains metadata-only and Spotify only exposes playlist entries to the playlist owner or collaborators through this endpoint.
