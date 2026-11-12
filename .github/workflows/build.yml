@@ -246,7 +246,20 @@ jobs:
           echo "Verifying BlueBuild image tag: $IMAGE_TAG"
           IMAGE_REF="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/raptor-os:$IMAGE_TAG"
           echo "$GH_TOKEN" | docker login ghcr.io -u "$GH_ACTOR" --password-stdin
-          docker pull "$IMAGE_REF"
+          # GHCR image layers are served through a CDN; transient connection
+          # resets can interrupt a large pull after the image was published
+          # successfully. Retry the verification pull without rebuilding.
+          pull_attempt=1
+          until docker pull "$IMAGE_REF"; do
+            if [[ "$pull_attempt" -ge 4 ]]; then
+              echo "::error::Unable to pull the published image for verification after 4 attempts."
+              exit 1
+            fi
+            delay=$((pull_attempt * 15))
+            echo "::warning::Image verification pull failed; retrying in ${delay}s (attempt $((pull_attempt + 1))/4)."
+            sleep "$delay"
+            pull_attempt=$((pull_attempt + 1))
+          done
           docker run --rm --entrypoint /bin/bash "$IMAGE_REF" -lc '
             set -euo pipefail
             check_file() {
