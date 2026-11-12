@@ -306,6 +306,12 @@ mod tests {
             *self.loaded.lock().unwrap() = Some(source.clone());
             Ok(())
         }
+        fn open_embedded(&mut self, _provider_id: &str, _content_id: &str) -> Result<(), PlaybackError> {
+            Ok(())
+        }
+        fn handoff(&mut self, _url: &str) -> Result<(), PlaybackError> {
+            Ok(())
+        }
         fn play(&mut self) -> Result<(), PlaybackError> { Ok(()) }
         fn pause(&mut self) -> Result<(), PlaybackError> { Ok(()) }
         fn stop(&mut self) -> Result<(), PlaybackError> { Ok(()) }
@@ -384,6 +390,43 @@ mod tests {
             player.play_track(&track),
             Err(PlaybackError::MissingSourceAdapter(AudioSourceKind::YouTube))
         );
+    }
+
+    #[test]
+    fn embedded_and_handoff_access_modes_route_away_from_native_audio() {
+        let embedded_source = FakeSource {
+            kind: AudioSourceKind::YouTube,
+            result: Ok(ResolvedPlayback {
+                uri: "https://www.youtube.com/watch?v=video".into(),
+                access: PlaybackAccess::EmbeddedPlayer,
+                engine_source: EnginePlaybackSource::Unknown { raw_type: "embedded".into() },
+            }),
+        };
+        let mut embedded = RaptorPlayer::new(
+            Box::<FakeBackend>::default(),
+            vec![Box::new(embedded_source)],
+        );
+        assert!(embedded.play_track(&track(
+            AudioSourceKind::YouTube,
+            PlaybackAccess::EmbeddedPlayer,
+        )).is_ok());
+
+        let handoff_source = FakeSource {
+            kind: AudioSourceKind::Spotify,
+            result: Ok(ResolvedPlayback {
+                uri: "https://open.spotify.com/track/example".into(),
+                access: PlaybackAccess::ExternalHandoff,
+                engine_source: EnginePlaybackSource::Unknown { raw_type: "handoff".into() },
+            }),
+        };
+        let mut handoff = RaptorPlayer::new(
+            Box::<FakeBackend>::default(),
+            vec![Box::new(handoff_source)],
+        );
+        assert!(handoff.play_track(&track(
+            AudioSourceKind::Spotify,
+            PlaybackAccess::ExternalHandoff,
+        )).is_ok());
     }
 
     #[test]
