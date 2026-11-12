@@ -292,8 +292,6 @@ import time
 
 CHANGELOG_URL         = "https://raw.githubusercontent.com/Cerberus9-dev/Raptor-OS-Home-Edition/refs/heads/main/changelog.md"
 UPDATE_HELPER         = "/usr/lib/raptor/update-helper"
-CHECK_HELPER          = "/usr/lib/raptor/check-helper"
-CHECK_ACTION          = "io.github.cerberus9dev.raptorupdate.check"
 FLATPAK_UPDATE_HELPER = "/usr/lib/raptor/flatpak-update-helper"
 REBOOT_HELPER         = "/usr/lib/raptor/reboot-helper"
 ROLLBACK_HELPER       = "/usr/lib/raptor/rollback-helper"
@@ -304,7 +302,6 @@ SUDOERS_FILE          = "/etc/sudoers.d/raptor-update"
 # bounds itself to 3 × 150 s attempts + back-off, so this always outlives it —
 # the outer bound is a safety net so a stuck network can never hang the GUI
 # forever, and the helper output is streamed live meanwhile.
-CHECK_TIMEOUT         = 1860
 
 # Remove ANSI/VT100 escape sequences from command output:
 #   CSI  ESC [ <params> <letter>
