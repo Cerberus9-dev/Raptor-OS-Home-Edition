@@ -25,7 +25,7 @@ Raptor Update Manager can stage a rollback to the previous OSTree deployment whe
 
 ### Raptor desktop apps
 
-Raptor Tasks stores tasks locally with search and filters. Raptor Wallpaper provides a searchable gallery and can set the desktop or lock-screen image. Raptor Music keeps local files separate from online discovery and supports in-app playback from Audius and Jamendo. Jamendo uses its free developer API and the track's published Creative Commons license; it does not require a listener subscription. Apple Music provides catalog results and short previews when a developer token is configured. Spotify and Google account connections support metadata import, not in-app streaming.
+Raptor Tasks stores tasks locally with search and filters. Raptor Wallpaper provides a searchable gallery and can set the desktop or lock-screen image. Raptor Music keeps local files separate from online discovery and supports in-app playback from Audius and Jamendo. Jamendo uses its free developer API and the track's published Creative Commons license; it does not require a listener subscription. Apple Music provides catalog results and short previews when a developer token is configured. Spotify and Google account connections support metadata import, not in-app streaming. Raptor Music's new provider boundary defines a normalized `UnifiedTrack` model and provider adapters for Spotify, YouTube and Bandcamp metadata. Playback is routed through an `AudioBackend` interface, with the existing CPAL engine behind its first adapter. Provider metadata normalization does not grant playback rights: Spotify and YouTube items still require supported playback or handoff paths, and Bandcamp streams must be authorized for the specific track.
 
 ---
 
