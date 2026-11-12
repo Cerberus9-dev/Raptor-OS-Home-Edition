@@ -363,8 +363,8 @@ assert_contains files/scripts/shroudly-raptor/crates/shroudly-raptor/src/gui.rs 
 assert_contains files/scripts/shroudly-raptor/install.sh '/usr/bin/raptor-shroudly'
 assert_contains files/scripts/shroudly-raptor/install.sh 'Name=Raptor Shroudly'
 assert_contains files/scripts/shroudly-raptor/install.sh 'raptor-shroudly.svg'
-assert_contains files/scripts/shroudly-raptor/README.md 'not the upstream Electron desktop app'
-assert_contains files/scripts/shroudly-raptor/README.md 'network routing'
+assert_contains README.md 'upstream desktop app is not bundled'
+assert_contains README.md 'Network routing, proxy/tunnel operation and per-app traffic steering are not implemented'
 assert_contains files/scripts/raptor-hardware-fixes/install.sh 'Raptor Proton'
 assert_contains files/scripts/raptor-hardware-fixes/install.sh 'standard Wine'
 
@@ -873,7 +873,7 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'MusicBrainz asks clients to stay at or below one request per second'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'musicbrainz_links_only_allow_official_artist_and_release_group_pages'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'musicbrainz_release_groups_are_metadata_only_collection_rows'
-assert_contains files/scripts/raptor-music/README.md 'MusicBrainz release-group matches are shown as metadata-only releases'
+assert_contains README.md 'MusicBrainz adds release metadata but no audio'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn search_apple_music_artists'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'apple_music_artist_links_reject_non_apple_hosts_and_insecure_schemes'
 
@@ -887,7 +887,7 @@ assert_contains files/scripts/raptor-music/crates/raptor-audio/src/player.rs 'fn
 assert_contains files/scripts/raptor-music/crates/raptor-audio/src/player.rs 'is_apple_preview_url'
 assert_contains files/scripts/raptor-music/crates/raptor-audio/src/player.rs 'accepts_only_https_apple_preview_hosts'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Music providers'
-assert_contains files/scripts/raptor-music/README.md 'short preview clips'
+assert_contains README.md 'short previews when a developer token is configured'
 echo "Raptor Music provider checks passed."
 
 echo "=== Checking Raptor Music Discord Rich Presence ==="
