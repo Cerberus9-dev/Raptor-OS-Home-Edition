@@ -115,7 +115,11 @@ pub fn rank_catalogue_candidates(
         let candidate_isrc = candidate.isrc.as_deref()
             .map(normalized_isrc)
             .filter(|value| !value.is_empty());
-        let confidence = if target_isrc.is_some() && target_isrc == candidate_isrc {
+        let confidence = if target_isrc.is_some() && candidate_isrc.is_some() && target_isrc != candidate_isrc {
+            // Conflicting recording identifiers are stronger evidence than
+            // similar titles and must never be overridden by fuzzy metadata.
+            return None;
+        } else if target_isrc.is_some() && target_isrc == candidate_isrc {
             MatchConfidence::ExactIsrc
         } else if !target_title.is_empty()
             && target_title == normalized_recording_text(&candidate.title)
@@ -260,6 +264,15 @@ mod catalogue_matching_tests {
             candidate("wrong-artist", "Night Drive", "Other Artist", None, Some(184), CataloguePlayback::FullLength),
             candidate("wrong-title", "Day Drive", "Small Artist", None, Some(184), CataloguePlayback::FullLength),
         ];
+        assert!(rank_catalogue_candidates(&target(), &rows).is_empty());
+    }
+
+    #[test]
+    fn conflicting_isrc_is_rejected_even_when_title_and_artist_match() {
+        let rows = vec![candidate(
+            "different-recording", "Night Drive", "Small Artist",
+            Some("GBXYZ2600002"), Some(184), CataloguePlayback::FullLength,
+        )];
         assert!(rank_catalogue_candidates(&target(), &rows).is_empty());
     }
 }
