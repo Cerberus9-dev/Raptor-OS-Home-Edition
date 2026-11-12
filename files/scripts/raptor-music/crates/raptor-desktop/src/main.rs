@@ -2037,7 +2037,7 @@ fn parse_jamendo_tracks(payload: &serde_json::Value) -> Result<Vec<Track>, Strin
         let duration_secs = row.get("duration").and_then(serde_json::Value::as_u64);
         let license_name = license_url.path().trim_matches('/')
             .split('/')
-            .filter(|part| !part.is_empty())
+            .filter(|part| !part.is_empty() && *part != "licenses")
             .map(|part| part.to_ascii_uppercase())
             .collect::<Vec<_>>()
             .join(" ");
@@ -2113,15 +2113,6 @@ fn search_jamendo_tracks(query: &str) -> Result<Vec<Track>, String> {
         }
     }
     Ok(tracks)
-}
-fn open_jamendo_track(track_id: &str) -> Result<(), String> {
-    if track_id.is_empty() || !track_id.chars().all(|ch| ch.is_ascii_digit()) {
-        return Err("Jamendo returned an invalid track identifier".into());
-    }
-    let url = format!("https://www.jamendo.com/track/{track_id}");
-    std::process::Command::new("gio").arg("open").arg(url).spawn()
-        .map_err(|_| "Could not open this track on Jamendo in the system browser".to_string())?;
-    Ok(())
 }
 
 fn search_apple_music_tracks(query: &str) -> Result<Vec<Track>, String> {
