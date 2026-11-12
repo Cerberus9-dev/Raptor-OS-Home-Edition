@@ -846,7 +846,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 status.push_str(" · Apple Music search unavailable");
             }
             if jamendo_count > 0 {
-                status.push_str(&format!(" · {jamendo_count} Jamendo links"));
+                status.push_str(&format!(" · {jamendo_count} Jamendo tracks"));
             } else if jamendo_error && std::env::var("RAPTOR_JAMENDO_CLIENT_ID").is_err() {
                 status.push_str(" · Jamendo not configured");
             } else if jamendo_error {
@@ -1470,16 +1470,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         };
 
-        if let PlaybackSource::RemoteStream { provider_id, provider_track_id } = &target_source {
-            if provider_id == "jamendo_external" {
-                match open_jamendo_track(provider_track_id) {
-                    Ok(()) => ui.set_player_state_label("Opening this track on Jamendo · playback stays on the artist's licensed page".into()),
-                    Err(error) => ui.set_player_state_label(error.into()),
-                }
-                return;
-            }
-        }
-
         let session_token = Uuid::new_v4();
         *session_token_for_play.lock().unwrap() = Some(session_token);
         *active_entry_for_play.lock().unwrap() = Some(target_queue_entry_id);
@@ -2036,7 +2026,7 @@ fn parse_jamendo_tracks(payload: &serde_json::Value) -> Result<Vec<Track>, Strin
     let rows = payload.get("results").and_then(serde_json::Value::as_array)
         .ok_or_else(|| "Jamendo returned an unexpected search response".to_string())?;
     let mut tracks = Vec::new();
-    for row in rows.iter().take(50) {
+    for row in rows.iter().take(200) {
         let Some(provider_track_id) = row.get("id").and_then(serde_json::Value::as_str) else { continue; };
         if provider_track_id.is_empty() || !provider_track_id.chars().all(|ch| ch.is_ascii_digit()) { continue; }
         let Some(title) = row.get("name").and_then(serde_json::Value::as_str).filter(|value| !value.trim().is_empty()) else { continue; };
@@ -2045,10 +2035,21 @@ fn parse_jamendo_tracks(payload: &serde_json::Value) -> Result<Vec<Track>, Strin
         let Ok(license_url) = reqwest::Url::parse(license) else { continue; };
         if license_url.host_str() != Some("creativecommons.org") { continue; }
         let duration_secs = row.get("duration").and_then(serde_json::Value::as_u64);
+        let license_name = license_url.path().trim_matches('/')
+            .split('/')
+            .filter(|part| !part.is_empty())
+            .map(|part| part.to_ascii_uppercase())
+            .collect::<Vec<_>>()
+            .join(" ");
+        let license_label = if license_name.is_empty() {
+            "Creative Commons".to_string()
+        } else {
+            format!("CC {license_name}")
+        };
         let album = row.get("album_name").and_then(serde_json::Value::as_str)
             .filter(|value| !value.trim().is_empty())
-            .map(|value| format!("{value} · Jamendo · CC"))
-            .or_else(|| Some("Jamendo · Creative Commons".into()));
+            .map(|value| format!("{value} · Jamendo · {license_label}"))
+            .or_else(|| Some(format!("Jamendo · {license_label}")));
         let stable_id = Uuid::new_v5(
             &Uuid::NAMESPACE_URL,
             format!("raptor-music:jamendo:{provider_track_id}").as_bytes(),
@@ -2060,7 +2061,7 @@ fn parse_jamendo_tracks(payload: &serde_json::Value) -> Result<Vec<Track>, Strin
             album,
             duration_secs,
             source: PlaybackSource::RemoteStream {
-                provider_id: "jamendo_external".into(),
+                provider_id: "jamendo".into(),
                 provider_track_id: provider_track_id.to_string(),
             },
         });
@@ -2078,26 +2079,41 @@ fn search_jamendo_tracks(query: &str) -> Result<Vec<Track>, String> {
     let client = reqwest::blocking::Client::builder()
         .user_agent("RaptorMusic/0.2.18")
         .connect_timeout(Duration::from_secs(8))
-        .timeout(Duration::from_secs(15))
+        .timeout(Duration::from_secs(20))
         .build()
         .map_err(|error| format!("Could not initialize Jamendo search: {error}"))?;
-    let response = client.get("https://api.jamendo.com/v3.0/tracks/")
-        .query(&[
-            ("client_id", client_id),
-            ("format", "json"),
-            ("limit", "50"),
-            ("search", query.trim()),
-            ("include", "licenses"),
-            ("type", "single albumtrack"),
-        ])
-        .send()
-        .and_then(|response| response.error_for_status())
-        .map_err(|error| format!("Jamendo catalog search failed: {error}"))?;
-    let payload: serde_json::Value = response.json()
-        .map_err(|error| format!("Jamendo returned unreadable search results: {error}"))?;
-    parse_jamendo_tracks(&payload)
+    let mut tracks = Vec::new();
+    let mut seen_ids = HashSet::new();
+    for page in 0..4 {
+        let offset = (page * 200).to_string();
+        let response = client.get("https://api.jamendo.com/v3.0/tracks/")
+            .query(&[
+                ("client_id", client_id),
+                ("format", "json"),
+                ("limit", "200"),
+                ("offset", offset.as_str()),
+                ("search", query.trim()),
+                ("include", "licenses"),
+                ("type", "single albumtrack"),
+            ])
+            .send()
+            .and_then(|response| response.error_for_status())
+            .map_err(|error| format!("Jamendo catalog search failed: {error}"))?;
+        let payload: serde_json::Value = response.json()
+            .map_err(|error| format!("Jamendo returned unreadable search results: {error}"))?;
+        let page_size = payload.get("results").and_then(serde_json::Value::as_array)
+            .map(Vec::len).unwrap_or(0);
+        for track in parse_jamendo_tracks(&payload)? {
+            if seen_ids.insert(track.id) {
+                tracks.push(track);
+            }
+        }
+        if page_size < 200 {
+            break;
+        }
+    }
+    Ok(tracks)
 }
-
 fn open_jamendo_track(track_id: &str) -> Result<(), String> {
     if track_id.is_empty() || !track_id.chars().all(|ch| ch.is_ascii_digit()) {
         return Err("Jamendo returned an invalid track identifier".into());
@@ -3514,7 +3530,7 @@ mod jamendo_search_tests {
     use super::*;
 
     #[test]
-    fn parses_licensed_jamendo_results_as_external_links() {
+    fn parses_licensed_jamendo_results_as_streamable_tracks() {
         let payload = serde_json::json!({
             "results": [{
                 "id": "1848357",
@@ -3541,15 +3557,15 @@ mod jamendo_search_tests {
         assert_eq!(tracks[0].duration_secs, Some(272));
         assert!(tracks[0].album.as_deref().unwrap().contains("Jamendo"));
         assert_eq!(tracks[0].source, PlaybackSource::RemoteStream {
-            provider_id: "jamendo_external".into(),
+            provider_id: "jamendo".into(),
             provider_track_id: "1848357".into(),
         });
     }
 
 
     #[test]
-    fn keeps_up_to_fifty_licensed_jamendo_results() {
-        let rows = (0..60).map(|index| serde_json::json!({
+    fn keeps_up_to_two_hundred_licensed_jamendo_results() {
+        let rows = (0..220).map(|index| serde_json::json!({
             "id": format!("{index}"),
             "name": format!("Track {index}"),
             "artist_name": "Independent Artist",
@@ -3557,7 +3573,7 @@ mod jamendo_search_tests {
         })).collect::<Vec<_>>();
         let payload = serde_json::json!({"results": rows});
         let tracks = parse_jamendo_tracks(&payload).expect("valid Jamendo response");
-        assert_eq!(tracks.len(), 50);
+        assert_eq!(tracks.len(), 200);
     }
 
     #[test]
