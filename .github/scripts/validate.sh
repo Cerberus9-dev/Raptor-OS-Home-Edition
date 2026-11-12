@@ -224,7 +224,7 @@ assert_contains files/scripts/raptor-update/install.sh "os.killpg"
 assert_contains files/scripts/raptor-update/install.sh "timeout=3 * 60 * 60"
 assert_contains files/scripts/raptor-update/install.sh "timeout=900"
 assert_contains files/scripts/raptor-update/install.sh 'rpm-ostree upgrade 2>&1 | tee "$out"'
-assert_contains files/scripts/raptor-update/install.sh "_stop_process_group(helper)"
+assert_contains files/scripts/raptor-update/install.sh "_stop_process_group(proc)"
 assert_contains .github/workflows/build.yml 'cargo build --release --workspace --manifest-path files/scripts/raptor-music/Cargo.toml'
 assert_contains .github/workflows/build.yml 'cargo test --workspace --manifest-path files/scripts/raptor-music/Cargo.toml'
 assert_contains .github/workflows/build.yml 'test -x files/staging/raptor-music'
