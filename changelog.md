@@ -6,7 +6,10 @@
 - Expanded `AudioBackend` with distinct native-load, embedded-player and external-handoff routes. `RaptorPlayer` now dispatches by `PlaybackAccess` instead of sending every result to CPAL.
 - Added explicit errors for unavailable items, missing adapters, unsupported search, unsupported embedded/handoff surfaces, empty targets and backend failures.
 - Added tests for direct routing, unavailable items, missing adapters, embedded/handoff dispatch and backend control delegation.
-- The current CPAL adapter only handles direct/preview sources. Embedded and external routes are interface extension points; working provider-specific player surfaces and live Spotify/YouTube/Bandcamp clients are not yet complete.
+- Added a concrete Spotify Web API adapter for authenticated track search and normalized metadata conversion. Spotify results use official handoff targets; the adapter does not claim Spotify Web API grants direct audio streams.
+- Added a YouTube Data API search adapter that normalizes video metadata and marks results as embedded-player targets. A desktop embedded-player surface is still required before this route can play in-app.
+- Added a limited Bandcamp handoff adapter for already-authorized HTTPS Bandcamp URLs. General Bandcamp search/direct streaming remains unavailable because no general public consumer streaming API is assumed.
+- Added `RodioBackend` for HTTPS direct/preview targets. It rejects embedded/handoff routes and currently buffers responses in memory with a 512 MiB cap; low-memory streaming and full player-surface integration remain future work.
 - Local files remain first-class. Audius, Jamendo and Apple Music remain optional legacy catalogue connectors; Jamendo is not a required dependency and its direct-stream path is not the basis of the wrapper architecture.
 - Full migration of the existing Slint screens, queue and desktop provider calls onto the single normalized model remains outstanding. Do not treat the architecture skeleton as a completed end-to-end wrapper.
 
