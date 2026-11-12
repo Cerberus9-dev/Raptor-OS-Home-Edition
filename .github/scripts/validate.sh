@@ -904,7 +904,7 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'MusicBrainz asks clients to stay at or below one request per second'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'musicbrainz_links_only_allow_official_artist_and_release_group_pages'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'musicbrainz_release_groups_are_metadata_only_collection_rows'
-assert_contains README.md 'MusicBrainz is a metadata-only discovery source; it does not provide audio playback.'
+assert_contains README.md 'MusicBrainz remains metadata-only.'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn search_apple_music_artists'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'apple_music_artist_links_reject_non_apple_hosts_and_insecure_schemes'
 
