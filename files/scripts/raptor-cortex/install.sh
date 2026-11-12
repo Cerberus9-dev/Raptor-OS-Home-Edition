@@ -811,7 +811,11 @@ QDBUS="$(command -v qdbus6 || command -v qdbus || true)"
 if [[ -s "$STATE_DIR/notification-cookie" ]]; then
     cookie="$(cat "$STATE_DIR/notification-cookie")"
     # qdbus returns the integer directly; gdbus prints a tuple such as (uint32 4,).
-    cookie="${cookie//[^0-9]/}"
+    if [[ "$cookie" =~ uint32[[:space:]]+([0-9]+) ]]; then
+        cookie="${BASH_REMATCH[1]}"
+    else
+        cookie="${cookie//[^0-9]/}"
+    fi
     if [[ -n "$cookie" && -n "$QDBUS" ]]; then
         "$QDBUS" org.freedesktop.Notifications /org/freedesktop/Notifications \
             org.freedesktop.Notifications.UnInhibit "$cookie" >/dev/null 2>&1 || true
