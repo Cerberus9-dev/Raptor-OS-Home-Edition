@@ -56,9 +56,9 @@ THE RAPTOR OS APP SUITE
 
 • Raptor Music — manage and play your local music library and playlists.
 
-• Raptor Shroudly — the custom Raptor OS application-compatibility dashboard.
-  It detects supported game clients and desktop apps without suspending them.
-  Network routing is not active in this build; no traffic is silently redirected.
+• Shroudly — the upstream network-privacy app, packaged for Raptor OS.
+  It can help work around deep-packet-inspection (DPI) blocking. Some features
+  change proxy or network settings; review its prompts before enabling them.
 
 • Raptor Wine — run Windows applications with the familiar Wine workflow.
 
