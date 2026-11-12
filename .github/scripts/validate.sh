@@ -151,7 +151,9 @@ assert_contains files/scripts/raptor-music/crates/raptor-audio/src/adapters/band
 assert_contains files/scripts/raptor-music/crates/raptor-audio/src/adapters/bandcamp.rs 'PlaybackTarget::EmbeddedPlayer'
 assert_contains files/scripts/raptor-music/crates/raptor-audio/src/adapters/bandcamp.rs 'https://bandcamp.com/EmbeddedPlayer/track='
 assert_contains files/scripts/raptor-music/crates/raptor-audio/src/backend/rodio.rs 'raptor-rodio-output'
-assert_contains files/scripts/raptor-music/crates/raptor-audio/src/backend/rodio.rs 'MAX_BUFFER_BYTES'
+assert_contains files/scripts/raptor-music/crates/raptor-audio/src/backend/rodio.rs 'MAX_STREAM_BYTES'
+assert_contains files/scripts/raptor-music/crates/raptor-audio/src/backend/rodio.rs '64 * 1024'
+assert_contains files/scripts/raptor-music/crates/raptor-audio/src/backend/rodio.rs 'tempfile::tempfile()'
 assert_contains files/scripts/raptor-music/crates/raptor-audio/Cargo.toml 'rodio = "0.20"'
 
 echo "=== Checking Raptor Music provider authorization contracts ==="
@@ -183,6 +185,8 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/Cargo.toml 'wry
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "get_all_unified_tracks"
 assert_contains files/scripts/raptor-music/crates/raptor-library/src/lib.rs "upsert_unified_track"
 assert_contains files/scripts/raptor-music/crates/raptor-library/src/lib.rs "get_all_unified_tracks"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "Arc<Mutex<Vec<UnifiedTrack>>>"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "normalize_legacy_track"
 assert_contains files/scripts/raptor-music/crates/raptor-core/src/models.rs "serde::Serialize, serde::Deserialize"
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/callback_listener.rs "address.is_loopback()"
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/callback_listener.rs "request.len() < 8192"
@@ -193,7 +197,7 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "ap
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "apple_music_pagination_only_accepts_https_api_paths_without_credentials_or_custom_ports"
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'Some("connected-account")'
 assert_contains files/scripts/raptor-music/crates/raptor-library/tests/database_regression_tests.rs "apple_music_library_refresh_updates_the_existing_connected_profile"
-assert_contains files/scripts/raptor-music/crates/raptor-library/tests/database_regression_tests.rs "assert_eq!(version, 3)"
+assert_contains files/scripts/raptor-music/crates/raptor-library/tests/database_regression_tests.rs "assert_eq!(version, 4)"
 assert_contains files/scripts/raptor-music/crates/raptor-library/src/lib.rs "VALUES (4)"
 
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "start_apple_music_library_refresh"
