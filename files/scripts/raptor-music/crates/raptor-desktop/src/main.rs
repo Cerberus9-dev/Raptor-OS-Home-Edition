@@ -144,29 +144,31 @@ fn start_provider_connection(
                     let followed_artist_count = imported.followed_artists.len();
                     let listening_event_count = imported.listening_history.len();
                     let mut imported_track_count = 0usize;
-                    let mut skipped_playlists = 0usize;
-                    let mut track_budget = 50_000usize;
+                    let mut skipped_playlists = Vec::new();
+                    let mut truncated_playlist_rows = 0usize;
+                    // Keep a high global safety ceiling, but always disclose when
+                    // it prevents a complete import instead of silently truncating.
+                    let mut track_budget = 100_000usize;
                     for playlist in provider_playlists {
                         let mut imported_tracks = Vec::new();
-                        if track_budget > 0 {
-                            match provider_auth::fetch_provider_playlist_tracks(
-                                provider, &tokens.access_token, &playlist.id
-                            ) {
-                                Ok(tracks) => {
-                                    let keep = tracks.len().min(track_budget);
-                                    imported_track_count += keep;
-                                    track_budget -= keep;
-                                    imported_tracks = tracks.into_iter().take(keep).map(|track| {
-                                        profile_import::ImportedTrack {
-                                            source_id: Some(track.id),
-                                            title: track.title,
-                                            artist: track.artist,
-                                            album: track.album,
-                                        }
-                                    }).collect();
-                                }
-                                Err(_) => skipped_playlists += 1,
+                        match provider_auth::fetch_provider_playlist_tracks(
+                            provider, &tokens.access_token, &playlist.id
+                        ) {
+                            Ok(tracks) => {
+                                let keep = tracks.len().min(track_budget);
+                                truncated_playlist_rows += tracks.len().saturating_sub(keep);
+                                imported_track_count += keep;
+                                track_budget -= keep;
+                                imported_tracks = tracks.into_iter().take(keep).map(|track| {
+                                    profile_import::ImportedTrack {
+                                        source_id: Some(track.id),
+                                        title: track.title,
+                                        artist: track.artist,
+                                        album: track.album,
+                                    }
+                                }).collect();
                             }
+                            Err(error) => skipped_playlists.push(format!("{} ({error})", playlist.name)),
                         }
                         imported.playlists.push(profile_import::ImportedPlaylist {
                             source_id: Some(playlist.id),
@@ -207,9 +209,19 @@ fn start_provider_connection(
                     } else {
                         format!(" Optional data: {}.", provider_warnings.join(" · "))
                     };
+                    let playlist_warnings = if skipped_playlists.is_empty() {
+                        String::new()
+                    } else {
+                        format!(" Could not read {} playlist(s): {}.", skipped_playlists.len(), skipped_playlists.join("; "))
+                    };
+                    let truncation_warning = if truncated_playlist_rows == 0 {
+                        String::new()
+                    } else {
+                        format!(" IMPORT INCOMPLETE: {truncated_playlist_rows} playlist rows exceeded the 100,000-entry safety ceiling.")
+                    };
                     Ok(format!(
-                        "Imported {provider_name} profile {} · {playlist_count} playlists · {imported_track_count} playlist entries · {saved_track_count} saved tracks · {followed_artist_count} followed artists · {listening_event_count} listening events. {} playlist(s) could not be fully read. This imports metadata only; it does not grant streaming access.{}",
-                        provider_profile.display_name, skipped_playlists, optional_warning_summary
+                        "Imported {provider_name} profile {} · {playlist_count} playlists · {imported_track_count} playlist entries · {saved_track_count} saved tracks · {followed_artist_count} followed artists · {listening_event_count} listening events.{}{} This imports metadata only; it does not grant streaming access.{}",
+                        provider_profile.display_name, playlist_warnings, truncation_warning, optional_warning_summary
                     ))
                 }
             }
