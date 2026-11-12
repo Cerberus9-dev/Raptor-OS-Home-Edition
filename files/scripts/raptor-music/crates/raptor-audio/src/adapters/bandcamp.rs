@@ -26,7 +26,11 @@ impl AudioSource for BandcampAdapter {
             PlaybackTarget::ExternalHandoff { url } => url.clone(),
             _ => return Err(PlaybackError::UnsupportedAccess),
         };
-        if !url.starts_with("https://") || !url.contains("bandcamp.com/") {
+        let parsed = reqwest::Url::parse(&url).map_err(|error| PlaybackError::SourceResolution(error.to_string()))?;
+        let host = parsed.host_str().unwrap_or_default();
+        if parsed.scheme() != "https"
+            || !(host == "bandcamp.com" || host.ends_with(".bandcamp.com"))
+        {
             return Err(PlaybackError::SourceResolution(
                 "Bandcamp handoff must be an HTTPS Bandcamp URL".into()
             ));
