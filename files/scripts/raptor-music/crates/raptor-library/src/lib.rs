@@ -808,7 +808,7 @@ mod migration_tests {
             [],
             |row| row.get(0),
         ).expect("migration version should be readable");
-        assert_eq!(version, 3, "fresh database should reach schema version 3");
+        assert_eq!(version, 4, "fresh database should reach schema version 4");
 
         let index_count: i64 = db.conn.query_row(
             "SELECT COUNT(*) FROM sqlite_master
