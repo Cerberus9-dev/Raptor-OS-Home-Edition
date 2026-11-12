@@ -19,19 +19,13 @@ Raptor OS is a Bazzite-based Linux distribution with KDE Plasma, gaming support,
 
 This README describes Home Edition. Security Edition is maintained separately and may have different tools, defaults, and security settings.
 
-### Recovery and lock-screen settings
+### Recovery
 
-Raptor Update Manager can stage a rollback to the previous OSTree deployment when one is available. The user chooses when to restart. This rolls back the system image; it does not restore Flatpak versions, personal files, or every setting in the home directory.
-
-Raptor Wallpaper can set the desktop image and KDE Plasma lock-screen image separately. Other lock-screen options, such as timeout and lock-on-resume, remain in KDE's Screen Locking settings.
+Raptor Update Manager can stage a rollback to the previous OSTree deployment when one is available. The user chooses when to restart. A rollback restores the system image, not Flatpak versions, personal files or every setting in the home directory.
 
 ### Raptor desktop apps
 
-Raptor Tasks stores tasks locally and includes search, category filters, and status filters. Raptor Wallpaper provides a searchable image gallery, preview, fit options, and a Dolphin action for applying an image. Raptor Music plays local files and can search Audius for public tracks and artist profiles. Online results are displayed separately from the local-file list. Audius is the only online catalog currently integrated.
-
-### Desktop theme
-
-The desktop uses dark navy and graphite surfaces with cyan focus accents, amber warnings, and green status indicators. KDE, GTK, and Qt applications share the same palette where their toolkits allow it. The theme keeps status information readable without changing normal desktop workflows.
+Raptor Tasks stores tasks locally with search and filters. Raptor Wallpaper provides a searchable gallery and can set the desktop or lock-screen image. Raptor Music plays local files and supports online discovery through Audius and Apple Music; provider results stay separate from the Local Library. Apple Music previews require a configured developer token. Spotify and Google account connections support metadata import, not in-app streaming.
 
 ---
 
@@ -42,20 +36,6 @@ Steam's download protocol, shader-cache and storage settings are left entirely a
 ## Wi-Fi power management
 
 NetworkManager keeps its normal Wi-Fi power-saving and scan-MAC privacy defaults. Raptor Cortex → Settings → Wi-Fi Compatibility provides an opt-in **Disable Wi-Fi power saving** switch for adapters that exhibit reconnect failures or latency spikes with 802.11 power saving. The workaround is not enabled globally because it can reduce laptop battery life. Reconnect to Wi-Fi after changing the setting.
-
-## Boot-time behavior
-
-Raptor keeps the GPU profile detection needed before the desktop session, but its hardware probes are bounded so a missing PCI utility or an unresponsive NVIDIA driver cannot hold the display manager indefinitely. Detection reuses one PCI inventory instead of rescanning repeatedly. Power Profiles Daemon is explicitly enabled and remains the single owner of CPU and firmware power policy; obsolete no-op governor and readiness-check units are no longer shipped. Suspend/resume recovery is handled by one systemd-sleep hook that performs touchpad reinitialization and schedules Wi-Fi/Bluetooth recovery after resume. Redundant target-bound sleep units and a marker-only resume service were removed so they cannot add unnecessary work to suspend transitions.
-
-Raptor intentionally does not depend on `systemd-udev-settle.service` for boot ordering. Upstream systemd discourages making the entire boot wait for every device event; device-specific services should wait only for the hardware they actually need.
-
-## Build verification
-
-The image workflow derives the verification tag from the recipe's `image-version` and the event ref, matching BlueBuild's version-suffixed tags (for example, pull-request images use `pr-N-VERSION`). It then pulls that exact image and verifies the installed Raptor Music and Raptor Shroudly payloads. The installers also fall back to the build's mounted source-files tree if the temporary staging copy is not visible between BlueBuild modules.
-
-## GPU compatibility defaults
-
-Raptor GPU profiles avoid forcing Mesa driver selection, Vulkan feature levels, or ray-tracing capabilities globally. The graphics stack selects the driver and supported features for the detected hardware. NVIDIA-specific Proton NVAPI integration is emitted only for NVIDIA systems. Shader-cache cleanup remains enabled so caches do not grow without bounds. Performance profiles adjust supported power policy without replacing the graphics driver's compatibility decisions.
 
 ## Steam performance and troubleshooting
 
@@ -102,7 +82,7 @@ After downloading the ISO, flash it to a USB drive:
 
 - **[Rufus](https://rufus.ie/en/)** — select **DD image mode** + **GPT** partition scheme
 - **[Ventoy](https://www.ventoy.net)** — copy ISO to Ventoy USB, boot and select it
-- **[Fedora Media Writer](https://github.com/FedoraQt/MediaWriter)** — most reliable, always works
+- **[Fedora Media Writer](https://github.com/FedoraQt/MediaWriter)** — write the ISO to a USB drive
 
 ### Rebase from Bazzite (no reinstall)
 
@@ -116,7 +96,7 @@ rpm-ostree rebase ostree-image-signed:docker://ghcr.io/cerberus9-dev/raptor-os:l
 systemctl reboot
 ```
 
-> **Already on Raptor OS?** Open **Raptor Update Manager** → **Update & Reboot**. Handles system image + Flatpak updates in one click. The app launcher automatically rebuilds its category index after updates so blank folders never appear.
+> **Already on Raptor OS?** Open **Raptor Update Manager** and choose **Update & Reboot** to update the system image and Flatpaks.
 
 ---
 
@@ -198,7 +178,7 @@ Gallery-style wallpaper picker — click any thumbnail to apply it, including fi
 
 ## Raptor Music
 
-Native Rust/Slint music player with local playback and online Audius discovery. It scans selected folders into a SQLite library, reads available tags and durations, supports local playlists and queue management, and plays local files through CPAL. Online search currently returns public, streamable Audius tracks and artist profiles; it does not yet search albums, playlists, or other music services. Online tracks are stored as provider-backed queue entries when selected, but are filtered out of the Local Library view. The database is stored under `$XDG_DATA_HOME/raptor-music/` (or `~/.local/share/raptor-music/`). **Built and installed in every image build**; CI compiles and tests the app and verifies the installed application in the image.
+Native Rust/Slint player for local files, with a SQLite library, playlists and queue management. Online discovery includes public Audius tracks and artist pages, plus Apple Music catalog results and short previews when a developer token is configured. MusicBrainz adds release metadata but no audio. Spotify and Google account connections support metadata import; TIDAL remains an external-service handoff. Full subscription playback from Spotify, Apple Music, YouTube Music or TIDAL is not provided. Online results remain separate from the Local Library. The database is stored under `$XDG_DATA_HOME/raptor-music/` or `~/.local/share/raptor-music/`.
 
 ## Release pipeline (maintainers)
 
@@ -214,9 +194,7 @@ The first-boot chooser offers the official Discord client, Vesktop, Equibop, and
 
 ## Raptor Shroudly
 
-**The custom Raptor OS application, built into every Raptor OS image.** Raptor Shroudly is a native desktop dashboard that detects supported game clients and applications without freezing or modifying them. It is built from the Rust source in `files/scripts/shroudly-raptor`, packaged with its own Raptor-branded launcher and icon, and verified inside each published image.
-
-The current dashboard provides local application detection. Its network-routing and per-app traffic-steering engine is not yet enabled; it does not claim that a proxy or protection mode is active. Raptor Shroudly is inspired by the original Shroudly project by **umutxyp / Codeshare Technology Ltd**. Only the custom Raptor Shroudly application is included in the Raptor OS image; the upstream desktop application is not installed.
+Raptor Shroudly is the custom native desktop dashboard included in the image. It detects supported game clients and desktop apps; it does not freeze, kill or modify them. Network routing, proxy/tunnel operation and per-app traffic steering are not implemented, so the app does not claim that traffic protection is active. The project is inspired by the original Shroudly project by **umutxyp / Codeshare Technology Ltd**; the upstream desktop app is not bundled.
 
 ---
 
