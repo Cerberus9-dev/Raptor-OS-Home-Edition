@@ -180,7 +180,7 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "ap
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "apple_music_pagination_only_accepts_https_api_paths_without_credentials_or_custom_ports"
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'Some("connected-account")'
 assert_contains files/scripts/raptor-music/crates/raptor-library/tests/database_regression_tests.rs "apple_music_library_refresh_updates_the_existing_connected_profile"
-assert_contains files/scripts/raptor-music/crates/raptor-library/tests/database_regression_tests.rs "assert_eq!(version, 3)"
+assert_contains files/scripts/raptor-music/crates/raptor-library/tests/database_regression_tests.rs "assert_eq!(version, 4)"
 
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "start_apple_music_library_refresh"
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint "refresh_apple_music_clicked"
