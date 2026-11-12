@@ -29,7 +29,7 @@ Raptor OS v3.0.0 updates the desktop apps, gaming and Windows compatibility, har
 - Added and refined Cortex GPU/fan telemetry, power-profile integration, bounded memory reclaim, and low-memory application settings.
 - Expanded validation and image-build checks for the Raptor applications, service configuration, embedded scripts, and published image contents.
 
-### Raptor Music desktop experience
+### Player interface
 - Replaced fixed Slint window dimensions with preferred initial dimensions and minimum size constraints, allowing KDE/X11 window managers to resize and maximize the player normally.
 - Reworked the player interface with graphite-and-sage styling, separate browse/library/queue views, global search, and a persistent playback dock.
 - Made the Local Library and Audius result lists expand with the window. Local searches stay on-device; online searches query Audius.
@@ -40,12 +40,12 @@ Raptor OS v3.0.0 updates the desktop apps, gaming and Windows compatibility, har
 - **Raptor Cortex:** changed idle sensor polling from eight to fifteen seconds to reduce hardware-probe wakeups.
 - **Raptor Proton:** derive the default prefix from its selected GAMEID and reclaim an idle Proton wineserver through UMU's selected Proton environment (`umu-run wineboot -k`) only when no other process using that exact prefix remains. This avoids invoking an unrelated host Wine server and preserves concurrent Windows apps sharing a prefix. Fix the generated helper's process-ID expansion so it can correctly exclude its own launcher when checking for active apps.
 
-### Raptor Cortex telemetry
+### Cortex telemetry
 - Fixed GPU summary detection by importing the regex module used by Linux DRM device discovery, restoring adapter model, utilization, clock, and exposed memory reporting.
 - Expanded read-only fan telemetry to report standard hwmon RPM sensors, NVIDIA driver fan percentages, and PWM-only sensors with an explicit duty-cycle label instead of misrepresenting them as RPM.
 - Added tests for AMD-style DRM and hwmon RPM/PWM data. If hardware exposes no fan sensor, Cortex reports the reading as unavailable.
 
-### Raptor Music online search and playback
+### Online search and playback
 - Added debounced online track discovery through Audius alongside the existing local-library search; local queries still work offline and local files remain on-device.
 - Filtered online results to public, available, streamable tracks, preserve stable provider IDs in the library, and allow selected online results to enter the normal playback queue.
 - Added bounded download-to-cache playback for Audius MP3 streams, with a 256 MiB safety limit, short request timeouts, and automatic temporary-file cleanup. Buffers are written to the per-user cache rather than the typical RAM-backed runtime directory.
@@ -107,7 +107,7 @@ Raptor OS v3.0.0 updates the desktop apps, gaming and Windows compatibility, har
 - Updated theme metadata and first-login service descriptions to use the Raptor flight-deck theme.
 - Added a fifth bundled **Raptor Flight Deck** wallpaper: a dark aerospace grid, navigation/radar markings, and a clean top-down aircraft outline, available in Raptor Wallpaper without changing the user's selected background automatically.
 
-### Cortex GPU telemetry fixes
+### Hybrid-GPU telemetry
 
 - GPU telemetry now checks PCI vendor IDs before reading AMD or Intel sysfs counters, prefers NVIDIA's own telemetry on hybrid systems, and reports VRAM for all exposed NVIDIA/AMD adapters rather than accidentally treating the first DRM card as the discrete GPU.
 - Moved GPU temperature, model/load/clock/VRAM readings, and read-only fan sensors into Cortex's Graphics tab beside the GPU profile controls, keeping the Overview focused on system memory and CPU health.
@@ -169,27 +169,15 @@ Raptor OS v3.0.0 updates the desktop apps, gaming and Windows compatibility, har
 - Increased the window's usable desktop layout and reduced routine sensor polling from every five seconds to every eight seconds to lower background wakeups on low-power systems.
 - GPU telemetry shows model, utilization, clock and dedicated VRAM where supported; fan reporting remains read-only and only shows sensors exposed by hardware/firmware.
 
-### Memory compression and low-memory behavior
+### Memory compression
 
-- Updated ZRAM to use standard zstd compression and a maximum size of up to the installed physical RAM, capped at 8 GiB. This favors compression efficiency while keeping CPU cost bounded by the default zstd level.
-- Kept ZRAM rather than enabling Zswap globally. Zswap requires a correctly configured backing swap device and has different failure/performance tradeoffs; forum reports show both ZRAM and Zswap can cause stalls when poorly sized. A blanket switch would be an unsafe guess.
+- ZRAM uses LZ4 with a logical capacity of up to `min(RAM, 8 GiB)`. The capacity is not preallocated at boot; physical memory is used as compressed pages are stored.
+- LZ4 uses less CPU than zstd but generally compresses less tightly. Zswap is not layered on top of ZRAM; a disk-backed profile would need separate testing.
 
 ### Dolphin and Ark reliability
 
 - Retained the targeted workaround for known archive metadata/context-menu stalls while keeping Ark as the dedicated archive opener and 7-Zip/unzip backends installed.
 - Documented the limitation: context-menu compress/extract actions may be absent while the upstream plugin issue persists; archive opening remains available through Ark.
-
-### Cortex GPU and fan telemetry
-
-- Expanded the Graphics Processor row to show the detected adapter model, utilization, active clock, and dedicated VRAM when the kernel/vendor driver exposes those values.
-- Changed the generic fallback from the unhelpful label “GPU” to an explicit telemetry-unavailable message.
-- Kept fan reporting read-only. RPM/percentage appears only when hwmon or NVIDIA driver sensors expose it; systems without readable fan sensors receive a clear firmware/driver limitation instead of fabricated values.
-
-### Memory compression decision
-
-- The current image configuration uses standard-level zstd ZRAM with logical capacity `min(RAM, 8 GiB)`. The logical limit is not preallocated at boot; physical memory is consumed as compressed pages are stored.
-- zstd trades additional CPU work for a better compression ratio than LZ4 on many workloads. That tradeoff is documented rather than presented as a universal win; weak CPUs and sustained memory pressure still need real-device benchmarking.
-- Did not stack zswap on top of ZRAM: zswap requires a separate backing swap device and can add CPU cost when layered over another compressed swap device. A disk-backed zswap profile requires separate benchmarking before it becomes an optional mode.
 
 ### Wi-Fi connection reliability
 
@@ -211,7 +199,6 @@ Raptor OS v3.0.0 updates the desktop apps, gaming and Windows compatibility, har
 - Raptor Music and the Raptor Shroudly desktop app are built and staged during every image build. Their installers verify the actual staged payload and safely skip only when a local build intentionally omits CI-generated staging files.
 - The workflow verifies both applications inside the resulting GHCR image instead of relying on a one-time marker or a first-build-only integration lock.
 - Static validation and workflow linting now run before expensive Shroudly and Raptor Music dependency builds, so shell, embedded-Python, and repository-contract failures surface earlier.
-- Removed a stale validator assertion that still required LZ4 after the documented ZRAM switch to zstd; the current validator now checks the actual zstd configuration.
 - After image verification, CI reports the OCI virtual size, largest image layers, and installed filesystem usage. These figures give future builds a baseline for comparison before dependencies are removed.
 - The build workflow remains the update-image workflow: it pushes the OCI image to GHCR and does not create GitHub Releases or downloadable artifacts. ISO creation remains separate.
 
@@ -228,13 +215,6 @@ Raptor OS v3.0.0 updates the desktop apps, gaming and Windows compatibility, har
 - GPU power-profile transitions now use hardware-reported Intel frequency bounds, return AMD DPM to driver-managed modes without leaving manual overdrive caps behind, and restore NVIDIA firmware-default power limits outside Power Saving. Unsupported device controls remain best-effort rather than blocking the desktop.
 - USB audio uses a 512-frame, three-period buffer for USB ALSA devices (about 32 ms of period queue at 48 kHz), while retaining resampling quality 10 and existing PipeWire scheduling behavior.
 - Kernel watchdog diagnostics and split-lock mitigation remain enabled; the small theoretical performance gain from disabling them did not justify losing diagnostics or weakening the mitigation.
-
-### One-time app integration
-
-- The update-image workflow stages Raptor Music and the original upstream Shroudly Linux desktop payload only when the explicit one-time integration option is enabled. Pull requests build and test the apps without staging them; ordinary pushes and scheduled rebuilds skip the payload.
-- The installers detect their actual staged application files rather than relying on a separate marker file, which the BlueBuild files module did not deliver to the script stage.
-- The internal `raptor-one-time-apps-consumed` tag locks integration only after the staged apps have been verified inside the successfully published GHCR image. Failed builds do not consume the one-time integration.
-- Generated application binaries are not tracked in the source tree. The build workflow remains an OCI update-image workflow and does not create GitHub Releases or downloadable artifacts; ISO creation remains separate.
 
 ### Performance, audio, gaming, and update reliability
 
@@ -254,21 +234,14 @@ Raptor OS v3.0.0 updates the desktop apps, gaming and Windows compatibility, har
 - Game Mode now separates performance-profile changes from memory cleanup. It pauses only optional indexers and thumbnail work selected in Cortex, tracks its active state, and restores only the work it paused. Package managers, Snap, fstrim, irqbalance, communications, audio, and user applications are left running.
 - Cortex now has a sequential One-Click Boost: select the Power Profiles Performance mode, apply the selected GPU profile when supported, pause only the configured optional indexers, and request bounded memory reclaim only when RAM is genuinely low. It does not flush useful caches, compact memory, rewrite OOM scores, or recompress live ZRAM pages. Restore Desktop reverses Game Mode and returns to Balanced.
 - power-profiles-daemon is the single owner of CPU governor, boost, EPP, frequency limits, and firmware platform profile. Cortex, the legacy CPU-policy unit, GPU detection, and GameMode no longer write competing CPU settings; KDE Powerdevil remains in control of the battery slider.
-- ZRAM retains a half-of-RAM logical size and now uses LZ4 to reduce compression CPU overhead on low-power CPUs. ZRAM-aware swappiness, smaller dirty-page limits, a proportionate 32 MiB free-page reserve, and slower Cortex telemetry polling reduce avoidable pressure on low-memory systems. The 4 GB target still needs real-hardware benchmarking.
+- ZRAM uses LZ4 with a logical capacity of up to `min(RAM, 8 GiB)`. ZRAM-aware swappiness, smaller dirty-page limits, a proportionate 32 MiB free-page reserve, and slower Cortex telemetry polling reduce avoidable pressure on low-memory systems. The 4 GB target still needs real-hardware benchmarking.
 - GPU profiles no longer overwrite CPU governor settings or apply global Mesa threaded-rendering/CPU-throttle overrides. GameMode no longer overrides the CPU governor, accepts any compatible supervisor instead of restricting registration to a fixed launcher list, and keeps its real-time scheduler mode off to avoid competing with audio scheduling.
 - PipeWire keeps its stable 512-frame graph; Pulse-compatible streams remain allocated for 30 seconds, and WirePlumber waits 60 seconds before suspending idle audio devices. Audio controllers are excluded from PCI runtime power suspension, and HDA codec/controller power saving stays disabled across profiles.
 - Gaming defaults use moderate network buffers and fq_codel, avoid busy-poll spinning, prefer the NVMe none scheduler, and retain Steam shader pre-caching to reduce first-run shader stutter.
 - Gaming background trim no longer drops all caches, compacts memory, freezes package managers, or stops Snap/storage maintenance. It uses a state marker and restores only optional indexers.
 - Gaming device nodes now use mode 0660 with active-session uaccess ACLs instead of world-writable 0666 permissions. User-facing KDE services are no longer masked or given hard memory caps; Baloo has only a soft MemoryHigh guard.
 
-### Shroudly Raptor
-
-- The first successful v3.0.0 image build fetches the pinned upstream Shroudly submodule, runs its core tests and verification build, compiles the Linux Advanced-mode engine, packages the original Electron desktop app, and installs its desktop entry, icon, MIT license, and polkit action.
-- Pull requests compile and test the original upstream app but do not stage it into the image. Later image builds skip both one-time app payloads after the successful v3.0.0 build consumes the permanent lock tag.
-- Installation does not enable a service or login autostart and does not change proxy settings. The app is launched explicitly by the user; upstream protection modes remain user-controlled and Advanced mode requests administrator authorization.
-- The separate incomplete Raptor Rust application-monitor prototype is not installed or advertised as the upstream Shroudly application.
-
-### Raptor Music, hardware recovery, and build fixes
+### Application, hardware, and build fixes
 
 #### Added and changed
 
@@ -280,7 +253,6 @@ Raptor OS v3.0.0 updates the desktop apps, gaming and Windows compatibility, har
 
 - **Pull requests now validate image-workflow edits.** The push trigger watched `.github/workflows/build.yml`, but the pull-request path filter did not, so changes to the main image workflow could merge without running its PR build. Added the workflow file to the PR path filter.
 
-- **CI no longer pushes generated application binaries to `main`.** The build stages Rust executables only in the temporary one-time staging directory; generated binaries are not committed. The workflow retains contents write permission solely for creating the permanent one-time integration lock tag after a successful opted-in image build.
 
 - **Raptor Music queue index consistency:** removing a queue row before the currently playing entry now shifts the active-row index to match the reindexed queue; removing the active entry also resets the visible player state to Idle.
 
@@ -345,14 +317,6 @@ Raptor OS v3.0.0 updates the desktop apps, gaming and Windows compatibility, har
   This prevents stale commits from consuming runner time alongside the newest
   source revision; it does not mask an underlying compile or image-build error.
 
-- **The ISO workflow never built an ISO.** It called `osbuild` with a
-  nonexistent `raptor-manifest.json`, then treated a successful `cargo build`
-  as a fallback even though that produces no installer image. The workflow now
-  uses `jasonn3/build-container-installer@v1.4.0` against the published
-  `ghcr.io/cerberus9-dev/raptor-os:latest` image, with Fedora 44 / Kinoite
-  installer inputs, and uploads the generated ISO plus checksum as a workflow
-  artifact. It is manually dispatched so routine source pushes do not trigger
-  an expensive ISO build.
 
 - **Shroudly was presented as a working DPI-bypass proxy despite having no
   upstream forwarding.** The daemon only acknowledged `CONNECT` and returned
@@ -598,29 +562,6 @@ Raptor OS v3.0.0 updates the desktop apps, gaming and Windows compatibility, har
   `rpm:` keys, and every Flatpak ID is checked against Flathub before install
   so a bad ID is reported by name instead of failing silently. Removed apps
   that are not desktop Linux software (NewPipe, Piped, SearXNG, Bromite).
-
-### Added
-
-- **Raptor Music and the original upstream Shroudly desktop app are the one-time v3.0.0 payloads.** CI builds and tests both on pull requests without staging them; the first successful main-branch image build stages both apps. The permanent lock tag is created only after the image is successfully built and pushed.
-- **Hardware recovery after suspend** (`files/scripts/raptor-hardware-fixes.sh`):
-  one resume hook plus one 1-minute timer, no new apps or menu entries. On
-  every resume it re-binds the touchpad's I2C/PS/2 driver, binds the kernel's
-  mute / mic-mute LEDs to the audio mute state, and recovers Wi-Fi and
-  Bluetooth in detached background jobs so resume is never delayed. Wi-Fi
-  escalates: re-enable autoconnect and reconnect, power-cycle the radio, reload
-  the driver. Bluetooth escalates: unblock and power on, restart
-  `bluetooth.service`, reload `btusb`; its health check requires the
-  controller to report a live, powered state without starting discovery. The
-  timer is also a Wi-Fi watchdog while awake. Recovery never overrides Wi-Fi or
-  Bluetooth turned off on purpose and never uses `nmcli device disconnect`.
-  `btusb enable_autosuspend=0` stops USB Bluetooth adapters from autosuspending.
-
-- **Fan information in Raptor Cortex (read-only)** — a new "Fans" row in the
-  live stats group lists every fan RPM sensor the kernel exposes through
-  hwmon (`fan*_input`, with `fan*_label` when present), plus NVIDIA fan
-  percentage via `nvidia-smi` when available. Shows "No fan sensors
-  detected" when none exist. Cortex only reads; it never writes fan speed,
-  curves or PWM, so the removal of manual fan control above still stands.
 
 ## [v2.7.0] - 2026-10-01 (Cortex, App Picker, Battery, and Tasks)
 
