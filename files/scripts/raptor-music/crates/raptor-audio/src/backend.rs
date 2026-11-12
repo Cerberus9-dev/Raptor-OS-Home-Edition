@@ -60,7 +60,13 @@ pub trait AudioSource: Send + Sync {
             AudioSourceKind::Spotify => "spotify",
             AudioSourceKind::YouTube => "youtube",
             AudioSourceKind::Bandcamp => "bandcamp",
+            AudioSourceKind::AppleMusic => "apple_music",
+            AudioSourceKind::Audius => "audius",
+            AudioSourceKind::Jamendo => "jamendo",
+            AudioSourceKind::Tidal => "tidal",
+            AudioSourceKind::MusicBrainz => "musicbrainz",
             AudioSourceKind::Local => "local",
+            AudioSourceKind::Other => "other",
         }
     }
 
