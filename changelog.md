@@ -100,14 +100,14 @@ Raptor OS v3.0.0 updates the desktop apps, gaming and Windows compatibility, har
 - Added a lightweight GitHub Actions quality workflow that runs on every push and pull request, independent of path filters. It checks every Actions workflow with actionlint, runs the repository's application/integration validator, and syntax-checks every tracked shell script.
 - The full image workflow remains responsible for image-build and published-image verification; the new quality gate provides faster feedback for documentation-only, workflow-only, and application-only commits too.
 
-### Aviation-inspired desktop identity
+### Desktop theme and wallpapers
 
 - Refined the Raptor HUD palette from bright electric blue toward flight-deck navy, graphite, instrument cyan, caution amber, and operational green.
-- Extended the GTK3/GTK4 theme with consistent Adwaita cards, navigation sidebars, toolbars, status pages, and semantic status colors so first-party GTK apps inherit a more coherent aerospace interface.
+- Updated the GTK3/GTK4 theme with Adwaita cards, navigation sidebars, toolbars, status pages, and semantic status colors. First-party GTK apps use these styles when they load the Raptor theme.
 - Updated theme metadata and first-login service descriptions to use the Raptor flight-deck theme.
 - Added a fifth bundled **Raptor Flight Deck** wallpaper: a dark aerospace grid, navigation/radar markings, and a clean top-down aircraft outline, available in Raptor Wallpaper without changing the user's selected background automatically.
 
-### Cortex and GPU telemetry reliability
+### Cortex GPU telemetry fixes
 
 - GPU telemetry now checks PCI vendor IDs before reading AMD or Intel sysfs counters, prefers NVIDIA's own telemetry on hybrid systems, and reports VRAM for all exposed NVIDIA/AMD adapters rather than accidentally treating the first DRM card as the discrete GPU.
 - Moved GPU temperature, model/load/clock/VRAM readings, and read-only fan sensors into Cortex's Graphics tab beside the GPU profile controls, keeping the Overview focused on system memory and CPU health.
@@ -115,20 +115,20 @@ Raptor OS v3.0.0 updates the desktop apps, gaming and Windows compatibility, har
 
 ### First-login welcome and application tour
 
-- Added a one-time **Welcome to Raptor OS Home** dialog before the existing browser, chat, and optional-app choices. It explains the Raptor app suite in plain language and can be dismissed without blocking setup.
+- Added a one-time **Welcome to Raptor OS Home** dialog before the existing browser, chat, and optional-app choices. It lists the Raptor apps and can be dismissed without blocking setup.
 - The completion stamp is stored per user under the XDG data directory, so the welcome screen does not repeat after dismissal. If the dialog dependency is unavailable, setup continues rather than trapping the user.
 
-### Raptor Tasks and Wallpaper usability polish
+### Raptor Tasks and Wallpaper updates
 
-- Raptor Tasks now has live text search, an Open/Completed status filter, category filtering, a compact open/completed/total summary, active-first alphabetical ordering, and separate helpful empty states for a genuinely empty list versus filters with no matches.
+- Raptor Tasks now has live text search, an Open/Completed status filter, category filtering, a compact open/completed/total summary, active-first alphabetical ordering, and separate messages for an empty task list and a filter with no matches.
 - Recolored the Tasks and Wallpaper application icons to match the aviation-inspired flight-deck navy and instrument-cyan palette.
-- Raptor Wallpaper now includes a larger selected-image preview, the selected filename, live gallery search, and a useful no-results state.
+- Raptor Wallpaper now includes a larger selected-image preview, the selected filename, live gallery search, and a no-results message.
 - Fixed both apps' JSON writers to append a real newline rather than a literal backslash-n sequence, so files saved by the apps remain valid JSON on the next launch.
 - Restored the `apply_wallpaper` function docstring to its proper position before executable statements.
 - Task editing now stays open when a save fails, allowing the user to correct the problem and retry instead of losing the draft.
 - Wallpaper file selection now rejects unsupported or inaccessible paths, avoids duplicate gallery cards, and captures the chosen image/fit mode before applying so a later click cannot change the in-flight operation.
 
-### Raptor Wallpaper reliability
+### Raptor Wallpaper fixes
 
 - Wallpaper settings now use atomic writes, preventing interrupted saves from truncating the previous selection and fit mode.
 - Invalid settings are preserved to a separate recovery file instead of being silently discarded.
@@ -137,7 +137,7 @@ Raptor OS v3.0.0 updates the desktop apps, gaming and Windows compatibility, har
 - The app now reports when the wallpaper was applied but its preference could not be saved.
 - CI extracts and parses the embedded Python app and checks the recovery, atomic-write, and input-validation paths.
 
-### Raptor Tasks reliability and usability
+### Raptor Tasks fixes
 
 - Fixed the Ctrl+N shortcut by registering it through a GTK ShortcutController rather than calling a nonexistent window shortcut helper.
 - Added a native empty-state panel so a new task list explains how to get started instead of presenting a blank window.
@@ -146,14 +146,14 @@ Raptor OS v3.0.0 updates the desktop apps, gaming and Windows compatibility, har
 - Editing uses a working copy so an unsuccessful save does not mutate the existing in-memory task.
 - Added CI extraction and Python AST validation for the embedded Tasks application, plus checks for its shortcut controller, atomic persistence, corruption preservation, and empty state.
 
-### App picker usability and everyday integration
+### App picker and KDE Connect
 
 - Made the optional-app catalogue reusable after first boot: the first-run service still respects its one-time completion stamp, while the new **Raptor App Picker** application-menu entry opens the catalogue on demand without changing that stamp.
 - Added in-dialog type-to-search and increased the picker window size so the existing large catalogue is easier to browse on common laptop displays.
 - Added KDE Connect as an optional Flatpak for Android-to-desktop notifications, file sharing, clipboard integration, and device controls. It remains opt-in and adds no default background service.
 - Updated the README to describe the real post-first-boot installation path rather than implying every catalogue item is available through Discover.
 
-### Dolphin and archive reliability
+### Dolphin and archive fixes
 - Corrected the archive-hardening installer so its logging/comment block is valid shell rather than embedding literal `\\n` text in the command; the CI validator now runs `bash -n` against this installer.
 
 - Made Ark, 7-Zip and Info-ZIP unzip explicit image dependencies instead of relying on incidental base-image packages.
@@ -163,7 +163,7 @@ Raptor OS v3.0.0 updates the desktop apps, gaming and Windows compatibility, har
 - Kept the existing conservative Dolphin safeguards: archive content metadata extraction and the slow archive context-menu plugins remain disabled to avoid known selection/context-menu hangs. This intentionally trades those context-menu entries for responsiveness; archive opening remains through Ark.
 - Added image-build checks for Ark and unzip.
 
-### Cortex control-center redesign
+### Raptor Cortex layout
 
 - Reorganized Raptor Cortex into dedicated Overview, Graphics, Games, Optimize, and Settings tabs using the native libadwaita ViewStack/ViewSwitcher controls.
 - Increased the window's usable desktop layout and reduced routine sensor polling from every five seconds to every eight seconds to lower background wakeups on low-power systems.

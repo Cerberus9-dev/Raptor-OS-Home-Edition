@@ -177,7 +177,7 @@ chmod +x /usr/lib/raptor/update-helper
 
 cat << 'EOF' > /usr/lib/raptor/check-helper
 #!/bin/bash
-# Reliable OCI-aware update detection.
+# Check for newer OCI image updates without creating a deployment.
 #
 # rpm-ostree upgrade --check can report "no update" on container-native
 # images even while a normal upgrade finds a newer image. This is an upstream

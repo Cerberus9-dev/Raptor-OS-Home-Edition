@@ -2,7 +2,7 @@
 
 **Current version:** v3.0.0
 
-Raptor OS is a Bazzite-based Linux distribution built around KDE Plasma. It combines an atomic system image, gaming support, and desktop tools for updates, hardware controls, local music, and everyday tasks.
+Raptor OS is a Bazzite-based Linux distribution with KDE Plasma. It uses an atomic system image and includes tools for updates, hardware controls, local music, and task management.
 
 > **Before installing:** Back up important files. Test Raptor OS in a virtual machine or on a separate drive first. Allow at least 50 GB for a dual-boot installation. The OCI image build and fresh-install ISO build are separate; use only an ISO and checksum published on the official release page.
 
@@ -168,11 +168,11 @@ GPU profile selection is part of **Raptor Cortex → Graphics**. The available c
 
 ## Raptor Tasks
 
-A lightweight GTK4/Libadwaita task list with category filtering, keyboard shortcuts, a helpful empty state, and per-user JSON storage. Saves are atomic so an interrupted write cannot truncate the previous task list; damaged data is preserved for recovery rather than silently discarded.
+A GTK4/Libadwaita task list with category filters, keyboard shortcuts, an empty-state message, and per-user JSON storage. Saves are atomic so an interrupted write cannot truncate the previous task list; damaged data is preserved for recovery rather than silently discarded.
 
 ## Raptor Wallpaper
 
-Gallery-style wallpaper picker — click any thumbnail to apply it, including five bundled Raptor-branded wallpapers alongside anything in your Pictures folder. Fit mode control (Fill/Fit/Stretch/Center/Tile). Right-click any image file in Dolphin → **Set as Raptor Wallpaper** to apply it directly with no window opening. Settings are saved atomically, damaged preferences are preserved for recovery, and inaccessible image folders no longer prevent the rest of the gallery from loading.
+Wallpaper picker with a thumbnail grid. Select an image to apply it; the gallery includes five Raptor wallpapers and images from your Pictures folder. Fit mode control (Fill/Fit/Stretch/Center/Tile). Right-click any image file in Dolphin → **Set as Raptor Wallpaper** to apply it directly with no window opening. Settings are saved atomically, damaged preferences are preserved for recovery, and inaccessible image folders no longer prevent the rest of the gallery from loading.
 
 ## Raptor Music
 
