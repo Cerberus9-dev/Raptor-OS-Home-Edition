@@ -115,6 +115,7 @@ modules:
 
       # Desktop runtime libraries used by the Raptor application suite.
       - gtk3
+      - webkit2gtk4.1
       - libnotify
       - nss
       - libXtst
