@@ -250,12 +250,20 @@ fn parse_spotify_history(root: &Value) -> Result<ImportedProfile, String> {
 }
 
 fn parse_spotify_track(value: &Value) -> Option<ImportedTrack> {
-    let title = string(value, "trackName").or_else(|| string(value, "name"))?;
-    let artist = string(value, "artistName").or_else(|| {
-        value.get("artists").and_then(Value::as_array)
-            .and_then(|artists| artists.first())
-            .and_then(|artist| string(artist, "name"))
-    }).unwrap_or_else(|| "Unknown artist".into());
+    // Spotify's account export uses "track"/"artist"/"album" strings in
+    // YourLibrary.json, while playlist exports commonly use trackName,
+    // artistName, albumName and nested API objects use "name"/"artists".
+    let title = string(value, "trackName")
+        .or_else(|| string(value, "name"))
+        .or_else(|| string(value, "track"))?;
+    let artist = string(value, "artistName")
+        .or_else(|| string(value, "artist"))
+        .or_else(|| {
+            value.get("artists").and_then(Value::as_array)
+                .and_then(|artists| artists.first())
+                .and_then(|artist| string(artist, "name"))
+        })
+        .unwrap_or_else(|| "Unknown artist".into());
     Some(ImportedTrack {
         source_id: string(value, "trackUri").or_else(|| string(value, "uri")),
         title,
@@ -467,6 +475,20 @@ mod tests {
         assert_eq!(profile.playlists[0].source_id.as_deref(), Some("playlist-123"));
         assert_eq!(profile.playlists[0].tracks.len(), 2);
         assert_eq!(profile.playlists[0].tracks[1].title, "Two");
+    }
+
+    #[test]
+    fn parses_spotify_your_library_export_string_fields() {
+        let json = r#"{"tracks":[
+          {"track":"PUSH UR T3MPRR","artist":"femtanyl","album":"REACTOR","uri":"spotify:track:abc"},
+          {"track":"Second song","artist":"Another Artist","album":"EP","uri":"spotify:track:def"}
+        ]}"#;
+        let profile = parse_profile_export(json).unwrap();
+        assert_eq!(profile.saved_tracks.len(), 2);
+        assert_eq!(profile.saved_tracks[0].title, "PUSH UR T3MPRR");
+        assert_eq!(profile.saved_tracks[0].artist, "femtanyl");
+        assert_eq!(profile.saved_tracks[0].album.as_deref(), Some("REACTOR"));
+        assert_eq!(profile.saved_tracks[0].source_id.as_deref(), Some("spotify:track:abc"));
     }
 
     #[test]
