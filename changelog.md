@@ -212,7 +212,7 @@ Raptor OS v3.0.0 updates the desktop apps, gaming and Windows compatibility, har
 - The workflow verifies both applications inside the resulting GHCR image instead of relying on a one-time marker or a first-build-only integration lock.
 - Static validation and workflow linting now run before expensive Shroudly and Raptor Music dependency builds, so shell, embedded-Python, and repository-contract failures surface earlier.
 - Removed a stale validator assertion that still required LZ4 after the documented ZRAM switch to zstd; the current validator now checks the actual zstd configuration.
-- After image verification, CI reports the OCI virtual size, largest image layers, and installed filesystem usage. This provides a measurable baseline for future size reduction rather than guessing which dependencies are safe to remove.
+- After image verification, CI reports the OCI virtual size, largest image layers, and installed filesystem usage. These figures give future builds a baseline for comparison before dependencies are removed.
 - The build workflow remains the update-image workflow: it pushes the OCI image to GHCR and does not create GitHub Releases or downloadable artifacts. ISO creation remains separate.
 
 ### Choice, compatibility, and distribution improvements
@@ -1595,8 +1595,8 @@ Raptor OS v3.0.0 updates the desktop apps, gaming and Windows compatibility, har
   `flatpak info` check + user override call), and `raptor-gaming.sh` (system override)
 
 - **Kernel boot arguments not applying** — BlueBuild module type was `kernel-args`
-  which does not exist; the correct name is `kargs`; additionally the argument list
-  property was `addArgs` instead of `kargs`; both errors caused the module to fail
+  which does not exist; the correct name is `kargs`. The argument-list
+  property was also wrong (`addArgs` instead of `kargs`). Both errors caused the module to fail
   schema validation and the build to abort, meaning `split_lock_detect=off`,
   `transparent_hugepage=madvise`, and the watchdog disables were never set on any
   v2.6 install
