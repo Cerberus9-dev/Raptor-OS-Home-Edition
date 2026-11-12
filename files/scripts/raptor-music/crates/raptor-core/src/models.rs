@@ -38,3 +38,228 @@ pub enum PlayerEvent {
     NaturalEof { session_token: Uuid, queue_entry_id: Uuid },
     SessionTerminated { session_token: Uuid },
 }
+
+
+/// Playback permission is explicit metadata, not inferred from a provider's
+/// ability to return a search result or preview URL.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CataloguePlayback {
+    FullLength,
+    PreviewOnly,
+    ExternalHandoff,
+    Unavailable,
+}
+
+/// Provider-neutral recording identity and availability information.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CatalogueCandidate {
+    pub provider_id: String,
+    pub provider_track_id: String,
+    pub title: String,
+    pub artist: String,
+    pub isrc: Option<String>,
+    pub duration_secs: Option<u64>,
+    pub playback: CataloguePlayback,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum MatchConfidence {
+    NeedsReview,
+    ExactMetadata,
+    ExactIsrc,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CatalogueMatch {
+    pub candidate: CatalogueCandidate,
+    pub confidence: MatchConfidence,
+}
+
+/// Canonical identity for a playlist occurrence. The occurrence itself is
+/// deliberately not deduplicated: two positions may refer to the same track.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TrackIdentity {
+    pub title: String,
+    pub artist: String,
+    pub isrc: Option<String>,
+    pub duration_secs: Option<u64>,
+}
+
+fn normalized_recording_text(value: &str) -> String {
+    value.chars()
+        .flat_map(char::to_lowercase)
+        .filter(|ch| ch.is_alphanumeric())
+        .collect()
+}
+
+fn normalized_isrc(value: &str) -> String {
+    value.chars()
+        .filter(|ch| ch.is_ascii_alphanumeric())
+        .flat_map(char::to_uppercase)
+        .collect()
+}
+
+/// Match only recordings with a strong identity signal. A title-only or
+/// artist-only hit is never enough to claim a successful playlist match.
+pub fn rank_catalogue_candidates(
+    target: &TrackIdentity,
+    candidates: &[CatalogueCandidate],
+) -> Vec<CatalogueMatch> {
+    let target_isrc = target.isrc.as_deref()
+        .map(normalized_isrc)
+        .filter(|value| !value.is_empty());
+    let target_title = normalized_recording_text(&target.title);
+    let target_artist = normalized_recording_text(&target.artist);
+
+    let mut matches = candidates.iter().filter_map(|candidate| {
+        let candidate_isrc = candidate.isrc.as_deref()
+            .map(normalized_isrc)
+            .filter(|value| !value.is_empty());
+        let confidence = if target_isrc.is_some() && target_isrc == candidate_isrc {
+            MatchConfidence::ExactIsrc
+        } else if !target_title.is_empty()
+            && target_title == normalized_recording_text(&candidate.title)
+            && !target_artist.is_empty()
+            && target_artist == normalized_recording_text(&candidate.artist)
+        {
+            match (target.duration_secs, candidate.duration_secs) {
+                (Some(left), Some(right)) if left.abs_diff(right) <= 3 => MatchConfidence::ExactMetadata,
+                (None, _) | (_, None) => MatchConfidence::NeedsReview,
+                _ => return None,
+            }
+        } else {
+            return None;
+        };
+        Some(CatalogueMatch { candidate: candidate.clone(), confidence })
+    }).collect::<Vec<_>>();
+
+    matches.sort_by(|left, right| {
+        right.confidence.cmp(&left.confidence)
+            .then_with(|| {
+                let access_rank = |access: CataloguePlayback| match access {
+                    CataloguePlayback::FullLength => 3,
+                    CataloguePlayback::PreviewOnly => 2,
+                    CataloguePlayback::ExternalHandoff => 1,
+                    CataloguePlayback::Unavailable => 0,
+                };
+                access_rank(right.candidate.playback).cmp(&access_rank(left.candidate.playback))
+            })
+            .then_with(|| left.candidate.provider_id.cmp(&right.candidate.provider_id))
+    });
+    matches
+}
+
+/// Select a full-length source only when the recording match is strong and
+/// unambiguous. Preview and external-handoff results remain visible but can
+/// never be promoted to full playback.
+pub fn select_unambiguous_full_playback(matches: &[CatalogueMatch]) -> Option<&CatalogueCandidate> {
+    let eligible = matches.iter().filter(|item| {
+        item.candidate.playback == CataloguePlayback::FullLength
+            && item.confidence >= MatchConfidence::ExactMetadata
+    }).collect::<Vec<_>>();
+    match eligible.as_slice() {
+        [only] => Some(&only.candidate),
+        [first, rest @ ..] => {
+            let first_isrc = first.candidate.isrc.as_deref()
+                .map(normalized_isrc)
+                .filter(|value| !value.is_empty())?;
+            if rest.iter().all(|item| {
+                item.candidate.isrc.as_deref()
+                    .map(normalized_isrc)
+                    .as_deref() == Some(first_isrc.as_str())
+            }) {
+                Some(&first.candidate)
+            } else {
+                None
+            }
+        }
+        [] => None,
+    }
+}
+
+#[cfg(test)]
+mod catalogue_matching_tests {
+    use super::*;
+
+    fn candidate(provider: &str, title: &str, artist: &str, isrc: Option<&str>,
+                 duration: Option<u64>, playback: CataloguePlayback) -> CatalogueCandidate {
+        CatalogueCandidate {
+            provider_id: provider.into(),
+            provider_track_id: format!("{provider}-track"),
+            title: title.into(),
+            artist: artist.into(),
+            isrc: isrc.map(str::to_owned),
+            duration_secs: duration,
+            playback,
+        }
+    }
+
+    fn target() -> TrackIdentity {
+        TrackIdentity {
+            title: "Night Drive".into(),
+            artist: "Small Artist".into(),
+            isrc: Some("USABC2600001".into()),
+            duration_secs: Some(184),
+        }
+    }
+
+    #[test]
+    fn exact_isrc_matches_are_ranked_above_metadata_matches() {
+        let rows = vec![
+            candidate("metadata", "Night Drive", "Small Artist", None, Some(184), CataloguePlayback::FullLength),
+            candidate("isrc", "Different display title", "Small Artist", Some("US-ABC-26-00001"), Some(190), CataloguePlayback::FullLength),
+        ];
+        let ranked = rank_catalogue_candidates(&target(), &rows);
+        assert_eq!(ranked.len(), 2);
+        assert_eq!(ranked[0].candidate.provider_id, "isrc");
+        assert_eq!(ranked[0].confidence, MatchConfidence::ExactIsrc);
+        assert_eq!(ranked[1].confidence, MatchConfidence::ExactMetadata);
+    }
+
+    #[test]
+    fn title_and_artist_without_duration_require_review() {
+        let rows = vec![candidate("catalogue", "Night Drive", "Small Artist", None, None, CataloguePlayback::FullLength)];
+        let ranked = rank_catalogue_candidates(&target(), &rows);
+        assert_eq!(ranked[0].confidence, MatchConfidence::NeedsReview);
+        assert!(select_unambiguous_full_playback(&ranked).is_none());
+    }
+
+    #[test]
+    fn preview_and_external_handoff_are_never_selected_as_full_playback() {
+        let rows = vec![
+            candidate("preview", "Night Drive", "Small Artist", Some("USABC2600001"), Some(184), CataloguePlayback::PreviewOnly),
+            candidate("external", "Night Drive", "Small Artist", Some("USABC2600001"), Some(184), CataloguePlayback::ExternalHandoff),
+        ];
+        let ranked = rank_catalogue_candidates(&target(), &rows);
+        assert!(select_unambiguous_full_playback(&ranked).is_none());
+    }
+
+    #[test]
+    fn distinct_full_length_recordings_with_same_metadata_are_not_auto_selected() {
+        let rows = vec![
+            candidate("provider-a", "Night Drive", "Small Artist", None, Some(184), CataloguePlayback::FullLength),
+            candidate("provider-b", "Night Drive", "Small Artist", None, Some(184), CataloguePlayback::FullLength),
+        ];
+        let ranked = rank_catalogue_candidates(&target(), &rows);
+        assert!(select_unambiguous_full_playback(&ranked).is_none());
+    }
+
+    #[test]
+    fn multiple_full_length_sources_with_the_same_isrc_are_unambiguous() {
+        let rows = vec![
+            candidate("provider-a", "Night Drive", "Small Artist", Some("USABC2600001"), Some(184), CataloguePlayback::FullLength),
+            candidate("provider-b", "Night Drive", "Small Artist", Some("US-ABC-26-00001"), Some(184), CataloguePlayback::FullLength),
+        ];
+        let ranked = rank_catalogue_candidates(&target(), &rows);
+        assert!(select_unambiguous_full_playback(&ranked).is_some());
+    }
+
+    #[test]
+    fn title_only_or_artist_only_results_are_not_matches() {
+        let rows = vec![
+            candidate("wrong-artist", "Night Drive", "Other Artist", None, Some(184), CataloguePlayback::FullLength),
+            candidate("wrong-title", "Day Drive", "Small Artist", None, Some(184), CataloguePlayback::FullLength),
+        ];
+        assert!(rank_catalogue_candidates(&target(), &rows).is_empty());
+    }
+}
