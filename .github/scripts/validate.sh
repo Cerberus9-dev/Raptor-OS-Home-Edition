@@ -918,7 +918,7 @@ assert_contains files/scripts/raptor-music/crates/raptor-audio/src/player.rs 'fn
 assert_contains files/scripts/raptor-music/crates/raptor-audio/src/player.rs 'is_apple_preview_url'
 assert_contains files/scripts/raptor-music/crates/raptor-audio/src/player.rs 'accepts_only_https_apple_preview_hosts'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Music providers'
-assert_contains README.md 'short previews when a developer token is configured'
+assert_contains README.md "Apple Music previews still depend on the user's MusicKit authorization."
 echo "Raptor Music provider checks passed."
 
 echo "=== Checking Raptor Music Discord Rich Presence ==="
