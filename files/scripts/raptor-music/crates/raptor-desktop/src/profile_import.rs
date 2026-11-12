@@ -1,8 +1,4 @@
-//! Normalized, privacy-conscious profile migration model.
-//!
-//! This module deliberately parses exported data rather than scraping source
-//! services. Provider adapters can normalize their official export/API payloads
-//! into this model before the library persists the import.
+//! Parse supported account exports into the normalized profile import model.
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
