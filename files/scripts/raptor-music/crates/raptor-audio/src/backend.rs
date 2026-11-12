@@ -26,7 +26,7 @@ pub struct PlaybackSource {
     pub engine_source: EnginePlaybackSource,
 }
 
-#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+#[derive(Debug, Clone, thiserror::Error, PartialEq, Eq)]
 pub enum PlaybackError {
     #[error("No playback adapter is registered for {0:?}")]
     MissingSourceAdapter(AudioSourceKind),
