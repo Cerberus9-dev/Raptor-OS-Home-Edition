@@ -784,7 +784,7 @@ pub fn fetch_provider_playlist_tracks(
                     return Ok(tracks);
                 }
             }
-            Err("Spotify playlist import reached the 20,000-track safety limit.".into())
+            Err("Spotify playlist import reached the 10,000-track safety limit.".into())
         }
         OAuthProvider::YoutubeData => {
             let mut tracks = Vec::new();
