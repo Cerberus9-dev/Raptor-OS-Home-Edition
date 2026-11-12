@@ -2036,7 +2036,7 @@ fn parse_jamendo_tracks(payload: &serde_json::Value) -> Result<Vec<Track>, Strin
     let rows = payload.get("results").and_then(serde_json::Value::as_array)
         .ok_or_else(|| "Jamendo returned an unexpected search response".to_string())?;
     let mut tracks = Vec::new();
-    for row in rows.iter().take(25) {
+    for row in rows.iter().take(50) {
         let Some(provider_track_id) = row.get("id").and_then(serde_json::Value::as_str) else { continue; };
         if provider_track_id.is_empty() || !provider_track_id.chars().all(|ch| ch.is_ascii_digit()) { continue; }
         let Some(title) = row.get("name").and_then(serde_json::Value::as_str).filter(|value| !value.trim().is_empty()) else { continue; };
@@ -2121,7 +2121,7 @@ fn search_apple_music_tracks(query: &str) -> Result<Vec<Track>, String> {
     if storefront.len() != 2 || !storefront.chars().all(|ch| ch.is_ascii_lowercase()) {
         return Err("Apple Music storefront must be a two-letter country code".to_string());
     }
-    let pages = apple_music_catalog_search_pages(&storefront, developer_token, query.trim(), "songs", 4)?;
+    let pages = apple_music_catalog_search_pages(&storefront, developer_token, query.trim(), "songs", 8)?;
     let mut tracks = Vec::new();
     let mut seen = HashSet::new();
     for payload in pages {
@@ -2483,7 +2483,7 @@ fn search_apple_music_collections(query: &str) -> Result<Vec<AudiusCollection>, 
     if storefront.len() != 2 || !storefront.chars().all(|ch| ch.is_ascii_lowercase()) {
         return Err("Apple Music storefront must be a two-letter country code".into());
     }
-    let pages = apple_music_catalog_search_pages(&storefront, developer_token.trim(), query.trim(), "albums,playlists", 4)?;
+    let pages = apple_music_catalog_search_pages(&storefront, developer_token.trim(), query.trim(), "albums,playlists", 8)?;
     let mut collections = Vec::new();
     let mut seen = HashSet::new();
     for payload in pages {
@@ -2783,7 +2783,7 @@ fn apple_music_artist_discography(artist: &AudiusArtist) -> Result<Vec<AudiusCol
     let endpoint = format!("https://api.music.apple.com/v1/catalog/{storefront}/artists/{}/albums", artist.id);
     let mut next_url = Some(endpoint.clone());
     let mut albums = Vec::new();
-    for _page in 0..4 {
+    for _page in 0..8 {
         let Some(url) = next_url.take() else { break; };
         let response = client.get(&url).bearer_auth(developer_token.trim())
             .query(if url == endpoint { &[("limit", "25")][..] } else { &[][..] })
@@ -3242,7 +3242,7 @@ fn search_audius_tracks(query: &str, sort_method: &str) -> Result<Vec<Track>, St
     // popularity/relevance slice, without creating an unbounded catalog crawl.
     let mut tracks = Vec::new();
     let mut seen_ids = HashSet::new();
-    for page in 0..3 {
+    for page in 0..6 {
         let offset = (page * 50).to_string();
         let response = client
             .get("https://api.audius.co/v1/tracks/search")
@@ -3544,6 +3544,20 @@ mod jamendo_search_tests {
             provider_id: "jamendo_external".into(),
             provider_track_id: "1848357".into(),
         });
+    }
+
+
+    #[test]
+    fn keeps_up_to_fifty_licensed_jamendo_results() {
+        let rows = (0..60).map(|index| serde_json::json!({
+            "id": format!("{index}"),
+            "name": format!("Track {index}"),
+            "artist_name": "Independent Artist",
+            "license_ccurl": "https://creativecommons.org/licenses/by/4.0/"
+        })).collect::<Vec<_>>();
+        let payload = serde_json::json!({"results": rows});
+        let tracks = parse_jamendo_tracks(&payload).expect("valid Jamendo response");
+        assert_eq!(tracks.len(), 50);
     }
 
     #[test]
