@@ -330,7 +330,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let active_session_token: Arc<Mutex<Option<Uuid>>> = Arc::new(Mutex::new(None));
     let active_playing_queue_entry_id: Arc<Mutex<Option<Uuid>>> = Arc::new(Mutex::new(None));
     let last_seek_at: Arc<Mutex<Option<Instant>>> = Arc::new(Mutex::new(None));
-    let online_tracks: Arc<Mutex<Vec<Track>>> = Arc::new(Mutex::new(Vec::new()));
+    let online_tracks: Arc<Mutex<Vec<UnifiedTrack>>> = Arc::new(Mutex::new(Vec::new()));
     let online_artists: Arc<Mutex<Vec<AudiusArtist>>> = Arc::new(Mutex::new(Vec::new()));
     let online_collections: Arc<Mutex<Vec<AudiusCollection>>> = Arc::new(Mutex::new(Vec::new()));
     let online_search_generation = Arc::new(AtomicU64::new(0));
@@ -872,7 +872,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             if generation.load(Ordering::Acquire) != request_generation {
                 return;
             }
-            *online_tracks.lock().unwrap() = tracks;
+            *online_tracks.lock().unwrap() = tracks.iter().map(raptor_library::normalize_legacy_track).collect();
             *online_collections.lock().unwrap() = collections;
             *online_artists.lock().unwrap() = artists;
             let mut status = format!("{count} tracks · {artist_count} artists · {audius_collection_count} Audius collections · {apple_collection_count} Apple Music albums/playlists · {mb_collection_count} MusicBrainz releases");
@@ -960,8 +960,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ui.on_online_track_selected(move |idx| {
         let track = online_tracks_for_select.lock().unwrap().get(idx as usize).cloned();
         if let Some(track) = track {
-            let normalized = raptor_library::normalize_legacy_track(&track);
-            let saved = db_for_online_select.lock().unwrap().upsert_unified_track(&normalized).is_ok();
+            let saved = db_for_online_select.lock().unwrap().upsert_unified_track(&track).is_ok();
             if !saved {
                 if let Some(ui) = ui_handle_online_select.upgrade() {
                     ui.set_player_state_label("Could not add online track to your library".into());
@@ -1017,12 +1016,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 };
                 let rows = tracks_to_slint(&tracks);
+                let normalized_tracks = tracks.iter().map(raptor_library::normalize_legacy_track).collect::<Vec<_>>();
                 let title = collection.title.clone();
                 let count = tracks.len();
                 let _ = slint::invoke_from_event_loop(move || {
                     if let Some(ui) = ui_weak.upgrade() {
                         if generation_state.load(Ordering::Acquire) == request_generation {
-                            *tracks_state.lock().unwrap() = tracks;
+                            *tracks_state.lock().unwrap() = normalized_tracks;
                             ui.set_online_track_list(slint::ModelRc::new(slint::VecModel::from(rows)));
                             ui.set_selected_online_track_index(-1);
                             ui.set_online_search_status(format!("{title} · {count} playable previews loaded (up to 4 catalog pages); full tracks remain on Apple Music").into());
@@ -1055,12 +1055,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             };
             let rows = tracks_to_slint(&tracks);
+            let normalized_tracks = tracks.iter().map(raptor_library::normalize_legacy_track).collect::<Vec<_>>();
             let title = collection.title.clone();
             let count = tracks.len();
             let _ = slint::invoke_from_event_loop(move || {
                 if let Some(ui) = ui_weak.upgrade() {
                     if generation_state.load(Ordering::Acquire) == request_generation {
-                        *tracks_state.lock().unwrap() = tracks;
+                        *tracks_state.lock().unwrap() = normalized_tracks;
                         ui.set_online_track_list(slint::ModelRc::new(slint::VecModel::from(rows)));
                         ui.set_selected_online_track_index(-1);
                         ui.set_online_search_status(format!("{title} · {count} tracks").into());
@@ -1165,6 +1166,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Ok(profile) => {
                     let tracks = profile.tracks.clone();
                     let rows = tracks_to_slint(&tracks);
+                    let normalized_tracks = tracks.iter().map(raptor_library::normalize_legacy_track).collect::<Vec<_>>();
                     let album_count = profile.albums.len();
                     let bio = profile.bio.clone();
                     let album_rows = profile.albums.iter().map(|album| TrackData {
@@ -1183,7 +1185,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let _ = slint::invoke_from_event_loop(move || {
                         if let Some(ui) = ui_weak.upgrade() {
                             if generation.load(Ordering::Acquire) == request_generation {
-                                *tracks_state.lock().unwrap() = profile.tracks.clone();
+                                *tracks_state.lock().unwrap() = normalized_tracks;
                                 *collections_state.lock().unwrap() = profile.albums.clone();
                                 ui.set_artist_profile_name(profile.name.into());
                                 ui.set_artist_profile_handle(format!("@{}", profile.handle).into());
@@ -1432,11 +1434,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             online_for_track_menu.lock().unwrap().get(index as usize).cloned()
         } else {
             let id = visible_for_track_menu.lock().unwrap().get(index as usize).copied();
-            id.and_then(|id| db_lock.get_all_tracks().unwrap_or_default().into_iter().find(|track| track.id == id))
+            id.and_then(|id| db_lock.get_unified_track(id).ok().flatten())
         };
         let track = match track { Some(track) => track, None => return };
-        let normalized = raptor_library::normalize_legacy_track(&track);
-        if source == "online" && db_lock.upsert_unified_track(&normalized).is_err() {
+        if source == "online" && db_lock.upsert_unified_track(&track).is_err() {
             ui.set_player_state_label("Could not save this online track".into());
             return;
         }
