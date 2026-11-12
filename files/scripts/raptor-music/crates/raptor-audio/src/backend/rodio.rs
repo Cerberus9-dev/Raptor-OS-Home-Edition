@@ -6,7 +6,7 @@ use std::sync::mpsc::{self, Receiver, Sender, SyncSender};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
-const MAX_BUFFER_BYTES: u64 = 512 * 1024 * 1024;
+const MAX_STREAM_BYTES: u64 = 512 * 1024 * 1024;
 
 enum Command {
     Load(PlaybackSource, SyncSender<Result<(), String>>),
@@ -148,7 +148,7 @@ impl RodioBackend {
             .map_err(|error| error.to_string())?
             .error_for_status()
             .map_err(|error| error.to_string())?;
-        if response.content_length().is_some_and(|length| length > MAX_BUFFER_BYTES) {
+        if response.content_length().is_some_and(|length| length > MAX_STREAM_BYTES) {
             return Err("Audio response exceeds the 512 MiB disk-cache safety limit".into());
         }
 
@@ -158,7 +158,7 @@ impl RodioBackend {
         // Vec is ever allocated and the temporary file is unlinked on Linux.
         let mut cache = tempfile::tempfile()
             .map_err(|error| format!("Could not create the temporary audio cache: {error}"))?;
-        let mut response = response.take(MAX_BUFFER_BYTES + 1);
+        let mut response = response.take(MAX_STREAM_BYTES + 1);
         let mut chunk = [0u8; 64 * 1024];
         let mut copied = 0u64;
         loop {
@@ -167,7 +167,7 @@ impl RodioBackend {
                 break;
             }
             copied = copied.saturating_add(count as u64);
-            if copied > MAX_BUFFER_BYTES {
+            if copied > MAX_STREAM_BYTES {
                 return Err("Audio response exceeds the 512 MiB disk-cache safety limit".into());
             }
             cache.write_all(&chunk[..count]).map_err(|error| error.to_string())?;
