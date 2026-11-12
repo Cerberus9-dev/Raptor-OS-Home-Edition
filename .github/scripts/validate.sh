@@ -142,6 +142,16 @@ assert_contains files/scripts/raptor-wine/install.sh "wine --version"
 assert_contains files/scripts/raptor-wine/install.sh "umu-run --version"
 assert_contains files/scripts/raptor-wine/install.sh "stat -Lc 'Permissions: %A (%a)  Size: %s bytes'"
 
+echo "=== Checking Raptor Music wrapper adapters and Rodio backend ==="
+assert_contains files/scripts/raptor-music/crates/raptor-audio/src/adapters/spotify.rs 'https://api.spotify.com/v1/search'
+assert_contains files/scripts/raptor-music/crates/raptor-audio/src/adapters/spotify.rs 'PlaybackAccess::ExternalHandoff'
+assert_contains files/scripts/raptor-music/crates/raptor-audio/src/adapters/youtube.rs 'https://www.googleapis.com/youtube/v3/search'
+assert_contains files/scripts/raptor-music/crates/raptor-audio/src/adapters/youtube.rs 'PlaybackAccess::EmbeddedPlayer'
+assert_contains files/scripts/raptor-music/crates/raptor-audio/src/adapters/bandcamp.rs 'Bandcamp handoff must be an HTTPS Bandcamp URL'
+assert_contains files/scripts/raptor-music/crates/raptor-audio/src/backend/rodio.rs 'raptor-rodio-output'
+assert_contains files/scripts/raptor-music/crates/raptor-audio/src/backend/rodio.rs 'MAX_BUFFER_BYTES'
+assert_contains files/scripts/raptor-music/crates/raptor-audio/Cargo.toml 'rodio = "0.20"'
+
 echo "=== Checking Raptor Music provider authorization contracts ==="
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs "fetch_spotify_playlist_pages"
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs "fetch_youtube_playlist_pages"
