@@ -254,18 +254,50 @@ else
 fi
 
 # ── Background update check ───────────────────────────────────────────────────
-# Keep rpm-ostree's cached-update state warm. With AutomaticUpdatePolicy=check
-# the rpm-ostreed-automatic timer periodically refreshes the remote metadata
-# and records whether a newer deployment exists, so `rpm-ostree status --json`
-# gives correct answers even between GUI refreshes. (policy=check only *checks*;
-# it never stages or downloads the update — the GUI still drives the real
-# update + reboot through update-helper.)
-mkdir -p /etc/rpm-ostreed.conf.d
-cat << 'EOF' > /etc/rpm-ostreed.conf.d/raptor-auto-check.conf
-[Daemon]
-AutomaticUpdatePolicy=check
-EOF
-systemctl enable rpm-ostreed-automatic.timer 2>/dev/null || true
+# rpm-ostree reads /etc/rpm-ostreed.conf directly; it does not load a conf.d
+# directory. Enable metadata-only checks and the timer so the GUI's local status
+# read has a current result. This policy checks availability but does not stage
+# or apply updates.
+python3 - <<'PY'
+import os
+import re
+from pathlib import Path
+
+config = Path(os.environ.get("RAPTOR_RPM_OSTREED_CONFIG", "/etc/rpm-ostreed.conf"))
+lines = config.read_text(encoding="utf-8").splitlines() if config.exists() else []
+section_start = next(
+    (index for index, line in enumerate(lines)
+     if line.strip().lower() == "[daemon]"),
+    None,
+)
+
+if section_start is None:
+    if lines and lines[-1].strip():
+        lines.append("")
+    lines.extend(["[Daemon]", "AutomaticUpdatePolicy=check"])
+else:
+    section_end = next(
+        (index for index in range(section_start + 1, len(lines))
+         if re.match(r"^\\s*\\[", lines[index])),
+        len(lines),
+    )
+    updated = []
+    inserted = False
+    for line in lines[section_start:section_end]:
+        if re.match(r"^\\s*#?\\s*AutomaticUpdatePolicy\\s*=", line, re.IGNORECASE):
+            if not inserted:
+                updated.append("AutomaticUpdatePolicy=check")
+                inserted = True
+            continue
+        updated.append(line)
+    if not inserted:
+        updated.insert(1, "AutomaticUpdatePolicy=check")
+    lines[section_start:section_end] = updated
+
+config.parent.mkdir(parents=True, exist_ok=True)
+config.write_text("\\n".join(lines).rstrip() + "\\n", encoding="utf-8")
+PY
+systemctl enable rpm-ostreed-automatic.timer
 
 # ── Python GUI ────────────────────────────────────────────────────────────────
 cat << 'PYEOF' > /usr/bin/raptor-update
