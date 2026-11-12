@@ -5,6 +5,7 @@ mod provider_auth;
 mod token_store;
 mod callback_listener;
 mod apple_music_auth;
+mod embedded_player;
 
 fn refresh_provider_tokens_if_needed(
     provider: provider_auth::OAuthProvider,
@@ -283,9 +284,11 @@ struct AudiusArtistProfile {
 }
 
 use raptor_audio::player::AudioPlayer;
+use raptor_audio::adapters::{BandcampAdapter, YouTubeAdapter};
+use raptor_audio::backend::AudioSource;
 use raptor_audio::decoder::AudioDecoder;
 use raptor_library::{LibraryDatabase, QueueEntry};
-use raptor_core::models::{Track, PlaybackSource, PlayerState, PlayerEvent};
+use raptor_core::models::{Track, PlaybackSource, PlayerState, PlayerEvent, UnifiedTrack, PlaybackTarget};
 use std::sync::{Arc, Mutex};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -750,6 +753,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let apple_worker = std::thread::spawn(move || search_apple_music_tracks(&apple_query));
             let jamendo_query = query_for_thread.clone();
             let jamendo_worker = std::thread::spawn(move || search_jamendo_tracks(&jamendo_query));
+            let youtube_query = query_for_thread.clone();
+            let youtube_worker = std::thread::spawn(move || search_youtube_tracks(&youtube_query));
+            let bandcamp_query = query_for_thread.clone();
+            let bandcamp_worker = std::thread::spawn(move || search_bandcamp_tracks(&bandcamp_query));
             let audius_result = if sort_method == "independent" {
                 // Blend relevance-ranked and recent uploads instead of letting
                 // play counts dominate discovery. Alternate sources and dedupe
@@ -784,6 +791,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .unwrap_or_else(|_| Err("Apple Music search worker stopped unexpectedly".to_string()));
             let jamendo_result = jamendo_worker.join()
                 .unwrap_or_else(|_| Err("Jamendo search worker stopped unexpectedly".to_string()));
+            let youtube_result = youtube_worker.join()
+                .unwrap_or_else(|_| Err("YouTube search worker stopped unexpectedly".to_string()));
+            let bandcamp_result = bandcamp_worker.join()
+                .unwrap_or_else(|_| Err("Bandcamp search worker stopped unexpectedly".to_string()));
             if generation.load(Ordering::Acquire) != request_generation {
                 return;
             }
@@ -798,6 +809,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let jamendo_tracks = jamendo_result.unwrap_or_default();
             let jamendo_count = jamendo_tracks.len();
             tracks.extend(jamendo_tracks);
+            let youtube_error = youtube_result.is_err();
+            let youtube_tracks = youtube_result.unwrap_or_default();
+            let youtube_count = youtube_tracks.len();
+            tracks.extend(youtube_tracks);
+            let bandcamp_error = bandcamp_result.is_err();
+            let bandcamp_tracks = bandcamp_result.unwrap_or_default();
+            let bandcamp_count = bandcamp_tracks.len();
+            tracks.extend(bandcamp_tracks);
             let count = tracks.len();
             let rows = tracks_to_slint(&tracks);
             let collection_result = collection_worker.join()
@@ -873,7 +892,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             } else if jamendo_error {
                 status.push_str(" · Jamendo search unavailable");
             }
-            if audius_count == 0 && apple_count == 0 && jamendo_count == 0 && artist_count == 0
+            if youtube_count > 0 {
+                status.push_str(&format!(" · {youtube_count} YouTube videos"));
+            } else if youtube_error && std::env::var("RAPTOR_YOUTUBE_API_KEY").is_err() {
+                status.push_str(" · YouTube search not configured");
+            } else if youtube_error {
+                status.push_str(" · YouTube search unavailable");
+            }
+            if bandcamp_count > 0 {
+                status.push_str(&format!(" · {bandcamp_count} Bandcamp tracks"));
+            } else if bandcamp_error {
+                status.push_str(" · Bandcamp search unavailable");
+            }
+            if audius_count == 0 && apple_count == 0 && jamendo_count == 0 && youtube_count == 0 && bandcamp_count == 0 && artist_count == 0
                 && collection_count == 0 && apple_collection_count == 0 && mb_collection_count == 0 && mb_artist_count == 0 {
                 status = "No matching tracks, artists, albums or playlists found".to_string();
             }
@@ -1499,6 +1530,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ui.set_selected_online_track_index(-1);
         refresh_queue_list(&ui, &db_for_play);
         ui.set_player_state_label("Loading".into());
+        let embedded_target = match &target_source {
+            PlaybackSource::RemoteStream { provider_id, provider_track_id }
+                if provider_id == "youtube" || provider_id == "bandcamp" =>
+                Some((provider_id.clone(), provider_track_id.clone())),
+            _ => None,
+        };
+        if let Some((provider_id, provider_track_id)) = embedded_target {
+            let content_id = if provider_id == "bandcamp" {
+                format!("https://bandcamp.com/EmbeddedPlayer/track={provider_track_id}/size=large/bgcol=333333/linkcol=0f91ff/tracklist=false/transparent=true/")
+            } else {
+                provider_track_id
+            };
+            *session_token_for_play.lock().unwrap() = None;
+            match embedded_player::open_provider_player(&provider_id, &content_id) {
+                Ok(()) => {
+                    *active_entry_for_play.lock().unwrap() = Some(target_queue_entry_id);
+                    ui.set_player_state_label(format!("Playing in the {provider_id} embedded player").into());
+                }
+                Err(error) => ui.set_player_state_label(format!("Could not open embedded player: {error}").into()),
+            }
+            return;
+        }
+
         if let Err(e) = player_for_play.play(target_source, target_id, target_queue_entry_id, session_token) {
             eprintln!("Playback error: {}", e);
             ui.set_player_state_label("Error".into());
@@ -3704,6 +3758,46 @@ mod audius_search_tests {
             .expect_err("unexpected API shape must not look like an empty successful search");
         assert!(error.contains("unexpected search response"));
     }
+}
+
+fn unified_track_to_legacy_track(track: UnifiedTrack) -> Track {
+    let source = match track.target {
+        PlaybackTarget::Native(source) => source,
+        PlaybackTarget::EmbeddedPlayer { provider_id, .. } => PlaybackSource::RemoteStream {
+            provider_id,
+            provider_track_id: track.source_track_id.clone(),
+        },
+        PlaybackTarget::ExternalHandoff { url } => PlaybackSource::Unknown {
+            raw_type: format!("external-handoff:{url}"),
+        },
+        PlaybackTarget::Unavailable => PlaybackSource::Unknown {
+            raw_type: "unavailable".into(),
+        },
+    };
+    Track {
+        id: track.id,
+        title: track.title,
+        artist: track.artists.join(", "),
+        album: track.album,
+        duration_secs: track.duration_secs,
+        source,
+    }
+}
+
+fn search_youtube_tracks(query: &str) -> Result<Vec<Track>, String> {
+    let api_key = std::env::var("RAPTOR_YOUTUBE_API_KEY")
+        .map_err(|_| "YouTube search is not configured · set RAPTOR_YOUTUBE_API_KEY".to_string())?;
+    let adapter = YouTubeAdapter::new(api_key).map_err(|error| error.to_string())?;
+    adapter.search(query)
+        .map(|tracks| tracks.into_iter().map(unified_track_to_legacy_track).collect())
+        .map_err(|error| error.to_string())
+}
+
+fn search_bandcamp_tracks(query: &str) -> Result<Vec<Track>, String> {
+    let adapter = BandcampAdapter::new().map_err(|error| error.to_string())?;
+    adapter.search(query)
+        .map(|tracks| tracks.into_iter().map(unified_track_to_legacy_track).collect())
+        .map_err(|error| error.to_string())
 }
 
 fn tracks_to_slint(tracks: &[Track]) -> Vec<TrackData> {
