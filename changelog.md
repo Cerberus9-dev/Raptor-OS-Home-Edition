@@ -4,25 +4,21 @@
 
 Changes made after v3.0.0 will be recorded here.
 
-### Shroudly desktop integration
-- Replaced the temporary Rust dashboard package with the original Linux Shroudly Electron desktop application from the pinned upstream submodule.
-- Kept the upstream UI, styling, Linux integration, application behavior and MIT license intact. Raptor OS supplies the launcher and desktop packaging without re-skinning the app.
-- Added GameMode desktop hooks that inhibit notification popups and reduce KDE animation duration while a GameMode session is active, then restore the prior user setting when it ends.
+### GameMode desktop behavior
+- Added GameMode hooks that suppress notification popups and reduce KDE animation duration while a game session is active, then restore the previous user settings when the session ends.
 
 ### Raptor Update Manager
-- Changed system update detection to read rpm-ostree's cached local status instead of resolving and downloading an OCI image on every manual check.
+- Changed system update detection to use rpm-ostree's cached local status instead of resolving and downloading an OCI image on every manual check.
 - Run system and user Flatpak update checks concurrently with bounded timeouts.
-- Removed the pre-update confirmation step. One click starts the update, and a successfully staged system update triggers an immediate reboot. Flatpak-only updates do not reboot.
+- Removed the pre-update confirmation step. Choosing Update & Reboot starts the update, and a successfully staged system update triggers an immediate reboot. Flatpak-only updates do not reboot.
 
-### Raptor Music wrapper-first architecture
-- Added a normalized `UnifiedTrack` provider boundary and explicit playback-access states. Provider search metadata is not treated as permission to play.
-- Added the `AudioSource` adapter contract and `RaptorPlayer` routing for direct streams, previews, embedded players, external handoffs and unavailable items.
-- Added Spotify Web API search and metadata normalization with official Spotify handoff targets; no unrestricted Spotify stream URL is fabricated.
-- Added YouTube Data API search with normalized video metadata and embedded-player targets. The desktop embedded-player surface remains to be implemented.
-- Added a limited Bandcamp adapter for validated HTTPS Bandcamp handoff URLs. General Bandcamp search and direct streaming are not claimed.
-- Changed `RodioBackend` to copy authorized HTTPS responses to an unnamed temporary file in 64 KiB chunks before decoding. This bounds RAM use, but playback still waits for the download to finish.
-- Kept Audius, Jamendo and Apple Music as optional existing integrations. Full migration of the Slint UI, queue and legacy desktop provider calls to the normalized model remains outstanding.
-- Added explicit provider-access errors and routing tests. Workspace build and CI verification are still required before merge.
+### Raptor Music provider integration
+- Added Bandcamp track search through the public autocomplete endpoint used by Bandcamp's website. The endpoint is undocumented and may change; playback uses the official embedded player rather than extracting protected media URLs.
+- Added an in-app WebKit player window for YouTube's official embedded player, including playback controls. YouTube catalogue search requires `RAPTOR_YOUTUBE_API_KEY`.
+- Removed the redirect-URI/PKCE setup dependency from OAuth refresh grants. Spotify search now loads a valid access token and refreshes expired credentials through the provider token endpoint; secrets remain in the OS credential store.
+- Changed Rodio's HTTPS response handling from a full-track RAM vector to 64 KiB disk-backed copying into an unnamed temporary file. This bounds RAM use but still downloads the file before decoding.
+- Added schema migration 4 and normalized `UnifiedTrack` persistence. Online discovery state and queue playback resolution now use the normalized model; a compatibility conversion remains at the CPAL engine boundary.
+- Added provider adapter, embedded-player, normalized persistence, and migration regression checks. CI and published-image verification are required before merge.
 
 
 ## [v3.0.0] - 2026-11-12
