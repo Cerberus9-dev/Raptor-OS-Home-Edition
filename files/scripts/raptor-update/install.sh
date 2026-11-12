@@ -448,7 +448,7 @@ def check_for_updates(emit=None):
         return False, error
     has_update, message = _local_update_signal(status)
     if emit is not None:
-        emit("Read cached rpm-ostree status; no remote request or image download was started.\\n")
+        emit("Read cached rpm-ostree status; no remote request or image download was started.\n")
     return has_update, message
 
 
@@ -1165,9 +1165,8 @@ class RaptorUpdateWindow(Adw.ApplicationWindow):
         self.check_btn.set_sensitive(True)
 
     def _on_update_success(self):
-        self._update_running = False
         self.update_spinner.stop()
-        self._append_log("\\n✓ System update staged. Rebooting now…\\n")
+        self._append_log("\n✓ System update staged. Rebooting now…\n")
         self._set_status(
             "Update installed. Rebooting now…",
             "emblem-ok-symbolic", "success")
@@ -1220,14 +1219,23 @@ class RaptorUpdateWindow(Adw.ApplicationWindow):
         try:
             proc = run_privileged(REBOOT_HELPER)
             try:
-                proc.wait(timeout=15)
+                rc = proc.wait(timeout=15)
+                if rc not in (0, None):
+                    raise RuntimeError(f"systemctl reboot exited with status {rc}")
             except subprocess.TimeoutExpired:
                 pass  # system is going down — expected
         except Exception as e:
-            GLib.idle_add(self._append_log, f"\nERROR rebooting: {e}\n")
-            GLib.idle_add(self._set_status,
-                "Could not reboot automatically — please reboot manually.",
-                "dialog-warning-symbolic", "warning")
+            GLib.idle_add(self._on_reboot_failed, str(e))
+
+    def _on_reboot_failed(self, detail):
+        self._update_running = False
+        self.check_btn.set_sensitive(True)
+        self.update_btn.set_sensitive(False)
+        self._set_status(
+            "The update is staged, but automatic reboot failed. Restart manually.",
+            "dialog-warning-symbolic", "warning")
+        self.subtitle.set_text("Update staged; a manual restart is required.")
+        self._append_log(f"\nReboot error: {detail}\n")
 
     def on_cancel_reboot(self, btn):
         self._reboot_cancelled = True
