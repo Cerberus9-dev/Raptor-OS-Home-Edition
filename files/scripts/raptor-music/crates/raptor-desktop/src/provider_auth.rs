@@ -316,7 +316,8 @@ fn parse_spotify_playlists(value: &serde_json::Value) -> Result<Vec<ProviderPlay
             name: name.into(),
             description: item.get("description").and_then(|v| v.as_str()).filter(|v| !v.is_empty()).map(str::to_owned),
             image_url: first_image_url(&item["images"]),
-            item_count: item.pointer("/tracks/total").and_then(|v| v.as_u64()),
+            item_count: item.pointer("/items/total").and_then(|v| v.as_u64())
+                .or_else(|| item.pointer("/tracks/total").and_then(|v| v.as_u64())),
         })
     }).collect())
 }
@@ -359,7 +360,7 @@ fn parse_spotify_playlist_tracks(value: &serde_json::Value) -> Result<Vec<Provid
     let items = value.get("items").and_then(|v| v.as_array())
         .ok_or_else(|| "Spotify playlist-track response did not include an items list".to_string())?;
     Ok(items.iter().filter_map(|item| {
-        let track = item.get("track")?;
+        let track = item.get("item").or_else(|| item.get("track"))?;
         let id = track.get("id")?.as_str()?;
         let title = track.get("name")?.as_str()?;
         let artists = track.get("artists").and_then(|v| v.as_array())
@@ -771,10 +772,10 @@ pub fn fetch_provider_playlist_tracks(
                 {
                     let mut segments = url.path_segments_mut()
                         .map_err(|_| "Could not construct Spotify playlist URL".to_string())?;
-                    segments.pop_if_empty().push("playlists").push(playlist_id).push("tracks");
+                    segments.pop_if_empty().push("playlists").push(playlist_id).push("items");
                 }
-                url.query_pairs_mut().append_pair("limit", "100")
-                    .append_pair("offset", &(page * 100).to_string());
+                url.query_pairs_mut().append_pair("limit", "50")
+                    .append_pair("offset", &(page * 50).to_string());
                 let value = get_provider_json(url.as_str(), access_token)?;
                 let batch = parse_spotify_playlist_tracks(&value)?;
                 let count = batch.len();
@@ -885,7 +886,7 @@ mod tests {
             "items": [{
                 "id": "mix-1", "name": "My Mix", "description": "Saved songs",
                 "images": [{"url": "https://example.test/cover.jpg"}],
-                "tracks": {"total": 42}
+                "items": {"total": 42}
             }]
         })).unwrap();
         assert_eq!(playlists.len(), 1);
@@ -1065,7 +1066,7 @@ mod tests {
             "next": null
         });
         let row = &history["items"][0];
-        let wrapped = serde_json::json!({"items": [{"track": row["track"]}]});
+        let wrapped = serde_json::json!({"items": [{"item": row["track"]}]});
         let track = parse_spotify_playlist_tracks(&wrapped).unwrap().remove(0);
         assert_eq!(track.title, "Recent Song");
         assert_eq!(row["played_at"], "2026-11-01T12:00:00Z");
@@ -1075,7 +1076,7 @@ mod tests {
     fn spotify_playlist_track_metadata_is_normalized_without_stream_urls() {
         let tracks = parse_spotify_playlist_tracks(&serde_json::json!({
             "items": [{
-                "track": {
+                "item": {
                     "id": "track-1", "name": "Underground Song",
                     "artists": [{"name": "Small Artist"}, {"name": "Guest"}],
                     "album": {"name": "Independent EP", "images": [{"url": "https://example.test/cover.jpg"}]},
