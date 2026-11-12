@@ -177,64 +177,10 @@ chmod +x /usr/lib/raptor/update-helper
 
 cat << 'EOF' > /usr/lib/raptor/check-helper
 #!/bin/bash
-# Check for newer OCI image updates without creating a deployment.
-#
-# rpm-ostree upgrade --check can report "no update" on container-native
-# images even while a normal upgrade finds a newer image. This is an upstream
-# limitation of the check-only path. Resolve the same transaction as a normal
-# upgrade, but use --download-only so Check never creates a deployment,
-# changes the boot default, or reboots. --unchanged-exit-77 distinguishes the
-# no-update case from a successfully resolved/downloaded update.
-#
-# A check can therefore download the image layers (reusing the cache when
-# possible). The Update button subsequently runs the ordinary upgrade command
-# to create the pending deployment.
-MAX_ATTEMPTS="${RAPTOR_CHECK_MAX_ATTEMPTS:-2}"
-ATTEMPT_TIMEOUT="${RAPTOR_CHECK_ATTEMPT_TIMEOUT:-900}"  # image downloads may be large
-RETRY_SLEEP="${RAPTOR_CHECK_RETRY_SLEEP:-5}"
-
-echo "Raptor OS Update Check — resolving the real upgrade transaction"
-for try in $(seq 1 "${MAX_ATTEMPTS}"); do
-    echo "── Update resolution attempt ${try}/${MAX_ATTEMPTS} ──"
-    out="$(mktemp)"
-    timeout "${ATTEMPT_TIMEOUT}" rpm-ostree upgrade --download-only --unchanged-exit-77 2>&1 | tee "$out"
-    rc=${PIPESTATUS[0]}
-
-    if [ "$rc" -eq 77 ]; then
-        rm -f "$out"
-        echo "No upgrade available."
-        exit 0
-    fi
-
-    if [ "$rc" -eq 0 ]; then
-        if grep -qiE "no updates? available|no upgrade available" "$out"; then
-            rm -f "$out"
-            echo "No upgrade available."
-            exit 0
-        fi
-        rm -f "$out"
-        echo "Update image resolved and downloaded; no deployment was created."
-        echo "AvailableUpdate:"
-        echo "A system update is available. Select Update & Reboot to stage it."
-        exit 0
-    fi
-
-    if [ "$rc" -eq 124 ]; then
-        echo "Update resolution timed out after ${ATTEMPT_TIMEOUT} seconds."
-    else
-        echo "Update resolution failed (exit ${rc})."
-    fi
-    tail -n 8 "$out" || true
-    rm -f "$out"
-
-    if [ "$try" -lt "$MAX_ATTEMPTS" ]; then
-        echo "Retrying in ${RETRY_SLEEP} seconds…"
-        sleep "$RETRY_SLEEP"
-    fi
-done
-
-echo "Could not resolve the update transaction. No deployment was changed."
-exit 1
+# Return rpm-ostree's cached state only. The automatic metadata timer performs
+# remote refreshes; this helper must never download an image during a manual check.
+set -euo pipefail
+exec timeout 8 rpm-ostree status --json
 EOF
 chmod +x /usr/lib/raptor/check-helper
 
