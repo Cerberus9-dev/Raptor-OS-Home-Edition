@@ -44,7 +44,7 @@ Comment=Shroudly desktop application, packaged for Raptor OS
 Exec=/usr/bin/raptor-shroudly %U
 Icon=shroudly
 Terminal=false
-Categories=Network;Utility;
+Categories=X-RaptorOS;Network;Utility;
 Keywords=shroudly;privacy;network;proxy;DNS;
 StartupNotify=true
 DESKTOP
