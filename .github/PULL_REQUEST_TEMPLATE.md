@@ -17,6 +17,8 @@ List the checks run and link to their results. Mark anything still running or re
 - [ ] README, changelog, version references, and feature descriptions match the implementation.
 - [ ] No stale instructions, obsolete markers, placeholders, or unsupported claims remain.
 
+Write for someone who uses or maintains Raptor OS. Avoid padded intros, repeated claims, vague marketing language, and lists that restate the same point. Do not describe planned work as shipped or report checks as passed unless the results confirm it.
+
 ## Limitations
 
 List known gaps or compatibility concerns. Remove this section if there are none.
