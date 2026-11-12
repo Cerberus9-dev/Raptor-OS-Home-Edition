@@ -319,8 +319,11 @@ jobs:
             check_file s /usr/share/applications/raptor-music.desktop
             check_file s /usr/share/icons/hicolor/scalable/apps/raptor-music.svg
             check_file x /usr/bin/raptor-shroudly
+            check_file s /opt/raptor-shroudly/resources/app.asar
             check_file s /usr/share/applications/raptor-shroudly.desktop
-            check_file s /usr/share/icons/hicolor/scalable/apps/raptor-shroudly.svg
+            check_file s /usr/share/pixmaps/shroudly.png
+            check_file s /usr/share/licenses/raptor-shroudly/LICENSE
+            check_file s /usr/share/polkit-1/actions/me.codeshare.shroudly.policy
           '
           echo "Published image contains both custom Raptor app payloads."
 
