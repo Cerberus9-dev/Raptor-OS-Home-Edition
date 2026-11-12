@@ -288,7 +288,7 @@ assert_contains .github/workflows/build-iso.yml "mkksiso --ks"
 assert_contains README.md "Intel Core i5-8250U"
 assert_contains README.md "Vulkan 1.3+"
 assert_contains README.md "optimization target under development"
-assert_contains changelog.md "### v3.0.0"
+assert_contains changelog.md "## [v3.0.0] - 2026-11-12"
 
 echo "=== Raptor Tasks installer and embedded Python validation ==="
 bash -n files/scripts/raptor-tasks/install.sh
