@@ -518,6 +518,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
+    let selected_imported_profile = Arc::new(Mutex::new(None::<Uuid>));
+    let selected_for_profile_select = Arc::clone(&selected_imported_profile);
     let db_for_profile_select = Arc::clone(&db);
     let ui_handle_profile_select = ui.as_weak();
     ui.on_imported_profile_selected(move |index| {
@@ -528,6 +530,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Some(record) => record,
             None => { ui.set_imported_profile_detail("No imported profile selected.".into()); return; }
         };
+        *selected_for_profile_select.lock().unwrap() = Some(record.id);
         let detail = match db_lock.get_imported_profile_payload(record.id) {
             Ok(Some(payload)) => match serde_json::from_str::<profile_import::ImportedProfile>(&payload) {
                 Ok(profile) => {
@@ -545,6 +548,36 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Err(error) => format!("Could not load profile: {error}"),
         };
         ui.set_imported_profile_detail(detail.into());
+    });
+
+    // Require a second click before permanently deleting the selected imported profile.
+    let selected_for_profile_delete = Arc::clone(&selected_imported_profile);
+    let db_for_profile_delete = Arc::clone(&db);
+    let ui_handle_profile_delete = ui.as_weak();
+    ui.on_delete_imported_profile_clicked(move || {
+        let ui = match ui_handle_profile_delete.upgrade() { Some(ui) => ui, None => return };
+        let mut selected = selected_for_profile_delete.lock().unwrap();
+        let Some(profile_id) = *selected else {
+            ui.set_imported_profile_detail("Select an imported profile before removing it.".into());
+            return;
+        };
+        if !ui.get_imported_profile_detail().contains("Confirm removal") {
+            ui.set_imported_profile_detail("Confirm removal: click Remove selected profile once more to permanently delete this imported profile.".into());
+            return;
+        }
+        match db_for_profile_delete.lock().unwrap().delete_imported_profile(profile_id) {
+            Ok(()) => {
+                *selected = None;
+                for extension in ["jpg", "png"] {
+                    if let Ok(path) = profile_avatar_cache_path(profile_id, extension) {
+                        let _ = std::fs::remove_file(path);
+                    }
+                }
+                ui.set_imported_profile_detail("Imported profile removed. Your local music library was not changed.".into());
+                refresh_imported_profile_list(&ui, &db_for_profile_delete);
+            }
+            Err(error) => ui.set_imported_profile_detail(format!("Could not remove imported profile: {error}").into()),
+        }
     });
 
     // Persist only after the user explicitly confirms the preview.
