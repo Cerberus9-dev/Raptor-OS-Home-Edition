@@ -276,6 +276,8 @@ jobs:
             check_file x /usr/bin/raptor-music
             check_file s /usr/share/applications/raptor-music.desktop
             check_file s /usr/share/icons/hicolor/scalable/apps/raptor-music.svg
+            rpm -q webkit2gtk4.1 >/dev/null
+            echo "VERIFIED: WebKitGTK runtime for embedded provider playback"
             check_file x /usr/bin/raptor-shroudly
             check_file s /usr/share/applications/raptor-shroudly.desktop
             check_file s /usr/share/icons/hicolor/scalable/apps/raptor-shroudly.svg
