@@ -705,6 +705,11 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint '
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'imported_profile_selected'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'refresh_imported_profile_list'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'get_imported_profile_payload'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'on_delete_imported_profile_clicked'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'Confirm removal: click Remove selected profile once more'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'delete_imported_profile(profile_id)'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Remove selected profile'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'callback delete_imported_profile_clicked();'
 
 echo "=== Checking embedded Raptor Cortex Python ==="
 cortex_tmp="$(mktemp --suffix=.py)"
