@@ -1,12 +1,12 @@
 use super::{AudioBackend, PlaybackError, PlaybackSource};
 use raptor_core::models::{PlaybackAccess, PlayerState};
 use rodio::{Decoder, OutputStream, OutputStreamHandle, Sink};
-use std::io::{Cursor, Read};
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::sync::mpsc::{self, Receiver, Sender, SyncSender};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
-const MAX_BUFFER_BYTES: u64 = 512 * 1024 * 1024;
+const MAX_STREAM_BYTES: u64 = 512 * 1024 * 1024;
 
 enum Command {
     Load(PlaybackSource, SyncSender<Result<(), String>>),
@@ -144,25 +144,41 @@ impl RodioBackend {
             return Err("Rodio accepts HTTPS streams only".into());
         }
 
-        let mut response = client.get(url).send()
+        let response = client.get(url).send()
             .map_err(|error| error.to_string())?
             .error_for_status()
             .map_err(|error| error.to_string())?;
-        if response.content_length().is_some_and(|length| length > MAX_BUFFER_BYTES) {
-            return Err("Audio response exceeds the 512 MiB safety limit".into());
-        }
-        let mut bytes = Vec::new();
-        response.take(MAX_BUFFER_BYTES + 1)
-            .read_to_end(&mut bytes)
-            .map_err(|error| error.to_string())?;
-        if bytes.len() as u64 > MAX_BUFFER_BYTES {
-            return Err("Audio response exceeds the 512 MiB safety limit".into());
-        }
-        if bytes.is_empty() {
-            return Err("The provider returned an empty audio response".into());
+        if response.content_length().is_some_and(|length| length > MAX_STREAM_BYTES) {
+            return Err("Audio response exceeds the 512 MiB disk-cache safety limit".into());
         }
 
-        let decoder = Decoder::new(Cursor::new(bytes))
+        // Keep RAM use constant regardless of track length. The response is
+        // copied in 64 KiB chunks to an unnamed temporary file, then Rodio's
+        // decoder reads from that file as playback proceeds. No full-track
+        // Vec is ever allocated and the temporary file is unlinked on Linux.
+        let mut cache = tempfile::tempfile()
+            .map_err(|error| format!("Could not create the temporary audio cache: {error}"))?;
+        let mut response = response.take(MAX_STREAM_BYTES + 1);
+        let mut chunk = [0u8; 64 * 1024];
+        let mut copied = 0u64;
+        loop {
+            let count = response.read(&mut chunk).map_err(|error| error.to_string())?;
+            if count == 0 {
+                break;
+            }
+            copied = copied.saturating_add(count as u64);
+            if copied > MAX_STREAM_BYTES {
+                return Err("Audio response exceeds the 512 MiB disk-cache safety limit".into());
+            }
+            cache.write_all(&chunk[..count]).map_err(|error| error.to_string())?;
+        }
+        if copied == 0 {
+            return Err("The provider returned an empty audio response".into());
+        }
+        cache.flush().map_err(|error| error.to_string())?;
+        cache.seek(SeekFrom::Start(0)).map_err(|error| error.to_string())?;
+
+        let decoder = Decoder::new(cache)
             .map_err(|error| format!("Unsupported audio response: {error}"))?;
         let replacement = Sink::try_new(stream_handle).map_err(|error| error.to_string())?;
         replacement.append(decoder);
