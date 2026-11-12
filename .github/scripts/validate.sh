@@ -631,7 +631,7 @@ mkdir -p "$check_test_dir/bin"
 cat > "$check_test_dir/bin/rpm-ostree" <<'RPMOSTREE'
 #!/bin/bash
 printf '%s\\n' "$*" >> "$RAPTOR_TEST_CALLS"
-echo '{"deployments":[{"booted":true,"cached-update":true}]}'
+echo '{"deployments":[{"booted":true}],"cached-update":{"ref-has-new-commit":true}}'
 RPMOSTREE
 chmod +x "$check_test_dir/bin/rpm-ostree"
 export PATH="$check_test_dir/bin:$PATH"
@@ -642,7 +642,7 @@ if grep -Fq 'upgrade' "$RAPTOR_TEST_CALLS"; then
   echo "Manual update check unexpectedly started an upgrade" >&2
   exit 1
 fi
-grep -Fq '"cached-update":true' "$check_test_dir/status.json"
+grep -Fq '"ref-has-new-commit":true' "$check_test_dir/status.json"
 unset RAPTOR_TEST_CALLS
 rm -f "$check_tmp"
 rm -rf "$check_test_dir"
@@ -651,6 +651,22 @@ update_tmp="$(mktemp --suffix=.py)"
 awk "/^cat << 'PYEOF' > \/usr\/bin\/raptor-update$/ { inside=1; next } /^PYEOF$/ && inside { exit } inside { print }" files/scripts/raptor-update/install.sh > "$update_tmp"
 test -s "$update_tmp"
 python3 -c 'import ast, sys; ast.parse(open(sys.argv[1], encoding="utf-8").read())' "$update_tmp"
+python3 - "$update_tmp" <<'PY'
+import ast
+import sys
+
+tree = ast.parse(open(sys.argv[1], encoding="utf-8").read())
+function = next(
+    node for node in tree.body
+    if isinstance(node, ast.FunctionDef) and node.name == "_local_update_signal"
+)
+namespace = {}
+exec(compile(ast.Module(body=[function], type_ignores=[]), "<update-manager-check>", "exec"), namespace)
+check = namespace["_local_update_signal"]
+assert check({"cached-update": {"ref-has-new-commit": True}, "deployments": [{"booted": True}]})[0]
+assert not check({"cached-update": None, "deployments": [{"booted": True}]})[0]
+assert check({"cached-update": None, "deployments": [{"booted": False}, {"booted": True}]})[0]
+PY
 grep -Fq 'ROLLBACK_HELPER       = "/usr/lib/raptor/rollback-helper"' "$update_tmp"
 grep -Fq 'def on_rollback_clicked(self, _btn):' "$update_tmp"
 grep -Fq 'def _run_rollback(self):' "$update_tmp"
