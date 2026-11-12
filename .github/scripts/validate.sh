@@ -156,7 +156,7 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint "
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint "Open Jamendo"
 assert_not_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint "Connect TIDAL"
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "creativecommons.org"
-assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint "Jamendo streams tracks under their listed Creative Commons licenses"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint "Jamendo playback is limited to tracks it authorizes under the displayed license."
 
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs "parse_authorization_callback"
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/callback_listener.rs "address.is_loopback()"
