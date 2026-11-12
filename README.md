@@ -1,11 +1,10 @@
 # Raptor OS
 
-**Current stable release:** v2.8.0  
-**Next release:** v3.0.0 (in development)
+**Current version:** v3.0.0
 
-Raptor OS is a Bazzite-based Linux distribution with KDE Plasma, gaming support, and a collection of desktop apps built for the project. The idea is straightforward: make setup, updates and everyday maintenance manageable from the desktop, without taking away the Linux tools that are there when you need them.
+Raptor OS is a Bazzite-based Linux distribution with KDE Plasma. It uses an atomic system image and includes tools for updates, hardware controls, local music, and task management.
 
-> **Work in progress.** v3.0.0 has not been released. Back up important files before installing. Raptor OS can be tested in a virtual machine or installed on a separate drive. Allow at least 50 GB for a dual-boot installation.
+> **Before installing:** Back up important files. Test Raptor OS in a virtual machine or on a separate drive first. Allow at least 50 GB for a dual-boot installation. The OCI image build and fresh-install ISO build are separate; use only an ISO and checksum published on the official release page.
 
 ## Project goals
 
@@ -17,11 +16,11 @@ Raptor OS is a Bazzite-based Linux distribution with KDE Plasma, gaming support,
 - **Optional software:** let users choose browsers, chat clients, and other apps instead of installing a large default bundle.
 - **Document limitations:** distinguish tested hardware and features from work that is still being developed.
 
-This README describes Home Edition. Security Edition is maintained separately and may have different tools, defaults, and security settings.
+This README covers Home Edition. Security Edition has a separate repository, toolset, and configuration.
 
 ### Recovery
 
-Raptor Update Manager can stage a rollback to the previous OSTree deployment when one is available. The user chooses when to restart. A rollback restores the system image, not Flatpak versions, personal files or every setting in the home directory.
+Raptor Update Manager can stage a rollback to the previous OSTree deployment when one is available. It does not roll back Flatpak versions, personal files, or every setting in the home directory.
 
 ### Raptor desktop apps
 
@@ -31,7 +30,7 @@ Raptor Tasks stores tasks locally with search and filters. Raptor Wallpaper prov
 
 ## Gaming and power defaults
 
-Steam's download protocol, shader-cache and storage settings are left entirely at Steam's defaults. GameMode does not force vendor-specific GPU power states globally. Controller access rules remain available, but USB autosuspend is left to the kernel by default to avoid unnecessary idle power draw; device-specific workarounds should be applied only when a reproducible issue calls for them.
+Raptor leaves Steam's network and shader-cache settings at their defaults and does not force vendor-specific GPU power states through GameMode. Controller access rules remain available. USB autosuspend follows kernel defaults except for device-specific recovery settings.
 
 ## Wi-Fi power management
 
@@ -42,9 +41,8 @@ NetworkManager keeps its normal Wi-Fi power-saving and scan-MAC privacy defaults
 GameMode is available when a game requests it natively or is launched with `gamemoderun %command%`. Raptor does not enable GameMode's global GPU performance-level overrides: upstream labels these at-your-own-risk changes, and forcing them across mixed AMD/NVIDIA hardware is not a safe universal default. The system power profile and graphics driver retain control.
 
 - Leave Steam's shader pre-caching at its own default unless troubleshooting a specific issue; disabling it can increase first-run shader compilation stutter.
-- If Steam's store/library interface or Big Picture is sluggish while games themselves run smoothly, check **Steam → Settings → Interface → Enable GPU accelerated rendering in web views**, restart Steam, and compare. Bazzite documents this as a workaround for sluggish Big Picture rendering, but notes that some NVIDIA setups may show menu-rendering artifacts; revert the toggle if that happens.
-- Steam downloads can be limited by CPU decompression, verification, and storage write speed—not only network bandwidth. A slow displayed download rate during heavy disk activity does not automatically mean Wi-Fi is broken.
-- Raptor leaves Steam's download protocol, connection count, write buffer, and shader-cache settings at Steam's defaults (shader pre-caching remains enabled). Disabling HTTP/2 or increasing connections can help specific network configurations, but these are troubleshooting workarounds—not universal performance defaults. If downloads are slow, compare CPU decompression/verification and disk activity before changing network settings.
+- If Steam's store/library interface or Big Picture is sluggish while games run normally, try **Steam → Settings → Interface → Enable GPU accelerated rendering in web views**, then restart Steam. Some NVIDIA setups may show menu-rendering artifacts; turn the option back off if they appear.
+- Downloads can be limited by CPU decompression, verification, or storage write speed as well as network bandwidth. Check CPU and disk activity before changing network settings.
 
 ## System Requirements
 
@@ -76,7 +74,7 @@ Raptor Wallpaper also supports setting the desktop and lock-screen image indepen
 
 ## Installation
 
-**Download Raptor OS only from the official [Internet Archive release page](https://archive.org/details/raptor-os_202605).** The page is the public distribution point for the ISO and its matching SHA-256 checksum. End users do not need GitHub Actions access, repository permissions, or CI artifacts. When v3.0.0 (Major Release) is published, its ISO and checksum will be added to that same Archive.org item. The installer leaves disk selection and partitioning interactive; it does not automatically erase a drive.
+**Official downloads:** [Raptor OS on Internet Archive](https://archive.org/details/raptor-os_202605). Use an ISO only when the release page lists it with its matching SHA-256 checksum. The image and ISO workflows are separate; CI artifacts are not stable release downloads. The installer leaves disk selection and partitioning interactive and does not automatically erase a drive.
 
 After downloading the ISO, flash it to a USB drive:
 
@@ -102,7 +100,7 @@ systemctl reboot
 
 ## First Boot
 
-A one-time **Welcome to Raptor OS Home** dialog introduces the Raptor app suite before the three setup dialogs appear:
+A one-time **Welcome to Raptor OS Home** dialog appears before the browser, chat-client, and optional-app choices:
 
 1. **Browser choice** — no browser ships in the image; Raptor keeps the default *minimal*. Choose Firefox, Brave, Zen Browser, Floorp, Waterfox, Chromium, Chrome, or Edge (each a one-time Flathub download, Firefox pre-selected). Shows a network check, download progress bar, and retry prompt on failure. "Skip — No Browser" installs nothing and forces no default.
 2. **Chat client choice** — choose official Discord, Vesktop (Vencord), Equibop (Equicord), or GoofCord. None is pre-installed. "Skip — Install Neither" is always available.
@@ -170,11 +168,11 @@ GPU profile selection is part of **Raptor Cortex → Graphics**. The available c
 
 ## Raptor Tasks
 
-A lightweight GTK4/Libadwaita task list with category filtering, keyboard shortcuts, a helpful empty state, and per-user JSON storage. Saves are atomic so an interrupted write cannot truncate the previous task list; damaged data is preserved for recovery rather than silently discarded.
+A GTK4/Libadwaita task list with category filters, keyboard shortcuts, an empty-state message, and per-user JSON storage. Saves are atomic so an interrupted write cannot truncate the previous task list; damaged data is preserved for recovery rather than silently discarded.
 
 ## Raptor Wallpaper
 
-Gallery-style wallpaper picker — click any thumbnail to apply it, including five bundled Raptor-branded wallpapers alongside anything in your Pictures folder. Fit mode control (Fill/Fit/Stretch/Center/Tile). Right-click any image file in Dolphin → **Set as Raptor Wallpaper** to apply it directly with no window opening. Settings are saved atomically, damaged preferences are preserved for recovery, and inaccessible image folders no longer prevent the rest of the gallery from loading.
+Wallpaper picker with a thumbnail grid. Select an image to apply it; the gallery includes five Raptor wallpapers and images from your Pictures folder. Fit mode control (Fill/Fit/Stretch/Center/Tile). Right-click any image file in Dolphin → **Set as Raptor Wallpaper** to apply it directly with no window opening. Settings are saved atomically, damaged preferences are preserved for recovery, and inaccessible image folders no longer prevent the rest of the gallery from loading.
 
 ## Raptor Music
 
@@ -182,9 +180,7 @@ Raptor Music is being refactored into a wrapper-first application. Raptor owns t
 
 ## Release pipeline (maintainers)
 
-The **Build Raptor OS** workflow builds and publishes the signed OCI image used by existing installations and Raptor Update Manager. It does **not** create an installer ISO.
-
-The separate **Build ISO** workflow verifies that published image and remasters the Fedora Kinoite installer into a fresh-install ISO with a matching SHA-256 checksum. An image update and an ISO build are intentionally separate operations. The ISO is not considered publicly released until the ISO and checksum are uploaded to the Internet Archive item linked above.
+The **Build Raptor OS** workflow publishes the signed OCI image used by existing installations and Raptor Update Manager. It does not create an installer ISO. The separate **Build ISO** workflow uses the published image to create a fresh-install ISO and SHA-256 checksum. Publish both files to the Internet Archive release page before treating the ISO as a public release.
 
 ## Discord alternatives
 
@@ -202,7 +198,7 @@ Raptor Shroudly is the custom native desktop dashboard included in the image. It
 
 ### GPU
 - **Auto GPU detection** at boot — AMD, NVIDIA, Intel and hybrid configurations; selects supported GPU environment and driver settings. CPU power policy is handled separately by power-profiles-daemon
-- **Cortex hardware telemetry** — reports detected GPU model, utilization, active clock and dedicated VRAM where the driver exposes those counters; fan RPM/percentage is read-only and shown only when firmware/driver sensors are available. No unsupported fan-control or overclocking writes are attempted.
+- **Cortex telemetry** — reports GPU model, utilization, clock, VRAM, and available fan sensors. Fan readings are read-only; Cortex does not write fan speeds or overclock settings.
 - **Shader compilation** — driver and game behavior varies by GPU and Mesa version; no fixed performance improvement is claimed.
 - **Mesa GL threading** is enabled for Wine/Proton where supported; native applications keep driver defaults to avoid global compatibility regressions
 - **`WINE_FULLSCREEN_FSR` and `DXVK_ASYNC` not set globally** — both caused flickering in OpenGL games (Project Zomboid). Set per-game in Steam launch options instead
@@ -230,7 +226,7 @@ Raptor Shroudly is the custom native desktop dashboard included in the image. It
 - **ZRAM** — enabled for compressed swap in memory. Capacity and compression behavior are controlled by the image's zram-generator configuration; actual results depend on available RAM, workload, and CPU speed.
 - **Baloo** — filename-only indexing with full-text content indexing disabled and a reduced worker count
 - **Cortex One-Click Boost** — applies the Performance power profile, pauses configured optional indexers, and requests bounded memory reclaim only under pressure
-- **No blanket cache flushes, routine OOM-score changes or forced compaction** as a supposed memory booster
+- Cortex does not flush all caches, change process OOM scores, or force memory compaction as routine optimization.
 - **4 GB support remains an unverified optimization target**. Actual idle footprint, browser workload, game performance and sustained memory pressure must be benchmarked on physical low-memory hardware before claiming a 4 GB smooth-use guarantee
 
 ### Audio
@@ -245,21 +241,20 @@ Raptor Shroudly is the custom native desktop dashboard included in the image. It
 - **Bounded Wi-Fi recovery** — NetworkManager gets time to complete normal association; a watchdog now detects activation states stuck for about three minutes, serializes recovery attempts, bounds CLI calls, and uses a radio reset only after checking for a likely saved network. Automatic driver reloads are avoided because they can disrupt hardware and are reserved for explicit recovery. Resume recovery remains separate and respects the user's Wi-Fi-off choice
 
 ### Input
-- **USB autosuspend disabled** for HID devices and Bluetooth adapters specifically — excluded from Cortex's power-mode switching entirely, so a Bluetooth mouse/keyboard can never be swept into a suspended state by a mode change
-- **Stuck-cursor fix after lid close** — udev device re-enumeration and KWin config reload run on resume so the trackpad/pointing device reinitialises cleanly instead of leaving the cursor frozen
-- **Hardware recovery after suspend** (`raptor-hardware-fixes.sh`) — re-binds the touchpad driver, reconnects Wi-Fi and Bluetooth with escalating steps, and links the mute LEDs, so nothing comes back from sleep dead
+- **Bluetooth recovery** — the resume hook checks the controller and restarts the Bluetooth stack when needed. Other USB devices retain the kernel's normal autosuspend policy.
+- **Touchpad recovery** — the resume hook rebinds the touchpad driver when required.
+- **Hardware recovery after suspend** (`raptor-hardware-fixes.sh`) — reconnects Wi-Fi and Bluetooth with bounded recovery steps and syncs mute LEDs with audio state.
 
 ---
 
-## Window Management (KWin, Wayland and X11 application compatibility)
-Raptor OS uses KDE Plasma's **KWin** compositor on the Bazzite **Wayland** desktop. **X11 applications are supported through XWayland**; this is X11 compatibility, not Microsoft Windows and not a separate Xorg desktop session. The window decorations and controls provide a familiar desktop workflow without claiming that Raptor OS is Windows.
+## Window management
+Raptor OS runs KDE Plasma on Wayland with KWin. Legacy X11 applications run through XWayland; this is not a separate Xorg session.
 
-- **X11 application compatibility** — XWayland runs legacy X11 applications inside the Wayland session
-- **Window decorations** — Raptor OS Aurorae decoration with Minimize, Maximize, and Close buttons on the right, plus the App Menu button on the left
+- **Window decorations** — Raptor Aurorae theme with Minimize, Maximize, and Close controls on the right and the App Menu on the left
 - **Titlebar double-click** — maximizes the window
 - **Focus behavior** — click-to-focus
 - **Window snapping and tiling** — KWin provides screen-edge snapping/tiling; exact behavior follows the active Plasma/KWin configuration
-- **Panel/taskbar** — KDE Plasma's panel uses the installed Raptor Flight Deck theme. The optional Raptor Flight Deck layout preset can be added separately from Plasma's Add Panel menu.
+- **Panel** — KDE Plasma's panel uses the Raptor Flight Deck theme. The optional layout preset is available from Plasma's Add Panel menu.
 
 ---
 
