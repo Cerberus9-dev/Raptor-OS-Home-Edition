@@ -1,5 +1,9 @@
 # Changelog
 
+### Raptor Music provider architecture
+- Added a provider-neutral `UnifiedTrack` model with Spotify, YouTube and Bandcamp metadata adapters. Provider response types stop at the adapter boundary; the UI-facing model carries normalized metadata, playback access and an explicit playback target.
+- Added the `AudioBackend` contract and an adapter for the existing CPAL player. Native playback rejects embedded-player, external-handoff and unavailable targets instead of treating every provider result as a stream.
+
 ### Raptor Music discovery
 - Updated Spotify playlist metadata import to the current `/items` API, using the documented 50-item page size and the renamed `item` response field. The import remains metadata-only and Spotify only exposes playlist entries to the playlist owner or collaborators through this endpoint.
 - Expanded Jamendo search to four pages of up to 200 results each and added direct in-app playback through Jamendo's documented stream endpoint. Playback follows only HTTPS redirects to Jamendo storage hosts, enforces a 256 MiB buffer limit, and keeps the track's Creative Commons license in its catalog label.
