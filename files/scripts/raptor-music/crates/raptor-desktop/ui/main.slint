@@ -74,6 +74,7 @@ export component MainWindow inherits Window {
     callback confirm_profile_import_clicked();
     callback imported_profile_selected(int);
     callback refresh_imported_profiles_clicked();
+    callback delete_imported_profile_clicked();
     callback track_selected(int);
     callback online_track_selected(int);
     callback artist_selected(int);
@@ -411,6 +412,10 @@ export component MainWindow inherits Window {
                             font-size: 12px;
                             wrap: word-wrap;
                             vertical-stretch: 1;
+                        }
+                        Button {
+                            text: "Remove selected profile";
+                            clicked => { root.delete_imported_profile_clicked(); }
                         }
                     }
 
