@@ -227,6 +227,30 @@ assert_contains files/scripts/raptor-update/install.sh "timeout=3 * 60 * 60"
 assert_contains files/scripts/raptor-update/install.sh "timeout=900"
 assert_contains files/scripts/raptor-update/install.sh 'rpm-ostree upgrade 2>&1 | tee "$out"'
 assert_contains files/scripts/raptor-update/install.sh "_stop_process_group(proc)"
+assert_contains files/scripts/raptor-update/install.sh "/etc/rpm-ostreed.conf"
+assert_contains files/scripts/raptor-update/install.sh "AutomaticUpdatePolicy=check"
+assert_contains files/scripts/raptor-update/install.sh "systemctl enable rpm-ostreed-automatic.timer"
+assert_not_contains files/scripts/raptor-update/install.sh "rpm-ostreed.conf.d"
+
+# Exercise the exact embedded config writer against a temporary rpm-ostreed.conf.
+ostree_config_tmp="$(mktemp)"
+ostree_script_tmp="$(mktemp --suffix=.py)"
+cat > "$ostree_config_tmp" <<'OSTREE_TEST_CONFIG'
+[Daemon]
+#AutomaticUpdatePolicy=none
+IdleExitTimeout=60
+
+[Experimental]
+Feature=true
+OSTREE_TEST_CONFIG
+awk "/^python3 - <<'RAPTOR_OSTREE_CONFIG'$/ { inside=1; next } /^RAPTOR_OSTREE_CONFIG$/ && inside { exit } inside { print }" files/scripts/raptor-update/install.sh > "$ostree_script_tmp"
+test -s "$ostree_script_tmp"
+RAPTOR_RPM_OSTREED_CONFIG="$ostree_config_tmp" python3 "$ostree_script_tmp"
+test "$(grep -Fc 'AutomaticUpdatePolicy=check' "$ostree_config_tmp")" -eq 1
+grep -Fxq 'IdleExitTimeout=60' "$ostree_config_tmp"
+grep -Fxq '[Experimental]' "$ostree_config_tmp"
+grep -Fxq 'Feature=true' "$ostree_config_tmp"
+rm -f "$ostree_script_tmp" "$ostree_config_tmp"
 assert_contains .github/workflows/build.yml 'cargo build --release --workspace --manifest-path files/scripts/raptor-music/Cargo.toml'
 assert_contains .github/workflows/build.yml 'cargo test --workspace --manifest-path files/scripts/raptor-music/Cargo.toml'
 assert_contains .github/workflows/build.yml 'test -x files/staging/raptor-music'
