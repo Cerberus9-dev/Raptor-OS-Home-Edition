@@ -846,7 +846,7 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'collection_rows_name_the_actual_catalog_provider'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn search_musicbrainz_artists'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn search_musicbrainz_collections'
-assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'for page in 0..3'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'for page in 0..6'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'seen_track_ids.insert(track.id.clone())'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn parse_audius_artist_albums'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'parses_and_deduplicates_audius_artist_albums'
