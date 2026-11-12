@@ -25,7 +25,7 @@ Raptor Update Manager can stage a rollback to the previous OSTree deployment whe
 
 ### Raptor desktop apps
 
-Raptor Tasks stores tasks locally with search and filters. Raptor Wallpaper provides a searchable gallery and can set the desktop or lock-screen image. Raptor Music plays local files and supports online discovery through Audius and Apple Music; provider results stay separate from the Local Library. Apple Music previews require a configured developer token. Spotify and Google account connections support metadata import, not in-app streaming.
+Raptor Tasks stores tasks locally with search and filters. Raptor Wallpaper provides a searchable gallery and can set the desktop or lock-screen image. Raptor Music keeps local files separate from online discovery and supports in-app playback from Audius and Jamendo. Jamendo uses its free developer API and the track's published Creative Commons license; it does not require a listener subscription. Apple Music provides catalog results and short previews when a developer token is configured. Spotify and Google account connections support metadata import, not in-app streaming.
 
 ---
 
@@ -178,7 +178,7 @@ Gallery-style wallpaper picker — click any thumbnail to apply it, including fi
 
 ## Raptor Music
 
-Native Rust/Slint player for local files, with a SQLite library, playlists and queue management. Online discovery includes public Audius tracks and artist pages, plus Apple Music catalog results and short previews when a developer token is configured. MusicBrainz adds release metadata but no audio. Spotify and Google account connections support metadata import; TIDAL remains an external-service handoff. Full subscription playback from Spotify, Apple Music, YouTube Music or TIDAL is not provided. Online results remain separate from the Local Library. The database is stored under `$XDG_DATA_HOME/raptor-music/` or `~/.local/share/raptor-music/`.
+Native Rust/Slint player for local files, with a SQLite library, playlists and queue management. Online discovery combines public Audius tracks and artist pages, Jamendo's Creative Commons catalogue, Apple Music catalogue results, and MusicBrainz release metadata. Audius and Jamendo tracks can play in-app; Jamendo playback follows its documented stream endpoint and keeps the published license visible with the track. Jamendo requires a free developer client ID configured as `RAPTOR_JAMENDO_CLIENT_ID`, not a listener subscription. Apple Music results provide short previews unless full playback is authorized through MusicKit. Spotify and Google account connections support metadata import; TIDAL remains an external-service handoff. Raptor Music does not unlock subscription-only catalogues or remove ads from other services. Online results remain separate from the Local Library. The database is stored under `$XDG_DATA_HOME/raptor-music/` or `~/.local/share/raptor-music/`.
 
 ## Release pipeline (maintainers)
 
