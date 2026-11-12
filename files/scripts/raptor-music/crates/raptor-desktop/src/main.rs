@@ -314,6 +314,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ui.set_discord_details_template(db_lock.get_state_value("discord_details_template").ok().flatten().unwrap_or_else(|| "{title}".into()).into());
         ui.set_discord_state_template(db_lock.get_state_value("discord_state_template").ok().flatten().unwrap_or_else(|| "by {artist}".into()).into());
         ui.set_discord_custom_phrase(db_lock.get_state_value("discord_custom_phrase").ok().flatten().unwrap_or_else(|| "Jamming out to".into()).into());
+        ui.set_apple_catalog_enabled(db_lock.get_state_value("provider_apple_catalog_enabled").ok().flatten().as_deref() == Some("true"));
+        ui.set_jamendo_catalog_enabled(db_lock.get_state_value("provider_jamendo_catalog_enabled").ok().flatten().as_deref() == Some("true"));
     }
     let discord_connection: Arc<Mutex<Option<DiscordConnection>>> = Arc::new(Mutex::new(None));
     let visible_track_ids = Arc::new(Mutex::new(
@@ -381,6 +383,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             });
         }
+    });
+
+    let db_for_provider_settings = Arc::clone(&db);
+    let ui_handle_provider_settings = ui.as_weak();
+    ui.on_save_provider_catalog_settings_clicked(move || {
+        let ui = match ui_handle_provider_settings.upgrade() { Some(ui) => ui, None => return };
+        let apple = ui.get_apple_catalog_enabled();
+        let jamendo = ui.get_jamendo_catalog_enabled();
+        let db_lock = db_for_provider_settings.lock().unwrap();
+        let apple_result = db_lock.set_state_value("provider_apple_catalog_enabled", if apple { "true" } else { "false" });
+        let jamendo_result = db_lock.set_state_value("provider_jamendo_catalog_enabled", if jamendo { "true" } else { "false" });
+        let status = if apple_result.is_ok() && jamendo_result.is_ok() {
+            "Provider preferences saved. Run a new search to apply them."
+        } else {
+            "Could not save provider preferences to the local library database."
+        };
+        ui.set_provider_connection_status(status.into());
     });
 
     let db_for_discord_settings = Arc::clone(&db);
@@ -679,6 +698,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
         let query = query.to_string();
         let request_generation = online_generation_for_search.fetch_add(1, Ordering::AcqRel) + 1;
+        let (apple_catalog_enabled, jamendo_catalog_enabled) = {
+            let db_lock = db_for_search.lock().unwrap();
+            (
+                db_lock.get_state_value("provider_apple_catalog_enabled").ok().flatten().as_deref() == Some("true"),
+                db_lock.get_state_value("provider_jamendo_catalog_enabled").ok().flatten().as_deref() == Some("true"),
+            )
+        };
 
         let all_tracks = db_for_search.lock().unwrap().get_all_tracks().unwrap_or_default()
             .into_iter().filter(is_local_track).collect::<Vec<_>>();
@@ -745,14 +771,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let artist_query = query_for_thread.clone();
             let artist_sort_method = sort_method.clone();
             let artist_worker = std::thread::spawn(move || search_audius_artists(&artist_query, &artist_sort_method));
-            let apple_artist_query = query_for_thread.clone();
-            let apple_artist_worker = std::thread::spawn(move || search_apple_music_artists(&apple_artist_query));
+            let apple_artist_worker = if apple_catalog_enabled {
+                let apple_artist_query = query_for_thread.clone();
+                Some(std::thread::spawn(move || search_apple_music_artists(&apple_artist_query)))
+            } else { None };
             let mb_artist_query = query_for_thread.clone();
             let mb_artist_worker = std::thread::spawn(move || search_musicbrainz_artists(&mb_artist_query));
-            let apple_query = query_for_thread.clone();
-            let apple_worker = std::thread::spawn(move || search_apple_music_tracks(&apple_query));
-            let jamendo_query = query_for_thread.clone();
-            let jamendo_worker = std::thread::spawn(move || search_jamendo_tracks(&jamendo_query));
+            let apple_worker = if apple_catalog_enabled {
+                let apple_query = query_for_thread.clone();
+                Some(std::thread::spawn(move || search_apple_music_tracks(&apple_query)))
+            } else { None };
+            let jamendo_worker = if jamendo_catalog_enabled {
+                let jamendo_query = query_for_thread.clone();
+                Some(std::thread::spawn(move || search_jamendo_tracks(&jamendo_query)))
+            } else { None };
             let spotify_query = query_for_thread.clone();
             let spotify_worker = std::thread::spawn(move || search_spotify_tracks(&spotify_query));
             let youtube_query = query_for_thread.clone();
@@ -778,21 +810,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 search_audius_tracks(&query_for_thread, &sort_method)
             };
             let collection_query = query_for_thread.clone();
-            let apple_collection_query = query_for_thread.clone();
-            let apple_collection_worker = std::thread::spawn(move || search_apple_music_collections(&apple_collection_query));
+            let apple_collection_worker = if apple_catalog_enabled {
+                let apple_collection_query = query_for_thread.clone();
+                Some(std::thread::spawn(move || search_apple_music_collections(&apple_collection_query)))
+            } else { None };
             let mb_collection_query = query_for_thread.clone();
             let mb_collection_worker = std::thread::spawn(move || search_musicbrainz_collections(&mb_collection_query));
             let collection_worker = std::thread::spawn(move || search_audius_collections(&collection_query));
             let artist_result = artist_worker.join()
                 .unwrap_or_else(|_| Err("Artist search worker stopped unexpectedly".to_string()));
-            let apple_artist_result = apple_artist_worker.join()
-                .unwrap_or_else(|_| Err("Apple Music artist search worker stopped unexpectedly".to_string()));
+            let apple_artist_result = apple_artist_worker.map(|worker| worker.join()
+                .unwrap_or_else(|_| Err("Apple Music artist search worker stopped unexpectedly".to_string())))
+                .unwrap_or_else(|| Ok(Vec::new()));
             let mb_artist_result = mb_artist_worker.join()
                 .unwrap_or_else(|_| Err("MusicBrainz artist search worker stopped unexpectedly".to_string()));
-            let apple_result = apple_worker.join()
-                .unwrap_or_else(|_| Err("Apple Music search worker stopped unexpectedly".to_string()));
-            let jamendo_result = jamendo_worker.join()
-                .unwrap_or_else(|_| Err("Jamendo search worker stopped unexpectedly".to_string()));
+            let apple_result = apple_worker.map(|worker| worker.join()
+                .unwrap_or_else(|_| Err("Apple Music search worker stopped unexpectedly".to_string())))
+                .unwrap_or_else(|| Ok(Vec::new()));
+            let jamendo_result = jamendo_worker.map(|worker| worker.join()
+                .unwrap_or_else(|_| Err("Jamendo search worker stopped unexpectedly".to_string())))
+                .unwrap_or_else(|| Ok(Vec::new()));
             let spotify_result = spotify_worker.join()
                 .unwrap_or_else(|_| Err("Spotify search worker stopped unexpectedly".to_string()));
             let youtube_result = youtube_worker.join()
@@ -834,8 +871,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .unwrap_or_else(|_| Err("Collection search worker stopped unexpectedly".to_string()));
             let mut collections = collection_result.unwrap_or_default();
             let audius_collection_count = collections.len();
-            let apple_collection_result = apple_collection_worker.join()
-                .unwrap_or_else(|_| Err("Apple Music collection search worker stopped unexpectedly".to_string()));
+            let apple_collection_result = apple_collection_worker.map(|worker| worker.join()
+                .unwrap_or_else(|_| Err("Apple Music collection search worker stopped unexpectedly".to_string())))
+                .unwrap_or_else(|| Ok(Vec::new()));
             let apple_collection_error = apple_collection_result.is_err();
             let apple_collections = apple_collection_result.unwrap_or_default();
             let apple_collection_count = apple_collections.len();
@@ -882,7 +920,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             if mb_artist_count > 0 { status.push_str(&format!(" · {mb_artist_count} MusicBrainz artists")); }
             if mb_collection_error { status.push_str(" · MusicBrainz release search unavailable"); }
             if mb_artist_error { status.push_str(" · MusicBrainz artist search unavailable"); }
-            if apple_collection_error && std::env::var("RAPTOR_APPLE_MUSIC_DEVELOPER_TOKEN").is_ok() {
+            if !apple_catalog_enabled {
+                status.push_str(" · Apple Music catalog disabled in Settings");
+            } else if apple_collection_error && std::env::var("RAPTOR_APPLE_MUSIC_DEVELOPER_TOKEN").is_ok() {
                 status.push_str(" · Apple Music collections unavailable");
             }
             if apple_count > 0 {
@@ -891,12 +931,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             if apple_artist_count > 0 {
                 status.push_str(&format!(" · {apple_artist_count} Apple Music artists"));
             }
-            if apple_count == 0 && apple_artist_count == 0 && std::env::var("RAPTOR_APPLE_MUSIC_DEVELOPER_TOKEN").is_err() {
+            if apple_catalog_enabled && apple_count == 0 && apple_artist_count == 0 && std::env::var("RAPTOR_APPLE_MUSIC_DEVELOPER_TOKEN").is_err() {
                 status.push_str(" · Apple Music catalog not configured");
             } else if apple_error || apple_artist_error {
                 status.push_str(" · Apple Music search unavailable");
             }
-            if jamendo_count > 0 {
+            if !jamendo_catalog_enabled {
+                status.push_str(" · Jamendo catalog disabled in Settings");
+            } else if jamendo_count > 0 {
                 status.push_str(&format!(" · {jamendo_count} Jamendo tracks"));
             } else if jamendo_error && std::env::var("RAPTOR_JAMENDO_CLIENT_ID").is_err() {
                 status.push_str(" · Jamendo not configured");
