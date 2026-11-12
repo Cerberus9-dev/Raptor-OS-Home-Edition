@@ -400,11 +400,11 @@ def _local_update_signal(status=None):
         if status is None:
             return False, error
 
-    deployments = status.get("deployments", [])
-    for deployment in deployments:
-        if deployment.get("cached-update"):
-            return True, "A system update is available; its image is already cached."
+    cached_update = status.get("cached-update")
+    if isinstance(cached_update, dict) and cached_update.get("ref-has-new-commit"):
+        return True, "A system update is available."
 
+    deployments = status.get("deployments", [])
     if deployments and not deployments[0].get("booted"):
         return True, "System update downloaded — reboot to apply it."
 
