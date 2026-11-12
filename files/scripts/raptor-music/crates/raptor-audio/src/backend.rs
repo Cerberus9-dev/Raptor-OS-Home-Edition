@@ -40,6 +40,12 @@ pub enum PlaybackError {
     Backend(String),
     #[error("The provider returned an empty playback URI")]
     EmptyUri,
+    #[error("Search is not supported by this provider adapter")]
+    SearchUnsupported,
+    #[error("The selected backend cannot host an embedded provider player")]
+    EmbeddedUnsupported,
+    #[error("The selected backend cannot open an external provider handoff")]
+    HandoffUnsupported,
 }
 
 /// Implement once per provider wrapper. Wrapper-specific response types stay
@@ -47,13 +53,35 @@ pub enum PlaybackError {
 pub trait AudioSource: Send + Sync {
     fn source_kind(&self) -> AudioSourceKind;
 
+    /// Search through the provider's supported API or wrapper interface.
+    /// Provider response objects must be normalized before they leave the adapter.
+    fn search(&self, _query: &str) -> Result<Vec<UnifiedTrack>, PlaybackError> {
+        Err(PlaybackError::SearchUnsupported)
+    }
+
+    /// Resolve availability and the provider-approved playback mode.
     fn resolve(&self, track: &UnifiedTrack) -> Result<ResolvedPlayback, PlaybackError>;
+
+    /// Resolve an authorized direct/preview stream. Embedded and handoff
+    /// providers should not expose their media URLs through this method.
+    fn stream(&self, track: &UnifiedTrack) -> Result<ResolvedPlayback, PlaybackError> {
+        self.resolve(track)
+    }
 }
 
 /// Common playback contract. UI and queue code depend on this trait rather
 /// than CPAL, Rodio, mpv, codecs, or provider wrapper types.
 pub trait AudioBackend: Send {
     fn load(&mut self, source: &PlaybackSource) -> Result<(), PlaybackError>;
+
+    fn open_embedded(&mut self, _provider_id: &str, _content_id: &str) -> Result<(), PlaybackError> {
+        Err(PlaybackError::EmbeddedUnsupported)
+    }
+
+    fn handoff(&mut self, _url: &str) -> Result<(), PlaybackError> {
+        Err(PlaybackError::HandoffUnsupported)
+    }
+
     fn play(&mut self) -> Result<(), PlaybackError>;
     fn pause(&mut self) -> Result<(), PlaybackError>;
     fn stop(&mut self) -> Result<(), PlaybackError>;
@@ -176,17 +204,39 @@ impl RaptorPlayer {
         if resolved.access == PlaybackAccess::Unavailable {
             return Err(PlaybackError::Unavailable);
         }
-        if resolved.uri.trim().is_empty() {
-            return Err(PlaybackError::EmptyUri);
-        }
 
-        let playback_source = PlaybackSource {
-            track_id: track.id,
-            uri: resolved.uri,
-            access: resolved.access,
-            engine_source: resolved.engine_source,
-        };
-        self.backend.load(&playback_source)
+        match resolved.access {
+            PlaybackAccess::DirectStream | PlaybackAccess::PreviewOnly => {
+                let stream = source.stream(track)?;
+                if stream.access == PlaybackAccess::Unavailable {
+                    return Err(PlaybackError::Unavailable);
+                }
+                if stream.uri.trim().is_empty() {
+                    return Err(PlaybackError::EmptyUri);
+                }
+                let playback_source = PlaybackSource {
+                    track_id: track.id,
+                    uri: stream.uri,
+                    access: stream.access,
+                    engine_source: stream.engine_source,
+                };
+                self.backend.load(&playback_source)
+            }
+            PlaybackAccess::EmbeddedPlayer => {
+                let content_id = track.source_track_id.as_str();
+                if content_id.trim().is_empty() {
+                    return Err(PlaybackError::EmptyUri);
+                }
+                self.backend.open_embedded(&format!("{:?}", track.source), content_id)
+            }
+            PlaybackAccess::ExternalHandoff => {
+                if resolved.uri.trim().is_empty() {
+                    return Err(PlaybackError::EmptyUri);
+                }
+                self.backend.handoff(&resolved.uri)
+            }
+            PlaybackAccess::Unavailable => Err(PlaybackError::Unavailable),
+        }
     }
 
     pub fn play(&mut self) -> Result<(), PlaybackError> {
