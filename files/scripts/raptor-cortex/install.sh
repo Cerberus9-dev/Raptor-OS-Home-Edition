@@ -2,7 +2,7 @@
 set -e
 
 # =============================================================================
-# Raptor Cortex — system performance and hardware controls
+# Raptor Cortex v4.2 — system performance and hardware controls
 # • CPU/GPU telemetry and power-profile controls
 # • Pressure-aware memory reclaim
 # • Optional Game Mode suspend/resume
