@@ -803,16 +803,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 return;
             }
 
-            let mut tracks = audius_result.unwrap_or_default();
-            let audius_count = tracks.len();
+            let audius_tracks = audius_result.unwrap_or_default();
+            let audius_count = audius_tracks.len();
+            let mut tracks = audius_tracks.iter()
+                .map(raptor_library::normalize_legacy_track)
+                .collect::<Vec<_>>();
             let apple_error = apple_result.is_err();
             let apple_tracks = apple_result.unwrap_or_default();
             let apple_count = apple_tracks.len();
-            tracks.extend(apple_tracks);
+            tracks.extend(apple_tracks.iter().map(raptor_library::normalize_legacy_track));
             let jamendo_error = jamendo_result.is_err();
             let jamendo_tracks = jamendo_result.unwrap_or_default();
             let jamendo_count = jamendo_tracks.len();
-            tracks.extend(jamendo_tracks);
+            tracks.extend(jamendo_tracks.iter().map(raptor_library::normalize_legacy_track));
             let spotify_error = spotify_result.is_err();
             let spotify_tracks = spotify_result.unwrap_or_default();
             let spotify_count = spotify_tracks.len();
@@ -826,7 +829,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let bandcamp_count = bandcamp_tracks.len();
             tracks.extend(bandcamp_tracks);
             let count = tracks.len();
-            let rows = tracks_to_slint(&tracks);
+            let rows = unified_tracks_to_slint(&tracks);
             let collection_result = collection_worker.join()
                 .unwrap_or_else(|_| Err("Collection search worker stopped unexpectedly".to_string()));
             let mut collections = collection_result.unwrap_or_default();
@@ -872,7 +875,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             if generation.load(Ordering::Acquire) != request_generation {
                 return;
             }
-            *online_tracks.lock().unwrap() = tracks.iter().map(raptor_library::normalize_legacy_track).collect();
+            *online_tracks.lock().unwrap() = tracks;
             *online_collections.lock().unwrap() = collections;
             *online_artists.lock().unwrap() = artists;
             let mut status = format!("{count} tracks · {artist_count} artists · {audius_collection_count} Audius collections · {apple_collection_count} Apple Music albums/playlists · {mb_collection_count} MusicBrainz releases");
@@ -3830,30 +3833,41 @@ fn unified_track_to_legacy_track(track: UnifiedTrack) -> Track {
     }
 }
 
-fn search_spotify_tracks(query: &str) -> Result<Vec<Track>, String> {
+fn search_spotify_tracks(query: &str) -> Result<Vec<UnifiedTrack>, String> {
     let access_token = load_valid_provider_access_token(
         provider_auth::OAuthProvider::Spotify, "spotify"
     )?;
     let adapter = SpotifyAdapter::new(access_token).map_err(|error| error.to_string())?;
-    adapter.search(query)
-        .map(|tracks| tracks.into_iter().map(unified_track_to_legacy_track).collect())
-        .map_err(|error| error.to_string())
+    adapter.search(query).map_err(|error| error.to_string())
 }
 
-fn search_youtube_tracks(query: &str) -> Result<Vec<Track>, String> {
+fn search_youtube_tracks(query: &str) -> Result<Vec<UnifiedTrack>, String> {
     let api_key = std::env::var("RAPTOR_YOUTUBE_API_KEY")
         .map_err(|_| "YouTube search is not configured · set RAPTOR_YOUTUBE_API_KEY".to_string())?;
     let adapter = YouTubeAdapter::new(api_key).map_err(|error| error.to_string())?;
-    adapter.search(query)
-        .map(|tracks| tracks.into_iter().map(unified_track_to_legacy_track).collect())
-        .map_err(|error| error.to_string())
+    adapter.search(query).map_err(|error| error.to_string())
 }
 
-fn search_bandcamp_tracks(query: &str) -> Result<Vec<Track>, String> {
+fn search_bandcamp_tracks(query: &str) -> Result<Vec<UnifiedTrack>, String> {
     let adapter = BandcampAdapter::new().map_err(|error| error.to_string())?;
-    adapter.search(query)
-        .map(|tracks| tracks.into_iter().map(unified_track_to_legacy_track).collect())
-        .map_err(|error| error.to_string())
+    adapter.search(query).map_err(|error| error.to_string())
+}
+
+fn unified_tracks_to_slint(tracks: &[UnifiedTrack]) -> Vec<TrackData> {
+    tracks.iter().map(|track| {
+        let duration = track.duration_secs.unwrap_or(0);
+        TrackData {
+            id: track.id.to_string().into(),
+            title: track.title.clone().into(),
+            artist: track.artists.join(", ").into(),
+            album: track.album.clone().unwrap_or_default().into(),
+            duration: if track.duration_secs.is_some() {
+                format!("{}:{:02}", duration / 60, duration % 60).into()
+            } else {
+                "—".into()
+            },
+        }
+    }).collect()
 }
 
 fn tracks_to_slint(tracks: &[Track]) -> Vec<TrackData> {
