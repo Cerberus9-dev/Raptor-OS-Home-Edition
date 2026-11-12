@@ -326,7 +326,7 @@ for mac in "${controllers[@]}"; do
     # Keep multiple adapters distinguishable without exposing kernel names
     # such as hci0 or assuming which controller is the primary one.
     if (("${#controllers[@]}" > 1)); then
-        alias+=" (${mac##*:})"
+        alias+=" (${mac})"
     fi
     printf 'select %s\nsystem-alias %s\n' "$mac" "$alias" |
         timeout 8 bluetoothctl >/dev/null 2>&1 || true
