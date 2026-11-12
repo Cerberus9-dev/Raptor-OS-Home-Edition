@@ -1,7 +1,7 @@
 use uuid::Uuid;
 use std::path::PathBuf;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum PlaybackSource {
     LocalFile { path: PathBuf },
     RemoteStream { provider_id: String, provider_track_id: String },
@@ -412,15 +412,23 @@ mod playlist_resolution_tests {
 
 /// Provider-neutral source identity used at the Raptor UI and playback boundary.
 /// Provider wrapper response types must be converted into this model in adapters.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum AudioSourceKind {
     Spotify,
     YouTube,
     Bandcamp,
+    AppleMusic,
+    Audius,
+    Jamendo,
+    Tidal,
+    MusicBrainz,
     Local,
+    Other,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum PlaybackAccess {
     DirectStream,
     EmbeddedPlayer,
@@ -429,7 +437,8 @@ pub enum PlaybackAccess {
     Unavailable,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum PlaybackTarget {
     Native(PlaybackSource),
     EmbeddedPlayer { provider_id: String, content_id: String },
@@ -438,7 +447,7 @@ pub enum PlaybackTarget {
 }
 
 /// The normalized track model exposed to the desktop UI and playback queue.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct UnifiedTrack {
     pub id: Uuid,
     pub source: AudioSourceKind,

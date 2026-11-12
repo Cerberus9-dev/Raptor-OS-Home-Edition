@@ -147,9 +147,13 @@ assert_contains files/scripts/raptor-music/crates/raptor-audio/src/adapters/spot
 assert_contains files/scripts/raptor-music/crates/raptor-audio/src/adapters/spotify.rs 'PlaybackAccess::ExternalHandoff'
 assert_contains files/scripts/raptor-music/crates/raptor-audio/src/adapters/youtube.rs 'https://www.googleapis.com/youtube/v3/search'
 assert_contains files/scripts/raptor-music/crates/raptor-audio/src/adapters/youtube.rs 'PlaybackAccess::EmbeddedPlayer'
-assert_contains files/scripts/raptor-music/crates/raptor-audio/src/adapters/bandcamp.rs 'Bandcamp handoff must be an HTTPS Bandcamp URL'
+assert_contains files/scripts/raptor-music/crates/raptor-audio/src/adapters/bandcamp.rs 'autocomplete_elastic'
+assert_contains files/scripts/raptor-music/crates/raptor-audio/src/adapters/bandcamp.rs 'PlaybackTarget::EmbeddedPlayer'
+assert_contains files/scripts/raptor-music/crates/raptor-audio/src/adapters/bandcamp.rs 'https://bandcamp.com/EmbeddedPlayer/track='
 assert_contains files/scripts/raptor-music/crates/raptor-audio/src/backend/rodio.rs 'raptor-rodio-output'
-assert_contains files/scripts/raptor-music/crates/raptor-audio/src/backend/rodio.rs 'MAX_BUFFER_BYTES'
+assert_contains files/scripts/raptor-music/crates/raptor-audio/src/backend/rodio.rs 'MAX_STREAM_BYTES'
+assert_contains files/scripts/raptor-music/crates/raptor-audio/src/backend/rodio.rs '64 * 1024'
+assert_contains files/scripts/raptor-music/crates/raptor-audio/src/backend/rodio.rs 'tempfile::tempfile()'
 assert_contains files/scripts/raptor-music/crates/raptor-audio/Cargo.toml 'rodio = "0.20"'
 
 echo "=== Checking Raptor Music provider authorization contracts ==="
@@ -158,6 +162,7 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_au
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "search_jamendo_tracks"
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "parse_jamendo_tracks"
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "RAPTOR_JAMENDO_CLIENT_ID"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "RAPTOR_YOUTUBE_API_KEY"
 assert_contains files/scripts/raptor-music/crates/raptor-audio/src/player.rs "download_jamendo_track"
 assert_contains files/scripts/raptor-music/crates/raptor-audio/src/player.rs "is_jamendo_stream_url"
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "on_open_external_service_clicked"
@@ -166,9 +171,23 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint "
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint "Open Jamendo"
 assert_not_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint "Connect TIDAL"
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "creativecommons.org"
-assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint "Jamendo playback is limited to tracks it authorizes under the displayed license."
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint "Bandcamp playback uses its official player"
 
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs "parse_authorization_callback"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs "pub fn refresh_access_token("
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "load_valid_provider_access_token"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "search_spotify_tracks"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "search_youtube_tracks"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "search_bandcamp_tracks"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/embedded_player.rs "YouTube embedded player"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/embedded_player.rs "Official Bandcamp embedded player"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/Cargo.toml 'wry = "0.47"'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "get_all_unified_tracks"
+assert_contains files/scripts/raptor-music/crates/raptor-library/src/lib.rs "upsert_unified_track"
+assert_contains files/scripts/raptor-music/crates/raptor-library/src/lib.rs "get_all_unified_tracks"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "Arc<Mutex<Vec<UnifiedTrack>>>"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "normalize_legacy_track"
+assert_contains files/scripts/raptor-music/crates/raptor-core/src/models.rs "serde::Serialize, serde::Deserialize"
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/callback_listener.rs "address.is_loopback()"
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/callback_listener.rs "request.len() < 8192"
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/apple_music_auth.rs "MusicKit.getInstance()"
@@ -178,7 +197,8 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "ap
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "apple_music_pagination_only_accepts_https_api_paths_without_credentials_or_custom_ports"
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'Some("connected-account")'
 assert_contains files/scripts/raptor-music/crates/raptor-library/tests/database_regression_tests.rs "apple_music_library_refresh_updates_the_existing_connected_profile"
-assert_contains files/scripts/raptor-music/crates/raptor-library/tests/database_regression_tests.rs "assert_eq!(version, 3)"
+assert_contains files/scripts/raptor-music/crates/raptor-library/tests/database_regression_tests.rs "assert_eq!(version, 4)"
+assert_contains files/scripts/raptor-music/crates/raptor-library/src/lib.rs "VALUES (4)"
 
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "start_apple_music_library_refresh"
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint "refresh_apple_music_clicked"
@@ -839,7 +859,7 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'Ke
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'if generation.load(Ordering::Acquire) == request_generation'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'artist_search_page_rejects_unexpected_response_shape'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'if generation_state.load(Ordering::Acquire) == request_generation'
-assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs '*tracks_state.lock().unwrap() = tracks;'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs '*tracks_state.lock().unwrap() = normalized_tracks;'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn search_audius_collections'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn parse_audius_collections'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn fetch_audius_collection_tracks'
@@ -884,7 +904,7 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'MusicBrainz asks clients to stay at or below one request per second'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'musicbrainz_links_only_allow_official_artist_and_release_group_pages'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'musicbrainz_release_groups_are_metadata_only_collection_rows'
-assert_contains README.md 'MusicBrainz is a metadata-only discovery source; it does not provide audio playback.'
+assert_contains README.md 'MusicBrainz remains metadata-only.'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'fn search_apple_music_artists'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'apple_music_artist_links_reject_non_apple_hosts_and_insecure_schemes'
 
@@ -898,7 +918,7 @@ assert_contains files/scripts/raptor-music/crates/raptor-audio/src/player.rs 'fn
 assert_contains files/scripts/raptor-music/crates/raptor-audio/src/player.rs 'is_apple_preview_url'
 assert_contains files/scripts/raptor-music/crates/raptor-audio/src/player.rs 'accepts_only_https_apple_preview_hosts'
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint 'Music providers'
-assert_contains README.md 'short previews when a developer token is configured'
+assert_contains README.md "Apple Music previews still depend on the user's MusicKit authorization."
 echo "Raptor Music provider checks passed."
 
 echo "=== Checking Raptor Music Discord Rich Presence ==="

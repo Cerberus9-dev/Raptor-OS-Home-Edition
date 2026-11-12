@@ -1,4 +1,4 @@
-use raptor_core::models::{PlaybackSource, Track};
+use raptor_core::models::{AudioSourceKind, PlaybackAccess, PlaybackSource, PlaybackTarget, ProviderTrackRecord, Track, UnifiedTrack};
 use raptor_library::{LibraryDatabase, QueueEntry};
 use rusqlite::Connection;
 use std::path::{Path, PathBuf};
@@ -155,12 +155,46 @@ fn version_one_queue_migrates_without_losing_track_relationship() {
         let version: i32 = db.conn.query_row(
             "SELECT MAX(version) FROM schema_migrations", [], |row| row.get(0)
         ).unwrap();
-        // Version 3 adds isolated imported-profile storage after the v1 queue migration.
-        assert_eq!(version, 3);
+        // Version 4 adds normalized UnifiedTrack persistence after imported-profile storage.
+        assert_eq!(version, 4);
     }
     cleanup(&path);
 }
 
+
+#[test]
+fn normalized_provider_tracks_round_trip_through_the_persistent_library_queue() {
+    let path = db_path("unified_track");
+    let track = UnifiedTrack::from_provider(
+        ProviderTrackRecord {
+            source: AudioSourceKind::Bandcamp,
+            source_track_id: "123456".into(),
+            title: "Night Drive".into(),
+            artists: vec!["Independent Artist".into()],
+            album: Some("After Hours".into()),
+            artwork_url: Some("https://images.example.test/cover.jpg".into()),
+            duration_secs: Some(184),
+            isrc: None,
+        },
+        PlaybackAccess::EmbeddedPlayer,
+        PlaybackTarget::EmbeddedPlayer {
+            provider_id: "bandcamp".into(),
+            content_id: "https://bandcamp.com/EmbeddedPlayer/track=123456/".into(),
+        },
+    );
+    {
+        let db = LibraryDatabase::new(&path).unwrap();
+        db.upsert_unified_track(&track).unwrap();
+        let loaded = db.get_unified_track(track.id).unwrap().unwrap();
+        assert_eq!(loaded, track);
+
+        // The legacy row remains available to old library readers during migration.
+        let legacy = db.get_all_tracks().unwrap();
+        assert_eq!(legacy.len(), 1);
+        assert_eq!(legacy[0].id, track.id);
+    }
+    cleanup(&path);
+}
 
 #[test]
 fn apple_music_library_refresh_updates_the_existing_connected_profile() {

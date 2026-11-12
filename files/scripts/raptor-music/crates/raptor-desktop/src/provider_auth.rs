@@ -243,13 +243,23 @@ pub fn exchange_authorization_code(
 /// Returned credentials must be persisted only in the operating system's
 /// secure credential store by the caller.
 pub fn refresh_access_token(
-    pending: &PendingAuthorization,
+    provider: OAuthProvider,
     refresh_token: &str,
 ) -> Result<OAuthTokenResponse, String> {
     if refresh_token.trim().is_empty() {
         return Err("No refresh token is available for this provider account".into());
     }
-    let (_, _, _, token_endpoint, _) = pending.provider.settings();
+
+    // Refresh grants do not need a redirect URI, PKCE verifier, or a new
+    // authorization state. Requiring begin_authorization here made a valid
+    // saved refresh token fail whenever the desktop redirect setting was
+    // missing, even though the user had already authorized the account.
+    let (client_env, _redirect_env, _authorize_endpoint, token_endpoint, _) = provider.settings();
+    let client_id = std::env::var(client_env)
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| format!("Set {client_env} to refresh this provider connection"))?;
+
     let client = reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(20))
         .build()
@@ -257,7 +267,7 @@ pub fn refresh_access_token(
     let response = client.post(token_endpoint)
         .form(&[
             ("grant_type", "refresh_token"),
-            ("client_id", pending.client_id.as_str()),
+            ("client_id", client_id.as_str()),
             ("refresh_token", refresh_token),
         ])
         .send()

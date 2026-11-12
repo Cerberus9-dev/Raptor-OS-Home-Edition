@@ -5,6 +5,7 @@ mod provider_auth;
 mod token_store;
 mod callback_listener;
 mod apple_music_auth;
+mod embedded_player;
 
 fn refresh_provider_tokens_if_needed(
     provider: provider_auth::OAuthProvider,
@@ -20,14 +21,23 @@ fn refresh_provider_tokens_if_needed(
     }
     let refresh_token = bundle.tokens.refresh_token.as_deref()
         .ok_or_else(|| "The saved access token has expired; disconnect and reconnect this account".to_string())?;
-    let (_, pending) = provider_auth::begin_authorization(provider, None)
-        .map_err(|error| format!("Could not prepare token refresh: {error}"))?;
-    let mut refreshed = provider_auth::refresh_access_token(&pending, refresh_token)?;
+    let mut refreshed = provider_auth::refresh_access_token(provider, refresh_token)?;
     if refreshed.refresh_token.is_none() {
         refreshed.refresh_token = Some(refresh_token.to_owned());
     }
     token_store::save_tokens(provider_key, &refreshed)?;
     Ok(())
+}
+
+/// Returns a usable provider token, refreshing it in the OS credential store
+/// before it is handed to an API adapter. Callers never receive refresh tokens.
+fn load_valid_provider_access_token(
+    provider: provider_auth::OAuthProvider,
+    provider_key: &str,
+) -> Result<String, String> {
+    let bundle = token_store::load_token_bundle(provider_key)?;
+    refresh_provider_tokens_if_needed(provider, provider_key, bundle)?;
+    token_store::load_tokens(provider_key).map(|tokens| tokens.access_token)
 }
 
 fn restore_provider_connections(ui: slint::Weak<MainWindow>) {
@@ -274,9 +284,11 @@ struct AudiusArtistProfile {
 }
 
 use raptor_audio::player::AudioPlayer;
+use raptor_audio::adapters::{BandcampAdapter, SpotifyAdapter, YouTubeAdapter};
+use raptor_audio::backend::AudioSource;
 use raptor_audio::decoder::AudioDecoder;
 use raptor_library::{LibraryDatabase, QueueEntry};
-use raptor_core::models::{Track, PlaybackSource, PlayerState, PlayerEvent};
+use raptor_core::models::{Track, PlaybackSource, PlayerState, PlayerEvent, UnifiedTrack, PlaybackTarget};
 use std::sync::{Arc, Mutex};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -318,7 +330,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let active_session_token: Arc<Mutex<Option<Uuid>>> = Arc::new(Mutex::new(None));
     let active_playing_queue_entry_id: Arc<Mutex<Option<Uuid>>> = Arc::new(Mutex::new(None));
     let last_seek_at: Arc<Mutex<Option<Instant>>> = Arc::new(Mutex::new(None));
-    let online_tracks: Arc<Mutex<Vec<Track>>> = Arc::new(Mutex::new(Vec::new()));
+    let online_tracks: Arc<Mutex<Vec<UnifiedTrack>>> = Arc::new(Mutex::new(Vec::new()));
     let online_artists: Arc<Mutex<Vec<AudiusArtist>>> = Arc::new(Mutex::new(Vec::new()));
     let online_collections: Arc<Mutex<Vec<AudiusCollection>>> = Arc::new(Mutex::new(Vec::new()));
     let online_search_generation = Arc::new(AtomicU64::new(0));
@@ -741,6 +753,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let apple_worker = std::thread::spawn(move || search_apple_music_tracks(&apple_query));
             let jamendo_query = query_for_thread.clone();
             let jamendo_worker = std::thread::spawn(move || search_jamendo_tracks(&jamendo_query));
+            let spotify_query = query_for_thread.clone();
+            let spotify_worker = std::thread::spawn(move || search_spotify_tracks(&spotify_query));
+            let youtube_query = query_for_thread.clone();
+            let youtube_worker = std::thread::spawn(move || search_youtube_tracks(&youtube_query));
+            let bandcamp_query = query_for_thread.clone();
+            let bandcamp_worker = std::thread::spawn(move || search_bandcamp_tracks(&bandcamp_query));
             let audius_result = if sort_method == "independent" {
                 // Blend relevance-ranked and recent uploads instead of letting
                 // play counts dominate discovery. Alternate sources and dedupe
@@ -775,22 +793,43 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .unwrap_or_else(|_| Err("Apple Music search worker stopped unexpectedly".to_string()));
             let jamendo_result = jamendo_worker.join()
                 .unwrap_or_else(|_| Err("Jamendo search worker stopped unexpectedly".to_string()));
+            let spotify_result = spotify_worker.join()
+                .unwrap_or_else(|_| Err("Spotify search worker stopped unexpectedly".to_string()));
+            let youtube_result = youtube_worker.join()
+                .unwrap_or_else(|_| Err("YouTube search worker stopped unexpectedly".to_string()));
+            let bandcamp_result = bandcamp_worker.join()
+                .unwrap_or_else(|_| Err("Bandcamp search worker stopped unexpectedly".to_string()));
             if generation.load(Ordering::Acquire) != request_generation {
                 return;
             }
 
-            let mut tracks = audius_result.unwrap_or_default();
-            let audius_count = tracks.len();
+            let audius_tracks = audius_result.unwrap_or_default();
+            let audius_count = audius_tracks.len();
+            let mut tracks = audius_tracks.iter()
+                .map(raptor_library::normalize_legacy_track)
+                .collect::<Vec<_>>();
             let apple_error = apple_result.is_err();
             let apple_tracks = apple_result.unwrap_or_default();
             let apple_count = apple_tracks.len();
-            tracks.extend(apple_tracks);
+            tracks.extend(apple_tracks.iter().map(raptor_library::normalize_legacy_track));
             let jamendo_error = jamendo_result.is_err();
             let jamendo_tracks = jamendo_result.unwrap_or_default();
             let jamendo_count = jamendo_tracks.len();
-            tracks.extend(jamendo_tracks);
+            tracks.extend(jamendo_tracks.iter().map(raptor_library::normalize_legacy_track));
+            let spotify_error = spotify_result.is_err();
+            let spotify_tracks = spotify_result.unwrap_or_default();
+            let spotify_count = spotify_tracks.len();
+            tracks.extend(spotify_tracks);
+            let youtube_error = youtube_result.is_err();
+            let youtube_tracks = youtube_result.unwrap_or_default();
+            let youtube_count = youtube_tracks.len();
+            tracks.extend(youtube_tracks);
+            let bandcamp_error = bandcamp_result.is_err();
+            let bandcamp_tracks = bandcamp_result.unwrap_or_default();
+            let bandcamp_count = bandcamp_tracks.len();
+            tracks.extend(bandcamp_tracks);
             let count = tracks.len();
-            let rows = tracks_to_slint(&tracks);
+            let rows = unified_tracks_to_slint(&tracks);
             let collection_result = collection_worker.join()
                 .unwrap_or_else(|_| Err("Collection search worker stopped unexpectedly".to_string()));
             let mut collections = collection_result.unwrap_or_default();
@@ -864,7 +903,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             } else if jamendo_error {
                 status.push_str(" · Jamendo search unavailable");
             }
-            if audius_count == 0 && apple_count == 0 && jamendo_count == 0 && artist_count == 0
+            if spotify_count > 0 {
+                status.push_str(&format!(" · {spotify_count} Spotify tracks"));
+            } else if spotify_error && token_store::load_token_bundle("spotify").is_err() {
+                status.push_str(" · Connect Spotify to search its catalogue");
+            } else if spotify_error {
+                status.push_str(" · Spotify search unavailable");
+            }
+            if youtube_count > 0 {
+                status.push_str(&format!(" · {youtube_count} YouTube videos"));
+            } else if youtube_error && std::env::var("RAPTOR_YOUTUBE_API_KEY").is_err() {
+                status.push_str(" · YouTube search not configured");
+            } else if youtube_error {
+                status.push_str(" · YouTube search unavailable");
+            }
+            if bandcamp_count > 0 {
+                status.push_str(&format!(" · {bandcamp_count} Bandcamp tracks"));
+            } else if bandcamp_error {
+                status.push_str(" · Bandcamp search unavailable");
+            }
+            if audius_count == 0 && apple_count == 0 && jamendo_count == 0 && spotify_count == 0 && youtube_count == 0 && bandcamp_count == 0 && artist_count == 0
                 && collection_count == 0 && apple_collection_count == 0 && mb_collection_count == 0 && mb_artist_count == 0 {
                 status = "No matching tracks, artists, albums or playlists found".to_string();
             }
@@ -905,7 +963,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ui.on_online_track_selected(move |idx| {
         let track = online_tracks_for_select.lock().unwrap().get(idx as usize).cloned();
         if let Some(track) = track {
-            let saved = db_for_online_select.lock().unwrap().upsert_track(&track).is_ok();
+            let saved = db_for_online_select.lock().unwrap().upsert_unified_track(&track).is_ok();
             if !saved {
                 if let Some(ui) = ui_handle_online_select.upgrade() {
                     ui.set_player_state_label("Could not add online track to your library".into());
@@ -961,12 +1019,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 };
                 let rows = tracks_to_slint(&tracks);
+                let normalized_tracks = tracks.iter().map(raptor_library::normalize_legacy_track).collect::<Vec<_>>();
                 let title = collection.title.clone();
                 let count = tracks.len();
                 let _ = slint::invoke_from_event_loop(move || {
                     if let Some(ui) = ui_weak.upgrade() {
                         if generation_state.load(Ordering::Acquire) == request_generation {
-                            *tracks_state.lock().unwrap() = tracks;
+                            *tracks_state.lock().unwrap() = normalized_tracks;
                             ui.set_online_track_list(slint::ModelRc::new(slint::VecModel::from(rows)));
                             ui.set_selected_online_track_index(-1);
                             ui.set_online_search_status(format!("{title} · {count} playable previews loaded (up to 4 catalog pages); full tracks remain on Apple Music").into());
@@ -999,12 +1058,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             };
             let rows = tracks_to_slint(&tracks);
+            let normalized_tracks = tracks.iter().map(raptor_library::normalize_legacy_track).collect::<Vec<_>>();
             let title = collection.title.clone();
             let count = tracks.len();
             let _ = slint::invoke_from_event_loop(move || {
                 if let Some(ui) = ui_weak.upgrade() {
                     if generation_state.load(Ordering::Acquire) == request_generation {
-                        *tracks_state.lock().unwrap() = tracks;
+                        *tracks_state.lock().unwrap() = normalized_tracks;
                         ui.set_online_track_list(slint::ModelRc::new(slint::VecModel::from(rows)));
                         ui.set_selected_online_track_index(-1);
                         ui.set_online_search_status(format!("{title} · {count} tracks").into());
@@ -1109,6 +1169,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Ok(profile) => {
                     let tracks = profile.tracks.clone();
                     let rows = tracks_to_slint(&tracks);
+                    let normalized_tracks = tracks.iter().map(raptor_library::normalize_legacy_track).collect::<Vec<_>>();
                     let album_count = profile.albums.len();
                     let bio = profile.bio.clone();
                     let album_rows = profile.albums.iter().map(|album| TrackData {
@@ -1127,7 +1188,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let _ = slint::invoke_from_event_loop(move || {
                         if let Some(ui) = ui_weak.upgrade() {
                             if generation.load(Ordering::Acquire) == request_generation {
-                                *tracks_state.lock().unwrap() = profile.tracks.clone();
+                                *tracks_state.lock().unwrap() = normalized_tracks;
                                 *collections_state.lock().unwrap() = profile.albums.clone();
                                 ui.set_artist_profile_name(profile.name.into());
                                 ui.set_artist_profile_handle(format!("@{}", profile.handle).into());
@@ -1376,10 +1437,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             online_for_track_menu.lock().unwrap().get(index as usize).cloned()
         } else {
             let id = visible_for_track_menu.lock().unwrap().get(index as usize).copied();
-            id.and_then(|id| db_lock.get_all_tracks().unwrap_or_default().into_iter().find(|track| track.id == id))
+            id.and_then(|id| db_lock.get_unified_track(id).ok().flatten())
         };
         let track = match track { Some(track) => track, None => return };
-        if source == "online" && db_lock.upsert_track(&track).is_err() {
+        if source == "online" && db_lock.upsert_unified_track(&track).is_err() {
             ui.set_player_state_label("Could not save this online track".into());
             return;
         }
@@ -1446,7 +1507,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let (target_source, target_id, target_queue_entry_id) = {
             let db_lock = db_for_play.lock().unwrap();
             let queue_entries = db_lock.get_queue().unwrap_or_default();
-            let all_tracks = db_lock.get_all_tracks().unwrap_or_default();
+            // The queue resolves every row through UnifiedTrack. The CPAL
+            // engine remains behind a narrow compatibility conversion until
+            // the decoder/backend API is fully switched over.
+            let all_tracks = db_lock.get_all_unified_tracks().unwrap_or_default();
 
             if direct_selection {
                 let selected_id = *selected_id_for_play.lock().unwrap();
@@ -1466,14 +1530,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     return;
                 }
                 ui.set_selected_queue_index((queue.len() - 1) as i32);
-                (track.source, track.id, entry.queue_entry_id)
+                let engine_track = unified_track_to_legacy_track(track.clone());
+                (engine_track.source, track.id, entry.queue_entry_id)
             } else if !queue_entries.is_empty() {
                 let qidx = ui.get_selected_queue_index();
                 let target_qidx = if qidx >= 0 && (qidx as usize) < queue_entries.len() { qidx as usize } else { 0 };
                 let entry = &queue_entries[target_qidx];
                 let track = all_tracks.iter().find(|t| t.id == entry.track_id).cloned();
                 match track {
-                    Some(t) => (t.source, t.id, entry.queue_entry_id),
+                    Some(t) => {
+                        let engine_track = unified_track_to_legacy_track(t.clone());
+                        (engine_track.source, t.id, entry.queue_entry_id)
+                    },
                     None => return,
                 }
             } else {
@@ -1490,6 +1558,50 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ui.set_selected_online_track_index(-1);
         refresh_queue_list(&ui, &db_for_play);
         ui.set_player_state_label("Loading".into());
+        if let PlaybackSource::Unknown { raw_type } = &target_source {
+            if let Some(url) = raw_type.strip_prefix("external-handoff:") {
+                let parsed = match url::Url::parse(url) {
+                    Ok(parsed) if parsed.scheme() == "https"
+                        && parsed.host_str() == Some("open.spotify.com")
+                        && parsed.path().starts_with("/track/") => parsed,
+                    _ => {
+                        ui.set_player_state_label("Spotify returned an invalid handoff URL".into());
+                        return;
+                    }
+                };
+                match std::process::Command::new("gio").arg("open").arg(parsed.as_str()).spawn() {
+                    Ok(_) => ui.set_player_state_label("Opened in the official Spotify player".into()),
+                    Err(_) => ui.set_player_state_label("Could not open Spotify in the system browser".into()),
+                }
+                *session_token_for_play.lock().unwrap() = None;
+                *active_entry_for_play.lock().unwrap() = Some(target_queue_entry_id);
+                return;
+            }
+        }
+
+        let embedded_target = match &target_source {
+            PlaybackSource::RemoteStream { provider_id, provider_track_id }
+                if provider_id == "youtube" || provider_id == "bandcamp" =>
+                Some((provider_id.clone(), provider_track_id.clone())),
+            _ => None,
+        };
+        if let Some((provider_id, provider_track_id)) = embedded_target {
+            let content_id = if provider_id == "bandcamp" {
+                format!("https://bandcamp.com/EmbeddedPlayer/track={provider_track_id}/size=large/bgcol=333333/linkcol=0f91ff/tracklist=false/transparent=true/")
+            } else {
+                provider_track_id
+            };
+            *session_token_for_play.lock().unwrap() = None;
+            match embedded_player::open_provider_player(&provider_id, &content_id) {
+                Ok(()) => {
+                    *active_entry_for_play.lock().unwrap() = Some(target_queue_entry_id);
+                    ui.set_player_state_label(format!("Playing in the {provider_id} embedded player").into());
+                }
+                Err(error) => ui.set_player_state_label(format!("Could not open embedded player: {error}").into()),
+            }
+            return;
+        }
+
         if let Err(e) = player_for_play.play(target_source, target_id, target_queue_entry_id, session_token) {
             eprintln!("Playback error: {}", e);
             ui.set_player_state_label("Error".into());
@@ -3695,6 +3807,67 @@ mod audius_search_tests {
             .expect_err("unexpected API shape must not look like an empty successful search");
         assert!(error.contains("unexpected search response"));
     }
+}
+
+fn unified_track_to_legacy_track(track: UnifiedTrack) -> Track {
+    let source = match track.target {
+        PlaybackTarget::Native(source) => source,
+        PlaybackTarget::EmbeddedPlayer { provider_id, .. } => PlaybackSource::RemoteStream {
+            provider_id,
+            provider_track_id: track.source_track_id.clone(),
+        },
+        PlaybackTarget::ExternalHandoff { url } => PlaybackSource::Unknown {
+            raw_type: format!("external-handoff:{url}"),
+        },
+        PlaybackTarget::Unavailable => PlaybackSource::Unknown {
+            raw_type: "unavailable".into(),
+        },
+    };
+    Track {
+        id: track.id,
+        title: track.title,
+        artist: track.artists.join(", "),
+        album: track.album,
+        duration_secs: track.duration_secs,
+        source,
+    }
+}
+
+fn search_spotify_tracks(query: &str) -> Result<Vec<UnifiedTrack>, String> {
+    let access_token = load_valid_provider_access_token(
+        provider_auth::OAuthProvider::Spotify, "spotify"
+    )?;
+    let adapter = SpotifyAdapter::new(access_token).map_err(|error| error.to_string())?;
+    adapter.search(query).map_err(|error| error.to_string())
+}
+
+fn search_youtube_tracks(query: &str) -> Result<Vec<UnifiedTrack>, String> {
+    let api_key = std::env::var("RAPTOR_YOUTUBE_API_KEY")
+        .map_err(|_| "YouTube search is not configured · set RAPTOR_YOUTUBE_API_KEY".to_string())?;
+    let adapter = YouTubeAdapter::new(api_key).map_err(|error| error.to_string())?;
+    adapter.search(query).map_err(|error| error.to_string())
+}
+
+fn search_bandcamp_tracks(query: &str) -> Result<Vec<UnifiedTrack>, String> {
+    let adapter = BandcampAdapter::new().map_err(|error| error.to_string())?;
+    adapter.search(query).map_err(|error| error.to_string())
+}
+
+fn unified_tracks_to_slint(tracks: &[UnifiedTrack]) -> Vec<TrackData> {
+    tracks.iter().map(|track| {
+        let duration = track.duration_secs.unwrap_or(0);
+        TrackData {
+            id: track.id.to_string().into(),
+            title: track.title.clone().into(),
+            artist: track.artists.join(", ").into(),
+            album: track.album.clone().unwrap_or_default().into(),
+            duration: if track.duration_secs.is_some() {
+                format!("{}:{:02}", duration / 60, duration % 60).into()
+            } else {
+                "—".into()
+            },
+        }
+    }).collect()
 }
 
 fn tracks_to_slint(tracks: &[Track]) -> Vec<TrackData> {
