@@ -1,19 +1,15 @@
 ## What changed
 
-Explain the change in plain language. What can someone do now that they couldn't do before? Mention the affected app or part of the system.
+Describe the user-visible or maintenance change. Name the affected app, service, or workflow.
 
 ## Why
 
-What problem does this solve, or what prompted the change?
+What issue or need does this address?
 
 ## Checks
 
-List the checks actually run and link to the relevant workflow when available. Be clear about anything that is still waiting on CI or needs a real-device test.
+List the checks run and link to their results. Mark anything still running or requiring a real-device test.
 
-## Notes and limitations
+## Limitations
 
-Call out compatibility changes, known gaps, or anything reviewers should know. Remove this section if there is nothing useful to add.
-
----
-
-Keep this readable and specific. Write for someone who uses or maintains Raptor OS, not like a generated release announcement. Avoid padded intros, repeated claims, vague phrases such as “seamlessly” or “robust,” and long bullet lists that restate the same point. Never describe a planned feature as shipped, and never say a check passed unless it did.
+List known gaps or compatibility concerns. Remove this section if there are none.
