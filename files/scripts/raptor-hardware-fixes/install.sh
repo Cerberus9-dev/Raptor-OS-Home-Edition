@@ -4,8 +4,8 @@ set -euo pipefail
 # =============================================================================
 # Raptor OS — laptop hardware recovery (touchpad, Wi-Fi, Bluetooth, mute LEDs)
 #
-# One build script, one resume hook, one timer. Everything it installs is a
-# small helper under /usr/lib/raptor/ — there are no new apps or menu entries.
+# Installs the resume hook, Wi-Fi watchdog, and helpers under
+# /usr/lib/raptor/. It adds no desktop applications or menu entries.
 #
 #   /usr/lib/systemd/system-sleep/raptor-resume   runs on every suspend/resume:
 #        pre : remember whether Bluetooth was on

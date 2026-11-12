@@ -1,23 +1,12 @@
 #!/bin/bash
 set -euo pipefail
 
-# =============================================================================
-# Raptor Wallpaper  v2.0
-# GTK4/Adwaita wallpaper picker with direct KDE Plasma integration.
+# Raptor Wallpaper v2.0
+# GTK4/Adwaita wallpaper picker with KDE Plasma integration.
 #
-# v2.0 is a full rewrite of v1.0, which was never wired into recipe.yml and
-# never actually shipped. Along the way: gallery grid (Windows Personalization
-# style — click a thumbnail, it applies) replacing the old single
-# browse-one-file flow; fit mode control (Fill/Fit/Stretch/Center/Tile),
-# which v1.0 had no way to set at all; four bundled Raptor-branded wallpapers
-# so the gallery isn't empty on a fresh install; icon and .desktop rebuilt to
-# match the Cortex/GPU Profiler visual family (v1.0's icon was still on the
-# pre-conversion blue palette and the .desktop pointed at a generic system
-# icon name instead of the custom one); and a Dolphin right-click
-# "Set as Raptor Wallpaper" context menu entry — right-click any image file
-# and apply it directly, the way Windows Explorer lets you set a background
-# straight from a file's context menu.
-# =============================================================================
+# The gallery shows images from the user's Pictures folder and bundled Raptor
+# wallpapers. It supports Fill/Fit/Stretch/Center/Tile modes and a Dolphin
+# right-click action for applying an image without opening the app.
 
 mkdir -p /usr/bin \
          /usr/share/applications \
@@ -29,7 +18,7 @@ mkdir -p /usr/bin \
 # Plain SVG files (not a full KPackage wallpaper bundle) — simple enough for
 # this app's own gallery to scan directly, and still browsable/usable via any
 # standard file picker including KDE's native wallpaper settings.
-# All four use the same #33FF33-on-#0a0e12 palette as the rest of the HUD theme.
+# Bundled wallpapers use the Raptor flight-deck palette.
 
 cat << 'SVGEOF' > /usr/share/wallpapers/RaptorOS/raptor-grid.svg
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080">
