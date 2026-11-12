@@ -1,5 +1,11 @@
 # Changelog
 
+### Raptor Music playback routing
+- Added `RaptorPlayer` to route each normalized track through the adapter matching its source, resolve an authorized playback target, and pass a provider-neutral playback request to `AudioBackend`.
+- Added typed playback errors for missing adapters, unavailable tracks, unsupported handoff/embedded playback, empty targets, and backend failures.
+- Added delegated play, pause, stop and seek controls, plus backend state and position access.
+- Added routing tests for adapter selection, unavailable tracks, missing adapters and backend control delegation.
+
 ### Raptor Music provider architecture
 - Added a provider-neutral `UnifiedTrack` model with Spotify, YouTube and Bandcamp metadata adapters. Provider response types stop at the adapter boundary; the UI-facing model carries normalized metadata, playback access and an explicit playback target.
 - Added the `AudioBackend` contract and an adapter for the existing CPAL player. Native playback rejects embedded-player, external-handoff and unavailable targets instead of treating every provider result as a stream.
