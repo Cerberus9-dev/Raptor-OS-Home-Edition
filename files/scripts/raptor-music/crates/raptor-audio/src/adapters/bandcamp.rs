@@ -44,3 +44,41 @@ impl AudioSource for BandcampAdapter {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use raptor_core::models::ProviderTrackRecord;
+
+    fn track(url: &str) -> UnifiedTrack {
+        UnifiedTrack::from_provider(
+            ProviderTrackRecord {
+                source: AudioSourceKind::Bandcamp,
+                source_track_id: "track-id".into(),
+                title: "Track".into(),
+                artists: vec!["Artist".into()],
+                album: None,
+                artwork_url: None,
+                duration_secs: None,
+                isrc: None,
+            },
+            PlaybackAccess::ExternalHandoff,
+            PlaybackTarget::ExternalHandoff { url: url.into() },
+        )
+    }
+
+    #[test]
+    fn accepts_https_bandcamp_handoff() {
+        let resolved = BandcampAdapter::new().resolve(&track(
+            "https://artist.bandcamp.com/track/example"
+        )).unwrap();
+        assert_eq!(resolved.access, PlaybackAccess::ExternalHandoff);
+    }
+
+    #[test]
+    fn rejects_spoofed_bandcamp_host() {
+        assert!(BandcampAdapter::new().resolve(&track(
+            "https://bandcamp.com.attacker.example/track/example"
+        )).is_err());
+    }
+}
