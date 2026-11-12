@@ -459,7 +459,7 @@ export component MainWindow inherits Window {
                             Button { text: "Disconnect"; clicked => { root.disconnect_spotify_clicked(); } }
                         }
                         Text {
-                            text: "Fallback catalogs: Audius is integrated for in-app search and playback. Jamendo search is available with RAPTOR_JAMENDO_CLIENT_ID; selecting a result opens its licensed Jamendo page. These are the built-in alternatives when a provider cannot be combined in-app.";
+                            text: "Free discovery and playback: Audius and Jamendo are integrated directly. Jamendo streams tracks under their listed Creative Commons licenses; no listener subscription is required. Apple Music results are catalog previews unless the user has authorized full playback.";
                             color: #879487; font-size: 11px; wrap: word-wrap;
                         }
                         HorizontalLayout {
