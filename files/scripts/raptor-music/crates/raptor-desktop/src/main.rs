@@ -20,14 +20,23 @@ fn refresh_provider_tokens_if_needed(
     }
     let refresh_token = bundle.tokens.refresh_token.as_deref()
         .ok_or_else(|| "The saved access token has expired; disconnect and reconnect this account".to_string())?;
-    let (_, pending) = provider_auth::begin_authorization(provider, None)
-        .map_err(|error| format!("Could not prepare token refresh: {error}"))?;
-    let mut refreshed = provider_auth::refresh_access_token(&pending, refresh_token)?;
+    let mut refreshed = provider_auth::refresh_access_token(provider, refresh_token)?;
     if refreshed.refresh_token.is_none() {
         refreshed.refresh_token = Some(refresh_token.to_owned());
     }
     token_store::save_tokens(provider_key, &refreshed)?;
     Ok(())
+}
+
+/// Returns a usable provider token, refreshing it in the OS credential store
+/// before it is handed to an API adapter. Callers never receive refresh tokens.
+fn load_valid_provider_access_token(
+    provider: provider_auth::OAuthProvider,
+    provider_key: &str,
+) -> Result<String, String> {
+    let bundle = token_store::load_token_bundle(provider_key)?;
+    refresh_provider_tokens_if_needed(provider, provider_key, bundle)?;
+    token_store::load_tokens(provider_key).map(|tokens| tokens.access_token)
 }
 
 fn restore_provider_connections(ui: slint::Weak<MainWindow>) {
