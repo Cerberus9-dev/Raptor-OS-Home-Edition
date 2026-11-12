@@ -147,7 +147,9 @@ assert_contains files/scripts/raptor-music/crates/raptor-audio/src/adapters/spot
 assert_contains files/scripts/raptor-music/crates/raptor-audio/src/adapters/spotify.rs 'PlaybackAccess::ExternalHandoff'
 assert_contains files/scripts/raptor-music/crates/raptor-audio/src/adapters/youtube.rs 'https://www.googleapis.com/youtube/v3/search'
 assert_contains files/scripts/raptor-music/crates/raptor-audio/src/adapters/youtube.rs 'PlaybackAccess::EmbeddedPlayer'
-assert_contains files/scripts/raptor-music/crates/raptor-audio/src/adapters/bandcamp.rs 'Bandcamp handoff must be an HTTPS Bandcamp URL'
+assert_contains files/scripts/raptor-music/crates/raptor-audio/src/adapters/bandcamp.rs 'autocomplete_elastic'
+assert_contains files/scripts/raptor-music/crates/raptor-audio/src/adapters/bandcamp.rs 'PlaybackTarget::EmbeddedPlayer'
+assert_contains files/scripts/raptor-music/crates/raptor-audio/src/adapters/bandcamp.rs 'https://bandcamp.com/EmbeddedPlayer/track='
 assert_contains files/scripts/raptor-music/crates/raptor-audio/src/backend/rodio.rs 'raptor-rodio-output'
 assert_contains files/scripts/raptor-music/crates/raptor-audio/src/backend/rodio.rs 'MAX_BUFFER_BYTES'
 assert_contains files/scripts/raptor-music/crates/raptor-audio/Cargo.toml 'rodio = "0.20"'
@@ -158,6 +160,7 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_au
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "search_jamendo_tracks"
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "parse_jamendo_tracks"
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "RAPTOR_JAMENDO_CLIENT_ID"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "RAPTOR_YOUTUBE_API_KEY"
 assert_contains files/scripts/raptor-music/crates/raptor-audio/src/player.rs "download_jamendo_track"
 assert_contains files/scripts/raptor-music/crates/raptor-audio/src/player.rs "is_jamendo_stream_url"
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "on_open_external_service_clicked"
@@ -166,9 +169,21 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint "
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint "Open Jamendo"
 assert_not_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint "Connect TIDAL"
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "creativecommons.org"
-assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint "Jamendo playback is limited to tracks it authorizes under the displayed license."
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint "Bandcamp playback uses its official player"
 
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs "parse_authorization_callback"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/provider_auth.rs "pub fn refresh_access_token("
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "load_valid_provider_access_token"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "search_spotify_tracks"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "search_youtube_tracks"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "search_bandcamp_tracks"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/embedded_player.rs "YouTube embedded player"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/embedded_player.rs "Official Bandcamp embedded player"
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/Cargo.toml 'wry = "0.47"'
+assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "get_all_unified_tracks"
+assert_contains files/scripts/raptor-music/crates/raptor-library/src/lib.rs "upsert_unified_track"
+assert_contains files/scripts/raptor-music/crates/raptor-library/src/lib.rs "get_all_unified_tracks"
+assert_contains files/scripts/raptor-music/crates/raptor-core/src/models.rs "serde::Serialize, serde::Deserialize"
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/callback_listener.rs "address.is_loopback()"
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/callback_listener.rs "request.len() < 8192"
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/apple_music_auth.rs "MusicKit.getInstance()"
@@ -179,6 +194,7 @@ assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "ap
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs 'Some("connected-account")'
 assert_contains files/scripts/raptor-music/crates/raptor-library/tests/database_regression_tests.rs "apple_music_library_refresh_updates_the_existing_connected_profile"
 assert_contains files/scripts/raptor-music/crates/raptor-library/tests/database_regression_tests.rs "assert_eq!(version, 3)"
+assert_contains files/scripts/raptor-music/crates/raptor-library/src/lib.rs "VALUES (4)"
 
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/src/main.rs "start_apple_music_library_refresh"
 assert_contains files/scripts/raptor-music/crates/raptor-desktop/ui/main.slint "refresh_apple_music_clicked"
