@@ -208,7 +208,7 @@ Raptor OS v3.0.0 updates the desktop apps, gaming and Windows compatibility, har
 
 ### Build reliability and persistent app integration
 
-- Raptor Music and the original upstream Shroudly desktop app are built and staged during every image build. Their installers verify the actual staged payload and safely skip only when a local build intentionally omits CI-generated staging files.
+- Raptor Music and the Raptor Shroudly desktop app are built and staged during every image build. Their installers verify the actual staged payload and safely skip only when a local build intentionally omits CI-generated staging files.
 - The workflow verifies both applications inside the resulting GHCR image instead of relying on a one-time marker or a first-build-only integration lock.
 - Static validation and workflow linting now run before expensive Shroudly and Raptor Music dependency builds, so shell, embedded-Python, and repository-contract failures surface earlier.
 - Removed a stale validator assertion that still required LZ4 after the documented ZRAM switch to zstd; the current validator now checks the actual zstd configuration.
