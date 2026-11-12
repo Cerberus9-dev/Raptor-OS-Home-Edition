@@ -1,11 +1,10 @@
 # Raptor OS
 
-**Current stable release:** v2.8.0  
-**Next release:** v3.0.0 (in development)
+**Current version:** v3.0.0
 
-Raptor OS is a Bazzite-based Linux distribution with KDE Plasma, gaming support, and a collection of desktop apps built for the project. The idea is straightforward: make setup, updates and everyday maintenance manageable from the desktop, without taking away the Linux tools that are there when you need them.
+Raptor OS is a Bazzite-based Linux distribution built around KDE Plasma. It combines an atomic system image, gaming support, and desktop tools for updates, hardware controls, local music, and everyday tasks.
 
-> **Work in progress.** v3.0.0 has not been released. Back up important files before installing. Raptor OS can be tested in a virtual machine or installed on a separate drive. Allow at least 50 GB for a dual-boot installation.
+> **Before installing:** Back up important files. Test Raptor OS in a virtual machine or on a separate drive first. Allow at least 50 GB for a dual-boot installation. The OCI image build and fresh-install ISO build are separate; use only an ISO and checksum published on the official release page.
 
 ## Project goals
 
@@ -17,15 +16,15 @@ Raptor OS is a Bazzite-based Linux distribution with KDE Plasma, gaming support,
 - **Optional software:** let users choose browsers, chat clients, and other apps instead of installing a large default bundle.
 - **Document limitations:** distinguish tested hardware and features from work that is still being developed.
 
-This README describes Home Edition. Security Edition is maintained separately and may have different tools, defaults, and security settings.
+This README covers Home Edition. Security Edition has a separate repository, toolset, and configuration.
 
 ### Recovery
 
-Raptor Update Manager can stage a rollback to the previous OSTree deployment when one is available. The user chooses when to restart. A rollback restores the system image, not Flatpak versions, personal files or every setting in the home directory.
+Raptor Update Manager can stage a rollback to the previous OSTree deployment when one is available. It does not roll back Flatpak versions, personal files, or every setting in the home directory.
 
 ### Raptor desktop apps
 
-Raptor Tasks stores tasks locally with search and filters. Raptor Wallpaper provides a searchable gallery and can set the desktop or lock-screen image. Raptor Music plays local files and supports online discovery through Audius and Apple Music; provider results stay separate from the Local Library. Apple Music previews require a configured developer token. Spotify and Google account connections support metadata import, not in-app streaming.
+Raptor Tasks stores tasks locally and supports search and filters. Raptor Wallpaper manages desktop and lock-screen images. Raptor Music plays local files and provides online discovery through Audius and Apple Music. Spotify and Google account connections are used for metadata import; they do not enable in-app streaming. Online results stay separate from the Local Library.
 
 ---
 
@@ -76,7 +75,7 @@ Raptor Wallpaper also supports setting the desktop and lock-screen image indepen
 
 ## Installation
 
-**Download Raptor OS only from the official [Internet Archive release page](https://archive.org/details/raptor-os_202605).** The page is the public distribution point for the ISO and its matching SHA-256 checksum. End users do not need GitHub Actions access, repository permissions, or CI artifacts. When v3.0.0 (Major Release) is published, its ISO and checksum will be added to that same Archive.org item. The installer leaves disk selection and partitioning interactive; it does not automatically erase a drive.
+**Official downloads:** [Raptor OS on Internet Archive](https://archive.org/details/raptor-os_202605). Use an ISO only when the release page lists it with its matching SHA-256 checksum. The image and ISO workflows are separate; CI artifacts are not stable release downloads. The installer leaves disk selection and partitioning interactive and does not automatically erase a drive.
 
 After downloading the ISO, flash it to a USB drive:
 
@@ -102,7 +101,7 @@ systemctl reboot
 
 ## First Boot
 
-A one-time **Welcome to Raptor OS Home** dialog introduces the Raptor app suite before the three setup dialogs appear:
+A one-time **Welcome to Raptor OS Home** dialog appears before the browser, chat-client, and optional-app choices:
 
 1. **Browser choice** — no browser ships in the image; Raptor keeps the default *minimal*. Choose Firefox, Brave, Zen Browser, Floorp, Waterfox, Chromium, Chrome, or Edge (each a one-time Flathub download, Firefox pre-selected). Shows a network check, download progress bar, and retry prompt on failure. "Skip — No Browser" installs nothing and forces no default.
 2. **Chat client choice** — choose official Discord, Vesktop (Vencord), Equibop (Equicord), or GoofCord. None is pre-installed. "Skip — Install Neither" is always available.
@@ -178,13 +177,11 @@ Gallery-style wallpaper picker — click any thumbnail to apply it, including fi
 
 ## Raptor Music
 
-Native Rust/Slint player for local files, with a SQLite library, playlists and queue management. Online discovery includes public Audius tracks and artist pages, plus Apple Music catalog results and short previews when a developer token is configured. MusicBrainz adds release metadata but no audio. Spotify and Google account connections support metadata import; TIDAL remains an external-service handoff. Full subscription playback from Spotify, Apple Music, YouTube Music or TIDAL is not provided. Online results remain separate from the Local Library. The database is stored under `$XDG_DATA_HOME/raptor-music/` or `~/.local/share/raptor-music/`.
+Raptor Music is a Rust/Slint desktop player with a SQLite library, local playlists, queue management, and local-file playback. Online discovery uses Audius for public tracks and artist pages, Apple Music for catalog search and short previews (with a configured developer token), and MusicBrainz for release metadata. Spotify and Google account connections support metadata import. TIDAL is an external-service handoff. These integrations do not provide full subscription streaming inside Raptor Music. Online tracks remain separate from the Local Library. Data is stored under `$XDG_DATA_HOME/raptor-music/` or `~/.local/share/raptor-music/`.
 
 ## Release pipeline (maintainers)
 
-The **Build Raptor OS** workflow builds and publishes the signed OCI image used by existing installations and Raptor Update Manager. It does **not** create an installer ISO.
-
-The separate **Build ISO** workflow verifies that published image and remasters the Fedora Kinoite installer into a fresh-install ISO with a matching SHA-256 checksum. An image update and an ISO build are intentionally separate operations. The ISO is not considered publicly released until the ISO and checksum are uploaded to the Internet Archive item linked above.
+The **Build Raptor OS** workflow publishes the signed OCI image used by existing installations and Raptor Update Manager. It does not create an installer ISO. The separate **Build ISO** workflow uses the published image to create a fresh-install ISO and SHA-256 checksum. Publish both files to the Internet Archive release page before treating the ISO as a public release.
 
 ## Discord alternatives
 
@@ -251,15 +248,14 @@ Raptor Shroudly is the custom native desktop dashboard included in the image. It
 
 ---
 
-## Window Management (KWin, Wayland and X11 application compatibility)
-Raptor OS uses KDE Plasma's **KWin** compositor on the Bazzite **Wayland** desktop. **X11 applications are supported through XWayland**; this is X11 compatibility, not Microsoft Windows and not a separate Xorg desktop session. The window decorations and controls provide a familiar desktop workflow without claiming that Raptor OS is Windows.
+## Window management
+Raptor OS runs KDE Plasma on Wayland with KWin. Legacy X11 applications run through XWayland; this is not a separate Xorg session.
 
-- **X11 application compatibility** — XWayland runs legacy X11 applications inside the Wayland session
-- **Window decorations** — Raptor OS Aurorae decoration with Minimize, Maximize, and Close buttons on the right, plus the App Menu button on the left
+- **Window decorations** — Raptor Aurorae theme with Minimize, Maximize, and Close controls on the right and the App Menu on the left
 - **Titlebar double-click** — maximizes the window
 - **Focus behavior** — click-to-focus
 - **Window snapping and tiling** — KWin provides screen-edge snapping/tiling; exact behavior follows the active Plasma/KWin configuration
-- **Panel/taskbar** — KDE Plasma's panel uses the installed Raptor Flight Deck theme. The optional Raptor Flight Deck layout preset can be added separately from Plasma's Add Panel menu.
+- **Panel** — KDE Plasma's panel uses the Raptor Flight Deck theme. The optional layout preset is available from Plasma's Add Panel menu.
 
 ---
 
