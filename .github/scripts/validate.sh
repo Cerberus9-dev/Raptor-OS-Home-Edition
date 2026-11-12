@@ -387,7 +387,7 @@ assert_contains files/scripts/raptor-hardware-fixes/install.sh 'bluetoothctl lis
 assert_contains files/scripts/raptor-hardware-fixes/install.sh 'mapfile -t controllers'
 assert_contains files/scripts/raptor-hardware-fixes/install.sh 'for mac in "${controllers[@]}"'
 assert_contains files/scripts/raptor-hardware-fixes/install.sh 'alias="Raptor OS Bluetooth"'
-assert_contains files/scripts/raptor-hardware-fixes/install.sh 'alias+=" (${mac##*:})"'
+assert_contains files/scripts/raptor-hardware-fixes/install.sh 'alias+=" (${mac})"'
 assert_not_contains files/scripts/raptor-hardware-fixes/install.sh 'select hci0'
 assert_contains files/scripts/raptor-hardware-fixes/install.sh "Description=Set a friendly Raptor OS Bluetooth adapter name"
 assert_contains files/system_files/raptor-browser-choice.sh 'Zen Browser'
