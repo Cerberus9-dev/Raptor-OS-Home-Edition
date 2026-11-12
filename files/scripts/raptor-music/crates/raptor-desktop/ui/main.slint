@@ -450,7 +450,7 @@ export component MainWindow inherits Window {
                             Button { text: "Disconnect"; clicked => { root.disconnect_apple_music_clicked(); } }
                         }
                         Text {
-                            text: "Spotify connects through user-approved OAuth. Raptor's wrapper routes playback through Spotify's supported player or handoff path; OAuth metadata access alone does not provide audio streams. The embedded playback surface is still under development.";
+                            text: "Spotify connects through user-approved OAuth. Raptor refreshes saved grants through the provider token endpoint and keeps credentials in the OS credential store. Spotify audio remains in the official Spotify player or handoff path; metadata access does not grant a raw audio stream.";
                             color: #879487; font-size: 11px; wrap: word-wrap;
                         }
                         HorizontalLayout {
@@ -459,7 +459,7 @@ export component MainWindow inherits Window {
                             Button { text: "Disconnect"; clicked => { root.disconnect_spotify_clicked(); } }
                         }
                         Text {
-                            text: "Optional catalogues: Audius and Jamendo remain available as independent discovery sources, not core wrapper dependencies. Jamendo playback is limited to tracks it authorizes under the displayed license. Apple Music playback depends on the user's MusicKit authorization.";
+                            text: "Discover also searches Bandcamp's public catalogue and YouTube when RAPTOR_YOUTUBE_API_KEY is configured. Both open in Raptor Music's in-app embedded-player window; Bandcamp playback uses its official player and respects the artist's streaming settings. Audius, Jamendo and Apple Music retain their provider-authorized playback limits.";
                             color: #879487; font-size: 11px; wrap: word-wrap;
                         }
                         HorizontalLayout {

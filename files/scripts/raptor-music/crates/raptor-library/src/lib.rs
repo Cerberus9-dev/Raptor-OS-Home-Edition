@@ -1,5 +1,5 @@
-use raptor_core::models::{Track, PlaybackSource};
-use rusqlite::{params, Connection};
+use raptor_core::models::{AudioSourceKind, PlaybackAccess, PlaybackSource, PlaybackTarget, Track, UnifiedTrack};
+use rusqlite::{params, Connection, OptionalExtension};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 use thiserror::Error;
@@ -38,6 +38,108 @@ pub struct Playlist {
     pub id: Uuid,
     pub name: String,
     pub description: Option<String>,
+}
+
+fn provider_source_kind(provider_id: &str) -> AudioSourceKind {
+    match provider_id {
+        "spotify" => AudioSourceKind::Spotify,
+        "youtube" => AudioSourceKind::YouTube,
+        "bandcamp" => AudioSourceKind::Bandcamp,
+        "apple_music" => AudioSourceKind::AppleMusic,
+        "audius" => AudioSourceKind::Audius,
+        "jamendo" => AudioSourceKind::Jamendo,
+        "tidal" => AudioSourceKind::Tidal,
+        "musicbrainz" => AudioSourceKind::MusicBrainz,
+        "local" => AudioSourceKind::Local,
+        _ => AudioSourceKind::Other,
+    }
+}
+
+pub fn normalize_legacy_track(track: &Track) -> UnifiedTrack {
+    let (source, source_track_id, access, target) = match &track.source {
+        PlaybackSource::LocalFile { path } => (
+            AudioSourceKind::Local,
+            path.to_string_lossy().into_owned(),
+            PlaybackAccess::DirectStream,
+            PlaybackTarget::Native(track.source.clone()),
+        ),
+        PlaybackSource::RemoteStream { provider_id, provider_track_id } => {
+            let kind = provider_source_kind(provider_id);
+            match provider_id.as_str() {
+                "youtube" => (
+                    kind,
+                    provider_track_id.clone(),
+                    PlaybackAccess::EmbeddedPlayer,
+                    PlaybackTarget::EmbeddedPlayer {
+                        provider_id: "youtube".into(),
+                        content_id: provider_track_id.clone(),
+                    },
+                ),
+                "bandcamp" => (
+                    kind,
+                    provider_track_id.clone(),
+                    PlaybackAccess::EmbeddedPlayer,
+                    PlaybackTarget::EmbeddedPlayer {
+                        provider_id: "bandcamp".into(),
+                        content_id: format!(
+                            "https://bandcamp.com/EmbeddedPlayer/track={provider_track_id}/size=large/bgcol=333333/linkcol=0f91ff/tracklist=false/transparent=true/"
+                        ),
+                    },
+                ),
+                "spotify" => (
+                    kind,
+                    provider_track_id.clone(),
+                    PlaybackAccess::ExternalHandoff,
+                    PlaybackTarget::ExternalHandoff {
+                        url: format!("https://open.spotify.com/track/{provider_track_id}"),
+                    },
+                ),
+                "apple_music" => (
+                    kind,
+                    provider_track_id.clone(),
+                    PlaybackAccess::PreviewOnly,
+                    PlaybackTarget::Native(track.source.clone()),
+                ),
+                _ => (
+                    kind,
+                    provider_track_id.clone(),
+                    PlaybackAccess::DirectStream,
+                    PlaybackTarget::Native(track.source.clone()),
+                ),
+            }
+        }
+        PlaybackSource::Unknown { raw_type } => {
+            if let Some(url) = raw_type.strip_prefix("external-handoff:") {
+                (
+                    AudioSourceKind::Spotify,
+                    track.id.to_string(),
+                    PlaybackAccess::ExternalHandoff,
+                    PlaybackTarget::ExternalHandoff { url: url.to_owned() },
+                )
+            } else {
+                (
+                    AudioSourceKind::Other,
+                    track.id.to_string(),
+                    PlaybackAccess::Unavailable,
+                    PlaybackTarget::Unavailable,
+                )
+            }
+        }
+    };
+
+    UnifiedTrack {
+        id: track.id,
+        source,
+        source_track_id,
+        title: track.title.clone(),
+        artists: track.artist.split(", ").map(str::to_owned).filter(|artist| !artist.is_empty()).collect(),
+        album: track.album.clone(),
+        artwork_url: None,
+        duration_secs: track.duration_secs,
+        isrc: None,
+        access,
+        target,
+    }
 }
 
 pub struct LibraryDatabase {
@@ -203,6 +305,18 @@ impl LibraryDatabase {
                 "#,
             )?;
             tx.execute("INSERT INTO schema_migrations (version) VALUES (3)", [])?;
+        }
+
+        if current_version < 4 {
+            let has_unified_json: i32 = tx.query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('tracks') WHERE name='unified_json'",
+                [],
+                |row| row.get(0),
+            )?;
+            if has_unified_json == 0 {
+                tx.execute("ALTER TABLE tracks ADD COLUMN unified_json TEXT", [])?;
+            }
+            tx.execute("INSERT INTO schema_migrations (version) VALUES (4)", [])?;
         }
 
         tx.commit()?;
@@ -409,6 +523,66 @@ impl LibraryDatabase {
             });
         }
         Ok(tracks)
+    }
+
+    /// Persist a normalized track while keeping the legacy columns readable
+    /// for existing library versions and playlist foreign keys.
+    pub fn upsert_unified_track(&self, track: &UnifiedTrack) -> Result<(), LibraryError> {
+        let source = match &track.target {
+            PlaybackTarget::Native(source) => source.clone(),
+            PlaybackTarget::EmbeddedPlayer { provider_id, .. } => PlaybackSource::RemoteStream {
+                provider_id: provider_id.clone(),
+                provider_track_id: track.source_track_id.clone(),
+            },
+            PlaybackTarget::ExternalHandoff { url } => PlaybackSource::Unknown {
+                raw_type: format!("external-handoff:{url}"),
+            },
+            PlaybackTarget::Unavailable => PlaybackSource::Unknown {
+                raw_type: "unavailable".into(),
+            },
+        };
+        let legacy = Track {
+            id: track.id,
+            title: track.title.clone(),
+            artist: track.artists.join(", "),
+            album: track.album.clone(),
+            duration_secs: track.duration_secs,
+            source,
+        };
+        self.upsert_track(&legacy)?;
+        let encoded = serde_json::to_string(track)
+            .map_err(|error| LibraryError::Validation(format!("Could not serialize normalized track: {error}")))?;
+        self.conn.execute(
+            "UPDATE tracks SET unified_json = ?1 WHERE id = ?2",
+            params![encoded, track.id.to_string()],
+        )?;
+        Ok(())
+    }
+
+    /// Read canonical UnifiedTrack records for the desktop queue.
+    /// Older rows are upgraded in memory without losing their stored data.
+    pub fn get_all_unified_tracks(&self) -> Result<Vec<UnifiedTrack>, LibraryError> {
+        let legacy_tracks = self.get_all_tracks()?;
+        let mut normalized = Vec::with_capacity(legacy_tracks.len());
+        for legacy in legacy_tracks {
+            let encoded: Option<String> = self.conn.query_row(
+                "SELECT unified_json FROM tracks WHERE id = ?1",
+                [legacy.id.to_string()],
+                |row| row.get(0),
+            ).optional()?.flatten();
+
+            let track = match encoded {
+                Some(json) => serde_json::from_str::<UnifiedTrack>(&json)
+                    .unwrap_or_else(|_| normalize_legacy_track(&legacy)),
+                None => normalize_legacy_track(&legacy),
+            };
+            normalized.push(track);
+        }
+        Ok(normalized)
+    }
+
+    pub fn get_unified_track(&self, id: Uuid) -> Result<Option<UnifiedTrack>, LibraryError> {
+        Ok(self.get_all_unified_tracks()?.into_iter().find(|track| track.id == id))
     }
 
     pub fn create_playlist(&self, name: &str, description: Option<&str>) -> Result<Uuid, LibraryError> {
@@ -634,7 +808,7 @@ mod migration_tests {
             [],
             |row| row.get(0),
         ).expect("migration version should be readable");
-        assert_eq!(version, 3, "fresh database should reach schema version 3");
+        assert_eq!(version, 4, "fresh database should reach schema version 4");
 
         let index_count: i64 = db.conn.query_row(
             "SELECT COUNT(*) FROM sqlite_master
