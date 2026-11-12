@@ -83,6 +83,80 @@ fn download_audius_track(track_id: &str) -> Result<tempfile::NamedTempFile, Stri
     Ok(temp)
 }
 
+
+fn is_jamendo_stream_url(value: &str) -> bool {
+    let Ok(url) = reqwest::Url::parse(value) else { return false; };
+    let Some(host) = url.host_str() else { return false; };
+    url.scheme() == "https"
+        && (host == "storage.jamendo.com" || host.ends_with(".storage.jamendo.com"))
+        && url.username().is_empty()
+        && url.password().is_none()
+        && url.port_or_known_default() == Some(443)
+}
+
+fn download_jamendo_track(track_id: &str) -> Result<tempfile::NamedTempFile, String> {
+    const MAX_STREAM_BYTES: u64 = 256 * 1024 * 1024;
+    if track_id.is_empty() || !track_id.chars().all(|ch| ch.is_ascii_digit()) {
+        return Err("Jamendo returned an invalid track identifier".into());
+    }
+    let client_id = std::env::var("RAPTOR_JAMENDO_CLIENT_ID")
+        .map_err(|_| "Jamendo streaming is not configured · set RAPTOR_JAMENDO_CLIENT_ID".to_string())?;
+    let client_id = client_id.trim();
+    if client_id.is_empty() {
+        return Err("Jamendo client ID is empty".into());
+    }
+
+    let client = reqwest::blocking::Client::builder()
+        .user_agent("RaptorMusic/0.2.18")
+        .connect_timeout(Duration::from_secs(10))
+        .timeout(Duration::from_secs(90))
+        .redirect(reqwest::redirect::Policy::limited(5))
+        .build()
+        .map_err(|error| format!("Could not initialize Jamendo playback: {error}"))?;
+    let response = client.get("https://api.jamendo.com/v3.0/tracks/file/")
+        .query(&[
+            ("client_id", client_id),
+            ("id", track_id),
+            ("action", "stream"),
+            ("audioformat", "mp32"),
+        ])
+        .send()
+        .and_then(|response| response.error_for_status())
+        .map_err(|error| format!("Jamendo could not provide this stream: {error}"))?;
+
+    if !is_jamendo_stream_url(response.url().as_str()) {
+        return Err("Jamendo redirected playback to an unsupported host".into());
+    }
+    if response.content_length().is_some_and(|length| length > MAX_STREAM_BYTES) {
+        return Err("This track is larger than Raptor Music's 256 MiB stream limit".into());
+    }
+
+    let cache_root = std::env::var_os("XDG_CACHE_HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".cache")))
+        .unwrap_or_else(std::env::temp_dir);
+    let stream_dir = cache_root.join("raptor-music").join("streams");
+    let temp_dir = if std::fs::create_dir_all(&stream_dir).is_ok() {
+        stream_dir
+    } else {
+        std::env::temp_dir()
+    };
+    let mut temp = tempfile::Builder::new()
+        .prefix("jamendo-stream-")
+        .suffix(".mp3")
+        .tempfile_in(temp_dir)
+        .map_err(|error| format!("Could not create the Jamendo stream buffer: {error}"))?;
+    let mut limited = response.take(MAX_STREAM_BYTES + 1);
+    let copied = std::io::copy(&mut limited, &mut temp)
+        .map_err(|error| format!("Jamendo stream download failed: {error}"))?;
+    if copied == 0 || copied > MAX_STREAM_BYTES {
+        return Err("Jamendo returned an empty or oversized audio stream".into());
+    }
+    temp.flush()
+        .map_err(|error| format!("Could not finish buffering the Jamendo track: {error}"))?;
+    Ok(temp)
+}
+
 fn is_apple_preview_url(value: &str) -> bool {
     let Ok(url) = reqwest::Url::parse(value) else { return false; };
     url.scheme() == "https"
@@ -315,6 +389,30 @@ impl AudioPlayer {
                             .as_ref()
                             .map(|file| file.path().to_path_buf())
                             .ok_or_else(|| "Online audio buffer was not created".to_string())
+                    }
+                    PlaybackSource::RemoteStream { provider_id, provider_track_id }
+                        if provider_id == "jamendo" =>
+                    {
+                        if remote_audio_file.is_none() {
+                            match download_jamendo_track(provider_track_id) {
+                                Ok(file) => remote_audio_file = Some(file),
+                                Err(error) => {
+                                    *state.lock().unwrap() = PlayerState::Error;
+                                    let _ = event_tx.send(PlayerEvent::PlaybackFailed {
+                                        session_token,
+                                        error_message: error,
+                                    });
+                                    let _ = event_tx.send(PlayerEvent::SessionTerminated { session_token });
+                                    active_session_token = None;
+                                    remote_audio_file = None;
+                                    break 'play_session;
+                                }
+                            }
+                        }
+                        remote_audio_file
+                            .as_ref()
+                            .map(|file| file.path().to_path_buf())
+                            .ok_or_else(|| "Jamendo stream buffer was not created".to_string())
                     }
                     PlaybackSource::RemoteStream { provider_id, provider_track_id }
                         if provider_id == "apple_music_preview" =>
@@ -930,6 +1028,22 @@ impl AudioPlayer {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod jamendo_stream_url_tests {
+    use super::is_jamendo_stream_url;
+
+    #[test]
+    fn accepts_only_https_jamendo_storage_hosts() {
+        assert!(is_jamendo_stream_url("https://prod-1.storage.jamendo.com/track.mp3"));
+        assert!(is_jamendo_stream_url("https://storage.jamendo.com/track.mp3"));
+        assert!(!is_jamendo_stream_url("http://prod-1.storage.jamendo.com/track.mp3"));
+        assert!(!is_jamendo_stream_url("https://storage.jamendo.com.evil.example/track.mp3"));
+        assert!(!is_jamendo_stream_url("https://example.com/track.mp3"));
+        assert!(!is_jamendo_stream_url("https://user@prod-1.storage.jamendo.com/track.mp3"));
+        assert!(!is_jamendo_stream_url("https://prod-1.storage.jamendo.com:8443/track.mp3"));
     }
 }
 

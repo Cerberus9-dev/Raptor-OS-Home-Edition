@@ -316,7 +316,8 @@ fn parse_spotify_playlists(value: &serde_json::Value) -> Result<Vec<ProviderPlay
             name: name.into(),
             description: item.get("description").and_then(|v| v.as_str()).filter(|v| !v.is_empty()).map(str::to_owned),
             image_url: first_image_url(&item["images"]),
-            item_count: item.pointer("/tracks/total").and_then(|v| v.as_u64()),
+            item_count: item.pointer("/items/total").and_then(|v| v.as_u64())
+                .or_else(|| item.pointer("/tracks/total").and_then(|v| v.as_u64())),
         })
     }).collect())
 }
@@ -358,21 +359,41 @@ pub struct ProviderPlaylistTrack {
 fn parse_spotify_playlist_tracks(value: &serde_json::Value) -> Result<Vec<ProviderPlaylistTrack>, String> {
     let items = value.get("items").and_then(|v| v.as_array())
         .ok_or_else(|| "Spotify playlist-track response did not include an items list".to_string())?;
-    Ok(items.iter().filter_map(|item| {
-        let track = item.get("track")?;
-        let id = track.get("id")?.as_str()?;
-        let title = track.get("name")?.as_str()?;
-        let artists = track.get("artists").and_then(|v| v.as_array())
+
+    // Keep one local placeholder for every playlist row. Spotify can return null
+    // entries for removed/unavailable tracks, and local files may not have a
+    // Spotify catalogue ID. Dropping those rows would silently corrupt imports.
+    Ok(items.iter().enumerate().map(|(index, item)| {
+        let track = item.get("item")
+            .filter(|value| !value.is_null())
+            .or_else(|| item.get("track").filter(|value| !value.is_null()));
+        let is_local = item.get("is_local").and_then(|value| value.as_bool()).unwrap_or(false);
+        let id = track.and_then(|value| value.get("id")).and_then(|value| value.as_str())
+            .filter(|value| !value.trim().is_empty())
+            .map(str::to_owned)
+            .unwrap_or_else(|| format!("spotify-unavailable-row-{index}"));
+        let title = track.and_then(|value| value.get("name")).and_then(|value| value.as_str())
+            .map(str::to_owned)
+            .unwrap_or_else(|| if is_local {
+                "Local Spotify file (metadata unavailable)".into()
+            } else {
+                "Unavailable or removed Spotify item".into()
+            });
+        let artists = track.and_then(|value| value.get("artists")).and_then(|v| v.as_array())
             .map(|values| values.iter().filter_map(|artist| artist.get("name").and_then(|v| v.as_str())).collect::<Vec<_>>().join(", "))
             .filter(|value| !value.is_empty()).unwrap_or_else(|| "Unknown artist".into());
-        let album = track.pointer("/album/name").and_then(|v| v.as_str()).map(str::to_owned);
-        let artwork_url = track.get("album").and_then(|v| first_image_url(&v["images"]));
-        let external_url = track.pointer("/external_urls/spotify").and_then(|v| v.as_str()).map(str::to_owned);
-        let duration_secs = track.get("duration_ms").and_then(|v| v.as_u64()).map(|ms| ms / 1000);
-        Some(ProviderPlaylistTrack {
-            provider: "spotify".into(), id: id.into(), title: title.into(),
+        let album = track.and_then(|value| value.pointer("/album/name"))
+            .and_then(|v| v.as_str()).map(str::to_owned);
+        let artwork_url = track.and_then(|value| value.get("album"))
+            .and_then(|album| first_image_url(&album["images"]));
+        let external_url = track.and_then(|value| value.pointer("/external_urls/spotify"))
+            .and_then(|v| v.as_str()).map(str::to_owned);
+        let duration_secs = track.and_then(|value| value.get("duration_ms"))
+            .and_then(|v| v.as_u64()).map(|ms| ms / 1000);
+        ProviderPlaylistTrack {
+            provider: "spotify".into(), id, title,
             artist: artists, album, duration_secs, artwork_url, external_url,
-        })
+        }
     }).collect())
 }
 
@@ -771,19 +792,30 @@ pub fn fetch_provider_playlist_tracks(
                 {
                     let mut segments = url.path_segments_mut()
                         .map_err(|_| "Could not construct Spotify playlist URL".to_string())?;
-                    segments.pop_if_empty().push("playlists").push(playlist_id).push("tracks");
+                    segments.pop_if_empty().push("playlists").push(playlist_id).push("items");
                 }
-                url.query_pairs_mut().append_pair("limit", "100")
-                    .append_pair("offset", &(page * 100).to_string());
+                url.query_pairs_mut().append_pair("limit", "50")
+                    .append_pair("offset", &(page * 50).to_string());
                 let value = get_provider_json(url.as_str(), access_token)?;
-                let batch = parse_spotify_playlist_tracks(&value)?;
+                let mut batch = parse_spotify_playlist_tracks(&value)?;
                 let count = batch.len();
+                // Fallback row IDs must remain unique across pages; the local
+                // index alone repeats from zero on every request.
+                for (index, track) in batch.iter_mut().enumerate() {
+                    if track.id.starts_with("spotify-unavailable-row-") {
+                        track.id = format!("spotify-unavailable-row-{}", page * 50 + index);
+                    }
+                }
+                let has_next = value.get("next").and_then(|v| v.as_str()).is_some();
                 tracks.extend(batch);
-                if value.get("next").and_then(|v| v.as_str()).is_none() || count == 0 {
+                if !has_next {
                     return Ok(tracks);
                 }
+                if count == 0 {
+                    return Err("Spotify reported another playlist page but returned no rows; import stopped rather than marking the playlist complete.".into());
+                }
             }
-            Err("Spotify playlist import reached the 20,000-track safety limit.".into())
+            Err("Spotify playlist import reached the 10,000-track safety limit.".into())
         }
         OAuthProvider::YoutubeData => {
             let mut tracks = Vec::new();
@@ -885,7 +917,7 @@ mod tests {
             "items": [{
                 "id": "mix-1", "name": "My Mix", "description": "Saved songs",
                 "images": [{"url": "https://example.test/cover.jpg"}],
-                "tracks": {"total": 42}
+                "items": {"total": 42}
             }]
         })).unwrap();
         assert_eq!(playlists.len(), 1);
@@ -1065,7 +1097,7 @@ mod tests {
             "next": null
         });
         let row = &history["items"][0];
-        let wrapped = serde_json::json!({"items": [{"track": row["track"]}]});
+        let wrapped = serde_json::json!({"items": [{"item": row["track"]}]});
         let track = parse_spotify_playlist_tracks(&wrapped).unwrap().remove(0);
         assert_eq!(track.title, "Recent Song");
         assert_eq!(row["played_at"], "2026-11-01T12:00:00Z");
@@ -1075,7 +1107,7 @@ mod tests {
     fn spotify_playlist_track_metadata_is_normalized_without_stream_urls() {
         let tracks = parse_spotify_playlist_tracks(&serde_json::json!({
             "items": [{
-                "track": {
+                "item": {
                     "id": "track-1", "name": "Underground Song",
                     "artists": [{"name": "Small Artist"}, {"name": "Guest"}],
                     "album": {"name": "Independent EP", "images": [{"url": "https://example.test/cover.jpg"}]},
@@ -1089,6 +1121,22 @@ mod tests {
         assert_eq!(tracks[0].duration_secs, Some(187));
         assert_eq!(tracks[0].provider, "spotify");
         assert_eq!(tracks[0].external_url.as_deref(), Some("https://open.spotify.com/track/track-1"));
+    }
+
+    #[test]
+    fn spotify_playlist_import_preserves_unavailable_and_local_rows() {
+        let tracks = parse_spotify_playlist_tracks(&serde_json::json!({
+            "items": [
+                {"item": null, "is_local": false},
+                {"item": {"id": null, "name": "Local recording", "artists": [{"name": "Local Artist"}]}, "is_local": true}
+            ]
+        })).unwrap();
+        assert_eq!(tracks.len(), 2);
+        assert_eq!(tracks[0].title, "Unavailable or removed Spotify item");
+        assert_eq!(tracks[0].id, "spotify-unavailable-row-0");
+        assert_eq!(tracks[1].title, "Local recording");
+        assert_eq!(tracks[1].artist, "Local Artist");
+        assert_eq!(tracks[1].id, "spotify-unavailable-row-1");
     }
 
     #[test]

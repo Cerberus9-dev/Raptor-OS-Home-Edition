@@ -144,29 +144,31 @@ fn start_provider_connection(
                     let followed_artist_count = imported.followed_artists.len();
                     let listening_event_count = imported.listening_history.len();
                     let mut imported_track_count = 0usize;
-                    let mut skipped_playlists = 0usize;
-                    let mut track_budget = 50_000usize;
+                    let mut skipped_playlists = Vec::new();
+                    let mut truncated_playlist_rows = 0usize;
+                    // Keep a high global safety ceiling, but always disclose when
+                    // it prevents a complete import instead of silently truncating.
+                    let mut track_budget = 100_000usize;
                     for playlist in provider_playlists {
                         let mut imported_tracks = Vec::new();
-                        if track_budget > 0 {
-                            match provider_auth::fetch_provider_playlist_tracks(
-                                provider, &tokens.access_token, &playlist.id
-                            ) {
-                                Ok(tracks) => {
-                                    let keep = tracks.len().min(track_budget);
-                                    imported_track_count += keep;
-                                    track_budget -= keep;
-                                    imported_tracks = tracks.into_iter().take(keep).map(|track| {
-                                        profile_import::ImportedTrack {
-                                            source_id: Some(track.id),
-                                            title: track.title,
-                                            artist: track.artist,
-                                            album: track.album,
-                                        }
-                                    }).collect();
-                                }
-                                Err(_) => skipped_playlists += 1,
+                        match provider_auth::fetch_provider_playlist_tracks(
+                            provider, &tokens.access_token, &playlist.id
+                        ) {
+                            Ok(tracks) => {
+                                let keep = tracks.len().min(track_budget);
+                                truncated_playlist_rows += tracks.len().saturating_sub(keep);
+                                imported_track_count += keep;
+                                track_budget -= keep;
+                                imported_tracks = tracks.into_iter().take(keep).map(|track| {
+                                    profile_import::ImportedTrack {
+                                        source_id: Some(track.id),
+                                        title: track.title,
+                                        artist: track.artist,
+                                        album: track.album,
+                                    }
+                                }).collect();
                             }
+                            Err(error) => skipped_playlists.push(format!("{} ({error})", playlist.name)),
                         }
                         imported.playlists.push(profile_import::ImportedPlaylist {
                             source_id: Some(playlist.id),
@@ -207,9 +209,19 @@ fn start_provider_connection(
                     } else {
                         format!(" Optional data: {}.", provider_warnings.join(" · "))
                     };
+                    let playlist_warnings = if skipped_playlists.is_empty() {
+                        String::new()
+                    } else {
+                        format!(" Could not read {} playlist(s): {}.", skipped_playlists.len(), skipped_playlists.join("; "))
+                    };
+                    let truncation_warning = if truncated_playlist_rows == 0 {
+                        String::new()
+                    } else {
+                        format!(" IMPORT INCOMPLETE: {truncated_playlist_rows} playlist rows exceeded the 100,000-entry safety ceiling.")
+                    };
                     Ok(format!(
-                        "Imported {provider_name} profile {} · {playlist_count} playlists · {imported_track_count} playlist entries · {saved_track_count} saved tracks · {followed_artist_count} followed artists · {listening_event_count} listening events. {} playlist(s) could not be fully read. This imports metadata only; it does not grant streaming access.{}",
-                        provider_profile.display_name, skipped_playlists, optional_warning_summary
+                        "Imported {provider_name} profile {} · {playlist_count} playlists · {imported_track_count} playlist entries · {saved_track_count} saved tracks · {followed_artist_count} followed artists · {listening_event_count} listening events.{}{} This imports metadata only; it does not grant streaming access.{}",
+                        provider_profile.display_name, playlist_warnings, truncation_warning, optional_warning_summary
                     ))
                 }
             }
@@ -846,7 +858,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 status.push_str(" · Apple Music search unavailable");
             }
             if jamendo_count > 0 {
-                status.push_str(&format!(" · {jamendo_count} Jamendo links"));
+                status.push_str(&format!(" · {jamendo_count} Jamendo tracks"));
             } else if jamendo_error && std::env::var("RAPTOR_JAMENDO_CLIENT_ID").is_err() {
                 status.push_str(" · Jamendo not configured");
             } else if jamendo_error {
@@ -1470,16 +1482,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         };
 
-        if let PlaybackSource::RemoteStream { provider_id, provider_track_id } = &target_source {
-            if provider_id == "jamendo_external" {
-                match open_jamendo_track(provider_track_id) {
-                    Ok(()) => ui.set_player_state_label("Opening this track on Jamendo · playback stays on the artist's licensed page".into()),
-                    Err(error) => ui.set_player_state_label(error.into()),
-                }
-                return;
-            }
-        }
-
         let session_token = Uuid::new_v4();
         *session_token_for_play.lock().unwrap() = Some(session_token);
         *active_entry_for_play.lock().unwrap() = Some(target_queue_entry_id);
@@ -2036,7 +2038,7 @@ fn parse_jamendo_tracks(payload: &serde_json::Value) -> Result<Vec<Track>, Strin
     let rows = payload.get("results").and_then(serde_json::Value::as_array)
         .ok_or_else(|| "Jamendo returned an unexpected search response".to_string())?;
     let mut tracks = Vec::new();
-    for row in rows.iter().take(25) {
+    for row in rows.iter().take(200) {
         let Some(provider_track_id) = row.get("id").and_then(serde_json::Value::as_str) else { continue; };
         if provider_track_id.is_empty() || !provider_track_id.chars().all(|ch| ch.is_ascii_digit()) { continue; }
         let Some(title) = row.get("name").and_then(serde_json::Value::as_str).filter(|value| !value.trim().is_empty()) else { continue; };
@@ -2045,10 +2047,21 @@ fn parse_jamendo_tracks(payload: &serde_json::Value) -> Result<Vec<Track>, Strin
         let Ok(license_url) = reqwest::Url::parse(license) else { continue; };
         if license_url.host_str() != Some("creativecommons.org") { continue; }
         let duration_secs = row.get("duration").and_then(serde_json::Value::as_u64);
+        let license_name = license_url.path().trim_matches('/')
+            .split('/')
+            .filter(|part| !part.is_empty() && *part != "licenses")
+            .map(|part| part.to_ascii_uppercase())
+            .collect::<Vec<_>>()
+            .join(" ");
+        let license_label = if license_name.is_empty() {
+            "Creative Commons".to_string()
+        } else {
+            format!("CC {license_name}")
+        };
         let album = row.get("album_name").and_then(serde_json::Value::as_str)
             .filter(|value| !value.trim().is_empty())
-            .map(|value| format!("{value} · Jamendo · CC"))
-            .or_else(|| Some("Jamendo · Creative Commons".into()));
+            .map(|value| format!("{value} · Jamendo · {license_label}"))
+            .or_else(|| Some(format!("Jamendo · {license_label}")));
         let stable_id = Uuid::new_v5(
             &Uuid::NAMESPACE_URL,
             format!("raptor-music:jamendo:{provider_track_id}").as_bytes(),
@@ -2060,7 +2073,7 @@ fn parse_jamendo_tracks(payload: &serde_json::Value) -> Result<Vec<Track>, Strin
             album,
             duration_secs,
             source: PlaybackSource::RemoteStream {
-                provider_id: "jamendo_external".into(),
+                provider_id: "jamendo".into(),
                 provider_track_id: provider_track_id.to_string(),
             },
         });
@@ -2078,34 +2091,40 @@ fn search_jamendo_tracks(query: &str) -> Result<Vec<Track>, String> {
     let client = reqwest::blocking::Client::builder()
         .user_agent("RaptorMusic/0.2.18")
         .connect_timeout(Duration::from_secs(8))
-        .timeout(Duration::from_secs(15))
+        .timeout(Duration::from_secs(20))
         .build()
         .map_err(|error| format!("Could not initialize Jamendo search: {error}"))?;
-    let response = client.get("https://api.jamendo.com/v3.0/tracks/")
-        .query(&[
-            ("client_id", client_id),
-            ("format", "json"),
-            ("limit", "50"),
-            ("search", query.trim()),
-            ("include", "licenses"),
-            ("type", "single albumtrack"),
-        ])
-        .send()
-        .and_then(|response| response.error_for_status())
-        .map_err(|error| format!("Jamendo catalog search failed: {error}"))?;
-    let payload: serde_json::Value = response.json()
-        .map_err(|error| format!("Jamendo returned unreadable search results: {error}"))?;
-    parse_jamendo_tracks(&payload)
-}
-
-fn open_jamendo_track(track_id: &str) -> Result<(), String> {
-    if track_id.is_empty() || !track_id.chars().all(|ch| ch.is_ascii_digit()) {
-        return Err("Jamendo returned an invalid track identifier".into());
+    let mut tracks = Vec::new();
+    let mut seen_ids = HashSet::new();
+    for page in 0..4 {
+        let offset = (page * 200).to_string();
+        let response = client.get("https://api.jamendo.com/v3.0/tracks/")
+            .query(&[
+                ("client_id", client_id),
+                ("format", "json"),
+                ("limit", "200"),
+                ("offset", offset.as_str()),
+                ("search", query.trim()),
+                ("include", "licenses"),
+                ("type", "single albumtrack"),
+            ])
+            .send()
+            .and_then(|response| response.error_for_status())
+            .map_err(|error| format!("Jamendo catalog search failed: {error}"))?;
+        let payload: serde_json::Value = response.json()
+            .map_err(|error| format!("Jamendo returned unreadable search results: {error}"))?;
+        let page_size = payload.get("results").and_then(serde_json::Value::as_array)
+            .map(Vec::len).unwrap_or(0);
+        for track in parse_jamendo_tracks(&payload)? {
+            if seen_ids.insert(track.id) {
+                tracks.push(track);
+            }
+        }
+        if page_size < 200 {
+            break;
+        }
     }
-    let url = format!("https://www.jamendo.com/track/{track_id}");
-    std::process::Command::new("gio").arg("open").arg(url).spawn()
-        .map_err(|_| "Could not open this track on Jamendo in the system browser".to_string())?;
-    Ok(())
+    Ok(tracks)
 }
 
 fn search_apple_music_tracks(query: &str) -> Result<Vec<Track>, String> {
@@ -2121,7 +2140,7 @@ fn search_apple_music_tracks(query: &str) -> Result<Vec<Track>, String> {
     if storefront.len() != 2 || !storefront.chars().all(|ch| ch.is_ascii_lowercase()) {
         return Err("Apple Music storefront must be a two-letter country code".to_string());
     }
-    let pages = apple_music_catalog_search_pages(&storefront, developer_token, query.trim(), "songs", 4)?;
+    let pages = apple_music_catalog_search_pages(&storefront, developer_token, query.trim(), "songs", 8)?;
     let mut tracks = Vec::new();
     let mut seen = HashSet::new();
     for payload in pages {
@@ -2483,7 +2502,7 @@ fn search_apple_music_collections(query: &str) -> Result<Vec<AudiusCollection>, 
     if storefront.len() != 2 || !storefront.chars().all(|ch| ch.is_ascii_lowercase()) {
         return Err("Apple Music storefront must be a two-letter country code".into());
     }
-    let pages = apple_music_catalog_search_pages(&storefront, developer_token.trim(), query.trim(), "albums,playlists", 4)?;
+    let pages = apple_music_catalog_search_pages(&storefront, developer_token.trim(), query.trim(), "albums,playlists", 8)?;
     let mut collections = Vec::new();
     let mut seen = HashSet::new();
     for payload in pages {
@@ -2783,7 +2802,7 @@ fn apple_music_artist_discography(artist: &AudiusArtist) -> Result<Vec<AudiusCol
     let endpoint = format!("https://api.music.apple.com/v1/catalog/{storefront}/artists/{}/albums", artist.id);
     let mut next_url = Some(endpoint.clone());
     let mut albums = Vec::new();
-    for _page in 0..4 {
+    for _page in 0..8 {
         let Some(url) = next_url.take() else { break; };
         let response = client.get(&url).bearer_auth(developer_token.trim())
             .query(if url == endpoint { &[("limit", "25")][..] } else { &[][..] })
@@ -3238,11 +3257,11 @@ fn search_audius_tracks(query: &str, sort_method: &str) -> Result<Vec<Track>, St
         .build()
         .map_err(|error| format!("Could not initialize online search: {error}"))?;
 
-    // Fetch three bounded pages so broad searches expose more than the first
-    // popularity/relevance slice, without creating an unbounded catalog crawl.
+    // Fetch six bounded pages so broad searches cover more of the catalog
+    // without creating an unbounded background crawl.
     let mut tracks = Vec::new();
     let mut seen_ids = HashSet::new();
-    for page in 0..3 {
+    for page in 0..6 {
         let offset = (page * 50).to_string();
         let response = client
             .get("https://api.audius.co/v1/tracks/search")
@@ -3514,7 +3533,7 @@ mod jamendo_search_tests {
     use super::*;
 
     #[test]
-    fn parses_licensed_jamendo_results_as_external_links() {
+    fn parses_licensed_jamendo_results_as_streamable_tracks() {
         let payload = serde_json::json!({
             "results": [{
                 "id": "1848357",
@@ -3541,9 +3560,23 @@ mod jamendo_search_tests {
         assert_eq!(tracks[0].duration_secs, Some(272));
         assert!(tracks[0].album.as_deref().unwrap().contains("Jamendo"));
         assert_eq!(tracks[0].source, PlaybackSource::RemoteStream {
-            provider_id: "jamendo_external".into(),
+            provider_id: "jamendo".into(),
             provider_track_id: "1848357".into(),
         });
+    }
+
+
+    #[test]
+    fn keeps_up_to_two_hundred_licensed_jamendo_results() {
+        let rows = (0..220).map(|index| serde_json::json!({
+            "id": format!("{index}"),
+            "name": format!("Track {index}"),
+            "artist_name": "Independent Artist",
+            "license_ccurl": "https://creativecommons.org/licenses/by/4.0/"
+        })).collect::<Vec<_>>();
+        let payload = serde_json::json!({"results": rows});
+        let tracks = parse_jamendo_tracks(&payload).expect("valid Jamendo response");
+        assert_eq!(tracks.len(), 200);
     }
 
     #[test]

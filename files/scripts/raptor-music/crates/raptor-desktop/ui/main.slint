@@ -450,7 +450,7 @@ export component MainWindow inherits Window {
                             Button { text: "Disconnect"; clicked => { root.disconnect_apple_music_clicked(); } }
                         }
                         Text {
-                            text: "Spotify sign-in uses user-approved OAuth scopes for account and library metadata import. Spotify tracks remain provider references; this does not stream Spotify audio inside the combined player.";
+                            text: "Spotify connects through user-approved OAuth. Raptor's wrapper routes playback through Spotify's supported player or handoff path; OAuth metadata access alone does not provide audio streams. The embedded playback surface is still under development.";
                             color: #879487; font-size: 11px; wrap: word-wrap;
                         }
                         HorizontalLayout {
@@ -459,16 +459,16 @@ export component MainWindow inherits Window {
                             Button { text: "Disconnect"; clicked => { root.disconnect_spotify_clicked(); } }
                         }
                         Text {
-                            text: "Fallback catalogs: Audius is integrated for in-app search and playback. Jamendo search is available with RAPTOR_JAMENDO_CLIENT_ID; selecting a result opens its licensed Jamendo page. These are the built-in alternatives when a provider cannot be combined in-app.";
+                            text: "Optional catalogues: Audius and Jamendo remain available as independent discovery sources, not core wrapper dependencies. Jamendo playback is limited to tracks it authorizes under the displayed license. Apple Music playback depends on the user's MusicKit authorization.";
                             color: #879487; font-size: 11px; wrap: word-wrap;
                         }
                         HorizontalLayout {
                             spacing: 8px;
                             Button { text: "Open Audius"; clicked => { root.open_external_service_clicked("audius"); } }
-                            Button { text: "Open Jamendo"; clicked => { root.open_external_service_clicked("jamendo"); } }
+                            Button { text: "Open Jamendo (optional)"; clicked => { root.open_external_service_clicked("jamendo"); } }
                         }
                         Text {
-                            text: "TIDAL content cannot be mixed into Raptor Music's combined catalog under the current developer guidelines. Use the official TIDAL service separately unless express written approval covers a deeper integration.";
+                            text: "TIDAL remains an official-service handoff unless a supported integration agreement permits more. Raptor does not extract or proxy subscription audio.";
                             color: #879487; font-size: 11px; wrap: word-wrap;
                         }
                         HorizontalLayout {
