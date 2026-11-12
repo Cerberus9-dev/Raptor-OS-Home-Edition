@@ -105,3 +105,25 @@ impl AudioSource for YouTubeAdapter {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn youtube_search_record_is_an_embedded_target_not_a_direct_stream() {
+        let track = YouTubeAdapter::parse_video(&serde_json::json!({
+            "id": {"videoId": "youtube-video-id"},
+            "snippet": {
+                "title": "Night Drive",
+                "channelTitle": "Independent Artist",
+                "thumbnails": {"high": {"url": "https://images.example.test/video.jpg"}}
+            }
+        })).expect("valid YouTube video");
+
+        assert_eq!(track.source, AudioSourceKind::YouTube);
+        assert_eq!(track.source_track_id, "youtube-video-id");
+        assert_eq!(track.access, PlaybackAccess::EmbeddedPlayer);
+        assert!(matches!(track.target, PlaybackTarget::EmbeddedPlayer { .. }));
+    }
+}
