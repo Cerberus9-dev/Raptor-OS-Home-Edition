@@ -565,7 +565,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             ui.set_imported_profile_detail("Confirm removal: click Remove selected profile once more to permanently delete this imported profile.".into());
             return;
         }
-        match db_for_profile_delete.lock().unwrap().delete_imported_profile(profile_id) {
+        let delete_result = {
+            db_for_profile_delete.lock().unwrap().delete_imported_profile(profile_id)
+        };
+        match delete_result {
             Ok(()) => {
                 *selected = None;
                 for extension in ["jpg", "png"] {
