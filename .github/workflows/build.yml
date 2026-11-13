@@ -67,7 +67,7 @@ jobs:
     name: Build & Push Image
     runs-on: ubuntu-latest
     concurrency:
-      group: \( {{ github.workflow }}- \){{ github.ref }}
+      group: ${{ github.workflow }}-${{ github.ref }}
       cancel-in-progress: ${{ github.event_name == 'push' || github.event_name == 'pull_request' }}
     permissions:
       contents: read
@@ -111,7 +111,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: files/scripts/raptor-music/target
-          key: raptor-music-target-\( {{ runner.os }}- \){{ hashFiles('files/scripts/raptor-music/Cargo.toml', 'files/scripts/raptor-music/crates/**/Cargo.toml') }}
+          key: raptor-music-target-${{ runner.os }}-${{ hashFiles('files/scripts/raptor-music/Cargo.toml', 'files/scripts/raptor-music/crates/**/Cargo.toml') }}
           restore-keys: raptor-music-target-${{ runner.os }}-
 
       - name: Build Raptor Music
@@ -296,7 +296,7 @@ jobs:
             exit 1
           fi
           IMAGE_VERSION_SUFFIX="${IMAGE_VERSION##*-}"
-          if [[ ! "\( IMAGE_VERSION_SUFFIX" =\~ ^[0-9]+ \) ]]; then
+          if [[ ! "$IMAGE_VERSION_SUFFIX" =~ ^[0-9]+$ ]]; then
             echo "::error::Unexpected BlueBuild image-version suffix: $IMAGE_VERSION"
             exit 1
           fi
