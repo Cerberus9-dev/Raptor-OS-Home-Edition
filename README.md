@@ -4,6 +4,30 @@
 
 Raptor OS is a Bazzite-based Linux distribution with KDE Plasma. It uses an atomic system image and includes tools for updates, hardware controls, local music, and task management.
 
+### Application architecture & language policy
+
+Raptor OS is an atomic image. Applications are included in the image at build time rather than installed through a traditional package manager at runtime.
+
+#### Language ownership
+
+- **OS image construction and system glue** → Bash + BlueBuild / rpm-ostree
+- **Simple desktop utilities** → Python (GTK4 / libadwaita)
+- **Core or performance-sensitive applications** → Rust
+- **Third-party applications and engines** → Preserve upstream projects, integrate them cleanly, and provide proper attribution.
+
+#### Naming conventions
+
+- User-facing name: `Raptor <Name>`
+- Binary: `raptor-<name>`
+- Desktop file: `raptor-<name>.desktop`
+- Install script: `files/scripts/<name>/install.sh`
+
+#### Raptor Shroudly
+
+Raptor Shroudly is currently a native Raptor desktop dashboard. It is inspired by the original Shroudly project, which is credited separately. The native dashboard does not implement network routing or proxy/tunnel operation. Its implementation and current capabilities are documented separately from any upstream project.
+
+This distinction keeps component ownership, implementation status, and third-party attribution clear.
+
 > **Before installing:** Back up important files. Test Raptor OS in a virtual machine or on a separate drive first. Allow at least 50 GB for a dual-boot installation. The OCI image build and fresh-install ISO build are separate; use only an ISO and checksum published on the official release page.
 
 ## Project goals
