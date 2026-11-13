@@ -1,287 +1,181 @@
 name: Build Raptor OS
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - "recipes/**"
-      - "files/**"
-      - ".github/scripts/**"
-      - ".github/workflows/build.yml"
-      - "changelog.md"
+push:
+branches:
+- main
+paths:
+- "recipes/"
+- "files/"
+- ".github/scripts/**"
+- ".github/workflows/build.yml"
+- "changelog.md"
 
-  pull_request:
-    branches:
-      - main
-    paths:
-      - "recipes/**"
-      - "files/**"
-      - ".github/scripts/**"
-      - ".github/workflows/build.yml"
+pull_request:
+branches:
+- main
+paths:
+- "recipes/"
+- "files/"
+- ".github/scripts/**"
+- ".github/workflows/build.yml"
 
-  schedule:
-    - cron: "0 4 * * 0"
+schedule:
+- cron: "0 4 * * 0"
 
-  workflow_dispatch:
+workflow_dispatch:
 
 jobs:
-  check-latest-push:
-    name: Check whether this push is still current
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    outputs:
-      should_build: ${{ steps.latest.outputs.should_build }}
-    steps:
-      - name: Compare event SHA with current branch head
-        id: latest
-        env:
-          GH_TOKEN: ${{ github.token }}
-          EVENT_NAME: ${{ github.event_name }}
-          REPOSITORY: ${{ github.repository }}
-          REF_NAME: ${{ github.ref_name }}
-          PUSH_SHA: ${{ github.sha }}
-        run: |
-          if [[ "$EVENT_NAME" != "push" ]]; then
-            echo "should_build=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
+check-latest-push:
+name: Check whether this push is still current
+runs-on: ubuntu-latest
+permissions:
+contents: read
+outputs:
+should_build: {{ github.token }}
+EVENT_NAME: {{ github.repository }}
+REF_NAME: {{ github.sha }}
+run: |
+if [[ "GITHUB_OUTPUT"
+exit 0
+fi
 
-          if ! latest_sha="$(gh api "repos/$REPOSITORY/commits/$REF_NAME" --jq .sha)"; then
-            echo "::warning::Could not verify the live branch head; allowing this build rather than dropping a push."
-            echo "should_build=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
+if ! latest_sha="REPOSITORY/commits/GITHUB_OUTPUT"
+exit 0
+fi
 
-          if [[ "$latest_sha" == "$PUSH_SHA" ]]; then
-            echo "should_build=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::notice::Skipping superseded push $PUSH_SHA; current branch head is $latest_sha."
-            echo "should_build=false" >> "$GITHUB_OUTPUT"
-          fi
+if [[ "PUSH_SHA" ]]; then
+echo "should_build=true" >> "PUSH_SHA; current branch head is GITHUB_OUTPUT"
+fi
 
-  build:
-    needs: check-latest-push
-    if: ${{ needs.check-latest-push.outputs.should_build == 'true' }}
-    name: Build & Push Image
-    runs-on: ubuntu-latest
-    concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}
-      cancel-in-progress: ${{ github.event_name == 'push' || github.event_name == 'pull_request' }}
-    permissions:
-      contents: read
-      packages: write
-      id-token: write
+build:
+needs: check-latest-push
+if: {{ github.workflow }}-{{ github.event_name == 'push' || github.event_name == 'pull_request' }}
+permissions:
+contents: read
+packages: write
+id-token: write
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          submodules: recursive
+steps:
+- name: Checkout
+uses: actions/checkout@v4
+with:
+ref: $`{{ github.event.pull_request.head.sha || github.sha }}
+submodules: recursive
 
-      - name: Lint all GitHub Actions workflows
-        run: docker run --rm -v "$PWD:/repo" --workdir /repo rhysd/actionlint:1.7.12 -color
+- name: Lint all GitHub Actions workflows
+run: docker run --rm -v "`$PWD:/repo" --workdir /repo rhysd/actionlint:1.7.12 -color
 
-      - name: Validate scripts
-        run: |
-          chmod +x .github/scripts/validate.sh
-          .github/scripts/validate.sh
+- name: Validate scripts
+run: |
+chmod +x .github/scripts/validate.sh
+.github/scripts/validate.sh
 
-      - name: Check signing secret
-        if: github.event_name != 'pull_request'
-        env:
-          SIGNING_SECRET: ${{ secrets.SIGNING_SECRET }}
-        run: |
-          if [ -z "$SIGNING_SECRET" ]; then
-            echo "::error title=Missing secret::SIGNING_SECRET is not set (Settings > Secrets and variables > Actions). The image cannot be signed, so users' updates will be rejected."
-            exit 1
-          fi
+- name: Check signing secret
+if: github.event_name != 'pull_request'
+env:
+SIGNING_SECRET: SIGNING_SECRET" ]; then
+echo "::error title=Missing secret::SIGNING_SECRET is not set (Settings > Secrets and variables > Actions). The image cannot be signed, so users' updates will be rejected."
+exit 1
+fi
 
-      - name: Free disk space
-        run: |
-          set -euo pipefail
-          timeout 90s sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost || {
-            echo "::warning::Optional SDK cleanup timed out; continuing with the runner's remaining free space."
-          }
-          df -h
+- name: Free disk space
+run: |
+set -euo pipefail
+timeout 90s sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost || {
+echo "::warning::Optional SDK cleanup timed out; continuing with the runner's remaining free space."
+}
+df -h
 
-      - name: Cache Raptor Music workspace
-        uses: actions/cache@v4
-        with:
-          path: files/scripts/raptor-music/target
-          key: raptor-music-target-${{ runner.os }}-${{ hashFiles('files/scripts/raptor-music/Cargo.toml', 'files/scripts/raptor-music/crates/**/Cargo.toml') }}
-          restore-keys: raptor-music-target-${{ runner.os }}-
+- name: Cache Raptor Music workspace
+uses: actions/cache@v4
+with:
+path: files/scripts/raptor-music/target
+key: raptor-music-target-{{ hashFiles('files/scripts/raptor-music/Cargo.toml', 'files/scripts/raptor-music/crates/**/Cargo.toml') }}
+restore-keys: raptor-music-target-$`{{ runner.os }}-
 
-      - name: Build Raptor Music
-        run: |
-          set -euo pipefail
-          sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
-          install_attempt=1
-          until sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y cargo rustc gcc; do
-            if [[ "$install_attempt" -ge 3 ]]; then
-              echo "::error::Failed to install Rust toolchain after 3 attempts."
-              exit 1
-            fi
-            delay=$((install_attempt * 10))
-            echo "::warning::Rust installation failed; retrying in ${delay}s (attempt $((install_attempt + 1))/3)."
-            sleep "$delay"
-            install_attempt=$((install_attempt + 1))
-          done
-          
-          # Ensure target directory exists
-          mkdir -p files/scripts/raptor-music/target/release
-          
-          # Build the music app
-          cd files/scripts/raptor-music
-          cargo build --release
-          cd ../..
-          
-          # Move binary to staging
-          mkdir -p files/staging
-          cp files/scripts/raptor-music/target/release/raptor-music files/staging/
-          chmod +x files/staging/raptor-music
-          echo "Raptor Music built successfully."
+- name: Build Raptor Music
+run: |
+set -euo pipefail
+sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
+install_attempt=1
+until sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y cargo rustc; do
+if [[ "$install_attempt" -ge 3 ]]; then echo "::error::Failed to install Rust toolchain after 3 attempts." exit 1 fi delay=$((install_attempt * 10))
+echo "::warning::Rust installation failed; retrying in ${delay}s (attempt $((install_attempt + 1))/3)."
+sleep "$delay" install_attempt=$((install_attempt + 1))
+done
+cd files/scripts/raptor-music
+cargo build --release
+cp target/release/raptor-music ../../staging/
+mkdir -p ../../staging/raptor-shroudly-app/resources
+cp ../raptor-shroudly/icon.png ../../staging/raptor-shroudly-icon.png
+cp ../raptor-shroudly/license ../../staging/raptor-shroudly-license
+cp ../raptor-shroudly/policy ../../staging/raptor-shroudly-policy
+cp ../raptor-shroudly/notice ../../staging/raptor-shroudly-notice
+cd ../..
+tar -czf staging/raptor-shroudly-app.tar.gz staging/raptor-shroudly-app/
 
-      - name: Verify and include Raptor app payloads in the image context
-        run: |
-          set -euo pipefail
-          test -x files/staging/raptor-music
-          test -x files/staging/raptor-shroudly
-          test -s files/staging/raptor-shroudly-app.tar.gz
-          test -s files/staging/raptor-shroudly-app/resources/app.asar
-          test -s files/staging/raptor-shroudly-icon.png
-          test -s files/staging/raptor-shroudly-license
-          test -s files/staging/raptor-shroudly-policy
-          test -s files/staging/raptor-shroudly-notice
+- name: Verify and include Raptor app payloads in the image context
+run: |
+set -euo pipefail
+test -x files/staging/raptor-music
+test -x files/staging/raptor-shroudly
+test -s files/staging/raptor-shroudly-app.tar.gz
+test -s files/staging/raptor-shroudly-app/resources/app.asar
+test -s files/staging/raptor-shroudly-icon.png
+test -s files/staging/raptor-shroudly-license
+test -s files/staging/raptor-shroudly-policy
+test -s files/staging/raptor-shroudly-notice
 
-          git add -f -- files/staging
-          git ls-files --error-unmatch \
-            files/staging/raptor-music \
-            files/staging/raptor-shroudly \
-            files/staging/raptor-shroudly-app.tar.gz \
-            files/staging/raptor-shroudly-app/resources/app.asar \
-            files/staging/raptor-shroudly-icon.png \
-            files/staging/raptor-shroudly-license \
-            files/staging/raptor-shroudly-policy \
-            files/staging/raptor-shroudly-notice >/dev/null
-          echo "Verified both custom Raptor app binaries and added them to the BlueBuild context."
+git add -f -- files/staging
+git ls-files --error-unmatch 
+ files/staging/raptor-music 
+ files/staging/raptor-shroudly 
+ files/staging/raptor-shroudly-app.tar.gz 
+ files/staging/raptor-shroudly-app/resources/app.asar 
+ files/staging/raptor-shroudly-icon.png 
+ files/staging/raptor-shroudly-license 
+ files/staging/raptor-shroudly-policy 
+ files/staging/raptor-shroudly-notice >/dev/null
+echo "Verified both custom Raptor app binaries and added them to the BlueBuild context."
 
-          git -c user.name="github-actions[bot]" \
-              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
-              commit --no-verify -m "ci: include Raptor app payloads in image context"
+git -c user.name="github-actions[bot]" 
+ -c user.email="41898282+github-actions[bot]@users.noreply.github.com" 
+ commit --no-verify -m "ci: include Raptor app payloads in image context"
 
-      - name: Build and push image
-        uses: blue-build/github-action@v1
-        with:
-          recipe: recipe.yml
-          registry_token: ${{ secrets.GITHUB_TOKEN }}
-          pr_event_number: ${{ github.event.number }}
-          cosign_private_key: ${{ secrets.SIGNING_SECRET }}
-          skip_checkout: true
+- name: Build and push image
+uses: blue-build/github-action@v1
+with:
+recipe: recipe.yml
+registry_token: ${{ secrets.GITHUB_TOKEN }} pr_event_number: ${{ github.event.number }}
+cosign_private_key: `${{ secrets.SIGNING_SECRET }}
+skip_checkout: true
 
-      - name: Verify both apps inside the published image
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_ACTOR: ${{ github.actor }}
-          REPOSITORY: ${{ github.repository }}
-          EVENT_NAME: ${{ github.event_name }}
-          PR_NUMBER: ${{ github.event.number }}
-          REF_NAME: ${{ github.ref_name }}
-        run: |
-          set -euo pipefail
-          IMAGE_VERSION="$(sed -nE 's/^image-version:[[:space:]]*([^[:space:]#]+).*/\1/p' recipes/recipe.yml | head -n1)"
-          if [[ -z "$IMAGE_VERSION" ]]; then
-            echo "::error::Could not read image-version from recipes/recipe.yml"
-            exit 1
-          fi
-          IMAGE_VERSION_SUFFIX="${IMAGE_VERSION##*-}"
-          if [[ ! "$IMAGE_VERSION_SUFFIX" =~ ^[0-9]+ ]]; then
-            echo "::error::Unexpected BlueBuild image-version suffix: $IMAGE_VERSION"
-            exit 1
-          fi
-          if [[ "$EVENT_NAME" == "pull_request" ]]; then
-            IMAGE_TAG="pr-$PR_NUMBER-$IMAGE_VERSION_SUFFIX"
-          else
-            IMAGE_TAG="${GITHUB_SHA:0:7}-$IMAGE_VERSION_SUFFIX"
-          fi
-          echo "Verifying BlueBuild image tag: $IMAGE_TAG"
-          IMAGE_REF="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/raptor-os:$IMAGE_TAG"
-          echo "$GH_TOKEN" | docker login ghcr.io -u "$GH_ACTOR" --password-stdin
-          pull_attempt=1
-          until docker pull "$IMAGE_REF"; do
-            if [[ "$pull_attempt" -ge 4 ]]; then
-              echo "::error::Unable to pull the published image for verification after 4 attempts."
-              exit 1
-            fi
-            delay=$((pull_attempt * 15))
-            echo "::warning::Image verification pull failed; retrying in ${delay}s (attempt $((pull_attempt + 1))/4)."
-            sleep "$delay"
-            pull_attempt=$((pull_attempt + 1))
-          done
-          docker run --rm --entrypoint /bin/bash "$IMAGE_REF" -lc '
-            set -euo pipefail
-            check_file() {
-              local mode="$1" path="$2"
-              if [[ "$mode" == "x" ]]; then
-                [[ -x "$path" ]] || { echo "MISSING_EXECUTABLE: $path" >&2; exit 1; }
-              else
-                [[ -s "$path" ]] || { echo "MISSING_FILE: $path" >&2; exit 1; }
-              fi
-              echo "VERIFIED: $path"
-            }
-            
-            check_file x /usr/bin/raptor-music
-            check_file x /usr/bin/raptor-shroudly
-            check_file s /etc/raptor-shroudly/license
-            check_file s /etc/raptor-shroudly/policy
-            check_file s /etc/raptor-shroudly/notice
-            
-            echo "Published image contains both custom Raptor app payloads."
-          '
+- name: Verify both apps inside the published image
+env:
+GH_TOKEN: {{ github.actor }}
+REPOSITORY: {{ github.event_name }}
+PR_NUMBER: {{ github.ref_name }}
+run: |
+set -euo pipefail
+IMAGE_VERSION="latex
+(sed -nE 's/^image-version:[[:space:]]*([^[:space:]#]+).*/\1/p' recipes/recipe.yml | head -n1)" if [[ -z "
 
-  diagnose:
-    name: Explain build failure
-    needs: build
-    if: ${{ always() && contains(needs.*.result, 'failure') }}
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-    steps:
-      - name: Fetch and display failed job logs
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          RUN_ID: ${{ github.run_id }}
-        run: |
-          set -euo pipefail
-          
-          # Get all job IDs for this run that failed
-          job_ids=$(gh api "repos/$REPO/actions/runs/$RUN_ID/jobs" --jq '.jobs[] | select(.conclusion == "failure") | .id' || true)
-          
-          if [ -z "$job_ids" ]; then
-            echo "::warning::No failed jobs found to diagnose."
-            exit 0
-          fi
+IMAGE_VERSION" ]]; then
+echo "::error::Could not read image-version from recipes/recipe.yml"
+exit 1
+fi
+IMAGE_VERSION_SUFFIX="latex
+{IMAGE_VERSION##*-}" if [[ ! "
 
-          for id in $job_ids; do
-            echo "=== Logs for Failed Job ID: $id ==="
-            
-            # Retry fetching logs up to 5 times
-            for attempt in {1..5}; do
-              log_url="https://api.github.com/repos/$REPO/actions/jobs/$id/logs"
-              
-              # Use curl to get the raw log content
-              if log_content=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$log_url" 2>/dev/null); then
-                echo "$log_content"
-                break
-              else
-                echo "::warning::Attempt $attempt/5 failed to fetch logs for job $id"
-                sleep 10
-              fi
-            done
-            
-            echo "--- End of logs for job $id ---"
-            echo ""
-          done
+IMAGE_VERSION_SUFFIX" =~ ^[0-9]+ ]]; then
+echo "::error::Unexpected BlueBuild image-version suffix: EVENT_NAME" == "pull_request" ]]; then
+IMAGE_TAG="pr-IMAGE_VERSION_SUFFIX"
+else
+IMAGE_TAG="IMAGE_VERSION_SUFFIX"
+fi
+echo "Verifying BlueBuild image tag: {GITHUB_REPOSITORY_OWNER,,}/raptor-os:GH_TOKEN" | docker login ghcr.io -u "IMAGE_REF"; do
+if [[ "$pull_attempt" -ge 4 ]]; then
+echo "::error::Unable to pull the published image for verification after 4 attempts."
+exit 1
+fi
