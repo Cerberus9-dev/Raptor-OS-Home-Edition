@@ -1,4 +1,185 @@
-- name: Build original Shroudly desktop app
+name: Build Raptor OS
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "recipes/**"
+      - "files/**"
+      - ".github/scripts/**"
+      - ".github/workflows/build.yml"
+      - "changelog.md"
+
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "recipes/**"
+      - "files/**"
+      - ".github/scripts/**"
+      - ".github/workflows/build.yml"
+
+  schedule:
+    - cron: "0 4 * * 0"
+
+  workflow_dispatch:
+
+jobs:
+  # Push webhook deliveries can arrive out of order. Check the live branch head
+  # before entering the build concurrency group, so a delayed older event cannot
+  # cancel a build for a newer commit.
+  check-latest-push:
+    name: Check whether this push is still current
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      should_build: ${{ steps.latest.outputs.should_build }}
+    steps:
+      - name: Compare event SHA with current branch head
+        id: latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          REPOSITORY: ${{ github.repository }}
+          REF_NAME: ${{ github.ref_name }}
+          PUSH_SHA: ${{ github.sha }}
+        run: |
+          if [[ "$EVENT_NAME" != "push" ]]; then
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if ! latest_sha="$(gh api "repos/$REPOSITORY/commits/$REF_NAME" --jq .sha)"; then
+            echo "::warning::Could not verify the live branch head; allowing this build rather than dropping a push."
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$latest_sha" == "$PUSH_SHA" ]]; then
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Skipping superseded push $PUSH_SHA; current branch head is $latest_sha."
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: check-latest-push
+    if: ${{ needs.check-latest-push.outputs.should_build == 'true' }}
+    name: Build & Push Image
+    runs-on: ubuntu-latest
+    concurrency:
+      group: \( {{ github.workflow }}- \){{ github.ref }}
+      cancel-in-progress: ${{ github.event_name == 'push' || github.event_name == 'pull_request' }}
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Pull-request validation must test the proposed head, not silently
+          # fall back to the base branch. Push and dispatch events use github.sha.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+
+      # Fail fast on repository syntax/contracts before expensive upstream app builds.
+      - name: Lint all GitHub Actions workflows
+        run: docker run --rm -v "$PWD:/repo" --workdir /repo rhysd/actionlint:1.7.12 -color
+
+      - name: Validate scripts
+        run: |
+          chmod +x .github/scripts/validate.sh
+          .github/scripts/validate.sh
+
+      - name: Check signing secret
+        if: github.event_name != 'pull_request'
+        env:
+          SIGNING_SECRET: ${{ secrets.SIGNING_SECRET }}
+        run: |
+          if [ -z "$SIGNING_SECRET" ]; then
+            echo "::error title=Missing secret::SIGNING_SECRET is not set (Settings > Secrets and variables > Actions). The image cannot be signed, so users' updates will be rejected."
+            exit 1
+          fi
+
+      - name: Free disk space
+        run: |
+          set -euo pipefail
+          # Keep this cleanup bounded: recursively deleting the full hosted
+          # toolcache can stall before compilation even begins. Remove only
+          # large optional SDK directories, and cap the cleanup time.
+          timeout 90s sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost || {
+            echo "::warning::Optional SDK cleanup timed out; continuing with the runner's remaining free space."
+          }
+          df -h
+
+      - name: Cache Raptor Music workspace
+        uses: actions/cache@v4
+        with:
+          path: files/scripts/raptor-music/target
+          key: raptor-music-target-\( {{ runner.os }}- \){{ hashFiles('files/scripts/raptor-music/Cargo.toml', 'files/scripts/raptor-music/crates/**/Cargo.toml') }}
+          restore-keys: raptor-music-target-${{ runner.os }}-
+
+      - name: Build Raptor Music
+        run: |
+          set -euo pipefail
+
+          # Hosted-runner package mirrors can briefly fail DNS resolution. Use
+          # APT's per-download retries and retry the install as a whole so a
+          # transient mirror outage does not prevent the Rust build from running.
+          sudo apt-get -o Acquire::Retries=5 \
+            -o Acquire::http::Timeout=30 \
+            -o Acquire::https::Timeout=30 update
+
+          install_attempt=1
+          until sudo apt-get -o Acquire::Retries=5 \
+            -o Acquire::http::Timeout=30 \
+            -o Acquire::https::Timeout=30 \
+            install -y --no-install-recommends \
+              pkg-config \
+              libasound2-dev \
+              libfontconfig1-dev \
+              libfreetype6-dev \
+              libxkbcommon-dev \
+              libxkbcommon-x11-dev \
+              libwayland-dev \
+              libxcb1-dev \
+              libxcb-shape0-dev \
+              libxcb-xfixes0-dev \
+              libgl1-mesa-dev \
+              libegl1-mesa-dev \
+              libgles2-mesa-dev \
+              libgtk-3-dev \
+              libwebkit2gtk-4.1-dev \
+              libsoup-3.0-dev \
+              libudev-dev \
+              libdbus-1-dev; do
+            if [[ "$install_attempt" -ge 3 ]]; then
+              echo "::error::Unable to install Raptor Music build dependencies after 3 attempts."
+              exit 1
+            fi
+            echo "::warning::APT dependency installation failed; retrying after a short delay (attempt $((install_attempt + 1))/3)."
+            sleep $((install_attempt * 20))
+            install_attempt=$((install_attempt + 1))
+          done
+
+          cargo build --release --workspace --manifest-path files/scripts/raptor-music/Cargo.toml
+          install -Dm755 files/scripts/raptor-music/target/release/raptor-desktop files/staging/raptor-music
+
+      - name: Test Raptor Music workspace
+        run: cargo test --workspace --manifest-path files/scripts/raptor-music/Cargo.toml
+
+      - name: Set up Node.js for upstream Shroudly
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: files/scripts/shroudly-raptor/upstream/package-lock.json
+
+      - name: Build original Shroudly desktop app
         working-directory: files/scripts/shroudly-raptor/upstream
         env:
           NEXT_TELEMETRY_DISABLED: 1
@@ -31,42 +212,4 @@
           install -d "$STAGE/raptor-shroudly-app"
           cp -a "$APP_DIR/." "$STAGE/raptor-shroudly-app/"
 
-          printf '#!/usr/bin/env bash\nset -euo pipefail\nexec /opt/raptor-shroudly/%s "$@"\n' "$APP_BIN" > "$STAGE/raptor-shroudly"
-          chmod 0755 "$STAGE/raptor-shroudly"
-
-          install -Dm0644 public/icon.png "$STAGE/raptor-shroudly-icon.png"
-          install -Dm0644 LICENSE "$STAGE/raptor-shroudly-license"
-          install -Dm0644 scripts/linux/me.codeshare.shroudly.policy "$STAGE/raptor-shroudly-policy"
-
-          # Explicit credit / NOTICE for Raptor packaging
-          cat > "$STAGE/raptor-shroudly-notice" <<'NOTICE'
-          Raptor Shroudly
-          ---------------
-          This package is the Raptor OS edition of Shroudly.
-
-          Functional core (engine, UI, techniques):
-            Shroudly — https://github.com/umutxyp/Shroudly
-            Copyright (c) Codeshare Technology Ltd
-            Licensed under the MIT License (see LICENSE in this package).
-
-          Raptor OS packaging, branding, desktop integration and future
-          native routing / game-mode work:
-            Cerberus9-dev / Raptor OS
-            https://github.com/Cerberus9-dev/Raptor-OS-Home-Edition
-
-          The original Shroudly project is preserved and credited. Raptor
-          does not claim authorship of the upstream engine or techniques.
-          NOTICE
-
-          # Strict pre-flight checks
-          test -x "$STAGE/raptor-shroudly"
-          test -s "$STAGE/raptor-shroudly-app.tar.gz"
-          test -s "$STAGE/raptor-shroudly-app/resources/app.asar"
-          test -s "$STAGE/raptor-shroudly-icon.png"
-          test -s "$STAGE/raptor-shroudly-license"
-          test -s "$STAGE/raptor-shroudly-policy"
-          test -s "$STAGE/raptor-shroudly-notice"
-
-          ASAR_SIZE=$(stat -c%s "$STAGE/raptor-shroudly-app/resources/app.asar")
-          TAR_SIZE=$(stat -c%s "$STAGE/raptor-shroudly-app.tar.gz")
-          echo "Staged Shroudly payload: asar=\( {ASAR_SIZE} bytes, tar= \){TAR_SIZE} bytes, launcher=$APP_BIN"
+          printf '#!/usr/bin/env bash\nset -euo pipefail\nexec /opt/raptor-shroudly/%s "$@"\n' "$APP_BIN" > "$STAGE/raptor-shroudly
