@@ -154,6 +154,8 @@ jobs:
               libegl1-mesa-dev \
               libgles2-mesa-dev \
               libgtk-3-dev \
+              libwebkit2gtk-4.1-dev \
+              libsoup-3.0-dev \
               libudev-dev \
               libdbus-1-dev; do
             if [[ "$install_attempt" -ge 3 ]]; then
