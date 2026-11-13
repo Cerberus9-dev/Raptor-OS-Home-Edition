@@ -169,7 +169,7 @@ jobs:
           {
             echo '#!/usr/bin/env bash'
             echo 'set -euo pipefail'
-            echo "exec /opt/raptor-shroudly/${APP_BIN} \"\$@\""
+            echo "exec /usr/lib/raptor-shroudly/${APP_BIN} \"\$@\""
           } > "$STAGE/raptor-shroudly"
           chmod 0755 "$STAGE/raptor-shroudly"
 
@@ -322,7 +322,7 @@ jobs:
 
             check_file x /usr/bin/raptor-music
             check_file x /usr/bin/raptor-shroudly
-            check_file s /opt/raptor-shroudly/resources/app.asar
+            check_file s /usr/lib/raptor-shroudly/resources/app.asar
           '
 
           echo "Published image contains both custom Raptor app payloads."
