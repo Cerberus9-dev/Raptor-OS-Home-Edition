@@ -49,4 +49,96 @@ else
 fi
 
 # --- Install application payload ---------------------------------------------
-install -d /opt/raptor-sh
+install -d /opt/raptor-shroudly
+
+case "$PAYLOAD_MODE" in
+    tar)
+        tar -xzf "$STAGED_APP_TAR" -C /opt/raptor-shroudly
+        ;;
+    dir)
+        cp -a "$STAGED_APP_DIR/." /opt/raptor-shroudly/
+        ;;
+esac
+
+# Hard guarantee the Electron payload is present and non-empty
+if [[ ! -s /opt/raptor-shroudly/resources/app.asar ]]; then
+    echo "RAPTOR_SHROUDLY_INSTALL_MISSING:/opt/raptor-shroudly/resources/app.asar (payload mode=$PAYLOAD_MODE)" >&2
+    ls -la /opt/raptor-shroudly/ 2>/dev/null || true
+    ls -la /opt/raptor-shroudly/resources/ 2>/dev/null || true
+    exit 1
+fi
+
+# --- Launcher, icons, license, policy ----------------------------------------
+install -Dm0755 "$STAGED_BIN" /usr/bin/raptor-shroudly
+install -Dm0644 "$STAGED_ICON" /usr/share/pixmaps/shroudly.png
+install -Dm0644 "$STAGED_ICON" /usr/share/icons/hicolor/256x256/apps/raptor-shroudly.png
+install -Dm0644 "$STAGED_LICENSE" /usr/share/licenses/raptor-shroudly/LICENSE
+install -Dm0644 "$STAGED_POLICY" /usr/share/polkit-1/actions/me.codeshare.shroudly.policy
+
+# Optional NOTICE with explicit upstream credit (created in CI)
+if [[ -s "$STAGED_NOTICE" ]]; then
+    install -Dm0644 "$STAGED_NOTICE" /usr/share/doc/raptor-shroudly/NOTICE
+fi
+
+# --- Desktop entry (Raptor branding + native categories) ---------------------
+install -d /usr/share/applications
+cat > /usr/share/applications/raptor-shroudly.desktop <<'DESKTOP'
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Raptor Shroudly
+GenericName=Network privacy & DPI bypass
+Comment=Raptor OS edition of Shroudly — open blocked sites and apps. Built on the original Shroudly engine with Raptor branding and integration.
+Exec=/usr/bin/raptor-shroudly %U
+Icon=raptor-shroudly
+Terminal=false
+Categories=X-RaptorOS;Network;Utility;Security;
+Keywords=shroudly;raptor;privacy;network;proxy;DNS;DPI;censorship;school;wifi;
+StartupNotify=true
+StartupWMClass=shroudly
+X-Raptor-OS-Component=true
+DESKTOP
+
+# Also keep a plain "Shroudly" alias so users who search for the upstream name find it
+cat > /usr/share/applications/shroudly.desktop <<'DESKTOP'
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Shroudly
+GenericName=Network privacy & DPI bypass
+Comment=Open blocked sites and apps (Raptor OS package of upstream Shroudly)
+Exec=/usr/bin/raptor-shroudly %U
+Icon=shroudly
+Terminal=false
+Categories=Network;Utility;
+Keywords=shroudly;privacy;network;proxy;DNS;
+StartupNotify=true
+NoDisplay=false
+DESKTOP
+
+command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database /usr/share/applications 2>/dev/null || true
+command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -f /usr/share/icons/hicolor 2>/dev/null || true
+
+# --- Final integrity checks --------------------------------------------------
+for required in \
+    /usr/bin/raptor-shroudly \
+    /opt/raptor-shroudly/resources/app.asar \
+    /usr/share/pixmaps/shroudly.png \
+    /usr/share/licenses/raptor-shroudly/LICENSE \
+    /usr/share/polkit-1/actions/me.codeshare.shroudly.policy \
+    /usr/share/applications/raptor-shroudly.desktop; do
+    [[ -s "$required" ]] || {
+        echo "RAPTOR_SHROUDLY_INSTALL_MISSING:$required" >&2
+        exit 1
+    }
+done
+
+# Size sanity (app.asar should be many megabytes; catch empty/truncated copies)
+ASAR_SIZE=$(stat -c%s /opt/raptor-shroudly/resources/app.asar 2>/dev/null || echo 0)
+if [[ "$ASAR_SIZE" -lt 1000000 ]]; then
+    echo "RAPTOR_SHROUDLY_ASAR_TOO_SMALL:$ASAR_SIZE bytes (expected >1 MiB)" >&2
+    exit 1
+fi
+
+bash -n /usr/bin/raptor-shroudly
+echo "RAPTOR_SHROUDLY_READY: upstream Shroudly engine+UI, Raptor branding, launcher, license, policy and desktop integration installed (payload=\( PAYLOAD_MODE, asar= \){ASAR_SIZE} bytes)."
