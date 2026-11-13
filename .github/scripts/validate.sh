@@ -414,7 +414,7 @@ assert_contains .github/workflows/build.yml 'Verify both apps inside the publish
 assert_contains .github/workflows/build.yml '/usr/bin/raptor-shroudly'
 assert_contains files/scripts/shroudly-raptor/upstream/app/page.js 'export default function Home()'
 assert_contains files/scripts/shroudly-raptor/upstream/app/globals.css '--bg:            #0b0f17;'
-assert_contains files/scripts/shroudly-raptor/install.sh '/opt/raptor-shroudly'
+assert_contains files/scripts/shroudly-raptor/install.sh '/usr/lib/raptor-shroudly'
 assert_contains files/scripts/shroudly-raptor/install.sh 'Name=Shroudly'
 assert_contains files/scripts/shroudly-raptor/install.sh 'me.codeshare.shroudly.policy'
 assert_contains files/scripts/raptor-cortex/install.sh 'gamemode-desktop-start'
