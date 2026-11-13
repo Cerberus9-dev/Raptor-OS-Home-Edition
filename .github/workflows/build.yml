@@ -117,34 +117,12 @@ jobs:
       - name: Build Raptor Music
         run: |
           set -euo pipefail
-
-          sudo apt-get -o Acquire::Retries=5 \
-            -o Acquire::http::Timeout=30 \
-            -o Acquire::https::Timeout=30 update
-
+          sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
           install_attempt=1
-          until sudo apt-get -o Acquire::Retries=5 \
-            -o Acquire::http::Timeout=30 \
-            -o Acquire::https::Timeout=30 \
-            install -y --no-install-recommends \
-              pkg-config \
-              libasound2-dev \
-              libfontconfig1-dev \
-              libfreetype6-dev \
-              libxkbcommon-dev \
-              libxkbcommon-x11-dev \
-              libwayland-dev \
-              libxcb1-dev \
-              libxcb-shape0-dev \
-              libxcb-xfixes0-dev \
-              libgl1-mesa-dev \
-              libegl1-mesa-dev \
-              libgles2-mesa-dev \
-              libgtk-3-dev \
-              libwebkit2gtk-4.1-dev \
-              libsoup-3.0-dev \
-              libudev-dev \
-              libdbus-1-dev; do
+          until sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends \
+            pkg-config libasound2-dev libfontconfig1-dev libfreetype6-dev libxkbcommon-dev libxkbcommon-x11-dev \
+            libwayland-dev libxcb1-dev libxcb-shape0-dev libxcb-xfixes0-dev libgl1-mesa-dev libegl1-mesa-dev \
+            libgles2-mesa-dev libgtk-3-dev libwebkit2gtk-4.1-dev libsoup-3.0-dev libudev-dev libdbus-1-dev; do
             if [[ "$install_attempt" -ge 3 ]]; then
               echo "::error::Unable to install Raptor Music build dependencies after 3 attempts."
               exit 1
@@ -153,7 +131,6 @@ jobs:
             sleep $((install_attempt * 20))
             install_attempt=$((install_attempt + 1))
           done
-
           cargo build --release --workspace --manifest-path files/scripts/raptor-music/Cargo.toml
           install -Dm755 files/scripts/raptor-music/target/release/raptor-desktop files/staging/raptor-music
 
@@ -213,7 +190,7 @@ jobs:
             echo "This package is the Raptor OS edition of Shroudly."
             echo ""
             echo "Functional core (engine, UI, techniques):"
-            echo "  Shroudly — https://github.com/umutxyp/Shroudly"
+            echo "  Shroudly - https://github.com/umutxyp/Shroudly"
             echo "  Copyright (c) Codeshare Technology Ltd"
             echo "  Licensed under the MIT License (see LICENSE in this package)."
             echo ""
@@ -337,14 +314,6 @@ jobs:
           '
           echo "Published image contains both custom Raptor app payloads."
 
-          echo "=== OCI image size (uncompressed virtual size) ==="
-          docker image inspect --format='{{.Size}}' "$IMAGE_REF" | awk '{printf "Virtual image size: %.2f GiB\n", $1 / 1073741824}'
-          echo "=== Largest image layers ==="
-          docker history --no-trunc --format='{{.Size}} {{.CreatedBy}}' "$IMAGE_REF" | sed -n '1,12p'
-          echo "=== Installed filesystem usage ==="
-          docker run --rm --entrypoint /bin/bash "$IMAGE_REF" -lc \
-            'du -x -B1 -s /usr /opt /var 2>/dev/null | sort -nr | sed -n "1,12p" || true'
-
   diagnose:
     name: Explain build failure
     needs: build
@@ -367,23 +336,9 @@ jobs:
               sleep 10
             done
             if [ "$ok" = 0 ]; then
-              echo "::warning::could not fetch the log for job $id: $(head -c 300 err.txt | tr '\n' ' ')"
+              echo "::warning::could not fetch the log for job $id"
               continue
             fi
-            sed -E 's/^[0-9T:.Z-]+ //; s/\x1b\[[0-9;]*m//g; s/^ *\[[0-9:]+ [^]]*\] => //' job.log | cut -c1-170 > clean.log
-            emit() {
-              local msg
-              msg=$(tail -c 3800 "$2" | sed ':a;N;$!ba;s/%/%25/g;s/\r/%0D/g;s/\n/%0A/g')
-              echo "::error title=$1 (job $id)::$msg"
-            }
-            grep -n -i -E "Failed '|error:|ERROR\]|No match|not found|unable to|cannot |conflict|exit code|denied|no such file|syntax error" clean.log \
-              | grep -v -E "log_error|alias |echo |notice|ubuntu-latest" | tail -n 25 | cut -c1-170 > fails.txt
-            [ -s fails.txt ] && emit "Failure lines" fails.txt
-            n=$(grep -n -m1 -E "Failed '[^']*' Module" clean.log | cut -d: -f1)
-            [ -z "\( n" ] && n= \)(tail -n 1 fails.txt | cut -d: -f1)
-            if [ -n "$n" ]; then
-              start=\( ((n>28 ? n-28 : 1)); end= \)((n+6))
-              sed -n "\( {start}, \){end}p" clean.log > ctx.txt
-              emit "Context before the failure" ctx.txt
-            fi
+            echo "=== Failure log excerpt for job $id ==="
+            tail -n 80 job.log || true
           done
