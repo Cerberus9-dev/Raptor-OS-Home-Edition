@@ -19,7 +19,7 @@ if [[ ! -d "$STAGE_DIR/raptor-shroudly-app" && ! -f "$STAGE_DIR/raptor-shroudly-
 fi
 
 STAGED_BIN="$STAGE_DIR/raptor-shroudly"
-STAGED_APP_DIR="$STAGE_DIR/raptor-shroudly-app"
+STAGED_APP="$STAGE_DIR/raptor-shroudly-app"
 STAGED_APP_TAR="$STAGE_DIR/raptor-shroudly-app.tar.gz"
 STAGED_ICON="$STAGE_DIR/raptor-shroudly-icon.png"
 STAGED_LICENSE="$STAGE_DIR/raptor-shroudly-license"
@@ -41,10 +41,10 @@ done
 # Prefer the single-file tarball (reliable). Fall back to directory tree.
 if [[ -s "$STAGED_APP_TAR" ]]; then
     PAYLOAD_MODE=tar
-elif [[ -d "$STAGED_APP_DIR" && -s "$STAGED_APP_DIR/resources/app.asar" ]]; then
+elif [[ -d "$STAGED_APP" && -s "$STAGED_APP/resources/app.asar" ]]; then
     PAYLOAD_MODE=dir
 else
-    echo "RAPTOR_SHROUDLY_APP_BUNDLE_MISSING: neither $STAGED_APP_TAR nor a valid $STAGED_APP_DIR found" >&2
+    echo "RAPTOR_SHROUDLY_APP_BUNDLE_MISSING: neither $STAGED_APP_TAR nor a valid $STAGED_APP found" >&2
     exit 1
 fi
 
@@ -56,7 +56,7 @@ case "$PAYLOAD_MODE" in
         tar -xzf "$STAGED_APP_TAR" -C /opt/raptor-shroudly
         ;;
     dir)
-        cp -a "$STAGED_APP_DIR/." /opt/raptor-shroudly/
+        cp -a "$STAGED_APP/." /opt/raptor-shroudly/
         ;;
 esac
 
@@ -86,7 +86,7 @@ cat > /usr/share/applications/raptor-shroudly.desktop <<'DESKTOP'
 [Desktop Entry]
 Version=1.0
 Type=Application
-Name=Raptor Shroudly
+Name=Shroudly
 GenericName=Network privacy & DPI bypass
 Comment=Raptor OS edition of Shroudly — open blocked sites and apps. Built on the original Shroudly engine with Raptor branding and integration.
 Exec=/usr/bin/raptor-shroudly %U
@@ -99,22 +99,6 @@ StartupWMClass=shroudly
 X-Raptor-OS-Component=true
 DESKTOP
 
-# Also keep a plain "Shroudly" alias so users who search for the upstream name find it
-cat > /usr/share/applications/shroudly.desktop <<'DESKTOP'
-[Desktop Entry]
-Version=1.0
-Type=Application
-Name=Shroudly
-GenericName=Network privacy & DPI bypass
-Comment=Open blocked sites and apps (Raptor OS package of upstream Shroudly)
-Exec=/usr/bin/raptor-shroudly %U
-Icon=shroudly
-Terminal=false
-Categories=Network;Utility;
-Keywords=shroudly;privacy;network;proxy;DNS;
-StartupNotify=true
-NoDisplay=false
-DESKTOP
 
 command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database /usr/share/applications 2>/dev/null || true
 command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -f /usr/share/icons/hicolor 2>/dev/null || true
@@ -141,4 +125,4 @@ if [[ "$ASAR_SIZE" -lt 1000000 ]]; then
 fi
 
 bash -n /usr/bin/raptor-shroudly
-echo "RAPTOR_SHROUDLY_READY: upstream Shroudly engine+UI, Raptor branding, launcher, license, policy and desktop integration installed (payload=\( PAYLOAD_MODE, asar= \){ASAR_SIZE} bytes)."
+echo "RAPTOR_SHROUDLY_READY: upstream Shroudly engine+UI, Raptor branding, launcher, license, policy and desktop integration installed (payload=$PAYLOAD_MODE, asar=${ASAR_SIZE} bytes)."
