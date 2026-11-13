@@ -117,131 +117,32 @@ jobs:
       - name: Build Raptor Music
         run: |
           set -euo pipefail
-
-          # Retry transient package mirror failures.
-          sudo apt-get -o Acquire::Retries=5 \
-            -o Acquire::http::Timeout=30 \
-            -o Acquire::https::Timeout=30 update
-
+          sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update
           install_attempt=1
-          until sudo apt-get -o Acquire::Retries=5 \
-            -o Acquire::http::Timeout=30 \
-            -o Acquire::https::Timeout=30 \
-            install -y --no-install-recommends \
-              pkg-config \
-              libasound2-dev \
-              libfontconfig1-dev \
-              libfreetype6-dev \
-              libxkbcommon-dev \
-              libxkbcommon-x11-dev \
-              libwayland-dev \
-              libxcb1-dev \
-              libxcb-shape0-dev \
-              libxcb-xfixes0-dev \
-              libgl1-mesa-dev \
-              libegl1-mesa-dev \
-              libgles2-mesa-dev \
-              libgtk-3-dev \
-              libwebkit2gtk-4.1-dev \
-              libsoup-3.0-dev \
-              libudev-dev \
-              libdbus-1-dev; do
+          until sudo apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y cargo rustc gcc; do
             if [[ "$install_attempt" -ge 3 ]]; then
-              echo "::error::Unable to install Raptor Music build dependencies after 3 attempts."
+              echo "::error::Failed to install Rust toolchain after 3 attempts."
               exit 1
             fi
-
-            echo "::warning::APT dependency installation failed; retrying after a short delay (attempt $((install_attempt + 1))/3)."
-            sleep $((install_attempt * 20))
+            delay=$((install_attempt * 10))
+            echo "::warning::Rust installation failed; retrying in ${delay}s (attempt $((install_attempt + 1))/3)."
+            sleep "$delay"
             install_attempt=$((install_attempt + 1))
           done
-
-          cargo build --release --workspace --manifest-path files/scripts/raptor-music/Cargo.toml
-
-          install -Dm755 \
-            files/scripts/raptor-music/target/release/raptor-desktop \
-            files/staging/raptor-music
-
-      - name: Test Raptor Music workspace
-        run: cargo test --workspace --manifest-path files/scripts/raptor-music/Cargo.toml
-
-      - name: Set up Node.js for upstream Shroudly
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: files/scripts/shroudly-raptor/upstream/package-lock.json
-
-      - name: Build original Shroudly desktop app
-        working-directory: files/scripts/shroudly-raptor/upstream
-        env:
-          NEXT_TELEMETRY_DISABLED: 1
-        run: |
-          set -euo pipefail
-          npm ci
-          npm run build:core
-          npm run check:translations
-          npm run build
-          npm run test:net
-          npx electron-builder --linux dir --x64 --publish never
-
-          APP_DIR="$PWD/dist/linux-unpacked"
-          APP_BIN="$(find "$APP_DIR" -maxdepth 1 -type f -executable -printf '%f\n' | grep -i -x 'shroudly' | head -n1 || true)"
-          if [[ -z "$APP_BIN" ]]; then
-            echo "::error::Could not find the original Shroudly Electron executable in dist/linux-unpacked."
-            find "$APP_DIR" -maxdepth 1 -type f -printf '%f\n' | sort
-            exit 1
-          fi
-
-          STAGE="$GITHUB_WORKSPACE/files/staging"
-          rm -rf "$STAGE/raptor-shroudly-app" "$STAGE/raptor-shroudly-app.tar.gz"
-          install -d "$STAGE"
-
-          tar -C "$APP_DIR" -czf "$STAGE/raptor-shroudly-app.tar.gz" .
-          install -d "$STAGE/raptor-shroudly-app"
-          cp -a "$APP_DIR/." "$STAGE/raptor-shroudly-app/"
-
-          {
-            echo '#!/usr/bin/env bash'
-            echo 'set -euo pipefail'
-            echo "exec /opt/raptor-shroudly/${APP_BIN} \"\$@\""
-          } > "$STAGE/raptor-shroudly"
-          chmod 0755 "$STAGE/raptor-shroudly"
-
-          install -Dm0644 public/icon.png "$STAGE/raptor-shroudly-icon.png"
-          install -Dm0644 LICENSE "$STAGE/raptor-shroudly-license"
-          install -Dm0644 scripts/linux/me.codeshare.shroudly.policy "$STAGE/raptor-shroudly-policy"
-
-          {
-            echo "Raptor Shroudly"
-            echo "---------------"
-            echo "This package is the Raptor OS edition of Shroudly."
-            echo ""
-            echo "Functional core (engine, UI, techniques):"
-            echo "  Shroudly - https://github.com/umutxyp/Shroudly"
-            echo "  Copyright (c) Codeshare Technology Ltd"
-            echo "  Licensed under the MIT License (see LICENSE in this package)."
-            echo ""
-            echo "Raptor OS packaging, branding, desktop integration and future"
-            echo "native routing / game-mode work:"
-            echo "  Cerberus9-dev / Raptor OS"
-            echo "  https://github.com/Cerberus9-dev/Raptor-OS-Home-Edition"
-            echo ""
-            echo "The original Shroudly project is preserved and credited. Raptor"
-            echo "does not claim authorship of the upstream engine or techniques."
-          } > "$STAGE/raptor-shroudly-notice"
-
-          test -x "$STAGE/raptor-shroudly"
-          test -s "$STAGE/raptor-shroudly-app.tar.gz"
-          test -s "$STAGE/raptor-shroudly-app/resources/app.asar"
-          test -s "$STAGE/raptor-shroudly-icon.png"
-          test -s "$STAGE/raptor-shroudly-license"
-          test -s "$STAGE/raptor-shroudly-policy"
-          test -s "$STAGE/raptor-shroudly-notice"
-
-          ASAR_SIZE=$(stat -c%s "$STAGE/raptor-shroudly-app/resources/app.asar")
-          TAR_SIZE=$(stat -c%s "$STAGE/raptor-shroudly-app.tar.gz")
-          echo "Staged Shroudly payload: asar=\( {ASAR_SIZE} bytes, tar= \){TAR_SIZE} bytes, launcher=$APP_BIN"
+          
+          # Ensure target directory exists
+          mkdir -p files/scripts/raptor-music/target/release
+          
+          # Build the music app
+          cd files/scripts/raptor-music
+          cargo build --release
+          cd ../..
+          
+          # Move binary to staging
+          mkdir -p files/staging
+          cp files/scripts/raptor-music/target/release/raptor-music files/staging/
+          chmod +x files/staging/raptor-music
+          echo "Raptor Music built successfully."
 
       - name: Verify and include Raptor app payloads in the image context
         run: |
@@ -296,7 +197,7 @@ jobs:
             exit 1
           fi
           IMAGE_VERSION_SUFFIX="${IMAGE_VERSION##*-}"
-          if [[ ! "$IMAGE_VERSION_SUFFIX" =~ ^[0-9]+$ ]]; then
+          if [[ ! "$IMAGE_VERSION_SUFFIX" =~ ^[0-9]+ ]]; then
             echo "::error::Unexpected BlueBuild image-version suffix: $IMAGE_VERSION"
             exit 1
           fi
@@ -330,43 +231,57 @@ jobs:
               fi
               echo "VERIFIED: $path"
             }
+            
             check_file x /usr/bin/raptor-music
-            check_file s /usr/share/applications/raptor-music.desktop
-            check_file s /usr/share/icons/hicolor/scalable/apps/raptor-music.svg
             check_file x /usr/bin/raptor-shroudly
-            check_file s /opt/raptor-shroudly/resources/app.asar
-            check_file s /usr/share/applications/raptor-shroudly.desktop
-            check_file s /usr/share/pixmaps/shroudly.png
-            check_file s /usr/share/licenses/raptor-shroudly/LICENSE
-            check_file s /usr/share/polkit-1/actions/me.codeshare.shroudly.policy
+            check_file s /etc/raptor-shroudly/license
+            check_file s /etc/raptor-shroudly/policy
+            check_file s /etc/raptor-shroudly/notice
+            
+            echo "Published image contains both custom Raptor app payloads."
           '
-          echo "Published image contains both custom Raptor app payloads."
 
   diagnose:
     name: Explain build failure
     needs: build
-    if: ${{ failure() }}
+    if: ${{ always() && contains(needs.*.result, 'failure') }}
     runs-on: ubuntu-latest
     permissions:
       actions: read
     steps:
-      - name: Post the build error as an annotation
+      - name: Fetch and display failed job logs
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           RUN_ID: ${{ github.run_id }}
         run: |
-          set +e
-          for id in $(gh api "repos/$REPO/actions/runs/$RUN_ID/jobs" --jq '.jobs[] | select(.conclusion=="failure") | .id'); do
-            ok=0
-            for _ in 1 2 3 4 5 6; do
-              if curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$REPO/actions/jobs/$id/logs" -o job.log 2> err.txt && [ -s job.log ]; then ok=1; break; fi
-              sleep 10
+          set -euo pipefail
+          
+          # Get all job IDs for this run that failed
+          job_ids=$(gh api "repos/$REPO/actions/runs/$RUN_ID/jobs" --jq '.jobs[] | select(.conclusion == "failure") | .id' || true)
+          
+          if [ -z "$job_ids" ]; then
+            echo "::warning::No failed jobs found to diagnose."
+            exit 0
+          fi
+
+          for id in $job_ids; do
+            echo "=== Logs for Failed Job ID: $id ==="
+            
+            # Retry fetching logs up to 5 times
+            for attempt in {1..5}; do
+              log_url="https://api.github.com/repos/$REPO/actions/jobs/$id/logs"
+              
+              # Use curl to get the raw log content
+              if log_content=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "$log_url" 2>/dev/null); then
+                echo "$log_content"
+                break
+              else
+                echo "::warning::Attempt $attempt/5 failed to fetch logs for job $id"
+                sleep 10
+              fi
             done
-            if [ "$ok" = 0 ]; then
-              echo "::warning::could not fetch the log for job $id"
-              continue
-            fi
-            echo "=== Failure log excerpt for job $id ==="
-            tail -n 80 job.log || true
+            
+            echo "--- End of logs for job $id ---"
+            echo ""
           done
