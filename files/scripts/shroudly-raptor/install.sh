@@ -49,22 +49,22 @@ else
 fi
 
 # --- Install application payload ---------------------------------------------
-install -d /opt/raptor-shroudly
+install -d /usr/lib/raptor-shroudly
 
 case "$PAYLOAD_MODE" in
     tar)
-        tar -xzf "$STAGED_APP_TAR" -C /opt/raptor-shroudly
+        tar -xzf "$STAGED_APP_TAR" -C /usr/lib/raptor-shroudly
         ;;
     dir)
-        cp -a "$STAGED_APP/." /opt/raptor-shroudly/
+        cp -a "$STAGED_APP/." /usr/lib/raptor-shroudly/
         ;;
 esac
 
 # Hard guarantee the Electron payload is present and non-empty
-if [[ ! -s /opt/raptor-shroudly/resources/app.asar ]]; then
-    echo "RAPTOR_SHROUDLY_INSTALL_MISSING:/opt/raptor-shroudly/resources/app.asar (payload mode=$PAYLOAD_MODE)" >&2
-    ls -la /opt/raptor-shroudly/ 2>/dev/null || true
-    ls -la /opt/raptor-shroudly/resources/ 2>/dev/null || true
+if [[ ! -s /usr/lib/raptor-shroudly/resources/app.asar ]]; then
+    echo "RAPTOR_SHROUDLY_INSTALL_MISSING:/usr/lib/raptor-shroudly/resources/app.asar (payload mode=$PAYLOAD_MODE)" >&2
+    ls -la /usr/lib/raptor-shroudly/ 2>/dev/null || true
+    ls -la /usr/lib/raptor-shroudly/resources/ 2>/dev/null || true
     exit 1
 fi
 
@@ -106,7 +106,7 @@ command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -f /us
 # --- Final integrity checks --------------------------------------------------
 for required in \
     /usr/bin/raptor-shroudly \
-    /opt/raptor-shroudly/resources/app.asar \
+    /usr/lib/raptor-shroudly/resources/app.asar \
     /usr/share/pixmaps/shroudly.png \
     /usr/share/licenses/raptor-shroudly/LICENSE \
     /usr/share/polkit-1/actions/me.codeshare.shroudly.policy \
@@ -118,7 +118,7 @@ for required in \
 done
 
 # Size sanity (app.asar should be many megabytes; catch empty/truncated copies)
-ASAR_SIZE=$(stat -c%s /opt/raptor-shroudly/resources/app.asar 2>/dev/null || echo 0)
+ASAR_SIZE=$(stat -c%s /usr/lib/raptor-shroudly/resources/app.asar 2>/dev/null || echo 0)
 if [[ "$ASAR_SIZE" -lt 1000000 ]]; then
     echo "RAPTOR_SHROUDLY_ASAR_TOO_SMALL:$ASAR_SIZE bytes (expected >1 MiB)" >&2
     exit 1
