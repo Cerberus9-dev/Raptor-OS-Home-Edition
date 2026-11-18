@@ -84,6 +84,9 @@ assert_contains files/scripts/raptor-cortex/install.sh '"drkonqi"'
 
 echo "=== Checking memory, audio and browser contracts ==="
 # ZRAM defaults are validated below against the low-CPU LZ4 configuration.
+# systemd-oomd is permanently masked per user request (2026-11-18): it must
+# stay in the recipe's systemd masked list so no rebuild silently re-enables it.
+assert_contains recipes/recipe.yml "- systemd-oomd.service"
 assert_contains files/system_files/99-raptor-wireplumber-alsa.conf "resample.quality                = 10"
 assert_contains files/scripts/raptor-gaming/install.sh "org.mozilla.firefox/.mozilla/firefox"
 assert_contains files/scripts/raptor-gaming/install.sh "flatpak run com.brave.Browser"
