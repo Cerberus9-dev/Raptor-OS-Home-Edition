@@ -208,6 +208,12 @@ modules:
         - power-profiles-daemon.service
         - raptor-gpu-profile.service
         - raptor-bt-name.service
+      masked:
+        # systemd-oomd kills processes under memory pressure. Permanently
+        # disabled per user request (2026-11-18): the kernel OOM killer
+        # remains as the last resort, and ZRAM plus the Raptor memory
+        # tuning in raptor-gaming handle pressure instead.
+        - systemd-oomd.service
     user:
       enabled:
         - raptor-firstboot.service
