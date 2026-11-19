@@ -144,8 +144,18 @@ jobs:
           NEXT_TELEMETRY_DISABLED: 1
         run: |
           set -euo pipefail
+          # Raptor port: apply the Raptor patch (footer credit, Advanced
+          # engine build, game-UDP decoys) to the pristine upstream checkout.
+          # The patch lives in the Raptor repo; upstream itself stays clean.
+          git apply --check "$GITHUB_WORKSPACE/files/scripts/shroudly-raptor/raptor-shroudly.patch"
+          git apply "$GITHUB_WORKSPACE/files/scripts/shroudly-raptor/raptor-shroudly.patch"
+          grep -q 'Ported and updated for compatibility by cerberus' app/page.js
           npm ci
           npm run build:core
+          # Upstream's own dist:all builds both engines; Raptor used to build
+          # only the main one, so Advanced mode was dead (its binary was never
+          # in the image). Build it too.
+          npm run build:core:advanced
           npm run check:translations
           npm run build
           npm run test:net
@@ -218,6 +228,9 @@ jobs:
           test -x "$STAGE/raptor-shroudly"
           test -s "$STAGE/raptor-shroudly-app.tar.gz"
           test -s "$STAGE/raptor-shroudly-app/resources/app.asar"
+          # Advanced engine: without this binary Advanced mode reports
+          # 'not_built' and its packet handling never runs.
+          test -s "$STAGE/raptor-shroudly-app/resources/app.asar.unpacked/electron/tools/core/linux-x64/shroudly-core-adv"
           test -s "$STAGE/raptor-shroudly-icon.png"
           test -s "$STAGE/raptor-shroudly-license"
           test -s "$STAGE/raptor-shroudly-policy"
