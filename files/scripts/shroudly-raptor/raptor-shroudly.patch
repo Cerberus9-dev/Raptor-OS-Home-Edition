@@ -1,0 +1,142 @@
+diff --git a/app/page.js b/app/page.js
+index a7b1429..ba18560 100644
+--- a/app/page.js
++++ b/app/page.js
+@@ -35,6 +35,7 @@ function Footer({ t }) {
+       <a href={CODESHARE_URL} target="_blank" rel="noreferrer" dir="ltr"
+          className="footer-link font-semibold" style={{ color: 'var(--text-dim)' }}>Codeshare</a>
+       {after}
++      <span> · Ported and updated for compatibility by cerberus</span>
+     </footer>
+   );
+ }
+diff --git a/core/src/main.c b/core/src/main.c
+index 38192b5..dcdee96 100644
+--- a/core/src/main.c
++++ b/core/src/main.c
+@@ -162,9 +162,9 @@ static void usage(void) {
+     "  --allow <domain>      never block it, nor a name under it (repeatable)\n"
+     "  --raw-local           tests: search techniques for non-TLS streams on local addresses too\n"
+     "  --advanced            packet-layer backend (needs elevation)\n"
+-    "  --fake-repeats <n>    Advanced: decoy datagrams per Discord voice flow\n"
++    "  --fake-repeats <n>    Advanced: decoy datagrams per voice or game UDP flow\n"
+     "  --no-quic-block       Advanced: keep QUIC (do not force browsers to TCP)\n"
+-    "  --no-udp-fake         Advanced: no decoys for Discord voice UDP\n"
++    "  --no-udp-fake         Advanced: no decoys for voice or game UDP\n"
+     "  --dns-gate <port>     Advanced: answer other programs' DNS from the\n"
+     "                        encrypted-DNS forwarder on 127.0.0.1:<port>\n"
+     "  --tlsrec <0|1>        Advanced: split the ClientHello's TLS record (#48)\n"
+diff --git a/core/src/raw_linux.c b/core/src/raw_linux.c
+index a5d773d..888681c 100644
+--- a/core/src/raw_linux.c
++++ b/core/src/raw_linux.c
+@@ -193,7 +193,16 @@ static void iptables_udp_install(void) {
+   int ok = 1;
+   if (g_quic_block) ok = iptables_udp_rule("-I", UDPR_QUIC) == 0;
+   if (ok && g_udp_fake) ok = iptables_udp_rule("-I", UDPR_DISCOVERY) == 0 && iptables_udp_rule("-I", UDPR_STUN) == 0;
+-  if (ok) { g_udp_match = 1; return; }
++  if (ok) {
++    g_udp_match = 1;
++    /* Raptor: game UDP (Roblox and the like) is not STUN-shaped, so no
++     * payload test matches it and it would never reach the loop. Append the
++     * ports-alone rule after the tested ones, so a datagram no test matches
++     * still gets queued and the loop can send decoys ahead of it. Appended,
++     * not inserted: the tested rules must stay first. */
++    if (g_udp_fake) iptables_udp_rule("-A", UDPR_PORTS);
++    return;
++  }
+   for (int k = UDPR_QUIC; k <= UDPR_STUN; k++) iptables_udp_drain(k);
+   iptables_udp_rule("-I", UDPR_PORTS);
+ }
+@@ -314,7 +323,18 @@ static int install_rule(void) {
+         SHROUDLY_FWMARK, g_queue_num);
+       ok = ok && nft(rule) == 0;
+     }
+-    if (ok) g_udp_match = 1;
++    if (ok) {
++      g_udp_match = 1;
++      /* Raptor: as with iptables above, queue the rest of the UDP on these
++       * ports too (games), after the tested rules, so a datagram no test
++       * matches still reaches the loop. */
++      if (g_udp_fake) {
++        snprintf(rule, sizeof(rule),
++          "add rule ip shroudly out udp dport { %s } meta mark and 0x%x == 0 queue num %d bypass",
++          g_udp_nft, SHROUDLY_FWMARK, g_queue_num);
++        nft(rule);
++      }
++    }
+     else {
+       snprintf(rule, sizeof(rule),
+         "add rule ip shroudly out udp dport { %s } meta mark and 0x%x == 0 queue num %d bypass",
+@@ -722,6 +742,17 @@ static uint32_t judge(const nfq_packet *q) {
+       else if (udp_flow_note(&g_flows, ip->saddr, udp->source, ip->daddr, udp->dest, (uint32_t)now_ms()))
+         send_udp_decoys(ip, udp, plen);
+     }
++    /* (3) Raptor: other UDP on the queued ports (games: Roblox and the like).
++     * No payload test identifies a game flow, so without this the datagram
++     * would be accepted with nothing sent ahead of it, and a censor that
++     * fingerprints the first datagrams of a flow would see the game as it
++     * is. Same treatment as voice: decoys ahead of the first datagrams of
++     * the flow, never toward a local address; the real datagram is always
++     * accepted unchanged. */
++    else if (g_udp_fake && plen > 0 && !local) {
++      if (udp_flow_note(&g_flows, ip->saddr, udp->source, ip->daddr, udp->dest, (uint32_t)now_ms()))
++        send_udp_decoys(ip, udp, plen);
++    }
+     return NF_ACCEPT;
+   }
+ 
+diff --git a/core/src/udpdpi.c b/core/src/udpdpi.c
+index 730763e..8241bca 100644
+--- a/core/src/udpdpi.c
++++ b/core/src/udpdpi.c
+@@ -42,7 +42,7 @@ int udp_is_discord_voice(const uint8_t *p, int len) {
+ }
+ 
+ int discord_voice_port(uint16_t dport_host) {
+-  if (dport_host >= 50000) return 1;            /* 50000-65535 media range */
++  if (dport_host >= 49152) return 1;            /* 49152-65535 media and game range (Raptor: games use the full ephemeral range) */
+   if (dport_host == 3478) return 1;             /* STUN */
+   if (dport_host >= 19302 && dport_host <= 19309) return 1; /* Google STUN */
+   return 0;
+diff --git a/core/src/udpdpi.h b/core/src/udpdpi.h
+index 5c07675..9791f43 100644
+--- a/core/src/udpdpi.h
++++ b/core/src/udpdpi.h
+@@ -39,7 +39,7 @@ int stun_is_binding_request(const uint8_t *p, int len);
+ int udp_is_discord_voice(const uint8_t *p, int len);
+ 
+ /* True if `dport_host` (host byte order) is a port Discord voice / STUN uses:
+- * the media range 50000-65535, or STUN on 3478 or 19302-19309. */
++ * the media range 49152-65535 (Raptor: the full ephemeral range, games included), or STUN on 3478 or 19302-19309. */
+ int discord_voice_port(uint16_t dport_host);
+ 
+ /* ── Kernel pre-filters ────────────────────────────────────────────────────
+@@ -59,8 +59,10 @@ int discord_voice_port(uint16_t dport_host);
+  * payload starts 00 01 00 46; a STUN Binding request starts 00 01 and carries
+  * the magic cookie 21 12 a4 42 at payload offset 4. */
+ #define UDP_DISCOVERY_LEN 74
+-#define UDP_PORTS_IPT     "3478,19302:19309,50000:65535"   /* iptables multiport */
+-#define UDP_PORTS_NFT     "3478, 19302-19309, 50000-65535" /* nft set */
++/* Raptor: the range starts at 49152, not 50000, so the whole ephemeral range
++ * games use (Roblox and the like) is queued, not just Discord's media range. */
++#define UDP_PORTS_IPT     "3478,19302:19309,49152:65535"   /* iptables multiport */
++#define UDP_PORTS_NFT     "3478, 19302-19309, 49152-65535" /* nft set */
+ 
+ /* iptables u32 (payload at IP header length + 8). */
+ #define UDP_U32_QUIC_LONG "0>>22&0x3C@8>>24&0x80=0x80"
+diff --git a/core/test/test_udpdpi.c b/core/test/test_udpdpi.c
+index 5495f5e..789cff2 100644
+--- a/core/test/test_udpdpi.c
++++ b/core/test/test_udpdpi.c
+@@ -133,7 +133,9 @@ static void test_stun(void) {
+ static void test_ports(void) {
+   CHECK(discord_voice_port(50000) == 1);
+   CHECK(discord_voice_port(65535) == 1);
+-  CHECK(discord_voice_port(49999) == 0);
++  CHECK(discord_voice_port(49999) == 1);   /* Raptor: the range starts at 49152, games included */
++  CHECK(discord_voice_port(49152) == 1);
++  CHECK(discord_voice_port(49151) == 0);
+   CHECK(discord_voice_port(3478) == 1);
+   CHECK(discord_voice_port(3479) == 0);
+   CHECK(discord_voice_port(19302) == 1);

@@ -107,6 +107,7 @@ command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -f /us
 for required in \
     /usr/bin/raptor-shroudly \
     /usr/lib/raptor-shroudly/resources/app.asar \
+    /usr/lib/raptor-shroudly/resources/app.asar.unpacked/electron/tools/core/linux-x64/shroudly-core-adv \
     /usr/share/pixmaps/shroudly.png \
     /usr/share/licenses/raptor-shroudly/LICENSE \
     /usr/share/polkit-1/actions/me.codeshare.shroudly.policy \
