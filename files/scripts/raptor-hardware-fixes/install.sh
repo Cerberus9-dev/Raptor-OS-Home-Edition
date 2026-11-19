@@ -377,6 +377,11 @@ chmod +x /usr/lib/raptor/leds-sync
 # moves. Re-binding its driver re-runs init. General, not model-specific: it finds
 # whatever libinput classes as a touchpad and re-binds just that I2C/serio device;
 # USB and Bluetooth touchpads are left alone.
+# Keyboard/mouse: the same half-initialised resume failure hits built-in PS/2
+# keyboards (atkbd) and USB HID keyboards/mice — the screen wakes fine but input
+# is dead and Caps Lock can stick flashing. Same fix, same shape: find whatever
+# libinput classes as a keyboard or mouse (touchpads excluded) and re-bind just
+# that serio/i2c/hid/usb device; Bluetooth input is left to bt-recover.
 cat << 'EOF' > /usr/lib/systemd/system-sleep/raptor-resume
 #!/bin/bash
 # Raptor OS: runs with "pre|post <what>" from systemd-sleep.
@@ -444,10 +449,63 @@ rebind_touchpads() {
     done
 }
 
+is_keyboard_or_mouse() {
+    local ev="$1" name props
+    if command -v udevadm >/dev/null 2>&1; then
+        props="$(udevadm info -q property -p "$ev" 2>/dev/null || true)"
+        echo "$props" | grep -q '^ID_INPUT_TOUCHPAD=1' && return 1
+        echo "$props" | grep -qE '^ID_INPUT_(KEYBOARD|MOUSE)=1' && return 0
+    fi
+    name="$(cat "$(readlink -f "$ev")/../name" 2>/dev/null || true)"
+    [[ "$name" =~ [Kk]eyboard|[Mm]ouse ]]
+}
+
+rebind_keyboards_mice() {
+    sleep 0.5   # let the hardware settle after resume
+    declare -A DONE=()
+    for ev in "$SYSFS"/class/input/event*; do
+        [ -e "$ev" ] || continue
+        is_keyboard_or_mouse "$ev" || continue
+        dir="$(readlink -f "$ev")"
+        while [ -n "$dir" ] && [ "$dir" != "/" ] && [ "$dir" != "$SYSFS/devices" ]; do
+            if [ -L "$dir/driver" ] && [ -L "$dir/subsystem" ]; then
+                sub="$(basename "$(readlink -f "$dir/subsystem")")"
+                drv="$(basename "$(readlink -f "$dir/driver")")"
+                dev="$(basename "$dir")"
+                case "$sub" in
+                    serio)
+                        if [ -z "${DONE[$dir]:-}" ]; then
+                            DONE[$dir]=1
+                            if echo reconnect > "$dir/drvctl" 2>/dev/null; then
+                                log "reconnected serio keyboard/mouse $dev after resume"
+                            else
+                                log "could not reconnect serio keyboard/mouse $dev"
+                            fi
+                        fi
+                        break ;;
+                    i2c|hid|usb)
+                        if [ -z "${DONE[$dir]:-}" ]; then
+                            DONE[$dir]=1
+                            if rebind "$sub" "$drv" "$dev"; then
+                                log "re-bound $sub keyboard/mouse $dev ($drv) after resume"
+                            else
+                                log "could not re-bind $sub keyboard/mouse $dev ($drv)"
+                            fi
+                        fi
+                        break ;;
+                    bluetooth) break ;;
+                esac
+            fi
+            dir="$(dirname "$dir")"
+        done
+    done
+}
+
 case "${1:-}" in
     pre)  "$LIB/bt-recover" pre
           "$LIB/wifi-recover" pre ;;
     post) rebind_touchpads
+          rebind_keyboards_mice
           "$LIB/leds-sync"
           systemd-run --no-block --quiet --unit="raptor-wifi-resume-$$" "$LIB/wifi-recover" resume
           systemd-run --no-block --quiet --unit="raptor-bt-resume-$$"   "$LIB/bt-recover" resume ;;
