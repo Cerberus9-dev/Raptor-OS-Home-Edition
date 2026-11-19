@@ -399,6 +399,10 @@ assert_contains files/scripts/raptor-hardware-fixes/install.sh 'alias="Raptor OS
 assert_contains files/scripts/raptor-hardware-fixes/install.sh 'alias+=" (${mac})"'
 assert_not_contains files/scripts/raptor-hardware-fixes/install.sh 'select hci0'
 assert_contains files/scripts/raptor-hardware-fixes/install.sh "Description=Set a friendly Raptor OS Bluetooth adapter name"
+# Resume hook must re-bind keyboards/mice after wake (2026-11-18): screen wakes
+# fine but input dies and Caps Lock sticks flashing — same class as the touchpad
+# rebind, extended to serio/i2c/hid/usb keyboards and mice.
+assert_contains files/scripts/raptor-hardware-fixes/install.sh "rebind_keyboards_mice"
 assert_contains files/system_files/raptor-browser-choice.sh 'Zen Browser'
 assert_contains files/system_files/raptor-browser-choice.sh 'Floorp'
 assert_contains files/system_files/raptor-browser-choice.sh 'Waterfox'
