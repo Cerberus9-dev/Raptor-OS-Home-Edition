@@ -39,7 +39,7 @@ Raptor OS is an atomic image. Applications are baked into the image at build tim
 
 #### Raptor Shroudly specifically
 
-- The **upstream Shroudly Electron application** is the intended functional core (engine + UI), sourced from the pinned submodule and credited. Its packaged Electron payload is not currently passing image verification, so successful inclusion is not claimed until that check passes.
+- **Raptor Shroudly is a ported version of upstream Shroudly**, ported and updated for compatibility by Cerberus. The **upstream Shroudly Electron application** is the functional core (engine + UI), sourced from the pinned submodule and credited; Raptor keeps upstream intact and applies its own changes (the footer credit, the Advanced-engine build, and game-UDP handling) as a patch at build time. Its packaged Electron payload is included in the image and verified by the build.
 - The **Rust/Slint dashboard** (`files/scripts/shroudly-raptor/crates/shroudly-raptor`) is the future native Raptor layer. It does not yet perform network routing; it is intentionally separate from the upstream project.
 
 This separation is deliberate, not accidental duplication.
@@ -228,7 +228,7 @@ The first-boot chooser offers the official Discord client, Vesktop, Equibop, and
 
 ## Raptor Shroudly
 
-Raptor Shroudly is the custom native desktop dashboard included in the image. It detects supported game clients and desktop apps; it does not freeze, kill or modify them. Network routing, proxy/tunnel operation and per-app traffic steering are not implemented, so the app does not claim that traffic protection is active. The project is inspired by the original Shroudly project by **umutxyp / Codeshare Technology Ltd**; the upstream desktop app is not bundled.
+Raptor Shroudly is a ported version of Shroudly, ported and updated for compatibility by Cerberus. The upstream Shroudly desktop app by **umutxyp / Codeshare Technology Ltd** is bundled in the image as the functional core (engine + UI), with the original project credited; Raptor's own changes are applied as a patch at build time, and upstream is not claimed as Raptor's work. It routes supported apps' traffic through the Shroudly engine — Games and apps mode covers Roblox (via Sober) and other Flatpak programs — and Advanced mode adds packet-layer handling for game UDP. The separate Rust/Slint dashboard (`files/scripts/shroudly-raptor/crates/shroudly-raptor`) is a future native layer and is not the shipped app.
 
 ---
 
